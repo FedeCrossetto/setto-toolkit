@@ -20,7 +20,7 @@ const PLUGIN_CONFIG: Record<string, PluginConfig> = {
     badge:    'bg-[#887CFD]/15 text-[#887CFD] border-[#887CFD]/20',
     artwork:  ArtworkPandaCompare,
   },
-  'bitbucket-search': {
+  'repo-search': {
     gradient: 'from-[#e8f0ff]/80 via-[#4896FE]/10 to-[#4896FE]/5',
     glow:     'rgba(72,150,254,0.3)',
     accent:   '#4896FE',
