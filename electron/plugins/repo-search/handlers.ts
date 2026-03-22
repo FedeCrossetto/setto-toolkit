@@ -32,7 +32,7 @@ interface BitbucketLine {
   line?: number
   content?: string
   text?: string
-  segments?: Array<{ text?: string }>
+  segments?: Array<{ text?: string; match?: boolean }>
 }
 
 interface BitbucketContentMatch {
@@ -92,12 +92,20 @@ async function bitbucketFetch(url: string, username: string, token: string): Pro
       Authorization: 'Basic ' + Buffer.from(`${username}:${token}`).toString('base64'),
     },
   })
-  const json = (await response.json()) as Record<string, unknown>
+
+  const text = await response.text()
+  let json: Record<string, unknown> = {}
+  try {
+    if (text.trim()) json = JSON.parse(text) as Record<string, unknown>
+  } catch {
+    // body is not JSON — use status text as message
+  }
+
   if (!response.ok) {
     const msg =
       ((json.error as Record<string, unknown> | undefined)?.message as string | undefined) ??
-      `Request failed: ${response.status}`
-    throw { status: response.status, message: msg }
+      `Error ${response.status}: ${response.statusText || 'Request failed'}`
+    throw new Error(msg)
   }
   return json
 }
@@ -147,6 +155,8 @@ async function bitbucketSearch(
 
       for (const m of item.content_matches ?? []) {
         for (const line of m.lines ?? []) {
+          // Skip context lines — only keep lines with at least one matched segment
+          if (line.segments && !line.segments.some((s) => s.match)) continue
           const lineNum = typeof line.line === 'number' ? line.line : null
           let fragment = line.content ?? line.text ?? ''
           if (!fragment && line.segments) {

@@ -120,6 +120,56 @@ Podés usar `src/plugins/_template/` como punto de partida.
 
 ---
 
+## Changelog
+
+### v1.0.1 — 2026-03-22
+
+#### Repo Search — mejoras de UI y funcionalidad
+- **Agrupación por repo** con secciones colapsables y contador de matches por grupo.
+- **Alias de repos** configurables desde la sidebar: mapeá nombres de repositorios a un alias común y los resultados se fusionan en un único grupo.
+- **Estado persistente por proveedor**: al cambiar entre las pestañas Bitbucket y GitHub los resultados y la búsqueda anterior se conservan.
+- **Historial de búsqueda** guardado en `localStorage`, con dropdown al enfocar el input y botón para limpiar.
+- **Atajos de teclado**: `/` enfoca el input de búsqueda desde cualquier parte de la pantalla.
+- **Resaltado de sintaxis** en los snippets de código (keywords, strings, números, comentarios).
+- **Path breadcrumb** con segmentos de ruta y branch en cada resultado.
+- **Copiar snippet** con feedback visual ("Copiado") en cada card de resultado.
+- **Sugerencias en estado vacío** (chips de búsqueda comunes como `TODO`, `FIXME`, `console.log`, etc.).
+- **Filtro lateral por repo** con contadores de coincidencias.
+- **Estilo**: tabs de proveedor y botón Buscar cambiados de `rounded-full` a `rounded-lg` para coherencia con el resto del diseño.
+- **Fix**: solo se muestran las líneas que contienen la coincidencia real; se descartan las líneas de contexto que devuelve la API de Bitbucket.
+- **Fix**: error `SyntaxError: Unexpected end of JSON input` en el login de Bitbucket cuando la respuesta HTTP no tenía body JSON.
+- **Fix**: soporte multi-proveedor completo (Bitbucket + GitHub) con credenciales aisladas por proveedor.
+
+#### Dashboard
+- Cards con zona de artwork transparente: el panda flota sobre el fondo del card sin contraste de color de fondo.
+- Glow suave en el color del plugin debajo de cada panda.
+- Animación de flotación suave (`pandaFloat`) en todas las ilustraciones.
+- Fix: imagen del panda no aparecía en la card de Repo Search (key `bitbucket-search` → `repo-search`).
+
+#### Seguridad (parches aplicados en el commit inicial, documentados aquí)
+- IPC allowlist explícita en `preload.ts` — canales desconocidos bloqueados.
+- `shell.openExternal` restringido a protocolos `http:` y `https:`.
+- Validación de rutas de archivo en todos los handlers del File Editor (null bytes, path traversal, profundidad mínima en delete).
+- Tokens y API keys encriptados con `safeStorage` (DPAPI en Windows, Keychain en macOS).
+- Reemplazado `execSync` por `execFileSync` con argumentos en array para eliminar inyección de shell.
+- Removido `rejectUnauthorized: false` del API Tester (TLS válido requerido).
+- Protección SSRF en paginación de Bitbucket (`nextUrl` validado contra la URL base de la API).
+
+---
+
+### v1.0.0 — lanzamiento inicial
+
+- **File Editor**: apertura, edición y guardado de archivos. Modo tail para logs grandes, file watcher y búsqueda en archivos.
+- **Smart Diff**: comparación semántica de código con análisis de IA (OpenAI). Detecta cambios de lógica, efectos secundarios y sugiere mejoras.
+- **Repo Search**: búsqueda de código en repositorios de Bitbucket y GitHub. Credenciales encriptadas con `safeStorage`.
+- **API Tester**: cliente HTTP tipo Postman con colecciones, entornos, historial y autenticación Bearer / Basic.
+- **Settings**: configuración de API keys, modelo de IA, fuente y tema de color.
+- **Dashboard**: pantalla de inicio con cards animadas por herramienta.
+- Arquitectura de plugins modular (IPC handlers + registro de plugins).
+- Tema claro y oscuro.
+
+---
+
 ## Licencia
 
 MIT

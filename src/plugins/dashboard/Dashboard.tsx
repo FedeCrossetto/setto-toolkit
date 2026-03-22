@@ -216,7 +216,11 @@ function PandaImg({ src }: { src: string }): JSX.Element {
       alt=""
       className="w-full h-full object-contain object-bottom"
       draggable={false}
-      style={{ transform: 'scale(1.15) translateY(6px)' }}
+      style={{
+        transform: 'scale(1.22) translateY(8px)',
+        animation: 'pandaFloat 3.5s ease-in-out infinite',
+        filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.55))',
+      }}
     />
   )
 }
@@ -286,13 +290,13 @@ function ToolCard({ plugin, onOpen }: { plugin: PluginManifest; onOpen: () => vo
 
   return (
     <TiltCard onClick={onOpen} glow={cfg.glow}>
-      {/* Artwork zone — replace ToolArtwork with <img> when real art is ready */}
-      <div className={`relative h-[120px] bg-gradient-to-br ${cfg.gradient} overflow-hidden`}>
-        {/* Subtle inner highlight */}
-        <div className="absolute inset-0 bg-gradient-to-b from-white/[0.03] to-transparent pointer-events-none" />
-        {/* Top-left shimmer */}
-        <div className="absolute -top-6 -left-6 w-24 h-24 rounded-full blur-2xl opacity-20"
-          style={{ background: cfg.accent }} />
+      {/* Artwork zone — transparent so the panda floats on the card surface */}
+      <div className="relative h-[140px] overflow-hidden">
+        {/* Soft accent glow under the panda */}
+        <div
+          className="absolute bottom-[-8px] left-1/2 -translate-x-1/2 w-44 h-20 blur-3xl rounded-full pointer-events-none"
+          style={{ background: cfg.accent, opacity: 0.18 }}
+        />
         <ToolArtwork pluginId={plugin.id} artwork={cfg.artwork} />
       </div>
 
@@ -340,6 +344,12 @@ export function Dashboard(): JSX.Element {
 
   return (
     <div className="p-8 max-w-5xl mx-auto w-full space-y-10">
+      <style>{`
+        @keyframes pandaFloat {
+          0%, 100% { transform: scale(1.22) translateY(8px); filter: drop-shadow(0 10px 20px rgba(0,0,0,0.55)); }
+          50%       { transform: scale(1.22) translateY(1px);  filter: drop-shadow(0 16px 28px rgba(0,0,0,0.4)); }
+        }
+      `}</style>
 
       {/* Welcome header */}
       <div className="flex flex-col gap-1">
