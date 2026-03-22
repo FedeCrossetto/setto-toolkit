@@ -1,0 +1,70 @@
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS'
+export type BodyType = 'none' | 'json' | 'text' | 'xml' | 'form'
+export type AuthType = 'none' | 'bearer' | 'basic'
+
+export interface KeyValuePair {
+  id: string
+  key: string
+  value: string
+  enabled: boolean
+}
+
+export interface HttpRequest {
+  id: string
+  collectionId: string
+  name: string
+  method: HttpMethod
+  url: string
+  headers: KeyValuePair[]
+  params: KeyValuePair[]
+  body: { type: BodyType; content: string }
+  auth: { type: AuthType; token?: string; username?: string; password?: string }
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Collection {
+  id: string
+  name: string
+  description?: string
+  requests: HttpRequest[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Environment {
+  id: string
+  name: string
+  isActive: boolean
+  /** Variable map: key → value. Use {{varName}} in URLs/headers/body */
+  variables: Record<string, string>
+}
+
+export interface HttpResponse {
+  status: number
+  statusText: string
+  headers: Record<string, string>
+  body: string
+  duration: number  // ms
+  size: number      // bytes
+}
+
+export interface HistoryEntry {
+  id: string
+  executedAt: string
+  request: Pick<HttpRequest, 'method' | 'url' | 'headers' | 'params' | 'body' | 'auth'>
+  response: HttpResponse
+}
+
+/** State managed locally inside the plugin — not persisted */
+export interface ActiveRequest {
+  /** Which saved request is loaded (null = unsaved scratch) */
+  requestId: string | null
+  collectionId: string | null
+  method: HttpMethod
+  url: string
+  headers: KeyValuePair[]
+  params: KeyValuePair[]
+  body: { type: BodyType; content: string }
+  auth: { type: AuthType; token?: string; username?: string; password?: string }
+}

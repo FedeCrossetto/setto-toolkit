@@ -1,0 +1,889 @@
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useCollections } from './hooks/useCollections'
+import { useRequestRunner } from './hooks/useRequestRunner'
+import {
+  tryFormatJson, formatXml, formatSize, newKV, randomUUID,
+  parseCurl, exportToCurl, parseFormPairs, serializeFormPairs,
+  importCollectionFromJSON,
+} from './utils'
+import type { ActiveRequest, Collection, Environment, HttpMethod, BodyType, KeyValuePair } from './types'
+
+const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
+const METHOD_COLOR: Record<HttpMethod, string> = {
+  GET: 'text-accent', POST: 'text-primary', PUT: 'text-secondary',
+  PATCH: 'text-yellow-400', DELETE: 'text-error',
+  HEAD: 'text-on-surface-variant', OPTIONS: 'text-on-surface-variant',
+}
+
+function MethodSelect({ value, onChange }: { value: HttpMethod; onChange: (m: HttpMethod) => void }): JSX.Element {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent): void => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative flex-shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-1.5 bg-surface-container border border-outline-variant/30 rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors hover:border-outline-variant/60 ${METHOD_COLOR[value]}`}
+      >
+        {value}
+        <span className="material-symbols-outlined text-on-surface-variant/40" style={{ fontSize: '14px' }}>
+          expand_more
+        </span>
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1 z-50 bg-surface border border-outline-variant/25 rounded-xl shadow-xl overflow-hidden py-1 min-w-[110px]">
+          {METHODS.map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => { onChange(m); setOpen(false) }}
+              className={`w-full text-left px-3 py-1.5 text-sm font-bold hover:bg-surface-container transition-colors ${METHOD_COLOR[m]} ${m === value ? 'bg-surface-container-high' : ''}`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function emptyRequest(collectionId = ''): ActiveRequest {
+  return {
+    requestId: null, collectionId,
+    method: 'GET', url: '',
+    headers: [newKV()], params: [newKV()],
+    body: { type: 'none', content: '' },
+    auth: { type: 'none' },
+  }
+}
+
+type RequestTab = 'headers' | 'params' | 'body' | 'auth'
+type ResponseTab = 'body' | 'headers' | 'raw'
+
+export function ApiTester(): JSX.Element {
+  const { collections, loading, createCollection, deleteCollection, saveRequest, deleteRequest, duplicateRequest, reload: reloadCollections } = useCollections()
+  const [environments, setEnvironments] = useState<Environment[]>([])
+  const { status, response, error, history, execute, cancel, loadHistory, clearHistory } = useRequestRunner(environments)
+
+  const [active, setActive] = useState<ActiveRequest>(emptyRequest)
+  const [reqTab, setReqTab] = useState<RequestTab>('headers')
+  const [resTab, setResTab] = useState<ResponseTab>('body')
+  const [newColName, setNewColName] = useState('')
+  const [showNewCol, setShowNewCol] = useState(false)
+  const [showImportCurl, setShowImportCurl] = useState(false)
+  const [curlCopied, setCurlCopied] = useState(false)
+  const [beautified, setBeautified] = useState(false)
+  const [leftTab, setLeftTab] = useState<'collections' | 'environments'>('collections')
+  const [showImportCollection, setShowImportCollection] = useState(false)
+  const [responseHeight, setResponseHeight] = useState(260)
+  const resizeStartRef = useRef<{ y: number; h: number } | null>(null)
+
+  useEffect(() => { loadHistory() }, [loadHistory])
+  useEffect(() => {
+    window.api.invoke<Environment[]>('api-tester:environments-get').then(setEnvironments)
+  }, [])
+
+  const handleImportCollection = async (jsonStr: string): Promise<string | null> => {
+    const col = importCollectionFromJSON(jsonStr)
+    if (!col) return 'Invalid format. Paste a native collection JSON or a Postman Collection v2/v2.1 export.'
+    const all = await window.api.invoke<Collection[]>('api-tester:collections-get') ?? []
+    await window.api.invoke('api-tester:collections-save', [...all, col])
+    await reloadCollections()
+    return null
+  }
+
+  const saveEnvironments = async (envs: Environment[]): Promise<void> => {
+    await window.api.invoke('api-tester:environments-save', envs)
+    setEnvironments(envs)
+  }
+
+  const startResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    resizeStartRef.current = { y: e.clientY, h: responseHeight }
+    const onMove = (ev: MouseEvent): void => {
+      if (!resizeStartRef.current) return
+      const delta = resizeStartRef.current.y - ev.clientY
+      setResponseHeight(Math.max(120, Math.min(600, resizeStartRef.current.h + delta)))
+    }
+    const onUp = (): void => {
+      resizeStartRef.current = null
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [responseHeight])
+
+  const loadRequest = (col: Collection, reqId: string): void => {
+    const req = col.requests.find((r) => r.id === reqId)
+    if (!req) return
+    setActive({ requestId: req.id, collectionId: req.collectionId, method: req.method, url: req.url, headers: req.headers, params: req.params, body: req.body, auth: req.auth })
+    setBeautified(false)
+  }
+
+  const handleRename = async (colId: string, reqId: string, newName: string): Promise<void> => {
+    const col = collections.find((c) => c.id === colId)
+    const req = col?.requests.find((r) => r.id === reqId)
+    if (!req) return
+    await saveRequest({ ...req, name: newName })
+  }
+
+  const handleSave = async (): Promise<void> => {
+    if (!active.collectionId) return
+    await saveRequest({
+      id: active.requestId ?? randomUUID(),
+      collectionId: active.collectionId,
+      name: active.url || 'Untitled request',
+      method: active.method, url: active.url,
+      headers: active.headers, params: active.params,
+      body: active.body, auth: active.auth,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    })
+  }
+
+  const handleExecute = (): void => {
+    execute({
+      id: active.requestId ?? '', collectionId: active.collectionId ?? '',
+      name: '', method: active.method, url: active.url,
+      headers: active.headers, params: active.params,
+      body: active.body, auth: active.auth,
+      createdAt: '', updatedAt: '',
+    })
+  }
+
+  const handleCopyCurl = (): void => {
+    navigator.clipboard.writeText(exportToCurl(active))
+    setCurlCopied(true)
+    setTimeout(() => setCurlCopied(false), 2000)
+  }
+
+  const handleBeautify = (): void => {
+    const t = active.body.type
+    let formatted = active.body.content
+    if (t === 'json') formatted = tryFormatJson(active.body.content)
+    else if (t === 'xml') formatted = formatXml(active.body.content)
+    setActive((a) => ({ ...a, body: { ...a.body, content: formatted } }))
+    setBeautified(true)
+    setTimeout(() => setBeautified(false), 1500)
+  }
+
+  const isOk = response && response.status < 400
+  const formattedBody = response ? tryFormatJson(response.body) : ''
+
+  // For form body type, work with KV pairs derived from content
+  const formPairs: KeyValuePair[] = active.body.type === 'form' ? parseFormPairs(active.body.content) : []
+  const setFormPairs = (pairs: KeyValuePair[]): void =>
+    setActive((a) => ({ ...a, body: { ...a.body, content: serializeFormPairs(pairs) } }))
+
+  return (
+    <div className="flex h-full overflow-hidden">
+
+      {/* ── Left panel: collections / environments ───────────────────────── */}
+      <aside className="w-60 flex-shrink-0 border-r border-outline-variant/20 flex flex-col bg-surface overflow-hidden">
+
+        {/* Tab toggle */}
+        <div className="flex border-b border-outline-variant/15 flex-shrink-0">
+          {([['collections', 'Collections'], ['environments', 'Envs']] as const).map(([t, label]) => (
+            <button key={t} onClick={() => setLeftTab(t)}
+              className={`flex-1 py-2 text-[11px] font-semibold transition-colors border-b-2 ${leftTab === t ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/60 hover:text-on-surface'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {leftTab === 'collections' ? (
+          <>
+            <div className="px-4 pt-3 pb-3 border-b border-outline-variant/15 flex-shrink-0">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">Collections</span>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setShowImportCollection(true)} className="text-on-surface-variant hover:text-primary transition-colors" title="Import collection">
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>upload</span>
+                  </button>
+                  <button onClick={() => setShowNewCol(true)} className="text-on-surface-variant hover:text-primary transition-colors" title="New collection">
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
+                  </button>
+                </div>
+              </div>
+              {showNewCol && (
+                <form onSubmit={async (e) => { e.preventDefault(); if (newColName.trim()) { await createCollection(newColName.trim()); setNewColName(''); setShowNewCol(false) } }} className="flex gap-1">
+                  <input autoFocus value={newColName} onChange={(e) => setNewColName(e.target.value)} placeholder="Collection name"
+                    className="flex-1 text-xs bg-surface-container border border-outline-variant/30 rounded-lg px-2 py-1.5 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                  <button type="submit" className="text-primary"><span className="material-symbols-outlined" style={{ fontSize: '16px' }}>check</span></button>
+                </form>
+              )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto py-2">
+              {loading ? (
+                <p className="text-xs text-on-surface-variant text-center py-8">Loading...</p>
+              ) : collections.length === 0 ? (
+                <p className="text-xs text-on-surface-variant/60 text-center py-8 px-4">No collections yet.<br />Create one to save requests.</p>
+              ) : (
+                collections.map((col) => (
+                  <CollectionItem key={col.id} collection={col} activeRequestId={active.requestId}
+                    onSelectRequest={(reqId) => loadRequest(col, reqId)}
+                    onNewRequest={() => setActive({ ...emptyRequest(col.id), collectionId: col.id })}
+                    onDelete={() => deleteCollection(col.id)}
+                    onDuplicate={async (reqId) => { const req = col.requests.find((r) => r.id === reqId); if (req) await duplicateRequest(req) }}
+                    onDeleteRequest={(reqId) => deleteRequest(col.id, reqId)}
+                    onRename={(reqId, newName) => handleRename(col.id, reqId, newName)}
+                  />
+                ))
+              )}
+            </div>
+
+            {/* History */}
+            {history.length > 0 && (
+              <div className="border-t border-outline-variant/15 px-3 py-3 flex-shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">Recent</span>
+                  <button onClick={clearHistory} className="text-[10px] text-on-surface-variant hover:text-error transition-colors">Clear</button>
+                </div>
+                <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                  {history.slice(0, 10).map((h) => (
+                    <button key={h.id} onClick={() => setActive({ requestId: null, collectionId: '', method: h.request.method, url: h.request.url, headers: h.request.headers, params: h.request.params, body: h.request.body, auth: h.request.auth })}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-container text-left transition-colors">
+                      <span className={`text-[10px] font-bold ${METHOD_COLOR[h.request.method]}`}>{h.request.method}</span>
+                      <span className="text-[10px] text-on-surface-variant truncate flex-1">{h.request.url}</span>
+                      <span className={`text-[10px] font-medium ${h.response.status < 400 ? 'text-accent' : 'text-error'}`}>{h.response.status}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <EnvironmentPanel environments={environments} onChange={saveEnvironments} />
+        )}
+      </aside>
+
+      {/* ── Center + Bottom: request editor + response ───────────────────── */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+
+        {/* URL bar */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-outline-variant/20 bg-surface flex-shrink-0">
+          <MethodSelect value={active.method} onChange={(m) => setActive((a) => ({ ...a, method: m }))} />
+
+          <input value={active.url} onChange={(e) => setActive((a) => ({ ...a, url: e.target.value }))}
+            onKeyDown={(e) => e.key === 'Enter' && handleExecute()}
+            placeholder="https://api.example.com/endpoint"
+            className="flex-1 bg-surface-container border border-outline-variant/30 rounded-lg px-3 py-2 text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/50" />
+
+          {/* Copy as cURL */}
+          <button onClick={handleCopyCurl} title="Copy as cURL" disabled={!active.url.trim()}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:border-primary/40 transition-colors disabled:opacity-40">
+            {curlCopied
+              ? <><span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check</span> Copied!</>
+              : <><span className="material-symbols-outlined" style={{ fontSize: '14px' }}>terminal</span> cURL</>
+            }
+          </button>
+
+          {/* Import cURL */}
+          <button onClick={() => setShowImportCurl(true)} title="Import from cURL"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:border-primary/40 transition-colors">
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>download</span> Import
+          </button>
+
+          {status === 'loading' ? (
+            <button onClick={cancel}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border border-error/40 text-error hover:bg-error/10 transition-all">
+              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>stop_circle</span> Cancel
+            </button>
+          ) : (
+            <button onClick={handleExecute} disabled={!active.url.trim()}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-on-primary transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: 'var(--gradient-brand)' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>send</span> Send
+            </button>
+          )}
+
+          {active.collectionId && (
+            <button onClick={handleSave} title="Save request" className="p-2 text-on-surface-variant hover:text-primary transition-colors">
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>save</span>
+            </button>
+          )}
+        </div>
+
+        {/* Request tabs */}
+        <div className="flex items-center gap-0 px-4 border-b border-outline-variant/15 bg-surface flex-shrink-0">
+          {(['headers', 'params', 'body', 'auth'] as RequestTab[]).map((t) => (
+            <button key={t} onClick={() => setReqTab(t)}
+              className={`px-4 py-2.5 text-xs font-medium capitalize border-b-2 transition-colors ${reqTab === t ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {/* Request tab content */}
+        <div className="flex-1 overflow-auto p-4 bg-surface-container-low min-h-0">
+          {reqTab === 'body' && (
+            <div className="h-full flex flex-col gap-2">
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex gap-1.5 flex-1">
+                  {(['none', 'json', 'text', 'xml', 'form'] as BodyType[]).map((t) => (
+                    <button key={t} onClick={() => setActive((a) => ({ ...a, body: { ...a.body, type: t } }))}
+                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${active.body.type === t ? 'border-primary bg-primary/10 text-primary' : 'border-outline-variant/30 text-on-surface-variant hover:border-primary/30'}`}>
+                      {t === 'form' ? 'form-urlencoded' : t}
+                    </button>
+                  ))}
+                </div>
+                {(active.body.type === 'json' || active.body.type === 'xml') && (
+                  <button onClick={handleBeautify}
+                    className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border transition-colors ${beautified ? 'border-accent/50 text-accent bg-accent/10' : 'border-outline-variant/30 text-on-surface-variant hover:text-primary hover:border-primary/40'}`}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>auto_fix_high</span>
+                    {beautified ? 'Beautified!' : 'Beautify'}
+                  </button>
+                )}
+              </div>
+
+              {active.body.type === 'none' && (
+                <div className="flex items-center justify-center flex-1 text-xs text-on-surface-variant/50">No body</div>
+              )}
+              {active.body.type === 'form' ? (
+                <div className="flex-1 overflow-auto">
+                  <KVEditor pairs={formPairs} onChange={setFormPairs} />
+                </div>
+              ) : active.body.type !== 'none' && (
+                <textarea value={active.body.content} onChange={(e) => setActive((a) => ({ ...a, body: { ...a.body, content: e.target.value } }))}
+                  className="flex-1 font-mono text-xs bg-surface border border-outline-variant/20 rounded-xl p-4 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none"
+                  placeholder={
+                    active.body.type === 'json' ? '{\n  "key": "value"\n}' :
+                    active.body.type === 'xml'  ? '<root>\n  <key>value</key>\n</root>' :
+                    'Request body...'
+                  } />
+              )}
+            </div>
+          )}
+          {reqTab === 'headers' && (
+            <KVEditor pairs={active.headers} onChange={(headers) => setActive((a) => ({ ...a, headers }))} />
+          )}
+          {reqTab === 'params' && (
+            <KVEditor pairs={active.params} onChange={(params) => setActive((a) => ({ ...a, params }))} />
+          )}
+          {reqTab === 'auth' && (
+            <AuthEditor auth={active.auth} onChange={(auth) => setActive((a) => ({ ...a, auth }))} />
+          )}
+        </div>
+
+        {/* Drag handle */}
+        <div
+          onMouseDown={startResize}
+          className="h-1.5 flex-shrink-0 cursor-row-resize bg-outline-variant/10 hover:bg-primary/30 transition-colors group flex items-center justify-center"
+        >
+          <div className="w-8 h-0.5 rounded-full bg-outline-variant/40 group-hover:bg-primary/60 transition-colors" />
+        </div>
+
+        {/* Response panel */}
+        <div className="flex-shrink-0 border-t border-outline-variant/20 flex flex-col bg-surface overflow-hidden" style={{ height: responseHeight }}>
+          <div className="flex items-center gap-4 px-4 py-2 border-b border-outline-variant/15 flex-shrink-0">
+            {response && (
+              <>
+                <span className={`inline-flex items-center gap-1.5 text-sm font-bold px-2 py-0.5 rounded-md ${isOk ? 'bg-accent/10 text-accent' : 'bg-error/10 text-error'}`}>
+                  <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: 'currentColor' }} />
+                  {response.status} {response.statusText}
+                </span>
+                <span className="text-xs text-on-surface-variant">{response.duration}ms</span>
+                <span className="text-xs text-on-surface-variant">{formatSize(response.size)}</span>
+              </>
+            )}
+            {error && <span className="text-sm text-error">{error}</span>}
+            {status === 'idle' && !response && <span className="text-xs text-on-surface-variant">Send a request to see the response</span>}
+
+            <div className="ml-auto flex items-center gap-1">
+              {(['body', 'headers', 'raw'] as ResponseTab[]).map((t) => (
+                <button key={t} onClick={() => setResTab(t)}
+                  className={`px-3 py-1 text-xs capitalize border-b-2 transition-colors ${resTab === t ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}>
+                  {t}
+                </button>
+              ))}
+              {response && (
+                <button onClick={() => navigator.clipboard.writeText(formattedBody)} title="Copy response"
+                  className="ml-2 text-on-surface-variant hover:text-primary transition-colors">
+                  <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>content_copy</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-auto p-3 font-mono text-xs text-on-surface leading-relaxed">
+            {response && resTab === 'body' && <pre className="whitespace-pre-wrap break-all">{formattedBody}</pre>}
+            {response && resTab === 'headers' && (
+              <div className="space-y-1">
+                {Object.entries(response.headers).map(([k, v]) => (
+                  <div key={k}><span className="text-primary">{k}:</span> <span>{v}</span></div>
+                ))}
+              </div>
+            )}
+            {response && resTab === 'raw' && <pre className="whitespace-pre-wrap break-all">{response.body}</pre>}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Import collection modal ───────────────────────────────────────── */}
+      {showImportCollection && (
+        <ImportCollectionModal
+          onImport={async (json) => {
+            const err = await handleImportCollection(json)
+            if (!err) setShowImportCollection(false)
+            return err
+          }}
+          onClose={() => setShowImportCollection(false)}
+        />
+      )}
+
+      {/* ── Import cURL modal ─────────────────────────────────────────────── */}
+      {showImportCurl && (
+        <ImportCurlModal
+          onImport={(parsed) => {
+            setActive((a) => ({ ...a, ...parsed }))
+            setShowImportCurl(false)
+            setReqTab('headers')
+          }}
+          onClose={() => setShowImportCurl(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── ImportCollectionModal ─────────────────────────────────────────────────────
+
+function ImportCollectionModal({ onImport, onClose }: {
+  onImport: (json: string) => Promise<string | null>
+  onClose: () => void
+}): JSX.Element {
+  const [value, setValue] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleBrowse = async (): Promise<void> => {
+    const paths = await window.api.invoke<string[]>('editor:open-dialog')
+    if (!paths?.length) return
+    const res = await window.api.invoke<{ content: string }>('editor:read-file', { path: paths[0] })
+    if (res?.content) setValue(res.content)
+  }
+
+  const handleImport = async (): Promise<void> => {
+    setLoading(true)
+    const err = await onImport(value.trim())
+    setLoading(false)
+    if (err) setError(err)
+  }
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-surface border border-outline-variant/20 rounded-2xl shadow-2xl w-[600px] max-w-[90vw] p-6 flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-on-surface">Import Collection</h2>
+            <p className="text-xs text-on-surface-variant mt-0.5">Supports Postman Collection v2/v2.1 and native format.</p>
+          </div>
+          <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
+            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
+          </button>
+        </div>
+
+        <textarea
+          autoFocus
+          value={value}
+          onChange={(e) => { setValue(e.target.value); setError('') }}
+          placeholder={'Paste a Postman Collection JSON or a native collection export…'}
+          className="font-mono text-xs bg-surface-container border border-outline-variant/20 rounded-xl p-4 text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none h-44"
+        />
+
+        {error && (
+          <p className="text-xs text-error flex items-center gap-1.5">
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+            {error}
+          </p>
+        )}
+
+        <div className="flex items-center gap-2">
+          <button onClick={() => void handleBrowse()}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:border-primary/40 transition-colors">
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>folder_open</span> Browse file
+          </button>
+          <div className="flex-1" />
+          <button onClick={onClose}
+            className="px-4 py-2 text-sm font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
+            Cancel
+          </button>
+          <button onClick={() => void handleImport()} disabled={!value.trim() || loading}
+            className="px-4 py-2 text-sm font-semibold rounded-lg text-on-primary disabled:opacity-50 transition-all hover:opacity-90"
+            style={{ background: 'var(--gradient-brand)' }}>
+            {loading ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── ImportCurlModal ────────────────────────────────────────────────────────────
+
+function ImportCurlModal({ onImport, onClose }: {
+  onImport: (parsed: Partial<ActiveRequest>) => void
+  onClose: () => void
+}): JSX.Element {
+  const [value, setValue] = useState('')
+  const [parseError, setParseError] = useState('')
+
+  const handleImport = (): void => {
+    const result = parseCurl(value.trim())
+    if (!result) { setParseError('Could not parse cURL command. Make sure it starts with "curl".'); return }
+    onImport(result)
+  }
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-surface border border-outline-variant/20 rounded-2xl shadow-2xl w-[600px] max-w-[90vw] p-6 flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-on-surface">Import from cURL</h2>
+            <p className="text-xs text-on-surface-variant mt-0.5">Paste a cURL command to populate the request fields.</p>
+          </div>
+          <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
+            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
+          </button>
+        </div>
+
+        <textarea
+          autoFocus
+          value={value}
+          onChange={(e) => { setValue(e.target.value); setParseError('') }}
+          placeholder={`curl -X POST 'https://api.example.com/data' \\\n  -H 'Content-Type: application/json' \\\n  -H 'Authorization: Bearer token123' \\\n  -d '{"key": "value"}'`}
+          className="font-mono text-xs bg-surface-container border border-outline-variant/20 rounded-xl p-4 text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none h-44"
+        />
+
+        {parseError && (
+          <p className="text-xs text-error flex items-center gap-1.5">
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+            {parseError}
+          </p>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose}
+            className="px-4 py-2 text-sm font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
+            Cancel
+          </button>
+          <button onClick={handleImport} disabled={!value.trim()}
+            className="px-4 py-2 text-sm font-semibold rounded-lg text-on-primary disabled:opacity-50 transition-all hover:opacity-90"
+            style={{ background: 'var(--gradient-brand)' }}>
+            Import
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function CollectionItem({ collection, activeRequestId, onSelectRequest, onNewRequest, onDelete, onDuplicate, onDeleteRequest, onRename }: {
+  collection: Collection; activeRequestId: string | null
+  onSelectRequest: (id: string) => void; onNewRequest: () => void
+  onDelete: () => void; onDuplicate: (id: string) => void; onDeleteRequest: (id: string) => void
+  onRename: (reqId: string, newName: string) => void
+}): JSX.Element {
+  const [open, setOpen] = useState(true)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; reqId: string } | null>(null)
+  const renameInputRef = useRef<HTMLInputElement>(null)
+
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!ctxMenu) return
+    const handler = (): void => setCtxMenu(null)
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [ctxMenu])
+
+  // Focus input when rename starts
+  useEffect(() => {
+    if (renamingId) renameInputRef.current?.select()
+  }, [renamingId])
+
+  const startRename = (reqId: string, currentName: string): void => {
+    setCtxMenu(null)
+    setRenamingId(reqId)
+    setRenameValue(currentName)
+  }
+
+  const commitRename = (): void => {
+    if (renamingId && renameValue.trim()) {
+      onRename(renamingId, renameValue.trim())
+    }
+    setRenamingId(null)
+  }
+
+  return (
+    <div className="mb-1">
+      <div className="flex items-center gap-1 px-3 py-1.5 group hover:bg-surface-container rounded-lg cursor-pointer" onClick={() => setOpen((o) => !o)}>
+        <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: '14px' }}>{open ? 'expand_more' : 'chevron_right'}</span>
+        <span className="text-xs font-medium text-on-surface flex-1 truncate">{collection.name}</span>
+        <button onClick={(e) => { e.stopPropagation(); onNewRequest() }} className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-primary" title="New request">
+          <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>add</span>
+        </button>
+        <button onClick={(e) => { e.stopPropagation(); onDelete() }} className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error" title="Delete collection">
+          <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>delete</span>
+        </button>
+      </div>
+
+      {open && collection.requests.map((req) => (
+        <div key={req.id}
+          onClick={() => { if (renamingId !== req.id) onSelectRequest(req.id) }}
+          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, reqId: req.id }) }}
+          className={`flex items-center gap-2 pl-7 pr-3 py-1.5 group hover:bg-surface-container rounded-lg cursor-pointer ${activeRequestId === req.id ? 'bg-primary/10' : ''}`}>
+          <span className={`text-[9px] font-bold w-10 flex-shrink-0 ${METHOD_COLOR[req.method]}`}>{req.method}</span>
+
+          {renamingId === req.id ? (
+            <input
+              ref={renameInputRef}
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null) }}
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 text-xs bg-surface border border-primary/50 rounded px-1.5 py-0.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          ) : (
+            <span className="text-xs text-on-surface truncate flex-1">{req.name}</span>
+          )}
+
+          <button onClick={(e) => { e.stopPropagation(); onDuplicate(req.id) }} className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-primary">
+            <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>content_copy</span>
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); onDeleteRequest(req.id) }} className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error">
+            <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>delete</span>
+          </button>
+        </div>
+      ))}
+
+      {/* Context menu */}
+      {ctxMenu && (() => {
+        const req = collection.requests.find((r) => r.id === ctxMenu.reqId)
+        if (!req) return null
+        return (
+          <div
+            className="fixed z-[300] bg-surface border border-outline-variant/25 rounded-xl shadow-xl overflow-hidden py-1 min-w-[140px]"
+            style={{ top: ctxMenu.y, left: ctxMenu.x }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button onClick={() => startRename(req.id, req.name)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-on-surface hover:bg-surface-container transition-colors">
+              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>edit</span> Rename
+            </button>
+            <button onClick={() => { onDuplicate(req.id); setCtxMenu(null) }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-on-surface hover:bg-surface-container transition-colors">
+              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>content_copy</span> Duplicate
+            </button>
+            <div className="border-t border-outline-variant/15 my-1" />
+            <button onClick={() => { onDeleteRequest(req.id); setCtxMenu(null) }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-error hover:bg-error/10 transition-colors">
+              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>delete</span> Delete
+            </button>
+          </div>
+        )
+      })()}
+    </div>
+  )
+}
+
+function KVEditor({ pairs, onChange }: { pairs: KeyValuePair[]; onChange: (p: KeyValuePair[]) => void }): JSX.Element {
+  const update = (id: string, field: string, value: string | boolean): void => {
+    onChange(pairs.map((p) => p.id === id ? { ...p, [field]: value } : p))
+  }
+  const add = (): void => onChange([...pairs, newKV()])
+  const remove = (id: string): void => onChange(pairs.filter((p) => p.id !== id))
+
+  return (
+    <div className="space-y-1.5">
+      {pairs.map((p) => (
+        <div key={p.id} className="flex items-center gap-2">
+          <input type="checkbox" checked={p.enabled} onChange={(e) => update(p.id, 'enabled', e.target.checked)} className="accent-primary" />
+          <input value={p.key} onChange={(e) => update(p.id, 'key', e.target.value)} placeholder="Key"
+            className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+          <input value={p.value} onChange={(e) => update(p.id, 'value', e.target.value)} placeholder="Value"
+            className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+          <button onClick={() => remove(p.id)} className="text-on-surface-variant hover:text-error transition-colors">
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+          </button>
+        </div>
+      ))}
+      <button onClick={add} className="flex items-center gap-1 text-xs text-on-surface-variant hover:text-primary transition-colors mt-2">
+        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span> Add row
+      </button>
+    </div>
+  )
+}
+
+// ── EnvironmentPanel ──────────────────────────────────────────────────────────
+
+function EnvironmentPanel({ environments, onChange }: {
+  environments: Environment[]
+  onChange: (envs: Environment[]) => Promise<void>
+}): JSX.Element {
+  const [selectedId, setSelectedId] = useState<string | null>(environments[0]?.id ?? null)
+  const [newEnvName, setNewEnvName] = useState('')
+  const [showNew, setShowNew] = useState(false)
+  const [varPairs, setVarPairs] = useState<KeyValuePair[]>([])
+
+  const selected = environments.find((e) => e.id === selectedId) ?? null
+
+  useEffect(() => {
+    if (selected) {
+      setVarPairs(Object.entries(selected.variables).map(([k, v]) => ({ id: randomUUID(), key: k, value: v, enabled: true })))
+    } else {
+      setVarPairs([])
+    }
+  }, [selectedId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSaveVars = async (): Promise<void> => {
+    if (!selected) return
+    const variables = Object.fromEntries(varPairs.filter((p) => p.key.trim()).map((p) => [p.key, p.value]))
+    await onChange(environments.map((e) => e.id === selected.id ? { ...e, variables } : e))
+  }
+
+  const handleSetActive = async (id: string): Promise<void> => {
+    await onChange(environments.map((e) => ({ ...e, isActive: e.id === id })))
+  }
+
+  const handleAddEnv = async (): Promise<void> => {
+    if (!newEnvName.trim()) return
+    const newEnv: Environment = { id: randomUUID(), name: newEnvName.trim(), isActive: false, variables: {} }
+    await onChange([...environments, newEnv])
+    setSelectedId(newEnv.id)
+    setVarPairs([])
+    setNewEnvName('')
+    setShowNew(false)
+  }
+
+  const handleDeleteEnv = async (id: string): Promise<void> => {
+    const updated = environments.filter((e) => e.id !== id)
+    await onChange(updated)
+    if (selectedId === id) setSelectedId(updated[0]?.id ?? null)
+  }
+
+  return (
+    <div className="flex flex-col flex-1 overflow-hidden">
+      {/* Environment list */}
+      <div className="px-3 pt-3 pb-2 border-b border-outline-variant/15 flex-shrink-0">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">Environments</span>
+          <button onClick={() => setShowNew(true)} className="text-on-surface-variant hover:text-primary transition-colors">
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
+          </button>
+        </div>
+        {showNew && (
+          <form onSubmit={(e) => { e.preventDefault(); void handleAddEnv() }} className="flex gap-1 mb-2">
+            <input autoFocus value={newEnvName} onChange={(e) => setNewEnvName(e.target.value)} placeholder="Environment name"
+              className="flex-1 text-xs bg-surface-container border border-outline-variant/30 rounded-lg px-2 py-1.5 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/50" />
+            <button type="submit" className="text-primary"><span className="material-symbols-outlined" style={{ fontSize: '16px' }}>check</span></button>
+          </form>
+        )}
+        <div className="space-y-0.5">
+          {environments.map((env) => (
+            <div key={env.id} onClick={() => setSelectedId(env.id)}
+              className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer group transition-colors ${selectedId === env.id ? 'bg-primary/10' : 'hover:bg-surface-container'}`}>
+              <button
+                onClick={(e) => { e.stopPropagation(); void handleSetActive(env.id) }}
+                className={`w-2 h-2 rounded-full flex-shrink-0 border-2 transition-colors ${env.isActive ? 'bg-accent border-accent' : 'border-outline-variant/50 hover:border-accent'}`}
+                title={env.isActive ? 'Active environment' : 'Set as active'}
+              />
+              <span className="text-xs text-on-surface flex-1 truncate">{env.name}</span>
+              {env.isActive && <span className="text-[9px] text-accent font-bold">ACTIVE</span>}
+              <button onClick={(e) => { e.stopPropagation(); void handleDeleteEnv(env.id) }}
+                className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error transition-colors">
+                <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>delete</span>
+              </button>
+            </div>
+          ))}
+          {environments.length === 0 && (
+            <p className="text-xs text-on-surface-variant/50 text-center py-4 px-2">No environments yet.<br />Create one to use variables.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Variable editor */}
+      {selected && (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="px-3 pt-3 pb-1 flex-shrink-0">
+            <p className="text-[10px] text-on-surface-variant/50">
+              Use <code className="bg-surface-container px-1 rounded text-primary/80">{`{{varName}}`}</code> in URLs, headers and body.
+            </p>
+          </div>
+          <div className="flex-1 overflow-y-auto px-3 py-2">
+            <div className="space-y-1.5">
+              {varPairs.map((p) => (
+                <div key={p.id} className="flex items-center gap-1.5">
+                  <input value={p.key} onChange={(e) => setVarPairs((ps) => ps.map((x) => x.id === p.id ? { ...x, key: e.target.value } : x))}
+                    placeholder="Variable"
+                    className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                  <input value={p.value} onChange={(e) => setVarPairs((ps) => ps.map((x) => x.id === p.id ? { ...x, value: e.target.value } : x))}
+                    placeholder="Value"
+                    className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                  <button onClick={() => setVarPairs((ps) => ps.filter((x) => x.id !== p.id))} className="text-on-surface-variant hover:text-error transition-colors">
+                    <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>close</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setVarPairs((ps) => [...ps, { id: randomUUID(), key: '', value: '', enabled: true }])}
+              className="flex items-center gap-1 text-xs text-on-surface-variant hover:text-primary transition-colors mt-2">
+              <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>add</span> Add variable
+            </button>
+          </div>
+          <div className="px-3 pb-3 flex-shrink-0">
+            <button onClick={() => void handleSaveVars()}
+              className="w-full py-1.5 text-xs font-semibold rounded-lg text-on-primary transition-all hover:opacity-90"
+              style={{ background: 'var(--gradient-brand)' }}>
+              Save
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AuthEditor({ auth, onChange }: { auth: ActiveRequest['auth']; onChange: (a: ActiveRequest['auth']) => void }): JSX.Element {
+  return (
+    <div className="space-y-4 max-w-sm">
+      <div className="flex gap-2">
+        {(['none', 'bearer', 'basic'] as const).map((t) => (
+          <button key={t} onClick={() => onChange({ ...auth, type: t })}
+            className={`px-3 py-1.5 text-xs rounded-full border capitalize transition-colors ${auth.type === t ? 'border-primary bg-primary/10 text-primary' : 'border-outline-variant/30 text-on-surface-variant hover:border-primary/30'}`}>
+            {t === 'bearer' ? 'Bearer Token' : t}
+          </button>
+        ))}
+      </div>
+      {auth.type === 'bearer' && (
+        <input value={auth.token ?? ''} onChange={(e) => onChange({ ...auth, token: e.target.value })} placeholder="Token"
+          className="w-full text-xs bg-surface border border-outline-variant/20 rounded-lg px-3 py-2 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+      )}
+      {auth.type === 'basic' && (
+        <div className="space-y-2">
+          <input value={auth.username ?? ''} onChange={(e) => onChange({ ...auth, username: e.target.value })} placeholder="Username"
+            className="w-full text-xs bg-surface border border-outline-variant/20 rounded-lg px-3 py-2 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+          <input type="password" value={auth.password ?? ''} onChange={(e) => onChange({ ...auth, password: e.target.value })} placeholder="Password"
+            className="w-full text-xs bg-surface border border-outline-variant/20 rounded-lg px-3 py-2 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+        </div>
+      )}
+    </div>
+  )
+}

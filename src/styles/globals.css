@@ -1,0 +1,154 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Color tokens — light mode (default) ───────────────────────────────── */
+:root {
+  /* Surfaces: neutral-white base, not blue-gray */
+  --c-background:               242 242 250;   /* #F2F2FA */
+  --c-surface:                  255 255 255;   /* #FFFFFF */
+  --c-surface-container-low:    249 249 254;   /* #F9F9FE */
+  --c-surface-container:        241 241 249;   /* #F1F1F9 */
+  --c-surface-container-high:   232 232 243;   /* #E8E8F3 */
+  --c-surface-container-highest:222 222 236;   /* #DEDEDC */
+
+  /* Text: rich dark with slight violet undertone */
+  --c-on-surface:                18  18  36;   /* #121224 */
+  --c-on-surface-variant:        72  72 100;   /* #484864 */
+
+  /* Brand colors: fully saturated */
+  --c-primary:                   83  71 206;   /* #5347CE */
+  --c-primary-light:            136 124 253;   /* #887CFD */
+  --c-on-primary:               255 255 255;   /* #FFFFFF */
+  --c-secondary:                 72 150 254;   /* #4896FE */
+  --c-on-secondary:             255 255 255;   /* #FFFFFF */
+  --c-accent:                    22 200 199;   /* #16C8C7 */
+
+  /* Borders */
+  --c-outline-variant:          210 210 228;   /* #D2D2E4 */
+  --c-outline:                  150 150 175;   /* #9696AF */
+  --c-error:                    215  51  87;   /* #D73357 */
+
+  --gradient-brand: linear-gradient(135deg, #5347CE, #4896FE);
+
+  /* Sidebar active item — stronger opacity on light backgrounds */
+  --sidebar-item-active-bg: linear-gradient(135deg, rgb(var(--c-primary) / 0.14) 0%, rgb(var(--c-primary-light) / 0.08) 100%);
+}
+
+/* ─── Dark mode tokens ───────────────────────────────────────────────────── */
+.dark {
+  --c-background:                12  14  23;   /* #0C0E17 */
+  --c-surface:                   12  14  23;   /* #0C0E17 */
+  --c-surface-container-low:     17  19  29;   /* #11131D */
+  --c-surface-container:         23  25  36;   /* #171924 */
+  --c-surface-container-high:    28  31  43;   /* #1C1F2B */
+  --c-surface-container-highest: 34  37  50;   /* #222532 */
+  --c-on-surface:               240 240 253;   /* #F0F0FD */
+  --c-on-surface-variant:       170 170 183;   /* #AAAAB7 */
+  --c-primary:                  136 124 253;   /* #887CFD */
+  --c-primary-light:            175 167 255;   /* #AFA7FF */
+  --c-on-primary:                28  30  44;   /* #1C1E2C */
+  --c-secondary:                 72 150 254;   /* #4896FE */
+  --c-on-secondary:              28  30  44;   /* #1C1E2C */
+  --c-accent:                    22 200 199;   /* #16C8C7 */
+  --c-outline-variant:           70  71  82;   /* #464752 */
+  --c-outline:                  115 117 128;   /* #737580 */
+  --c-error:                    255 110 132;   /* #FF6E84 */
+
+  --gradient-brand: linear-gradient(135deg, #887CFD, #4896FE);
+
+  /* Sidebar active item — neons pop on dark surfaces even at low opacity */
+  --sidebar-item-active-bg: linear-gradient(135deg, rgb(var(--c-primary) / 0.22) 0%, rgb(var(--c-primary-light) / 0.12) 100%);
+}
+
+/* ─── Material Symbols ───────────────────────────────────────────────────── */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  display: inline-block;
+  line-height: 1;
+  vertical-align: middle;
+  user-select: none;
+}
+
+/* ─── Global resets ──────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--app-font-family, 'Inter', 'SF Pro Display', system-ui, sans-serif);
+  background-color: rgb(var(--c-background));
+  color: rgb(var(--c-on-surface));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  font-size: var(--app-font-size-base, 15px);
+}
+
+/* ─── Brand gradient text ────────────────────────────────────────────────── */
+.brand-gradient-text {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* legacy alias */
+.neon-gradient-text {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Glass panel ────────────────────────────────────────────────────────── */
+.glass-panel {
+  background: rgb(var(--c-surface-container) / 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--c-outline-variant));
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--c-primary));
+}
+
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ─── Electron drag regions ──────────────────────────────────────────────── */
+.drag-region  { -webkit-app-region: drag; }
+.no-drag      { -webkit-app-region: no-drag; }
+
+/* ─── Diff highlights ────────────────────────────────────────────────────── */
+.diff-removed {
+  background-color: rgb(var(--c-error) / 0.10);
+  border-left: 2px solid rgb(var(--c-error));
+}
+.diff-added {
+  background-color: rgb(var(--c-accent) / 0.10);
+  border-left: 2px solid rgb(var(--c-accent));
+}
