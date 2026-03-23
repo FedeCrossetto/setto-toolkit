@@ -6,6 +6,7 @@
 import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import { logger } from '../logger'
 
 export class DatabaseService {
   private dataDir: string
@@ -35,7 +36,7 @@ export class DatabaseService {
       // File exists but JSON is corrupted — back it up so data isn't silently lost
       const backupPath = `${filePath}.corrupt-${Date.now()}.bak`
       try { fs.copyFileSync(filePath, backupPath) } catch { /* ignore backup errors */ }
-      console.error(`[DB] Corrupted JSON in "${filename}" — backed up to ${backupPath}`)
+      logger.error('DatabaseService', `Corrupted JSON in "${filename}" — backed up`, { backupPath })
       return null
     }
   }

@@ -34,14 +34,6 @@ const PROVIDERS: { id: Provider; name: string; icon: string }[] = [
 const SUGGESTIONS = ['TODO', 'FIXME', 'console.log', 'deprecated', 'throw new', 'catch (', 'password', 'authentication']
 
 const MAX_HISTORY = 10
-const HISTORY_KEY = 'repo-search:history'
-
-function loadHistory(): string[] {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]') as string[] } catch { return [] }
-}
-function saveHistory(h: string[]): void {
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(h))
-}
 
 // ── Syntax highlighting ────────────────────────────────────────────────────
 
@@ -354,7 +346,7 @@ export function RepoSearch(): JSX.Element {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [filterRepo, setFilterRepo] = useState('All')
-  const [history, setHistory] = useState<string[]>(loadHistory)
+  const [history, setHistory] = useState<string[]>([])
   const [showHistory, setShowHistory] = useState(false)
   const [aliases, setAliases] = useState<RepoAlias[]>([])
   const [newAliasFrom, setNewAliasFrom] = useState('')
@@ -410,6 +402,11 @@ export function RepoSearch(): JSX.Element {
     return () => document.removeEventListener('keydown', handler)
   }, [])
 
+  // Load search history from backend on mount
+  useEffect(() => {
+    window.api.invoke<string[]>('repo-search:history-get').then(setHistory).catch(() => {})
+  }, [])
+
   // Close history dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent): void => {
@@ -422,7 +419,7 @@ export function RepoSearch(): JSX.Element {
   const addToHistory = (q: string): void => {
     const updated = [q, ...history.filter((h) => h !== q)].slice(0, MAX_HISTORY)
     setHistory(updated)
-    saveHistory(updated)
+    void window.api.invoke('repo-search:history-save', q)
   }
 
   const handleSearch = async (q?: string): Promise<void> => {
@@ -516,7 +513,7 @@ export function RepoSearch(): JSX.Element {
                     <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 border-b border-outline-variant/10 flex items-center justify-between">
                       <span>Historial</span>
                       <button
-                        onClick={() => { setHistory([]); saveHistory([]); setShowHistory(false) }}
+                        onClick={() => { setHistory([]); void window.api.invoke('repo-search:history-clear'); setShowHistory(false) }}
                         className="text-[10px] text-on-surface-variant hover:text-error transition-colors normal-case font-normal"
                       >
                         Limpiar

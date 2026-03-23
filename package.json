@@ -8,6 +8,9 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "package": "electron-vite build && electron-builder",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "postinstall": "echo Setup complete"
   },
   "dependencies": {
@@ -29,6 +32,7 @@
     "@codemirror/view": "^6.40.0",
     "@lezer/highlight": "^1.2.3",
     "chokidar": "^3.6.0",
+    "electron-updater": "^6.3.0",
     "codemirror": "^6.0.2",
     "diff": "^5.2.0",
     "electron-store": "^11.0.2",
@@ -36,6 +40,8 @@
     "openai": "^4.47.0"
   },
   "devDependencies": {
+    "vitest": "^2.0.0",
+    "@vitest/coverage-v8": "^2.0.0",
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@electron/rebuild": "^3.7.2",
     "@types/diff": "^5.2.1",
@@ -73,6 +79,11 @@
     },
     "linux": {
       "target": "AppImage"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "FedeCrossetto",
+      "repo": "setto-toolkit"
     }
   }
 }

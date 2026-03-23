@@ -3,6 +3,7 @@ import path from 'path'
 import { DatabaseService } from './core/services/db.service'
 import { SettingsService } from './core/services/settings.service'
 import { AIService } from './core/services/ai.service'
+import { initUpdater } from './core/services/updater.service'
 import { loadPlugins } from './core/plugin-loader'
 import { ipcMain } from 'electron'
 import { registerFileAssociations, getFileArgFromArgv } from './core/file-associations'
@@ -147,6 +148,9 @@ app.whenReady().then(() => {
   loadPlugins(ipcMain, services)
 
   createWindow()
+
+  // Init auto-updater (no-op in dev mode)
+  initUpdater(() => mainWindow)
 
   // Send file path to renderer once the window is ready
   const fileArg = getFileArgFromArgv(process.argv)

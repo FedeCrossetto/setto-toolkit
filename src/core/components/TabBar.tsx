@@ -1,10 +1,13 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useApp } from '../AppContext'
 import { getPlugin } from '../plugin-registry'
 
 export function TabBar(): JSX.Element {
   const { state, dispatch } = useApp()
   const [confirmClose, setConfirmClose] = useState<{ tabId: string; pluginName: string } | null>(null)
+  const [canScrollLeft,  setCanScrollLeft]  = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const openPalette = (): void => dispatch({ type: 'TOGGLE_COMMAND_PALETTE' })
 
@@ -16,10 +19,41 @@ export function TabBar(): JSX.Element {
     }
   }
 
+  const updateScrollState = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    setCanScrollLeft(el.scrollLeft > 0)
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+  }, [])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    updateScrollState()
+    el.addEventListener('scroll', updateScrollState)
+    const ro = new ResizeObserver(updateScrollState)
+    ro.observe(el)
+    return () => { el.removeEventListener('scroll', updateScrollState); ro.disconnect() }
+  }, [updateScrollState, state.openTabs])
+
+  const scrollBy = (dir: 'left' | 'right'): void => {
+    scrollRef.current?.scrollBy({ left: dir === 'left' ? -160 : 160, behavior: 'smooth' })
+  }
+
   return (
     <header className="bg-surface w-full h-12 flex items-center border-b border-outline-variant/20 sticky top-0 z-40 pl-4 pr-4">
+      {/* Scroll left arrow */}
+      {canScrollLeft && (
+        <button
+          onClick={() => scrollBy('left')}
+          className="flex-shrink-0 mr-1 text-on-surface-variant hover:text-primary transition-colors"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>chevron_left</span>
+        </button>
+      )}
+
       {/* Tabs */}
-      <div className="flex items-center gap-0 flex-1 min-w-0 overflow-x-auto scrollbar-hide">
+      <div ref={scrollRef} className="flex items-center gap-0 flex-1 min-w-0 overflow-x-auto scrollbar-hide">
         {state.openTabs.map((tab) => {
           const plugin = getPlugin(tab.pluginId)
           if (!plugin) return null
@@ -54,6 +88,16 @@ export function TabBar(): JSX.Element {
           )
         })}
       </div>
+
+      {/* Scroll right arrow */}
+      {canScrollRight && (
+        <button
+          onClick={() => scrollBy('right')}
+          className="flex-shrink-0 ml-1 text-on-surface-variant hover:text-primary transition-colors"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>chevron_right</span>
+        </button>
+      )}
 
       {/* Command palette trigger */}
       <div className="ml-auto flex items-center gap-3 flex-shrink-0">

@@ -8,10 +8,12 @@ export interface EditorPrefs {
   editorTheme: EditorTheme
   autoSave: boolean
   autoSaveDelay: number
+  /** Number of lines loaded when a file exceeds the 2 MB threshold (tail mode) */
+  tailLinesCount: number
 }
 
 const STORAGE_KEY = 'file-editor:prefs'
-const DEFAULTS: EditorPrefs = { fontSize: 11, fontFamily: 'JetBrains Mono', editorTheme: 'auto', autoSave: false, autoSaveDelay: 1500 }
+const DEFAULTS: EditorPrefs = { fontSize: 11, fontFamily: 'JetBrains Mono', editorTheme: 'auto', autoSave: false, autoSaveDelay: 1500, tailLinesCount: 2000 }
 
 export const FONT_FAMILIES = ['JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas'] as const
 export const FONT_SIZE_MIN = 9

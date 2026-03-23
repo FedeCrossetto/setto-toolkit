@@ -38,6 +38,8 @@ export interface Environment {
   isActive: boolean
   /** Variable map: key → value. Use {{varName}} in URLs/headers/body */
   variables: Record<string, string>
+  /** Keys whose values should be masked in the UI (stored as plaintext, never logged) */
+  secretKeys?: string[]
 }
 
 export interface HttpResponse {

@@ -742,21 +742,38 @@ function EnvironmentPanel({ environments, onChange }: {
   const [newEnvName, setNewEnvName] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [varPairs, setVarPairs] = useState<KeyValuePair[]>([])
+  const [secretKeys, setSecretKeys] = useState<Set<string>>(new Set())
+  const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set())
 
   const selected = environments.find((e) => e.id === selectedId) ?? null
 
   useEffect(() => {
     if (selected) {
       setVarPairs(Object.entries(selected.variables).map(([k, v]) => ({ id: randomUUID(), key: k, value: v, enabled: true })))
+      setSecretKeys(new Set(selected.secretKeys ?? []))
+      setRevealedKeys(new Set())
     } else {
       setVarPairs([])
+      setSecretKeys(new Set())
+      setRevealedKeys(new Set())
     }
   }, [selectedId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleSecret = (key: string): void => {
+    setSecretKeys((prev) => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+    // Hide value again when marking as secret
+    setRevealedKeys((prev) => { const n = new Set(prev); n.delete(key); return n })
+  }
 
   const handleSaveVars = async (): Promise<void> => {
     if (!selected) return
     const variables = Object.fromEntries(varPairs.filter((p) => p.key.trim()).map((p) => [p.key, p.value]))
-    await onChange(environments.map((e) => e.id === selected.id ? { ...e, variables } : e))
+    const activeSecretKeys = Array.from(secretKeys).filter((k) => k in variables)
+    await onChange(environments.map((e) => e.id === selected.id ? { ...e, variables, secretKeys: activeSecretKeys } : e))
   }
 
   const handleSetActive = async (id: string): Promise<void> => {
@@ -829,19 +846,48 @@ function EnvironmentPanel({ environments, onChange }: {
           </div>
           <div className="flex-1 overflow-y-auto px-3 py-2">
             <div className="space-y-1.5">
-              {varPairs.map((p) => (
-                <div key={p.id} className="flex items-center gap-1.5">
-                  <input value={p.key} onChange={(e) => setVarPairs((ps) => ps.map((x) => x.id === p.id ? { ...x, key: e.target.value } : x))}
-                    placeholder="Variable"
-                    className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                  <input value={p.value} onChange={(e) => setVarPairs((ps) => ps.map((x) => x.id === p.id ? { ...x, value: e.target.value } : x))}
-                    placeholder="Value"
-                    className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                  <button onClick={() => setVarPairs((ps) => ps.filter((x) => x.id !== p.id))} className="text-on-surface-variant hover:text-error transition-colors">
-                    <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>close</span>
-                  </button>
-                </div>
-              ))}
+              {varPairs.map((p) => {
+                const isSecret  = secretKeys.has(p.key)
+                const isRevealed = revealedKeys.has(p.key)
+                return (
+                  <div key={p.id} className="flex items-center gap-1.5">
+                    <input value={p.key} onChange={(e) => setVarPairs((ps) => ps.map((x) => x.id === p.id ? { ...x, key: e.target.value } : x))}
+                      placeholder="Variable"
+                      className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                    <div className="relative flex-1">
+                      <input
+                        type={isSecret && !isRevealed ? 'password' : 'text'}
+                        value={p.value}
+                        onChange={(e) => setVarPairs((ps) => ps.map((x) => x.id === p.id ? { ...x, value: e.target.value } : x))}
+                        placeholder="Value"
+                        className="w-full text-xs bg-surface border border-outline-variant/20 rounded-lg px-2 py-1.5 pr-6 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      />
+                      {isSecret && (
+                        <button
+                          type="button"
+                          onClick={() => setRevealedKeys((prev) => { const n = new Set(prev); n.has(p.key) ? n.delete(p.key) : n.add(p.key); return n })}
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-primary transition-colors"
+                          title={isRevealed ? 'Hide value' : 'Reveal value'}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>{isRevealed ? 'visibility_off' : 'visibility'}</span>
+                        </button>
+                      )}
+                    </div>
+                    {/* Secret toggle */}
+                    <button
+                      type="button"
+                      onClick={() => toggleSecret(p.key)}
+                      title={isSecret ? 'Unmark as secret' : 'Mark as secret'}
+                      className={`flex-shrink-0 transition-colors ${isSecret ? 'text-warning' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}`}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>{isSecret ? 'lock' : 'lock_open'}</span>
+                    </button>
+                    <button onClick={() => setVarPairs((ps) => ps.filter((x) => x.id !== p.id))} className="text-on-surface-variant hover:text-error transition-colors">
+                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>close</span>
+                    </button>
+                  </div>
+                )
+              })}
             </div>
             <button onClick={() => setVarPairs((ps) => [...ps, { id: randomUUID(), key: '', value: '', enabled: true }])}
               className="flex items-center gap-1 text-xs text-on-surface-variant hover:text-primary transition-colors mt-2">

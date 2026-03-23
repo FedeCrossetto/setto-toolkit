@@ -4,6 +4,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 const INVOKE_CHANNELS = new Set([
   'settings:get', 'settings:set', 'settings:delete', 'settings:getAll', 'settings:validate-openai-key',
   'repo-search:login', 'repo-search:logout', 'repo-search:me', 'repo-search:search',
+  'repo-search:history-get', 'repo-search:history-save', 'repo-search:history-clear',
   'smart-diff:analyze',
   'editor:read-dir', 'editor:open-folder-dialog', 'editor:open-dialog',
   'editor:read-file', 'editor:write-file', 'editor:save-dialog',
@@ -16,17 +17,19 @@ const INVOKE_CHANNELS = new Set([
   'api-tester:environments-get', 'api-tester:environments-save',
   'api-tester:history-get', 'api-tester:history-clear',
   'api-tester:execute',
+  'updater:download',
 ])
 
 /** Channels the renderer may send (fire-and-forget → main) */
 const SEND_CHANNELS = new Set([
   'window:minimize', 'window:maximize', 'window:close',
   'page:find', 'page:find-stop',
+  'updater:install',
 ])
 
 /** Channels the renderer may subscribe to (main → renderer) */
 const ON_CHANNELS = new Set([
-  'open-file', 'page:found', 'editor:file-changed',
+  'open-file', 'page:found', 'editor:file-changed', 'updater:status',
 ])
 
 const api = {
