@@ -1,10 +1,20 @@
+import { useState } from 'react'
 import { useApp } from '../AppContext'
 import { getPlugin } from '../plugin-registry'
 
 export function TabBar(): JSX.Element {
   const { state, dispatch } = useApp()
+  const [confirmClose, setConfirmClose] = useState<{ tabId: string; pluginName: string } | null>(null)
 
   const openPalette = (): void => dispatch({ type: 'TOGGLE_COMMAND_PALETTE' })
+
+  const requestClose = (tabId: string, pluginId: string, pluginName: string): void => {
+    if (state.dirtyPlugins.has(pluginId)) {
+      setConfirmClose({ tabId, pluginName })
+    } else {
+      dispatch({ type: 'CLOSE_TAB', tabId })
+    }
+  }
 
   return (
     <header className="bg-surface w-full h-12 flex items-center border-b border-outline-variant/20 sticky top-0 z-40 pl-4 pr-4">
@@ -34,7 +44,7 @@ export function TabBar(): JSX.Element {
                   className="ml-1 opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error transition-all"
                   onClick={(e) => {
                     e.stopPropagation()
-                    dispatch({ type: 'CLOSE_TAB', tabId: tab.tabId })
+                    requestClose(tab.tabId, tab.pluginId, plugin.name)
                   }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>close</span>
@@ -56,6 +66,41 @@ export function TabBar(): JSX.Element {
           <kbd className="text-[10px] bg-surface-container-low px-1.5 py-0.5 rounded border border-outline-variant/30 hidden md:block">⌘K</kbd>
         </button>
       </div>
+
+      {/* Unsaved-changes guard when closing a plugin tab */}
+      {confirmClose && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-[360px] bg-surface-container border border-outline-variant/30 rounded-2xl shadow-2xl p-5 flex flex-col gap-5">
+            <div className="flex items-start gap-3">
+              <span className="material-symbols-outlined text-warning mt-0.5" style={{ fontSize: '20px' }}>warning</span>
+              <div>
+                <p className="text-sm font-semibold text-on-surface">Unsaved changes</p>
+                <p className="text-[12px] text-on-surface-variant mt-1">
+                  <span className="font-medium text-on-surface">"{confirmClose.pluginName}"</span> has unsaved files.
+                  Close anyway?
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmClose(null)}
+                className="px-3 py-1.5 text-[12px] rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  dispatch({ type: 'CLOSE_TAB', tabId: confirmClose.tabId })
+                  setConfirmClose(null)
+                }}
+                className="px-3 py-1.5 text-[12px] rounded-lg text-error hover:bg-error/10 border border-error/30 transition-colors"
+              >
+                Close anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   )
 }

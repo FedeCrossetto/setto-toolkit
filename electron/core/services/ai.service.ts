@@ -23,14 +23,29 @@ type CacheStore = Record<string, CacheEntry>
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 const CACHE_FILE = 'ai-cache.json'
 
+/** Allow at most RATE_LIMIT calls within RATE_WINDOW_MS to avoid unexpected API spend. */
+const RATE_LIMIT     = 10 // max calls
+const RATE_WINDOW_MS = 60_000 // per 60 seconds
+
 export class AIService {
   private cache: CacheStore
+  private callTimestamps: number[] = []
 
   constructor(
     private db: DatabaseService,
     private settings: SettingsService
   ) {
     this.cache = db.readJSON<CacheStore>(CACHE_FILE) ?? {}
+  }
+
+  private enforceRateLimit(): void {
+    const now = Date.now()
+    this.callTimestamps = this.callTimestamps.filter((t) => now - t < RATE_WINDOW_MS)
+    if (this.callTimestamps.length >= RATE_LIMIT) {
+      const waitSec = Math.ceil((RATE_WINDOW_MS - (now - this.callTimestamps[0]!)) / 1000)
+      throw new Error(`RATE_LIMITED:${waitSec}`)
+    }
+    this.callTimestamps.push(now)
   }
 
   private hash(input: string): string {
@@ -62,10 +77,13 @@ export class AIService {
     const model = this.settings.get('ai.model') ?? 'gpt-4o-mini'
     const cacheKey = this.hash(JSON.stringify({ messages, model }))
 
+    // Check cache before consuming a rate-limit slot
     if (!options?.skipCache) {
       const cached = this.getCached(cacheKey)
       if (cached) return { text: cached, cached: true }
     }
+
+    this.enforceRateLimit()
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',

@@ -27,6 +27,8 @@ export interface AppState {
   sidebarCollapsed: boolean
   /** Set by OPEN_IN_EDITOR — consumed and cleared by FileEditor on mount */
   editorTarget?: { path: string; line?: number }
+  /** Plugin IDs that currently have unsaved changes */
+  dirtyPlugins: Set<string>
 }
 
 export type AppAction =
@@ -39,3 +41,6 @@ export type AppAction =
   | { type: 'TOGGLE_SIDEBAR' }
   /** Cross-plugin: open a file in the File Editor at an optional line */
   | { type: 'OPEN_IN_EDITOR'; path: string; line?: number }
+  /** Plugins report their dirty state so the global TabBar can warn before closing */
+  | { type: 'MARK_PLUGIN_DIRTY'; pluginId: string }
+  | { type: 'MARK_PLUGIN_CLEAN'; pluginId: string }

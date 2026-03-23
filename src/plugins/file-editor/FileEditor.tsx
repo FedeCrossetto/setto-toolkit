@@ -80,6 +80,12 @@ export function FileEditor(): JSX.Element {
     updateTab(activeTab.id, { isDirty: false })
   })
 
+  // ── Report global dirty state so TabBar can warn before closing the plugin ──
+  useEffect(() => {
+    const hasDirty = tabs.some((t) => t.isDirty)
+    dispatch({ type: hasDirty ? 'MARK_PLUGIN_DIRTY' : 'MARK_PLUGIN_CLEAN', pluginId: 'file-editor' })
+  }, [tabs, dispatch])
+
   // ── On mount ──────────────────────────────────────────────────────────────
   useEffect(() => { window.api.invoke<RecentFile[]>('editor:recent-get').then(setRecents) }, [])
 

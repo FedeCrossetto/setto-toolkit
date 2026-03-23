@@ -15,6 +15,11 @@ function interpolate(str: string, vars: Record<string, string>): string {
   return str.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? `{{${k}}}`)
 }
 
+/** Strip CR/LF characters from a header name or value to prevent HTTP header injection */
+function sanitizeHeader(value: string): string {
+  return value.replace(/[\r\n]/g, '')
+}
+
 
 // ── HTTP executor (Node http/https — works on all Electron versions, ──────────
 //    gives real error codes like ECONNREFUSED instead of "fetch failed") ───────
@@ -177,12 +182,14 @@ export const handlers: PluginHandlers = {
       const headers: Record<string, string> = {}
 
       for (const h of request.headers.filter((h) => h.enabled && h.key)) {
-        headers[interpolate(h.key, vars)] = interpolate(h.value, vars)
+        const key = sanitizeHeader(interpolate(h.key, vars))
+        const val = sanitizeHeader(interpolate(h.value, vars))
+        if (key) headers[key] = val
       }
 
       // Auth header
       if (request.auth.type === 'bearer' && request.auth.token) {
-        headers['Authorization'] = `Bearer ${interpolate(request.auth.token, vars)}`
+        headers['Authorization'] = `Bearer ${sanitizeHeader(interpolate(request.auth.token, vars))}`
       } else if (request.auth.type === 'basic' && request.auth.username) {
         const creds = Buffer.from(`${request.auth.username}:${request.auth.password ?? ''}`).toString('base64')
         headers['Authorization'] = `Basic ${creds}`

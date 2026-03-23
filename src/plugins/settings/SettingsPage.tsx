@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useApp } from '../../core/AppContext'
 import { useAppFont, APP_FONT_FAMILIES, APP_FONT_SIZES } from '../../core/hooks/useAppFont'
 import { useThemePalette, PALETTES } from '../../core/hooks/useThemePalette'
@@ -42,6 +42,8 @@ export function SettingsPage(): JSX.Element {
   })
   const [saved, setSaved] = useState(false)
   const [showKey, setShowKey] = useState(false)
+  const [keyTest, setKeyTest] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; message?: string }>({ status: 'idle' })
+  const keyTestTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const load = async (): Promise<void> => {
@@ -71,6 +73,21 @@ export function SettingsPage(): JSX.Element {
 
   const update = (key: keyof SettingsState, value: string): void => {
     setSettings((prev) => ({ ...prev, [key]: value }))
+    if (key === 'ai.openai_key') setKeyTest({ status: 'idle' })
+  }
+
+  const testApiKey = async (): Promise<void> => {
+    const key = settings['ai.openai_key'].trim()
+    if (!key) return
+    setKeyTest({ status: 'loading' })
+    const result = await window.api.invoke<{ valid: boolean; error?: string }>('settings:validate-openai-key', key)
+    if (result.valid) {
+      setKeyTest({ status: 'ok' })
+    } else {
+      setKeyTest({ status: 'error', message: result.error })
+    }
+    if (keyTestTimer.current) clearTimeout(keyTestTimer.current)
+    keyTestTimer.current = setTimeout(() => setKeyTest({ status: 'idle' }), 6000)
   }
 
   const inputCls =
@@ -196,22 +213,50 @@ export function SettingsPage(): JSX.Element {
         <h2 className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">AI Service</h2>
         <div className="bg-surface rounded-xl border border-outline-variant/20 px-6">
           <SettingRow label="OpenAI API Key" description="Used for Smart Diff semantic analysis. Stored locally.">
-            <div className="relative">
-              <input
-                type={showKey ? 'text' : 'password'}
-                value={settings['ai.openai_key']}
-                onChange={(e) => update('ai.openai_key', e.target.value)}
-                placeholder="sk-..."
-                className={inputCls + ' pr-10'}
-              />
-              <button
-                onClick={() => setShowKey((s) => !s)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary"
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                  {showKey ? 'visibility_off' : 'visibility'}
-                </span>
-              </button>
+            <div className="flex flex-col gap-2">
+              <div className="relative">
+                <input
+                  type={showKey ? 'text' : 'password'}
+                  value={settings['ai.openai_key']}
+                  onChange={(e) => update('ai.openai_key', e.target.value)}
+                  placeholder="sk-..."
+                  className={inputCls + ' pr-10'}
+                />
+                <button
+                  onClick={() => setShowKey((s) => !s)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                    {showKey ? 'visibility_off' : 'visibility'}
+                  </span>
+                </button>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={testApiKey}
+                  disabled={!settings['ai.openai_key'].trim() || keyTest.status === 'loading'}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-outline-variant/40 text-on-surface-variant hover:border-primary/50 hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                >
+                  {keyTest.status === 'loading' ? (
+                    <span className="material-symbols-outlined animate-spin" style={{ fontSize: '13px' }}>progress_activity</span>
+                  ) : (
+                    <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>wifi_tethering</span>
+                  )}
+                  Test key
+                </button>
+                {keyTest.status === 'ok' && (
+                  <span className="flex items-center gap-1 text-xs text-accent font-medium">
+                    <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>check_circle</span>
+                    Key valid
+                  </span>
+                )}
+                {keyTest.status === 'error' && (
+                  <span className="flex items-center gap-1 text-xs text-error font-medium" title={keyTest.message}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>error</span>
+                    {keyTest.message && keyTest.message.length > 40 ? keyTest.message.slice(0, 40) + '…' : (keyTest.message ?? 'Invalid key')}
+                  </span>
+                )}
+              </div>
             </div>
           </SettingRow>
 

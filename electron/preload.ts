@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 /** Channels the renderer may invoke (request → main) */
 const INVOKE_CHANNELS = new Set([
-  'settings:get', 'settings:set', 'settings:delete', 'settings:getAll',
+  'settings:get', 'settings:set', 'settings:delete', 'settings:getAll', 'settings:validate-openai-key',
   'repo-search:login', 'repo-search:logout', 'repo-search:me', 'repo-search:search',
   'smart-diff:analyze',
   'editor:read-dir', 'editor:open-folder-dialog', 'editor:open-dialog',

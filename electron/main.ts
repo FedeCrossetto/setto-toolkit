@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, shell, session } from 'electron'
 import path from 'path'
 import { DatabaseService } from './core/services/db.service'
 import { SettingsService } from './core/services/settings.service'
@@ -106,6 +106,33 @@ if (process.platform === 'win32') {
 }
 
 app.whenReady().then(() => {
+  // ── Content Security Policy ─────────────────────────────────────────────
+  // Applied to every response including local file:// loads.
+  // In dev mode we also allow the Vite HMR websocket origin.
+  const isDev = !!process.env['ELECTRON_RENDERER_URL']
+  const cspConnectExtra = isDev ? ' ws://localhost:* http://localhost:*' : ''
+  const cspScriptExtra  = isDev ? " 'unsafe-eval' http://localhost:*" : ''  // Vite HMR needs eval
+  const csp = [
+    "default-src 'self'",
+    `script-src 'self'${cspScriptExtra}`,
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: blob:",
+    `connect-src 'self' https://api.openai.com https://api.bitbucket.org https://api.github.com${cspConnectExtra}`,
+    "frame-src 'none'",
+    "object-src 'none'",
+    "base-uri 'self'",
+  ].join('; ')
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [csp],
+      },
+    })
+  })
+
   // Register file associations in Windows "Open with" menu
   // __filename = compiled main script path (e.g. out/main/index.js) — needed in dev
   registerFileAssociations(process.execPath, __filename)

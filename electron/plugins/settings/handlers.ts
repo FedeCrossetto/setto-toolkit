@@ -25,5 +25,22 @@ export const handlers: PluginHandlers = {
       }
       return settings.getAll(prefix)
     })
+
+    /** Validate an OpenAI API key by making a minimal models list request. */
+    ipcMain.handle('settings:validate-openai-key', async (_event, key: string) => {
+      if (!key || typeof key !== 'string' || !key.startsWith('sk-')) {
+        return { valid: false, error: 'Key must start with "sk-"' }
+      }
+      try {
+        const res = await fetch('https://api.openai.com/v1/models', {
+          headers: { Authorization: `Bearer ${key}` },
+        })
+        if (res.ok) return { valid: true }
+        const body = (await res.json()) as { error?: { message?: string } }
+        return { valid: false, error: body.error?.message ?? `HTTP ${res.status}` }
+      } catch (err) {
+        return { valid: false, error: err instanceof Error ? err.message : 'Network error' }
+      }
+    })
   }
 }

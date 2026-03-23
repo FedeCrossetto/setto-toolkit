@@ -15,6 +15,7 @@ const initialState: AppState = {
   commandPaletteOpen: false,
   theme: getInitialTheme(),
   sidebarCollapsed: true,
+  dirtyPlugins: new Set(),
 }
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -60,6 +61,16 @@ function appReducer(state: AppState, action: AppAction): AppState {
         activeTabId: tabId,
         editorTarget: { path: action.path, line: action.line },
       }
+    }
+    case 'MARK_PLUGIN_DIRTY': {
+      const next = new Set(state.dirtyPlugins)
+      next.add(action.pluginId)
+      return { ...state, dirtyPlugins: next }
+    }
+    case 'MARK_PLUGIN_CLEAN': {
+      const next = new Set(state.dirtyPlugins)
+      next.delete(action.pluginId)
+      return { ...state, dirtyPlugins: next }
     }
     default:
       return state
