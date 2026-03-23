@@ -17,9 +17,10 @@
 |---|---|
 | **File Editor** | Abrí, editá y guardás archivos. Soporte para logs grandes con modo tail, file watcher y búsqueda en archivos. |
 | **Smart Diff** | Comparación semántica de dos fragmentos de código con análisis de IA (OpenAI). Detecta cambios de lógica, efectos secundarios y sugiere mejoras. |
-| **Repo Search** | Buscá código en todos los repositorios de tu workspace. Soporta **Bitbucket** y **GitHub**. Las credenciales se guardan encriptadas localmente con `safeStorage`. |
-| **API Tester** | Cliente HTTP similar a Postman. Soporta colecciones, entornos con variables, historial de requests y autenticación Bearer / Basic. |
-| **Settings** | Configuración de API keys, modelo de IA, fuente y tema de color. |
+| **Repo Search** | Buscá código en todos los repositorios de tu workspace. Soporta **Bitbucket**, **GitHub** y **GitLab**. Las credenciales se guardan encriptadas localmente con `safeStorage`. |
+| **API Tester** | Cliente HTTP similar a Postman. Soporta colecciones, entornos con variables, historial, autenticación Bearer / Basic, multipart/form-data y scripts pre/post-request. |
+| **Settings** | Configuración de API keys, proveedor de IA (OpenAI / Anthropic / Ollama), fuente, tema de color y backup/restore de settings. |
+| **About** | Información de versión, stack tecnológico y detalles de seguridad de la app. |
 
 ---
 
@@ -76,10 +77,20 @@ Todas las credenciales se configuran **desde dentro de la app** en la pantalla c
    - Para crear uno: GitHub → Settings → Developer settings → Personal access tokens.
 3. Opcionalmente podés especificar una organización para acotar la búsqueda.
 
-### Smart Diff — OpenAI
+### Repo Search — GitLab
 
-1. Abrí **Settings** y pegá tu API Key de OpenAI en el campo correspondiente.
-2. Seleccioná el modelo (por defecto `gpt-4o-mini`).
+1. Seleccioná la pestaña **GitLab**.
+2. Ingresá un **Personal Access Token** con scopes `api` y `read_api`.
+   - Para crear uno: GitLab → Preferences → Access Tokens.
+3. Opcionalmente podés especificar un grupo para acotar la búsqueda a sus proyectos.
+
+### Smart Diff — Proveedor de IA
+
+Abrí **Settings → AI Service** y elegí el proveedor:
+
+- **OpenAI**: pegá tu API Key y seleccioná el modelo (`gpt-4o-mini` por defecto).
+- **Anthropic**: pegá tu API Key y seleccioná el modelo Claude (`claude-haiku-4-5` por defecto).
+- **Ollama (local)**: ingresá la URL de tu instancia (`http://localhost:11434`) y el nombre del modelo. No requiere API key.
 
 ---
 
@@ -105,7 +116,7 @@ Podés usar `src/plugins/_template/` como punto de partida.
 - **Vite + electron-vite** — bundler y dev server
 - **CodeMirror 6** — editor de código
 - **Tailwind CSS** — estilos
-- **OpenAI SDK** — análisis semántico en Smart Diff
+- **OpenAI / Anthropic / Ollama** — análisis semántico en Smart Diff (multi-proveedor)
 - **chokidar** — file watching en el editor
 
 ---
@@ -113,14 +124,73 @@ Podés usar `src/plugins/_template/` como punto de partida.
 ## Seguridad
 
 - Todos los canales IPC tienen una **allowlist explícita** en el preload — canales desconocidos son bloqueados.
-- Las rutas de archivo son validadas en el proceso principal antes de cualquier operación.
-- Las credenciales sensibles (tokens, API keys) se encriptan con `safeStorage` antes de escribirse a disco.
+- Las rutas de archivo son validadas en el proceso principal antes de cualquier operación (path traversal + authorized roots).
+- Las credenciales sensibles (tokens, API keys de OpenAI, Anthropic, GitLab) se encriptan con `safeStorage` antes de escribirse a disco.
+- El **cache de IA** (`ai-cache.json`) se encripta en disco con `safeStorage` (prefijo `ENCV1:`).
+- Las API keys nunca se retornan al renderer en texto plano — se usa un centinela `__CONFIGURED__`.
 - El renderer corre con `sandbox: true` y `nodeIntegration: false`.
+- Los scripts de pre/post-request en el API Tester corren en un `vm.runInNewContext` aislado con timeout de 2s.
 - Las peticiones HTTPS del API Tester validan certificados TLS.
 
 ---
 
 ## Changelog
+
+### v2.0.0 — 2026-03-23
+
+#### Nuevas funcionalidades
+
+**Multi-proveedor AI (Smart Diff)**
+- Soporte para **OpenAI**, **Anthropic Claude** y **Ollama** (local, sin API key).
+- Selector de proveedor en Settings con campos condicionales por proveedor.
+- Los modelos disponibles se listan en un dropdown por proveedor.
+
+**API Tester — Scripts pre/post-request**
+- Nuevo tab **Scripts** en cada request.
+- El script de pre-request puede mutar variables de entorno antes del envío (`pm.environment.set/get`).
+- El script de post-response accede a `pm.response.status`, `pm.response.json()`, `pm.response.body`.
+- Ejecución sandboxada via `vm.runInNewContext` con timeout de 2 segundos.
+
+**API Tester — Soporte multipart/form-data**
+- Nuevo body type `form-data` con editor de campos clave/valor.
+- Soporte para adjuntar archivos directamente desde el editor.
+
+**Repo Search — GitLab**
+- Tercera pestaña de proveedor con autenticación por Personal Access Token.
+- Búsqueda de código por scope `blobs` en todos los proyectos accesibles o en un grupo específico.
+- Token almacenado cifrado con `safeStorage`.
+
+**Historial de búsqueda persistido (Repo Search)**
+- El historial de queries deja de usar `localStorage` y se guarda en `userData` via IPC (`repo-search-history.json`).
+- Persiste entre reinstalaciones del renderer y está disponible en el proceso principal.
+
+**Backup & Restore de settings**
+- Nuevo botón **Export JSON** en Settings: guarda configuración no sensible (modelos, workspace, aliases) en un archivo local.
+- Botón **Import JSON**: carga y aplica la configuración desde un archivo. Las API keys nunca se exportan ni importan desde archivo.
+
+**Plugin About**
+- Nueva pantalla con versión de la app, stack tecnológico y detalles de seguridad.
+
+#### Mejoras de UX
+
+- **Dirty indicator**: punto de color en el tab del File Editor cuando hay cambios sin guardar.
+- **Modal de confirmación** al eliminar archivos/carpetas (reemplaza `window.confirm`).
+- **ErrorBoundary por plugin**: si un plugin falla, muestra un card de error con botón "Try again" sin romper el resto de la app.
+- **Toast system**: notificaciones no bloqueantes en esquina inferior derecha (success / error / warning / info).
+- **Sidebar collapse persistido**: el estado colapsado/expandido de la barra lateral se guarda en `localStorage`.
+- **Word-level diff**: en Smart Diff, las líneas modificadas resaltan las palabras exactas que cambiaron (no solo la línea completa).
+- **AI Insights scrolleable**: el panel de análisis de IA en Smart Diff tiene altura mínima y scroll interno.
+- **Banner de onboarding**: aparece en el Dashboard si no hay proveedor de IA configurado, con acceso directo a Settings.
+
+#### Seguridad
+
+- **AI cache encriptado**: `ai-cache.json` se cifra con `safeStorage` (prefijo `ENCV1:`). Migración transparente desde archivos planos existentes.
+- **Anthropic key cifrada** con `safeStorage` (mismo mecanismo que OpenAI key y tokens de Bitbucket/GitHub).
+- **GitLab token cifrado** con `safeStorage`.
+- **Settings allowlist ampliada**: nuevas keys de AI y GitLab validadas explícitamente en el handler de IPC.
+- **Authorized roots para File Editor**: las operaciones de escritura/borrado solo se permiten en directorios previamente autorizados por el usuario.
+
+---
 
 ### v1.0.1 — 2026-03-22
 

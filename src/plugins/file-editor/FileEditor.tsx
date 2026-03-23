@@ -37,7 +37,7 @@ interface TreeCallbacks {
 }
 
 export function FileEditor(): JSX.Element {
-  const { state } = useApp()
+  const { state, dispatch } = useApp()
   const { tabs, activeId, activeTab, setActiveId, openFile, openBuffer, closeTab, updateTab } = useEditorTabs()
   const { prefs, updatePrefs } = useEditorPrefs()
 
@@ -57,6 +57,9 @@ export function FileEditor(): JSX.Element {
   const [openFilesHeight, setOpenFilesHeight] = useState(180)
   const [closeConfirm, setCloseConfirm] = useState<{
     tabId: string; name: string; resolve: (r: 'save' | 'discard' | 'cancel') => void
+  } | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    name: string; isDir: boolean; resolve: (confirmed: boolean) => void
   } | null>(null)
 
   const editorRef    = useRef<EditorHandle | null>(null)
@@ -79,6 +82,12 @@ export function FileEditor(): JSX.Element {
     await window.api.invoke('editor:write-file', activeTab.path, activeTab.content)
     updateTab(activeTab.id, { isDirty: false })
   })
+
+  // ── Report dirty state to global AppContext (drives TabBar dot indicator) ─
+  useEffect(() => {
+    const hasDirty = tabs.some((t) => t.isDirty)
+    dispatch({ type: 'SET_PLUGIN_DIRTY', pluginId: 'file-editor', dirty: hasDirty })
+  }, [tabs, dispatch])
 
   // ── On mount ──────────────────────────────────────────────────────────────
   useEffect(() => { window.api.invoke<RecentFile[]>('editor:recent-get').then(setRecents) }, [])
@@ -263,7 +272,11 @@ export function FileEditor(): JSX.Element {
       ...(node.path !== rootPath ? [{
         label: 'Delete', icon: 'delete', danger: true,
         action: async () => {
-          if (!window.confirm(`Delete "${node.name}"? This cannot be undone.`)) return
+          const confirmed = await new Promise<boolean>((resolve) =>
+            setDeleteConfirm({ name: node.name, isDir: node.isDir, resolve })
+          )
+          setDeleteConfirm(null)
+          if (!confirmed) return
           await window.api.invoke('editor:delete', node.path)
           refreshFolder(rootPath)
         },
@@ -666,6 +679,38 @@ export function FileEditor(): JSX.Element {
       {/* ── Overlays ──────────────────────────────────────────────────────── */}
       {quickOpen && <QuickOpen folders={folders} onOpen={openFile} onClose={() => setQuickOpen(false)} />}
       {ctxMenu && <ContextMenu x={ctxMenu.x} y={ctxMenu.y} items={ctxMenu.items} onClose={() => setCtxMenu(null)} />}
+
+      {/* ── Delete confirmation modal ──────────────────────────────────────── */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-[360px] bg-surface-container border border-outline-variant/30 rounded-2xl shadow-2xl p-5 flex flex-col gap-5">
+            <div className="flex items-start gap-3">
+              <span className="material-symbols-outlined text-error flex-shrink-0 mt-0.5" style={{ fontSize: '22px', fontVariationSettings: "'FILL' 1" }}>
+                {deleteConfirm.isDir ? 'folder_delete' : 'delete'}
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-on-surface">Delete {deleteConfirm.isDir ? 'folder' : 'file'}?</p>
+                <p className="text-[12px] text-on-surface-variant mt-1">
+                  <span className="font-medium text-on-surface">"{deleteConfirm.name}"</span>
+                  {deleteConfirm.isDir ? ' and all its contents will be ' : ' will be '}
+                  permanently deleted.
+                </p>
+                <p className="text-[11px] text-error/70 mt-1">This action cannot be undone.</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => deleteConfirm.resolve(false)}
+                className="px-3 py-1.5 text-[12px] rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors"
+              >Cancel</button>
+              <button
+                onClick={() => deleteConfirm.resolve(true)}
+                className="px-3 py-1.5 text-[12px] rounded-lg bg-error text-white hover:bg-error/90 transition-colors font-medium"
+              >Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Save-on-close confirmation modal ──────────────────────────────── */}
       {closeConfirm && (

@@ -1,8 +1,9 @@
 import * as http  from 'http'
 import * as https from 'https'
+import vm from 'vm'
 import type { IpcMain } from 'electron'
 import type { PluginHandlers, CoreServices } from '../../core/types'
-import type { Collection, HttpRequest, HistoryEntry, Environment, HttpResponse } from '../../../src/plugins/api-tester/types'
+import type { Collection, HttpRequest, HistoryEntry, Environment, HttpResponse, FormDataField } from '../../../src/plugins/api-tester/types'
 import { randomUUID } from 'crypto'
 
 const COLLECTIONS_FILE = 'api-tester-collections.json'
@@ -15,6 +16,42 @@ function interpolate(str: string, vars: Record<string, string>): string {
   return str.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? `{{${k}}}`)
 }
 
+const MULTIPART_BOUNDARY = '----SettoBoundary'
+
+/**
+ * Build a multipart/form-data body buffer from FormDataField array.
+ * File fields use the '__FILE__:<base64>:<filename>' encoding set by the renderer.
+ */
+function buildFormDataBody(
+  fields: FormDataField[],
+  vars: Record<string, string>
+): { body: Buffer; contentType: string } {
+  const boundary = `${MULTIPART_BOUNDARY}${Date.now()}`
+  const parts: Buffer[] = []
+
+  for (const field of fields.filter((f) => f.enabled && f.key)) {
+    const key = interpolate(field.key, vars)
+    if (field.isFile && field.value.startsWith('__FILE__:')) {
+      const [, b64, filename] = field.value.split(':')
+      const fileData = Buffer.from(b64, 'base64')
+      const header = `--${boundary}\r\nContent-Disposition: form-data; name="${key}"; filename="${filename ?? key}"\r\nContent-Type: application/octet-stream\r\n\r\n`
+      parts.push(Buffer.from(header, 'utf8'))
+      parts.push(fileData)
+      parts.push(Buffer.from('\r\n', 'utf8'))
+    } else {
+      const value = interpolate(field.value, vars)
+      const part = `--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`
+      parts.push(Buffer.from(part, 'utf8'))
+    }
+  }
+
+  parts.push(Buffer.from(`--${boundary}--\r\n`, 'utf8'))
+  return {
+    body: Buffer.concat(parts),
+    contentType: `multipart/form-data; boundary=${boundary}`,
+  }
+}
+
 
 // ── HTTP executor (Node http/https — works on all Electron versions, ──────────
 //    gives real error codes like ECONNREFUSED instead of "fetch failed") ───────
@@ -23,7 +60,7 @@ function nodeRequest(
   urlObj: URL,
   method: string,
   headers: Record<string, string>,
-  body: string | undefined,
+  body: string | Buffer | undefined,
   timeoutMs: number,
 ): Promise<{ status: number; statusText: string; responseHeaders: Record<string, string>; responseBody: string }> {
   return new Promise((resolve, reject) => {
@@ -162,6 +199,62 @@ export const handlers: PluginHandlers = {
       return { ok: true }
     })
 
+    // ── Script runner ──────────────────────────────────────────────────────
+    // Executes a user script in a sandboxed vm context.
+    // The script receives a `pm` object with environment get/set and optional response data.
+
+    ipcMain.handle('api-tester:run-script', (_e, payload: {
+      script: string
+      envVars: Record<string, string>
+      response?: { status: number; body: string; headers: Record<string, string> }
+    }) => {
+      const { script, envVars, response } = payload
+      if (!script || typeof script !== 'string') return { envVars, logs: [] }
+
+      const logs: string[] = []
+      const updatedVars = { ...envVars }
+
+      const pm = {
+        environment: {
+          get: (key: string) => updatedVars[key] ?? null,
+          set: (key: string, value: unknown) => { updatedVars[key] = String(value) },
+          unset: (key: string) => { delete updatedVars[key] },
+        },
+        response: response
+          ? {
+              status: response.status,
+              body: response.body,
+              headers: response.headers,
+              json: () => {
+                try { return JSON.parse(response.body) }
+                catch { return null }
+              },
+            }
+          : null,
+      }
+
+      const sandbox = {
+        pm,
+        console: { log: (...args: unknown[]) => logs.push(args.map(String).join(' ')) },
+        JSON,
+        parseInt,
+        parseFloat,
+        String,
+        Number,
+        Boolean,
+        Array,
+        Object,
+      }
+
+      try {
+        vm.runInNewContext(script, sandbox, { timeout: 2000, filename: 'script' })
+      } catch (err) {
+        return { envVars: updatedVars, logs, error: err instanceof Error ? err.message : String(err) }
+      }
+
+      return { envVars: updatedVars, logs }
+    })
+
     // ── Execute ────────────────────────────────────────────────────────────
 
     ipcMain.handle('api-tester:execute', async (_e, payload: {
@@ -195,14 +288,23 @@ export const handlers: PluginHandlers = {
       }
 
       // Body
-      let body: string | undefined
+      let body: string | Buffer | undefined
       if (request.body.type !== 'none' && request.method !== 'GET' && request.method !== 'HEAD') {
-        body = interpolate(request.body.content, vars)
-        if (!headers['Content-Type'] && !headers['content-type']) {
-          if (request.body.type === 'json')        headers['Content-Type'] = 'application/json'
-          else if (request.body.type === 'xml')    headers['Content-Type'] = 'application/xml'
-          else if (request.body.type === 'form')   headers['Content-Type'] = 'application/x-www-form-urlencoded'
-          else                                     headers['Content-Type'] = 'text/plain'
+        if (request.body.type === 'form-data') {
+          const fields = (request.body.formData ?? []) as FormDataField[]
+          const { body: fdBody, contentType } = buildFormDataBody(fields, vars)
+          body = fdBody
+          if (!headers['Content-Type'] && !headers['content-type']) {
+            headers['Content-Type'] = contentType
+          }
+        } else {
+          body = interpolate(request.body.content, vars)
+          if (!headers['Content-Type'] && !headers['content-type']) {
+            if (request.body.type === 'json')        headers['Content-Type'] = 'application/json'
+            else if (request.body.type === 'xml')    headers['Content-Type'] = 'application/xml'
+            else if (request.body.type === 'form')   headers['Content-Type'] = 'application/x-www-form-urlencoded'
+            else                                     headers['Content-Type'] = 'text/plain'
+          }
         }
       }
 
@@ -210,7 +312,7 @@ export const handlers: PluginHandlers = {
 
       try {
         const { status, statusText, responseHeaders, responseBody } =
-          await nodeRequest(urlObj, request.method, headers, body, timeoutMs)
+          await nodeRequest(urlObj, request.method, headers, body as string | undefined, timeoutMs)
 
         const duration = Date.now() - startMs
         const response: HttpResponse = {

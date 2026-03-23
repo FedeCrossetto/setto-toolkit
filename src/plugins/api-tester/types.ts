@@ -1,5 +1,5 @@
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS'
-export type BodyType = 'none' | 'json' | 'text' | 'xml' | 'form'
+export type BodyType = 'none' | 'json' | 'text' | 'xml' | 'form' | 'form-data'
 export type AuthType = 'none' | 'bearer' | 'basic'
 
 export interface KeyValuePair {
@@ -7,6 +7,16 @@ export interface KeyValuePair {
   key: string
   value: string
   enabled: boolean
+}
+
+/** A field in a multipart/form-data body */
+export interface FormDataField {
+  id: string
+  key: string
+  /** String value, or a file reference encoded as '__FILE__:<base64 content>:<filename>' */
+  value: string
+  enabled: boolean
+  isFile: boolean
 }
 
 export interface HttpRequest {
@@ -17,8 +27,12 @@ export interface HttpRequest {
   url: string
   headers: KeyValuePair[]
   params: KeyValuePair[]
-  body: { type: BodyType; content: string }
+  body: { type: BodyType; content: string; formData?: FormDataField[] }
   auth: { type: AuthType; token?: string; username?: string; password?: string }
+  /** JavaScript executed before the request. Has access to pm.environment.set/get */
+  preRequestScript?: string
+  /** JavaScript executed after the response. Has access to pm.response and pm.environment */
+  postResponseScript?: string
   createdAt: string
   updatedAt: string
 }
@@ -65,6 +79,8 @@ export interface ActiveRequest {
   url: string
   headers: KeyValuePair[]
   params: KeyValuePair[]
-  body: { type: BodyType; content: string }
+  body: { type: BodyType; content: string; formData?: FormDataField[] }
   auth: { type: AuthType; token?: string; username?: string; password?: string }
+  preRequestScript?: string
+  postResponseScript?: string
 }

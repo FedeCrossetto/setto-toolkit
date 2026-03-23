@@ -8,6 +8,8 @@ import { CommandPalette } from './core/components/CommandPalette'
 import { GlobalSearch } from './core/components/GlobalSearch'
 import { StatusBar } from './core/components/StatusBar'
 import { TitleBar } from './core/components/TitleBar'
+import { ErrorBoundary } from './core/components/ErrorBoundary'
+import { ToastProvider } from './core/components/Toast'
 import { getPlugin } from './core/plugin-registry'
 
 function AppShell(): JSX.Element {
@@ -19,6 +21,9 @@ function AppShell(): JSX.Element {
   useEffect(() => {
     const off = window.api.on('open-file', (filePath: unknown) => {
       if (typeof filePath === 'string') {
+        // Authorize the file's parent directory for write operations in this session.
+        const parentDir = filePath.replace(/[/\\][^/\\]+$/, '')
+        window.api.send('editor:authorize-root', parentDir)
         dispatch({ type: 'OPEN_IN_EDITOR', path: filePath })
       }
     })
@@ -63,7 +68,9 @@ function AppShell(): JSX.Element {
                   key={tab.tabId}
                   className={`absolute inset-0 w-full h-full overflow-auto ${active ? '' : 'hidden'}`}
                 >
-                  <Component />
+                  <ErrorBoundary label={plugin.name}>
+                    <Component />
+                  </ErrorBoundary>
                 </div>
               )
             })
@@ -79,7 +86,9 @@ function AppShell(): JSX.Element {
 export function App(): JSX.Element {
   return (
     <AppProvider>
-      <AppShell />
+      <ToastProvider>
+        <AppShell />
+      </ToastProvider>
     </AppProvider>
   )
 }

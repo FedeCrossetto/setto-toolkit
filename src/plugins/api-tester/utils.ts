@@ -1,9 +1,6 @@
-/** Simple UUID v4 for renderer-side use (no crypto module in renderer) */
+/** Cryptographically secure UUID v4 using the Web Crypto API (available in Electron renderer). */
 export function randomUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
-  })
+  return crypto.randomUUID()
 }
 
 /** Default empty KeyValuePair */

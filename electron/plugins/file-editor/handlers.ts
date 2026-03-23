@@ -16,6 +16,36 @@ const TAIL_LINES    = 2000              // lines to load for large files
 /** Active chokidar watchers keyed by absolute file path */
 const watchers = new Map<string, FSWatcher>()
 
+/**
+ * Authorized root directories — populated whenever the user opens a folder via
+ * dialog or passes a file via CLI. Write/delete/rename operations are restricted
+ * to paths inside one of these roots.
+ */
+const authorizedRoots = new Set<string>()
+
+function addAuthorizedRoot(rootPath: string): void {
+  authorizedRoots.add(path.resolve(rootPath))
+}
+
+/**
+ * Verify that `targetPath` is located inside at least one authorized root.
+ * Throws if the path is not covered — prevents operations on arbitrary FS locations.
+ */
+function assertInAuthorizedRoot(targetPath: string): void {
+  if (authorizedRoots.size === 0) {
+    // No roots registered yet — only allow if the path was explicitly opened as a file
+    // (single-file open dialog). Guard below handles that via the read-only exemption.
+    throw new Error('No workspace is open. Open a folder first before performing write operations.')
+  }
+  const resolved = path.resolve(targetPath)
+  for (const root of authorizedRoots) {
+    // Use path.relative to check containment without string hacks.
+    const rel = path.relative(root, resolved)
+    if (!rel.startsWith('..') && !path.isAbsolute(rel)) return
+  }
+  throw new Error(`Operation denied: path is outside any open workspace — "${resolved}"`)
+}
+
 function getRecentFiles(settings: CoreServices['settings']): RecentFile[] {
   return settings.getJSON<RecentFile[]>(RECENT_KEY) ?? []
 }
@@ -88,6 +118,9 @@ export const handlers: PluginHandlers = {
 
     ipcMain.handle('editor:open-folder-dialog', async (_e) => {
       const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'multiSelections'] })
+      if (!result.canceled) {
+        result.filePaths.forEach((p) => addAuthorizedRoot(p))
+      }
       return result.canceled ? [] : result.filePaths
     })
 
@@ -101,6 +134,10 @@ export const handlers: PluginHandlers = {
           { name: 'All Files', extensions: ['*'] },
         ],
       })
+      if (!result.canceled) {
+        // Register the parent directory of each opened file as an authorized root.
+        result.filePaths.forEach((fp) => addAuthorizedRoot(path.dirname(fp)))
+      }
       return result.canceled ? [] : result.filePaths
     })
 
@@ -133,6 +170,7 @@ export const handlers: PluginHandlers = {
 
     ipcMain.handle('editor:write-file', (_e, filePath: string, content: string) => {
       const safe = validatePath(filePath)
+      assertInAuthorizedRoot(safe)
       fs.writeFileSync(safe, content, 'utf-8')
       return { ok: true }
     })
@@ -209,12 +247,14 @@ export const handlers: PluginHandlers = {
 
     ipcMain.handle('editor:create-file', (_e, filePath: string) => {
       const safe = validatePath(filePath)
+      assertInAuthorizedRoot(safe)
       fs.writeFileSync(safe, '', 'utf-8')
       return { ok: true }
     })
 
     ipcMain.handle('editor:create-dir', (_e, dirPath: string) => {
       const safe = validatePath(dirPath)
+      assertInAuthorizedRoot(safe)
       fs.mkdirSync(safe, { recursive: true })
       return { ok: true }
     })
@@ -222,12 +262,15 @@ export const handlers: PluginHandlers = {
     ipcMain.handle('editor:rename', (_e, oldPath: string, newPath: string) => {
       const safeOld = validatePath(oldPath)
       const safeNew = validatePath(newPath)
+      assertInAuthorizedRoot(safeOld)
+      assertInAuthorizedRoot(safeNew)
       fs.renameSync(safeOld, safeNew)
       return { ok: true }
     })
 
     ipcMain.handle('editor:delete', (_e, targetPath: string) => {
       const safe = validatePath(targetPath)
+      assertInAuthorizedRoot(safe)
       // Guard against accidentally deleting root or near-root paths
       const parts = safe.split(path.sep).filter(Boolean)
       if (parts.length < 2) throw new Error('Refusing to delete a root or near-root path')
@@ -244,9 +287,19 @@ export const handlers: PluginHandlers = {
       const results: FindResult[] = []
       const MAX_RESULTS = 300
       const MAX_FILE_SIZE = 5 * 1024 * 1024
+      const MAX_QUERY_LENGTH = 500
+
+      if (!query || typeof query !== 'string') return []
+      if (query.length > MAX_QUERY_LENGTH) return []
 
       let re: RegExp | null = null
       if (useRegex) {
+        // Guard against ReDoS: reject patterns known to cause catastrophic backtracking.
+        // Heuristic: nested quantifiers like (a+)+ or (.*)* are the main culprit.
+        const dangerousPattern = /(\(.*[+*]\).*[+*]|\[[^\]]*\][+*][+*]|\{.*[+*]\}.*[+*])/
+        if (dangerousPattern.test(query)) {
+          return []
+        }
         try { re = new RegExp(query, 'i') } catch { return [] }
       }
 
@@ -287,6 +340,14 @@ export const handlers: PluginHandlers = {
     ipcMain.handle('editor:recent-clear', () => {
       settings.setJSON(RECENT_KEY, [])
       return { ok: true }
+    })
+
+    // ── Authorize roots from CLI / "Open with" ─────────────────────────────
+    // When a file is opened from the OS (double-click, drag-to-icon, second-instance),
+    // automatically authorize its parent directory so the user can save changes.
+
+    ipcMain.on('editor:authorize-root', (_e, rootPath: string) => {
+      try { addAuthorizedRoot(rootPath) } catch { /* ignore invalid paths */ }
     })
 
     // ── Cleanup on app quit ────────────────────────────────────────────────

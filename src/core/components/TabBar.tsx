@@ -29,6 +29,12 @@ export function TabBar(): JSX.Element {
                 {plugin.icon}
               </span>
               <span>{plugin.name}</span>
+              {state.dirtyPlugins[tab.pluginId] && (
+                <span
+                  title="Unsaved changes"
+                  className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0"
+                />
+              )}
               {state.openTabs.length > 1 && (
                 <button
                   className="ml-1 opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error transition-all"

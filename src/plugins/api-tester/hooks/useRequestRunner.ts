@@ -35,12 +35,35 @@ export function useRequestRunner(environments: Environment[]) {
     setError(null)
     setResponse(null)
     try {
+      // Run pre-request script (may mutate env vars)
+      let effectiveEnvVars = { ...envVars }
+      if (request.preRequestScript?.trim()) {
+        const preResult = await window.api.invoke<{ envVars: Record<string, string>; logs: string[]; error?: string }>(
+          'api-tester:run-script',
+          { script: request.preRequestScript, envVars: effectiveEnvVars }
+        )
+        effectiveEnvVars = preResult.envVars
+      }
+
       const res = await window.api.invoke<HttpResponse>('api-tester:execute', {
         request,
-        envVars,
+        envVars: effectiveEnvVars,
         timeoutMs: 30_000,
       })
       if (cancelledRef.current) return
+
+      // Run post-response script
+      if (request.postResponseScript?.trim()) {
+        await window.api.invoke<{ envVars: Record<string, string>; logs: string[]; error?: string }>(
+          'api-tester:run-script',
+          {
+            script: request.postResponseScript,
+            envVars: effectiveEnvVars,
+            response: { status: res.status, body: res.body, headers: res.headers },
+          }
+        )
+      }
+
       setResponse(res)
       setStatus('success')
       loadHistory()

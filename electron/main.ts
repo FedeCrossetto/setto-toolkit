@@ -74,6 +74,9 @@ function createWindow(): void {
     mainWindow?.webContents.send('page:found', result)
   })
 
+  // App metadata
+  ipcMain.handle('app:version', () => app.getVersion())
+
   // Window controls IPC
   ipcMain.on('window:minimize', () => mainWindow?.minimize())
   ipcMain.on('window:maximize', () => {

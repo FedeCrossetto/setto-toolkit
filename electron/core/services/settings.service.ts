@@ -7,8 +7,10 @@ type SettingsStore = Record<string, string>
 const SECURE_KEYS = new Set([
   'bitbucket.token',              // legacy — keep for any old stored data
   'ai.openai_key',
+  'ai.anthropic_key',
   'repo-search.bitbucket.token',
   'repo-search.github.token',
+  'repo-search.gitlab.token',
 ])
 
 const ENC_PREFIX = 'enc:'

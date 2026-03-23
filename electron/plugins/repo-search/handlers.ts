@@ -1,7 +1,7 @@
 import type { PluginHandlers, CoreServices } from '../../core/types'
 import type { IpcMain } from 'electron'
 
-export type Provider = 'bitbucket' | 'github'
+export type Provider = 'bitbucket' | 'github' | 'gitlab'
 
 export interface SearchResult {
   repo: string
@@ -21,6 +21,7 @@ export interface AuthInfo {
 
 const BITBUCKET_API = 'https://api.bitbucket.org/2.0'
 const GITHUB_API = 'https://api.github.com'
+const GITLAB_API = 'https://gitlab.com/api/v4'
 
 function settingKey(provider: Provider, field: string): string {
   return `repo-search.${provider}.${field}`
@@ -235,12 +236,96 @@ async function githubSearch(token: string, query: string, org?: string | null): 
   return results
 }
 
+// ── GitLab types ───────────────────────────────────────────────────────────
+
+interface GitLabProject {
+  id: number
+  path_with_namespace: string
+  default_branch?: string
+  web_url: string
+}
+
+interface GitLabBlobResult {
+  project_id: number
+  path: string
+  ref: string
+  startline: number
+  data: string
+}
+
+interface GitLabSearchResponse {
+  results?: GitLabBlobResult[]
+}
+
+// ── GitLab helpers ─────────────────────────────────────────────────────────
+
+async function gitlabFetch<T>(url: string, token: string): Promise<T> {
+  const response = await fetch(url, {
+    headers: { 'PRIVATE-TOKEN': token, Accept: 'application/json' },
+  })
+  if (!response.ok) {
+    const err = (await response.json()) as { message?: string }
+    throw new Error(err.message ?? `GitLab API error: ${response.status}`)
+  }
+  return response.json() as Promise<T>
+}
+
+async function gitlabSearch(token: string, query: string, group?: string | null): Promise<SearchResult[]> {
+  const results: SearchResult[] = []
+
+  // Fetch accessible projects (first 100 in the group or user-visible)
+  const projectsUrl = group
+    ? `${GITLAB_API}/groups/${encodeURIComponent(group)}/projects?per_page=100&include_subgroups=true`
+    : `${GITLAB_API}/projects?membership=true&per_page=100`
+  const projects = await gitlabFetch<GitLabProject[]>(projectsUrl, token)
+
+  // Search blobs in each project (GitLab requires project-scoped blob search)
+  for (const project of projects) {
+    const searchUrl = `${GITLAB_API}/projects/${project.id}/search?scope=blobs&search=${encodeURIComponent(query)}&per_page=20`
+    let blobs: GitLabBlobResult[] = []
+    try {
+      const raw = await gitlabFetch<GitLabBlobResult[] | GitLabSearchResponse>(searchUrl, token)
+      blobs = Array.isArray(raw) ? raw : (raw as GitLabSearchResponse).results ?? []
+    } catch {
+      continue // skip projects where search fails (e.g. archived, no permissions)
+    }
+
+    const branch = project.default_branch ?? 'main'
+    for (const blob of blobs) {
+      const link = `${project.web_url}/-/blob/${encodeURIComponent(blob.ref)}/${blob.path}#L${blob.startline}`
+      results.push({
+        repo: project.path_with_namespace,
+        path: blob.path,
+        line: blob.startline,
+        fragment: blob.data.trim(),
+        link,
+        branch,
+      })
+    }
+  }
+
+  return results
+}
+
 // ── IPC handlers ───────────────────────────────────────────────────────────
+
+const REPO_SEARCH_HISTORY_FILE = 'repo-search-history.json'
+const MAX_REPO_SEARCH_HISTORY = 10
 
 export const handlers: PluginHandlers = {
   pluginId: 'repo-search',
 
-  register(ipcMain: IpcMain, { settings }: CoreServices): void {
+  register(ipcMain: IpcMain, { settings, db }: CoreServices): void {
+
+    ipcMain.handle('repo-search:history-get', () => {
+      return db.readJSON<string[]>(REPO_SEARCH_HISTORY_FILE) ?? []
+    })
+
+    ipcMain.handle('repo-search:history-save', (_event, queries: string[]) => {
+      if (!Array.isArray(queries)) throw new Error('Expected array')
+      db.writeJSON(REPO_SEARCH_HISTORY_FILE, queries.slice(0, MAX_REPO_SEARCH_HISTORY))
+      return { ok: true }
+    })
 
     ipcMain.handle('repo-search:login', async (_event, payload: {
       provider: Provider
@@ -267,6 +352,15 @@ export const handlers: PluginHandlers = {
         const data = await githubFetch<{ login?: string }>(`${GITHUB_API}/user`, token)
         const username = data.login ?? 'unknown'
         settings.set(settingKey(provider, 'token'), token)
+        if (org) settings.set(settingKey(provider, 'org'), org)
+        return { ok: true, username }
+
+      } else if (provider === 'gitlab') {
+        const { org } = payload
+        const data = await gitlabFetch<{ username?: string }>(`${GITLAB_API}/user`, token)
+        const username = data.username ?? 'unknown'
+        settings.set(settingKey(provider, 'token'), token)
+        settings.set(settingKey(provider, 'username'), username)
         if (org) settings.set(settingKey(provider, 'org'), org)
         return { ok: true, username }
 
@@ -308,6 +402,10 @@ export const handlers: PluginHandlers = {
       } else if (provider === 'github') {
         const org = settings.get(settingKey(provider, 'org'))
         results = await githubSearch(token, query, org)
+
+      } else if (provider === 'gitlab') {
+        const org = settings.get(settingKey(provider, 'org'))
+        results = await gitlabSearch(token, query, org)
       }
 
       return { results, count: results.length }

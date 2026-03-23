@@ -8,6 +8,7 @@ import { repoSearchPlugin } from '../plugins/repo-search'
 import { apiTesterPlugin } from '../plugins/api-tester'
 import { fileEditorPlugin } from '../plugins/file-editor'
 import { settingsPlugin } from '../plugins/settings'
+import { aboutPlugin } from '../plugins/about'
 
 export const allPlugins: PluginManifest[] = [
   dashboardPlugin,
@@ -16,6 +17,7 @@ export const allPlugins: PluginManifest[] = [
   repoSearchPlugin,
   apiTesterPlugin,
   settingsPlugin,
+  aboutPlugin,
 ]
 
 export function getPlugin(id: string): PluginManifest | undefined {

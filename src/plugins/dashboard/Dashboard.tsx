@@ -1,7 +1,10 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useApp } from '../../core/AppContext'
 import { allPlugins } from '../../core/plugin-registry'
 import type { PluginManifest } from '../../core/types'
+
+const ONBOARDING_DISMISSED_KEY = 'dashboard:onboarding-dismissed'
+const SECURE_SET_SENTINEL = '__CONFIGURED__'
 
 // ── Per-plugin config ─────────────────────────────────────────────────────────
 interface PluginConfig {
@@ -336,11 +339,74 @@ function ToolCard({ plugin, onOpen }: { plugin: PluginManifest; onOpen: () => vo
   )
 }
 
+// ── Onboarding banner ─────────────────────────────────────────────────────────
+function OnboardingBanner({ onDismiss, onGoToSettings }: {
+  onDismiss: () => void
+  onGoToSettings: () => void
+}): JSX.Element {
+  return (
+    <div className="relative flex items-start gap-4 px-5 py-4 rounded-2xl border border-primary/20 bg-primary/5">
+      <span
+        className="material-symbols-outlined text-primary flex-shrink-0 mt-0.5"
+        style={{ fontSize: '22px', fontVariationSettings: "'FILL' 1" }}
+      >
+        auto_awesome
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-on-surface">Unlock AI features</p>
+        <p className="text-xs text-on-surface-variant mt-0.5 leading-relaxed">
+          Add your OpenAI API key in Settings to enable Smart Diff semantic analysis and other AI-powered tools.
+        </p>
+        <button
+          onClick={onGoToSettings}
+          className="mt-2.5 text-xs font-semibold text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
+        >
+          <span>Go to Settings</span>
+          <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>arrow_forward</span>
+        </button>
+      </div>
+      <button
+        onClick={onDismiss}
+        title="Dismiss"
+        className="flex-shrink-0 text-on-surface-variant/40 hover:text-on-surface transition-colors"
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
+      </button>
+    </div>
+  )
+}
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export function Dashboard(): JSX.Element {
   const { dispatch } = useApp()
-  const tools = allPlugins.filter((p) => p.id !== 'dashboard')
+  const tools = allPlugins.filter((p) => p.id !== 'dashboard' && p.id !== 'about')
   const openTool = (id: string): void => dispatch({ type: 'OPEN_TAB', pluginId: id })
+
+  const [showOnboarding, setShowOnboarding] = useState(false)
+
+  useEffect(() => {
+    const dismissed = localStorage.getItem(ONBOARDING_DISMISSED_KEY) === 'true'
+    if (dismissed) return
+    // Check if any AI provider is configured
+    Promise.all([
+      window.api.invoke<string | null>('settings:get', 'ai.provider'),
+      window.api.invoke<string | null>('settings:get', 'ai.openai_key'),
+      window.api.invoke<string | null>('settings:get', 'ai.anthropic_key'),
+      window.api.invoke<string | null>('settings:get', 'ai.ollama_url'),
+    ]).then(([providerVal, openaiVal, anthropicVal, ollamaVal]) => {
+      const provider = providerVal ?? 'openai'
+      const configured =
+        (provider === 'openai'    && openaiVal    === SECURE_SET_SENTINEL) ||
+        (provider === 'anthropic' && anthropicVal === SECURE_SET_SENTINEL) ||
+        (provider === 'ollama'    && !!ollamaVal)
+      setShowOnboarding(!configured)
+    }).catch(() => { /* ignore */ })
+  }, [])
+
+  const dismissOnboarding = (): void => {
+    localStorage.setItem(ONBOARDING_DISMISSED_KEY, 'true')
+    setShowOnboarding(false)
+  }
 
   return (
     <div className="p-8 max-w-5xl mx-auto w-full space-y-10">
@@ -391,6 +457,14 @@ export function Dashboard(): JSX.Element {
           ))}
         </div>
       </button>
+
+      {/* Onboarding banner */}
+      {showOnboarding && (
+        <OnboardingBanner
+          onDismiss={dismissOnboarding}
+          onGoToSettings={() => { dismissOnboarding(); openTool('settings') }}
+        />
+      )}
 
       {/* Tool cards grid */}
       <div>

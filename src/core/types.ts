@@ -27,6 +27,8 @@ export interface AppState {
   sidebarCollapsed: boolean
   /** Set by OPEN_IN_EDITOR — consumed and cleared by FileEditor on mount */
   editorTarget?: { path: string; line?: number }
+  /** Plugins that have unsaved changes, keyed by pluginId */
+  dirtyPlugins: Record<string, boolean>
 }
 
 export type AppAction =
@@ -39,3 +41,5 @@ export type AppAction =
   | { type: 'TOGGLE_SIDEBAR' }
   /** Cross-plugin: open a file in the File Editor at an optional line */
   | { type: 'OPEN_IN_EDITOR'; path: string; line?: number }
+  /** Plugins report their unsaved-changes status */
+  | { type: 'SET_PLUGIN_DIRTY'; pluginId: string; dirty: boolean }

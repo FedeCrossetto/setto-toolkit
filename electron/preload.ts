@@ -3,25 +3,30 @@ import { contextBridge, ipcRenderer } from 'electron'
 /** Channels the renderer may invoke (request → main) */
 const INVOKE_CHANNELS = new Set([
   'settings:get', 'settings:set', 'settings:delete', 'settings:getAll',
+  'settings:export', 'settings:import',
   'repo-search:login', 'repo-search:logout', 'repo-search:me', 'repo-search:search',
+  'repo-search:history-get', 'repo-search:history-save',
   'smart-diff:analyze',
   'editor:read-dir', 'editor:open-folder-dialog', 'editor:open-dialog',
   'editor:read-file', 'editor:write-file', 'editor:save-dialog',
   'editor:watch-start', 'editor:watch-stop', 'editor:reveal',
   'editor:create-file', 'editor:create-dir', 'editor:rename', 'editor:delete',
   'editor:find-in-files', 'editor:recent-get', 'editor:recent-clear',
+  'app:version',
   'api-tester:collections-get', 'api-tester:collections-save',
   'api-tester:collection-create', 'api-tester:collection-delete',
   'api-tester:request-save', 'api-tester:request-delete',
   'api-tester:environments-get', 'api-tester:environments-save',
   'api-tester:history-get', 'api-tester:history-clear',
   'api-tester:execute',
+  'api-tester:run-script',
 ])
 
 /** Channels the renderer may send (fire-and-forget → main) */
 const SEND_CHANNELS = new Set([
   'window:minimize', 'window:maximize', 'window:close',
   'page:find', 'page:find-stop',
+  'editor:authorize-root',
 ])
 
 /** Channels the renderer may subscribe to (main → renderer) */

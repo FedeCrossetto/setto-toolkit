@@ -6,7 +6,7 @@ import {
   parseCurl, exportToCurl, parseFormPairs, serializeFormPairs,
   importCollectionFromJSON,
 } from './utils'
-import type { ActiveRequest, Collection, Environment, HttpMethod, BodyType, KeyValuePair } from './types'
+import type { ActiveRequest, Collection, Environment, HttpMethod, BodyType, KeyValuePair, FormDataField } from './types'
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 const METHOD_COLOR: Record<HttpMethod, string> = {
@@ -69,7 +69,7 @@ function emptyRequest(collectionId = ''): ActiveRequest {
   }
 }
 
-type RequestTab = 'headers' | 'params' | 'body' | 'auth'
+type RequestTab = 'headers' | 'params' | 'body' | 'auth' | 'scripts'
 type ResponseTab = 'body' | 'headers' | 'raw'
 
 export function ApiTester(): JSX.Element {
@@ -159,6 +159,8 @@ export function ApiTester(): JSX.Element {
       name: '', method: active.method, url: active.url,
       headers: active.headers, params: active.params,
       body: active.body, auth: active.auth,
+      preRequestScript: active.preRequestScript,
+      postResponseScript: active.postResponseScript,
       createdAt: '', updatedAt: '',
     })
   }
@@ -319,7 +321,7 @@ export function ApiTester(): JSX.Element {
 
         {/* Request tabs */}
         <div className="flex items-center gap-0 px-4 border-b border-outline-variant/15 bg-surface flex-shrink-0">
-          {(['headers', 'params', 'body', 'auth'] as RequestTab[]).map((t) => (
+          {(['headers', 'params', 'body', 'auth', 'scripts'] as RequestTab[]).map((t) => (
             <button key={t} onClick={() => setReqTab(t)}
               className={`px-4 py-2.5 text-xs font-medium capitalize border-b-2 transition-colors ${reqTab === t ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}>
               {t}
@@ -333,7 +335,7 @@ export function ApiTester(): JSX.Element {
             <div className="h-full flex flex-col gap-2">
               <div className="flex items-center gap-2 flex-shrink-0">
                 <div className="flex gap-1.5 flex-1">
-                  {(['none', 'json', 'text', 'xml', 'form'] as BodyType[]).map((t) => (
+                  {(['none', 'json', 'text', 'xml', 'form', 'form-data'] as BodyType[]).map((t) => (
                     <button key={t} onClick={() => setActive((a) => ({ ...a, body: { ...a.body, type: t } }))}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${active.body.type === t ? 'border-primary bg-primary/10 text-primary' : 'border-outline-variant/30 text-on-surface-variant hover:border-primary/30'}`}>
                       {t === 'form' ? 'form-urlencoded' : t}
@@ -352,7 +354,14 @@ export function ApiTester(): JSX.Element {
               {active.body.type === 'none' && (
                 <div className="flex items-center justify-center flex-1 text-xs text-on-surface-variant/50">No body</div>
               )}
-              {active.body.type === 'form' ? (
+              {active.body.type === 'form-data' ? (
+                <div className="flex-1 overflow-auto">
+                  <FormDataEditor
+                    fields={active.body.formData ?? []}
+                    onChange={(formData) => setActive((a) => ({ ...a, body: { ...a.body, formData } }))}
+                  />
+                </div>
+              ) : active.body.type === 'form' ? (
                 <div className="flex-1 overflow-auto">
                   <KVEditor pairs={formPairs} onChange={setFormPairs} />
                 </div>
@@ -375,6 +384,22 @@ export function ApiTester(): JSX.Element {
           )}
           {reqTab === 'auth' && (
             <AuthEditor auth={active.auth} onChange={(auth) => setActive((a) => ({ ...a, auth }))} />
+          )}
+          {reqTab === 'scripts' && (
+            <div className="flex flex-col gap-4 h-full">
+              <ScriptEditor
+                label="Pre-request Script"
+                description="Runs before the request. Use pm.environment.set('key', value) to set variables."
+                value={active.preRequestScript ?? ''}
+                onChange={(v) => setActive((a) => ({ ...a, preRequestScript: v }))}
+              />
+              <ScriptEditor
+                label="Post-response Script"
+                description="Runs after the response. Use pm.response.status, pm.response.json(), pm.response.body."
+                value={active.postResponseScript ?? ''}
+                onChange={(v) => setActive((a) => ({ ...a, postResponseScript: v }))}
+              />
+            </div>
           )}
         </div>
 
@@ -732,6 +757,65 @@ function KVEditor({ pairs, onChange }: { pairs: KeyValuePair[]; onChange: (p: Ke
   )
 }
 
+// ── FormDataEditor ────────────────────────────────────────────────────────────
+function FormDataEditor({ fields, onChange }: { fields: FormDataField[]; onChange: (f: FormDataField[]) => void }): JSX.Element {
+  const update = (id: string, patch: Partial<FormDataField>): void =>
+    onChange(fields.map((f) => f.id === id ? { ...f, ...patch } : f))
+  const add = (): void => onChange([...fields, { id: randomUUID(), key: '', value: '', enabled: true, isFile: false }])
+  const remove = (id: string): void => onChange(fields.filter((f) => f.id !== id))
+
+  const handleFileChange = (id: string, e: React.ChangeEvent<HTMLInputElement>): void => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const b64 = (ev.target?.result as string).split(',')[1] ?? ''
+      update(id, { value: `__FILE__:${b64}:${file.name}`, isFile: true })
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  const getFileLabel = (value: string): string => {
+    const parts = value.split(':')
+    return parts[2] ?? 'file'
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {fields.map((f) => (
+        <div key={f.id} className="flex items-center gap-2">
+          <input type="checkbox" checked={f.enabled} onChange={(e) => update(f.id, { enabled: e.target.checked })} className="accent-primary" />
+          <input value={f.key} onChange={(e) => update(f.id, { key: e.target.value })} placeholder="Key"
+            className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+          {f.isFile ? (
+            <div className="flex-1 flex items-center gap-1 text-xs text-on-surface-variant bg-surface border border-outline-variant/20 rounded-lg px-2.5 py-1.5">
+              <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>attach_file</span>
+              <span className="truncate">{getFileLabel(f.value)}</span>
+              <button onClick={() => update(f.id, { value: '', isFile: false })} className="ml-auto text-on-surface-variant/50 hover:text-error">
+                <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>close</span>
+              </button>
+            </div>
+          ) : (
+            <input value={f.value} onChange={(e) => update(f.id, { value: e.target.value })} placeholder="Value"
+              className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+          )}
+          <label title="Attach file" className="cursor-pointer text-on-surface-variant/50 hover:text-primary transition-colors">
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>upload_file</span>
+            <input type="file" className="hidden" onChange={(e) => handleFileChange(f.id, e)} />
+          </label>
+          <button onClick={() => remove(f.id)} className="text-on-surface-variant hover:text-error transition-colors">
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+          </button>
+        </div>
+      ))}
+      <button onClick={add} className="flex items-center gap-1 text-xs text-on-surface-variant hover:text-primary transition-colors mt-2">
+        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span> Add field
+      </button>
+    </div>
+  )
+}
+
 // ── EnvironmentPanel ──────────────────────────────────────────────────────────
 
 function EnvironmentPanel({ environments, onChange }: {
@@ -884,6 +968,34 @@ function AuthEditor({ auth, onChange }: { auth: ActiveRequest['auth']; onChange:
             className="w-full text-xs bg-surface border border-outline-variant/20 rounded-lg px-3 py-2 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
         </div>
       )}
+    </div>
+  )
+}
+
+function ScriptEditor({
+  label,
+  description,
+  value,
+  onChange,
+}: {
+  label: string
+  description: string
+  value: string
+  onChange: (v: string) => void
+}): JSX.Element {
+  return (
+    <div className="flex flex-col gap-1 flex-1 min-h-0">
+      <div className="flex-shrink-0">
+        <span className="text-xs font-semibold text-on-surface">{label}</span>
+        <p className="text-[10px] text-on-surface-variant mt-0.5">{description}</p>
+      </div>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        spellCheck={false}
+        placeholder={'// JavaScript\npm.environment.set(\'token\', pm.response.json().access_token)'}
+        className="flex-1 min-h-[80px] font-mono text-xs bg-surface border border-outline-variant/20 rounded-lg px-3 py-2 text-on-surface resize-none focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-on-surface-variant/40"
+      />
     </div>
   )
 }

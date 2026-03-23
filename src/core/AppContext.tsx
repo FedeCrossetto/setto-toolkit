@@ -1,7 +1,8 @@
 import { createContext, useContext, useReducer, useEffect, type ReactNode } from 'react'
 import type { AppState, AppAction, Tab, Theme } from './types'
 
-const THEME_KEY = 'app-theme'
+const THEME_KEY   = 'app-theme'
+const SIDEBAR_KEY = 'app-sidebar-collapsed'
 
 function getInitialTheme(): Theme {
   const stored = localStorage.getItem(THEME_KEY)
@@ -9,12 +10,19 @@ function getInitialTheme(): Theme {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
+function getInitialSidebarCollapsed(): boolean {
+  const stored = localStorage.getItem(SIDEBAR_KEY)
+  // Default to collapsed (true) if nothing stored yet
+  return stored === null ? true : stored === 'true'
+}
+
 const initialState: AppState = {
   openTabs: [{ tabId: 'dashboard', pluginId: 'dashboard' }],
   activeTabId: 'dashboard',
   commandPaletteOpen: false,
   theme: getInitialTheme(),
-  sidebarCollapsed: true,
+  sidebarCollapsed: getInitialSidebarCollapsed(),
+  dirtyPlugins: {},
 }
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -61,6 +69,13 @@ function appReducer(state: AppState, action: AppAction): AppState {
         editorTarget: { path: action.path, line: action.line },
       }
     }
+    case 'SET_PLUGIN_DIRTY': {
+      if (state.dirtyPlugins[action.pluginId] === action.dirty) return state
+      return {
+        ...state,
+        dirtyPlugins: { ...state.dirtyPlugins, [action.pluginId]: action.dirty },
+      }
+    }
     default:
       return state
   }
@@ -85,6 +100,10 @@ export function AppProvider({ children }: { children: ReactNode }): JSX.Element 
     }
     localStorage.setItem(THEME_KEY, state.theme)
   }, [state.theme])
+
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_KEY, String(state.sidebarCollapsed))
+  }, [state.sidebarCollapsed])
 
   return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>
 }

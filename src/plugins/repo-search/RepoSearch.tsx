@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 
-export type Provider = 'bitbucket' | 'github'
+export type Provider = 'bitbucket' | 'github' | 'gitlab'
 
 interface RepoAlias { from: string; to: string }
 
@@ -29,19 +29,12 @@ interface AuthInfo {
 const PROVIDERS: { id: Provider; name: string; icon: string }[] = [
   { id: 'bitbucket', name: 'Bitbucket', icon: 'hub' },
   { id: 'github', name: 'GitHub', icon: 'code_blocks' },
+  { id: 'gitlab', name: 'GitLab', icon: 'safety_check' },
 ]
 
 const SUGGESTIONS = ['TODO', 'FIXME', 'console.log', 'deprecated', 'throw new', 'catch (', 'password', 'authentication']
 
 const MAX_HISTORY = 10
-const HISTORY_KEY = 'repo-search:history'
-
-function loadHistory(): string[] {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]') as string[] } catch { return [] }
-}
-function saveHistory(h: string[]): void {
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(h))
-}
 
 // ── Syntax highlighting ────────────────────────────────────────────────────
 
@@ -244,7 +237,7 @@ function LoginForm({ provider, onLogin }: { provider: Provider; onLogin: (auth: 
       await window.api.invoke('repo-search:login', {
         provider, token,
         ...(provider === 'bitbucket' && { username, workspace }),
-        ...(provider === 'github' && org.trim() && { org }),
+        ...((provider === 'github' || provider === 'gitlab') && org.trim() && { org }),
       })
       const me = await window.api.invoke<AuthInfo>('repo-search:me', { provider })
       onLogin(me)
@@ -264,7 +257,7 @@ function LoginForm({ provider, onLogin }: { provider: Provider; onLogin: (auth: 
               <span className="material-symbols-outlined text-secondary" style={{ fontSize: '24px' }}>travel_explore</span>
             </div>
             <div>
-              <h2 className="font-bold text-on-surface">{provider === 'bitbucket' ? 'Bitbucket' : 'GitHub'} Auth</h2>
+              <h2 className="font-bold text-on-surface">{provider === 'bitbucket' ? 'Bitbucket' : provider === 'github' ? 'GitHub' : 'GitLab'} Auth</h2>
               <p className="text-xs text-on-surface-variant">Conectá tu workspace</p>
             </div>
           </div>
@@ -285,19 +278,19 @@ function LoginForm({ provider, onLogin }: { provider: Provider; onLogin: (auth: 
               </>
             )}
 
-            {provider === 'github' && (
+            {(provider === 'github' || provider === 'gitlab') && (
               <div>
                 <label className="text-[10px] uppercase font-bold text-primary tracking-wider block mb-1.5">
-                  Organización <span className="text-on-surface-variant font-normal normal-case">(opcional)</span>
+                  {provider === 'gitlab' ? 'Group' : 'Organization'} <span className="text-on-surface-variant font-normal normal-case">(optional)</span>
                 </label>
-                <input type="text" value={org} onChange={(e) => setOrg(e.target.value)} placeholder="my-org"
+                <input type="text" value={org} onChange={(e) => setOrg(e.target.value)} placeholder={provider === 'gitlab' ? 'my-group' : 'my-org'}
                   className="w-full bg-surface-container-highest border-none rounded-lg px-3 py-2.5 text-sm text-on-surface placeholder-on-surface-variant/50 focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
             )}
 
             <div>
               <label className="text-[10px] uppercase font-bold text-primary tracking-wider block mb-1.5">
-                {provider === 'bitbucket' ? 'App Password' : 'Personal Access Token'}
+                {provider === 'bitbucket' ? 'App Password' : 'Personal Access Token (api, read_api scope)'}
               </label>
               <div className="relative">
                 <input
@@ -354,7 +347,7 @@ export function RepoSearch(): JSX.Element {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [filterRepo, setFilterRepo] = useState('All')
-  const [history, setHistory] = useState<string[]>(loadHistory)
+  const [history, setHistory] = useState<string[]>([])
   const [showHistory, setShowHistory] = useState(false)
   const [aliases, setAliases] = useState<RepoAlias[]>([])
   const [newAliasFrom, setNewAliasFrom] = useState('')
@@ -388,13 +381,16 @@ export function RepoSearch(): JSX.Element {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider])
 
-  // Load aliases once on mount
+  // Load aliases and search history once on mount
   useEffect(() => {
     window.api.invoke<string | null>('settings:get', ALIAS_KEY).then((val) => {
       if (val) {
         try { setAliases(JSON.parse(val) as RepoAlias[]) } catch { /* ignore */ }
       }
     })
+    window.api.invoke<string[]>('repo-search:history-get').then((h) => {
+      if (Array.isArray(h)) setHistory(h)
+    }).catch(() => { /* ignore */ })
   }, [])
 
   // Global shortcut: / focuses search input
@@ -422,7 +418,7 @@ export function RepoSearch(): JSX.Element {
   const addToHistory = (q: string): void => {
     const updated = [q, ...history.filter((h) => h !== q)].slice(0, MAX_HISTORY)
     setHistory(updated)
-    saveHistory(updated)
+    window.api.invoke('repo-search:history-save', updated).catch(() => { /* ignore */ })
   }
 
   const handleSearch = async (q?: string): Promise<void> => {

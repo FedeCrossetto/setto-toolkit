@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import { diffLines, type Change } from 'diff'
+import { diffLines, diffWords, type Change } from 'diff'
 import { useEditorPrefs, FONT_FAMILIES, FONT_SIZE_MIN, FONT_SIZE_MAX } from '../file-editor/hooks/useEditorPrefs'
 
 interface AIInsights {
@@ -20,6 +20,42 @@ interface FileInfo { name: string; size: number }
 // ── Diff colors ───────────────────────────────────────────────────────────────
 const ADDED_COLOR   = '#4ade80'  // green-400
 const REMOVED_COLOR = '#f87171'  // red-400
+
+// ── Word-level diff ───────────────────────────────────────────────────────────
+/**
+ * Given a removed line and its corresponding added line, returns two arrays of
+ * React spans where changed words are highlighted with a stronger background.
+ * Used only for 'removed'/'added' lines to show intra-line changes.
+ */
+function buildWordDiff(
+  removedText: string,
+  addedText: string
+): { removedSpans: React.ReactNode; addedSpans: React.ReactNode } {
+  const changes = diffWords(removedText, addedText)
+  const removedSpans: React.ReactNode[] = []
+  const addedSpans: React.ReactNode[] = []
+
+  changes.forEach((ch, i) => {
+    if (ch.removed) {
+      removedSpans.push(
+        <mark key={i} style={{ background: REMOVED_COLOR + '40', borderRadius: '2px', padding: '0 1px' }}>
+          {ch.value}
+        </mark>
+      )
+    } else if (ch.added) {
+      addedSpans.push(
+        <mark key={i} style={{ background: ADDED_COLOR + '40', borderRadius: '2px', padding: '0 1px' }}>
+          {ch.value}
+        </mark>
+      )
+    } else {
+      removedSpans.push(<span key={`r${i}`}>{ch.value}</span>)
+      addedSpans.push(<span key={`a${i}`}>{ch.value}</span>)
+    }
+  })
+
+  return { removedSpans, addedSpans }
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function buildDiffLines(changes: Change[]): { left: DiffLine[]; right: DiffLine[] } {
@@ -132,6 +168,7 @@ function OverviewRuler({
 // ── CodePane ──────────────────────────────────────────────────────────────────
 function CodePane({
   side, lines, value, onChange, onFileLoad, onClear, scrollRef, onScroll, fontFamily, fontSize,
+  wordDiffMap,
 }: {
   side: 'original' | 'modified'
   lines: DiffLine[]
@@ -143,6 +180,8 @@ function CodePane({
   onScroll: () => void
   fontFamily: string
   fontSize: number
+  /** Map from lineNum → React nodes with word-level highlighting */
+  wordDiffMap: Map<number, React.ReactNode>
 }): JSX.Element {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isLeft = side === 'original'
@@ -228,7 +267,7 @@ function CodePane({
                   </td>
                   <td className="px-4 py-0 whitespace-pre-wrap break-all align-top"
                     style={{ color: line.type === 'unchanged' ? 'rgb(var(--color-on-surface) / 0.55)' : undefined }}>
-                    {line.content || '\u00a0'}
+                    {wordDiffMap.get(line.lineNum) ?? line.content ?? '\u00a0'}
                   </td>
                 </tr>
               ))}
@@ -374,6 +413,23 @@ export function SmartDiff(): JSX.Element {
   const { left, right } = hasDiff ? buildDiffLines(changes) : { left: [], right: [] }
   const addedCount   = changes.filter((c) => c.added).reduce((n, c) => n + c.value.split('\n').filter(Boolean).length, 0)
   const removedCount = changes.filter((c) => c.removed).reduce((n, c) => n + c.value.split('\n').filter(Boolean).length, 0)
+
+  // Build word-diff maps: for each changed line, pair removed↔added lines by index
+  // and compute intra-line word highlights.
+  const leftWordDiff  = new Map<number, React.ReactNode>()
+  const rightWordDiff = new Map<number, React.ReactNode>()
+  if (hasDiff) {
+    const removedLines = left.filter((l) => l.type === 'removed')
+    const addedLines   = right.filter((l) => l.type === 'added')
+    const pairCount    = Math.min(removedLines.length, addedLines.length)
+    for (let i = 0; i < pairCount; i++) {
+      const rem = removedLines[i]
+      const add = addedLines[i]
+      const { removedSpans, addedSpans } = buildWordDiff(rem.content, add.content)
+      leftWordDiff.set(rem.lineNum, removedSpans)
+      rightWordDiff.set(add.lineNum, addedSpans)
+    }
+  }
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -522,6 +578,7 @@ export function SmartDiff(): JSX.Element {
             onScroll={handleLeftScroll}
             fontFamily={prefs.fontFamily}
             fontSize={prefs.fontSize}
+            wordDiffMap={leftWordDiff}
           />
 
           {hasDiff && (
@@ -545,12 +602,13 @@ export function SmartDiff(): JSX.Element {
             onScroll={handleRightScroll}
             fontFamily={prefs.fontFamily}
             fontSize={prefs.fontSize}
+            wordDiffMap={rightWordDiff}
           />
         </section>
 
         {/* AI Insights panel */}
         {(insights || aiLoading || aiError) && (
-          <section className="h-52 bg-surface border-t border-outline-variant/15 p-5 overflow-hidden flex-shrink-0">
+          <section className="min-h-[100px] max-h-64 bg-surface border-t border-outline-variant/15 p-5 overflow-y-auto flex-shrink-0">
             <div className="flex items-center gap-3 mb-4">
               <span className="material-symbols-outlined text-primary" style={{ fontSize: '18px', fontVariationSettings: "'FILL' 1" }}>psychology</span>
               <h2 className="text-sm font-bold tracking-tight">AI Insights</h2>
