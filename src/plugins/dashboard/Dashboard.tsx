@@ -13,52 +13,61 @@ interface PluginConfig {
   accent: string
   badge: string
   artwork: () => JSX.Element
+  settoArtwork: () => JSX.Element
+  artworkWidth?: string   // percentage width of the right artwork column (default '38%')
 }
 
 const PLUGIN_CONFIG: Record<string, PluginConfig> = {
   'smart-diff': {
-    gradient: 'from-[#eeeeff]/80 via-[#887CFD]/10 to-[#887CFD]/5',
-    glow:     'rgba(136,124,253,0.3)',
-    accent:   '#887CFD',
-    badge:    'bg-[#887CFD]/15 text-[#887CFD] border-[#887CFD]/20',
-    artwork:  ArtworkPandaCompare,
+    gradient:     'from-[#eeeeff]/80 via-[#887CFD]/10 to-[#887CFD]/5',
+    glow:         'rgba(136,124,253,0.3)',
+    accent:       '#887CFD',
+    badge:        'bg-[#887CFD]/15 text-[#887CFD] border-[#887CFD]/20',
+    artwork:      ArtworkPandaCompare,
+    settoArtwork: ArtworkSettoCompare,
+    artworkWidth: '55%',
   },
   'repo-search': {
-    gradient: 'from-[#e8f0ff]/80 via-[#4896FE]/10 to-[#4896FE]/5',
-    glow:     'rgba(72,150,254,0.3)',
-    accent:   '#4896FE',
-    badge:    'bg-[#4896FE]/15 text-[#4896FE] border-[#4896FE]/20',
-    artwork:  ArtworkPandaSearch,
+    gradient:     'from-[#e8f0ff]/80 via-[#4896FE]/10 to-[#4896FE]/5',
+    glow:         'rgba(72,150,254,0.3)',
+    accent:       '#4896FE',
+    badge:        'bg-[#4896FE]/15 text-[#4896FE] border-[#4896FE]/20',
+    artwork:      ArtworkPandaSearch,
+    settoArtwork: ArtworkSettoSearch,
   },
   'api-tester': {
-    gradient: 'from-[#e8f4f8]/80 via-[#16C8C7]/10 to-[#16C8C7]/5',
-    glow:     'rgba(22,200,199,0.35)',
-    accent:   '#16C8C7',
-    badge:    'bg-[#16C8C7]/15 text-[#16C8C7] border-[#16C8C7]/20',
-    artwork:  ArtworkPandaRequest,
+    gradient:     'from-[#e8f4f8]/80 via-[#16C8C7]/10 to-[#16C8C7]/5',
+    glow:         'rgba(22,200,199,0.35)',
+    accent:       '#16C8C7',
+    badge:        'bg-[#16C8C7]/15 text-[#16C8C7] border-[#16C8C7]/20',
+    artwork:      ArtworkPandaRequest,
+    settoArtwork: ArtworkSettoRequest,
   },
   'file-editor': {
-    gradient: 'from-[#eeeeff]/80 via-[#7C6FFF]/10 to-[#7C6FFF]/5',
-    glow:     'rgba(83,71,206,0.3)',
-    accent:   '#7C6FFF',
-    badge:    'bg-[#7C6FFF]/15 text-[#7C6FFF] border-[#7C6FFF]/20',
-    artwork:  ArtworkPanda,
+    gradient:     'from-[#eeeeff]/80 via-[#7C6FFF]/10 to-[#7C6FFF]/5',
+    glow:         'rgba(83,71,206,0.3)',
+    accent:       '#7C6FFF',
+    badge:        'bg-[#7C6FFF]/15 text-[#7C6FFF] border-[#7C6FFF]/20',
+    artwork:      ArtworkPanda,
+    settoArtwork: ArtworkSettoEditor,
   },
   'settings': {
-    gradient: 'from-[#e8f4f8]/80 via-[#16C8C7]/10 to-[#16C8C7]/5',
-    glow:     'rgba(22,200,199,0.25)',
-    accent:   '#16C8C7',
-    badge:    'bg-[#16C8C7]/15 text-[#16C8C7] border-[#16C8C7]/20',
-    artwork:  ArtworkPandaSettings,
+    gradient:     'from-[#e8f4f8]/80 via-[#16C8C7]/10 to-[#16C8C7]/5',
+    glow:         'rgba(22,200,199,0.25)',
+    accent:       '#16C8C7',
+    badge:        'bg-[#16C8C7]/15 text-[#16C8C7] border-[#16C8C7]/20',
+    artwork:      ArtworkPandaSettings,
+    settoArtwork: ArtworkSettoSettings,
   },
 }
 
 const DEFAULT_CONFIG: PluginConfig = {
-  gradient: 'from-[#5347CE]/15 to-transparent',
-  glow:     'rgba(83,71,206,0.2)',
-  accent:   '#887CFD',
-  badge:    'bg-[#887CFD]/15 text-[#887CFD] border-[#887CFD]/20',
-  artwork:  ArtworkDefault,
+  gradient:     'from-[#5347CE]/15 to-transparent',
+  glow:         'rgba(83,71,206,0.2)',
+  accent:       '#887CFD',
+  badge:        'bg-[#887CFD]/15 text-[#887CFD] border-[#887CFD]/20',
+  artwork:      ArtworkDefault,
+  settoArtwork: ArtworkDefault,
 }
 
 // ── Mascot artwork components ─────────────────────────────────────────────────
@@ -212,27 +221,52 @@ function ArtworkDefault(): JSX.Element {
   )
 }
 
-function PandaImg({ src }: { src: string }): JSX.Element {
+interface PandaImgProps { src: string; scale?: number; tx?: number; ty?: number; objPosition?: string }
+
+function PandaImg({ src, scale = 1.12, tx = 0, ty = 6, objPosition = 'bottom' }: PandaImgProps): JSX.Element {
   return (
     <img
       src={src}
       alt=""
-      className="w-full h-full object-contain object-bottom"
+      className="absolute inset-0 w-full h-full object-contain"
       draggable={false}
       style={{
-        transform: 'scale(1.22) translateY(8px)',
-        animation: 'pandaFloat 3.5s ease-in-out infinite',
-        filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.55))',
+        filter: 'drop-shadow(0 8px 20px rgba(0,0,0,0.55))',
+        transform: `scale(${scale}) translate(${tx}px, ${ty}px)`,
+        transformOrigin: 'bottom center',
+        objectPosition: objPosition,
       }}
     />
   )
 }
 
-function ArtworkPanda():        JSX.Element { return <PandaImg src="/panda1.png" /> }
-function ArtworkPandaCompare(): JSX.Element { return <PandaImg src="/panda-compare-files.png" /> }
-function ArtworkPandaSearch():  JSX.Element { return <PandaImg src="/panda-search.png" /> }
-function ArtworkPandaSettings():JSX.Element { return <PandaImg src="/panda-settings.png" /> }
-function ArtworkPandaRequest(): JSX.Element { return <PandaImg src="/panda-request.png" /> }
+// Each panda PNG has different internal whitespace — tune scale/tx/ty per image
+// scale: zoom level  tx: horizontal offset (negative = left)  ty: vertical offset (positive = down)
+function ArtworkPanda():         JSX.Element { return <PandaImg src="/panda1.png"               scale={1.15} tx={-4}  ty={6} /> }
+function ArtworkPandaCompare():  JSX.Element { return <PandaImg src="/panda-compare-files.png"  scale={1.0} tx={0} ty={0} objPosition="center" /> }
+function ArtworkPandaSearch():   JSX.Element { return <PandaImg src="/panda-search.png"         scale={1.15} tx={-4}  ty={6} /> }
+function ArtworkPandaSettings(): JSX.Element { return <PandaImg src="/panda-settings.png"       scale={1.15} tx={-10} ty={6} /> }
+function ArtworkPandaRequest():  JSX.Element { return <PandaImg src="/panda-request.png"        scale={1.15} tx={-10} ty={6} /> }
+
+// ── Setto Avatar artwork ──────────────────────────────────────────────────────
+// Place matching PNGs in public/setto-avatar/ — falls back to panda if file is missing
+function SettoImg({ src, scale = 1.12, tx = 0, ty = 6, objPosition = 'bottom' }: { src: string; scale?: number; tx?: number; ty?: number; objPosition?: string }): JSX.Element {
+  return (
+    <img
+      src={src}
+      alt=""
+      className="absolute inset-0 w-full h-full object-contain"
+      draggable={false}
+      style={{ filter: 'drop-shadow(0 8px 20px rgba(0,0,0,0.55))', transform: `scale(${scale}) translate(${tx}px, ${ty}px)`, transformOrigin: 'bottom center', objectPosition: objPosition }}
+      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+    />
+  )
+}
+function ArtworkSettoCompare():  JSX.Element { return <SettoImg src="/setto-avatar/setto-avatar-difference.png" scale={1.15} tx={0} ty={6} /> }
+function ArtworkSettoSearch():   JSX.Element { return <SettoImg src="/setto-avatar/setto-avatar-search.png"     /> }
+function ArtworkSettoRequest():  JSX.Element { return <SettoImg src="/setto-avatar/setto-avatar-api.png"        /> }
+function ArtworkSettoEditor():   JSX.Element { return <SettoImg src="/setto-avatar/setto-avatar.png"            /> }
+function ArtworkSettoSettings(): JSX.Element { return <SettoImg src="/setto-avatar/setto-avatar-settings.png"   /> }
 
 // ── ToolArtwork — swap real images here later ─────────────────────────────────
 // To replace with a real illustration:
@@ -280,7 +314,7 @@ function TiltCard({ children, onClick, glow }: {
           ? `0 20px 50px rgba(0,0,0,0.35), 0 8px 20px rgba(0,0,0,0.2), 0 0 30px ${glow}`
           : '0 2px 8px rgba(0,0,0,0.2), 0 1px 3px rgba(0,0,0,0.15)',
       }}
-      className="text-left w-full rounded-3xl overflow-hidden bg-surface-container border border-outline-variant/20 cursor-pointer block"
+      className="text-left w-full rounded-3xl overflow-hidden bg-surface-container border border-outline-variant/20 cursor-pointer flex flex-col relative"
     >
       {children}
     </button>
@@ -288,52 +322,58 @@ function TiltCard({ children, onClick, glow }: {
 }
 
 // ── ToolCard ──────────────────────────────────────────────────────────────────
-function ToolCard({ plugin, onOpen }: { plugin: PluginManifest; onOpen: () => void }): JSX.Element {
+function ToolCard({ plugin, onOpen, mascot }: { plugin: PluginManifest; onOpen: () => void; mascot: 'panda' | 'setto-avatar' }): JSX.Element {
   const cfg = PLUGIN_CONFIG[plugin.id] ?? DEFAULT_CONFIG
+  const ArtworkComponent = mascot === 'setto-avatar' ? cfg.settoArtwork : cfg.artwork
 
   return (
     <TiltCard onClick={onOpen} glow={cfg.glow}>
-      {/* Artwork zone — transparent so the panda floats on the card surface */}
-      <div className="relative h-[140px] overflow-hidden">
-        {/* Soft accent glow under the panda */}
-        <div
-          className="absolute bottom-[-8px] left-1/2 -translate-x-1/2 w-44 h-20 blur-3xl rounded-full pointer-events-none"
-          style={{ background: cfg.accent, opacity: 0.18 }}
-        />
-        <ToolArtwork pluginId={plugin.id} artwork={cfg.artwork} />
-      </div>
+      {/* Full-card gradient background */}
+      <div className={`relative flex flex-1 bg-gradient-to-br ${cfg.gradient} min-h-[168px] overflow-hidden`}>
 
-      {/* Inner content panel — slightly elevated */}
-      <div className="px-5 pt-4 pb-5 bg-surface-container relative">
-        {/* Thin highlight line at top of content panel */}
-        <div className="absolute top-0 left-5 right-5 h-px bg-white/[0.06]" />
-
-        {/* Header row */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-xl flex items-center justify-center"
-              style={{ background: cfg.accent + '22', border: `1px solid ${cfg.accent}33` }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '15px', color: cfg.accent,
-                fontVariationSettings: "'FILL' 1" }}>
-                {plugin.icon}
-              </span>
+        {/* ── Left: text content ─────────────────────────────────── */}
+        <div className="flex flex-col justify-between flex-1 min-w-0 p-5 pr-3">
+          {/* Top: icon + name */}
+          <div>
+            <div className="flex items-center gap-2.5 mb-2.5">
+              <div
+                className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: cfg.accent + '28', border: `1px solid ${cfg.accent}44` }}
+              >
+                <span
+                  className="material-symbols-outlined"
+                  style={{ fontSize: '16px', color: cfg.accent, fontVariationSettings: "'FILL' 1" }}
+                >
+                  {plugin.icon}
+                </span>
+              </div>
+              <h3 className="text-[14px] font-semibold text-on-surface tracking-tight leading-tight">
+                {plugin.name}
+              </h3>
             </div>
-            <h3 className="text-[13px] font-semibold text-on-surface tracking-tight">{plugin.name}</h3>
+
+            <p className="text-[12px] text-on-surface-variant/70 leading-relaxed line-clamp-3">
+              {plugin.description}
+            </p>
           </div>
-          {/* Status badge */}
-          <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border ${cfg.badge}`}>
-            Ready
-          </span>
+
+          {/* Bottom: Open link */}
+          <div className="flex items-center gap-1 mt-4 text-[11px] font-bold" style={{ color: cfg.accent }}>
+            <span>Open</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>arrow_forward</span>
+          </div>
         </div>
 
-        <p className="text-[12px] text-on-surface-variant/70 leading-relaxed mb-4 line-clamp-2">
-          {plugin.description}
-        </p>
-
-        <div className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: cfg.accent }}>
-          <span>Open</span>
-          <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>arrow_forward</span>
+        {/* ── Right: mascot image ────────────────────────────────── */}
+        <div className="flex-shrink-0 relative self-stretch" style={{ width: cfg.artworkWidth ?? '38%' }}>
+          {/* soft glow behind mascot */}
+          <div
+            className="absolute inset-x-0 bottom-0 h-3/4 blur-2xl rounded-full"
+            style={{ background: cfg.accent, opacity: 0.15 }}
+          />
+          <ToolArtwork pluginId={plugin.id} artwork={ArtworkComponent} />
         </div>
+
       </div>
     </TiltCard>
   )
@@ -383,6 +423,21 @@ export function Dashboard(): JSX.Element {
   const openTool = (id: string): void => dispatch({ type: 'OPEN_TAB', pluginId: id })
 
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [mascot, setMascot] = useState<'panda' | 'setto-avatar'>('setto-avatar')
+
+  // Load mascot preference on mount + listen for live changes from Settings tab
+  useEffect(() => {
+    window.api.invoke<string | null>('settings:get', 'dashboard.mascot').then((v) => {
+      if (v !== null) setMascot(v === 'panda' ? 'panda' : 'setto-avatar')
+    }).catch(() => { /* ignore */ })
+
+    const handler = (e: Event): void => {
+      const val = (e as CustomEvent<string>).detail
+      setMascot(val === 'panda' ? 'panda' : 'setto-avatar')
+    }
+    window.addEventListener('mascot-change', handler)
+    return () => window.removeEventListener('mascot-change', handler)
+  }, [])
 
   useEffect(() => {
     const dismissed = localStorage.getItem(ONBOARDING_DISMISSED_KEY) === 'true'
@@ -410,13 +465,6 @@ export function Dashboard(): JSX.Element {
 
   return (
     <div className="p-8 max-w-5xl mx-auto w-full space-y-10">
-      <style>{`
-        @keyframes pandaFloat {
-          0%, 100% { transform: scale(1.22) translateY(8px); filter: drop-shadow(0 10px 20px rgba(0,0,0,0.55)); }
-          50%       { transform: scale(1.22) translateY(1px);  filter: drop-shadow(0 16px 28px rgba(0,0,0,0.4)); }
-        }
-      `}</style>
-
       {/* Welcome header */}
       <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-bold tracking-tight text-on-surface">
@@ -473,7 +521,7 @@ export function Dashboard(): JSX.Element {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {tools.map((plugin) => (
-            <ToolCard key={plugin.id} plugin={plugin} onOpen={() => openTool(plugin.id)} />
+            <ToolCard key={plugin.id} plugin={plugin} onOpen={() => openTool(plugin.id)} mascot={mascot} />
           ))}
 
           {/* Add plugin placeholder */}

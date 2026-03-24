@@ -3,6 +3,7 @@ import path from 'path'
 import { DatabaseService } from './core/services/db.service'
 import { SettingsService } from './core/services/settings.service'
 import { AIService } from './core/services/ai.service'
+import { AuthService } from './core/services/auth.service'
 import { loadPlugins } from './core/plugin-loader'
 import { ipcMain } from 'electron'
 import { registerFileAssociations, getFileArgFromArgv } from './core/file-associations'
@@ -117,7 +118,8 @@ app.whenReady().then(() => {
   const db = new DatabaseService()
   const settings = new SettingsService(db)
   const ai = new AIService(db, settings)
-  const services = { db, settings, ai }
+  const auth = new AuthService(db)
+  const services = { db, settings, ai, auth }
 
   // Register all plugin IPC handlers
   loadPlugins(ipcMain, services)

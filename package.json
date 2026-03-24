@@ -57,6 +57,7 @@
   "build": {
     "appId": "com.devtools.mytools",
     "productName": "Developer Toolbox",
+    "icon": "public/dev-logo.png",
     "directories": {
       "output": "release"
     },
@@ -66,13 +67,16 @@
     ],
     "nativeRebuilder": "sequential",
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "public/dev-logo.ico"
     },
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "icon": "public/dev-logo.png"
     },
     "linux": {
-      "target": "AppImage"
+      "target": "AppImage",
+      "icon": "public/dev-logo.png"
     }
   }
 }

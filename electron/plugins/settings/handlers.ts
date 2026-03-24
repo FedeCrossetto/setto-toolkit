@@ -29,6 +29,8 @@ const ALLOWED_KEYS = new Set([
   'ai.ollama_model',        // Ollama model name
   'bitbucket.workspace',
   'repo-search.aliases',
+  'repo-search.github.client_id',  // public — needed for GitHub OAuth Device Flow
+  'repo-search.github.org',        // optional org filter for GitHub searches
 ])
 
 /**

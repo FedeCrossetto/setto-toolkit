@@ -8,6 +8,7 @@ import { handlers as smartDiffHandlers } from '../plugins/smart-diff/handlers'
 import { handlers as settingsHandlers } from '../plugins/settings/handlers'
 import { handlers as apiTesterHandlers } from '../plugins/api-tester/handlers'
 import { handlers as fileEditorHandlers } from '../plugins/file-editor/handlers'
+import { handlers as authHandlers } from '../plugins/auth/handlers'
 
 const allHandlers: PluginHandlers[] = [
   repoSearchHandlers,
@@ -15,6 +16,7 @@ const allHandlers: PluginHandlers[] = [
   settingsHandlers,
   apiTesterHandlers,
   fileEditorHandlers,
+  authHandlers,
 ]
 
 export function loadPlugins(ipcMain: IpcMain, services: CoreServices): void {

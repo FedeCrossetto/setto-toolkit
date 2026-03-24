@@ -12,6 +12,9 @@ interface SettingsState {
   'ai.ollama_url': string
   'ai.ollama_model': string
   'bitbucket.workspace': string
+  'repo-search.github.client_id': string
+  'repo-search.gitlab.client_id': string
+  'dashboard.mascot': string
 }
 
 /** Sentinel returned by the main process when a secure key is already set. */
@@ -27,7 +30,7 @@ function SettingRow({
   children,
 }: {
   label: string
-  description?: string
+  description?: React.ReactNode
   children: React.ReactNode
 }): JSX.Element {
   return (
@@ -54,6 +57,9 @@ export function SettingsPage(): JSX.Element {
     'ai.ollama_url': 'http://localhost:11434',
     'ai.ollama_model': 'llama3',
     'bitbucket.workspace': '',
+    'repo-search.github.client_id': '',
+    'repo-search.gitlab.client_id': '',
+    'dashboard.mascot': 'setto-avatar',
   })
   const [saved, setSaved] = useState(false)
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -69,6 +75,9 @@ export function SettingsPage(): JSX.Element {
         'ai.anthropic_key', 'ai.anthropic_model',
         'ai.ollama_url', 'ai.ollama_model',
         'bitbucket.workspace',
+        'repo-search.github.client_id',
+        'repo-search.gitlab.client_id',
+        'dashboard.mascot',
       ]
       const values = await Promise.all(keys.map((k) => window.api.invoke<string | null>('settings:get', k)))
       setSettings((prev) => {
@@ -192,6 +201,42 @@ export function SettingsPage(): JSX.Element {
                   {size}
                 </button>
               ))}
+            </div>
+          </SettingRow>
+
+          <SettingRow
+            label="Dashboard mascot"
+            description="Character shown on the dashboard tool cards."
+          >
+            <div className="flex gap-3">
+              {([
+                { id: 'panda',        label: 'Panda',        icon: '🐼', hint: 'Default mascot' },
+                { id: 'setto-avatar', label: 'Setto Avatar', icon: '🎭', hint: 'Custom — add PNGs to public/setto-avatar/' },
+              ] as const).map(({ id, label, icon, hint }) => {
+                const active = (settings['dashboard.mascot'] || 'setto-avatar') === id
+                return (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      update('dashboard.mascot', id)
+                      void window.api.invoke('settings:set', 'dashboard.mascot', id)
+                      window.dispatchEvent(new CustomEvent('mascot-change', { detail: id }))
+                    }}
+                    title={hint}
+                    className={`flex-1 flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl border text-sm transition-all ${
+                      active
+                        ? 'bg-primary/10 border-primary/50 text-primary'
+                        : 'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:border-primary/30'
+                    }`}
+                  >
+                    <span className="text-2xl leading-none">{icon}</span>
+                    <span className="text-xs font-semibold">{label}</span>
+                    {active && (
+                      <span className="material-symbols-outlined text-primary" style={{ fontSize: '13px' }}>check_circle</span>
+                    )}
+                  </button>
+                )
+              })}
             </div>
           </SettingRow>
 
@@ -360,11 +405,55 @@ export function SettingsPage(): JSX.Element {
         </div>
       </section>
 
-      {/* Bitbucket Section */}
+      {/* Integrations Section */}
       <section className="mb-8">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-secondary mb-3">Bitbucket</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-secondary mb-3">Integraciones</h2>
         <div className="bg-surface rounded-xl border border-outline-variant/20 px-6">
-          <SettingRow label="Default Workspace" description="Bitbucket workspace slug to search in.">
+
+          {/* GitHub OAuth App Client ID */}
+          <SettingRow
+            label="GitHub OAuth App — Client ID"
+            description={
+              <span>
+                Requerido para Sign in with GitHub (Device Flow).{' '}
+                <span className="text-on-surface-variant/60">
+                  github.com → Settings → Developer settings → OAuth Apps → New OAuth App → Enable Device Flow → copiá el Client ID.
+                </span>
+              </span>
+            }
+          >
+            <input
+              type="text"
+              value={settings['repo-search.github.client_id']}
+              onChange={(e) => update('repo-search.github.client_id', e.target.value)}
+              placeholder="Ov23li…"
+              className={inputCls}
+            />
+          </SettingRow>
+
+          {/* GitLab OAuth Application ID */}
+          <SettingRow
+            label="GitLab OAuth Application — Application ID"
+            description={
+              <span>
+                Requerido para Sign in with GitLab (Device Flow).{' '}
+                <span className="text-on-surface-variant/60">
+                  gitlab.com → Preferences → Applications → New application → Scope: read_api → Enable Device Authorization Grant → copiá el Application ID.
+                </span>
+              </span>
+            }
+          >
+            <input
+              type="text"
+              value={settings['repo-search.gitlab.client_id']}
+              onChange={(e) => update('repo-search.gitlab.client_id', e.target.value)}
+              placeholder="abc123def456…"
+              className={inputCls}
+            />
+          </SettingRow>
+
+          {/* Bitbucket default workspace */}
+          <SettingRow label="Bitbucket — Default Workspace" description="Workspace slug por defecto para búsquedas en Bitbucket.">
             <input
               type="text"
               value={settings['bitbucket.workspace']}
@@ -373,6 +462,7 @@ export function SettingsPage(): JSX.Element {
               className={inputCls}
             />
           </SettingRow>
+
         </div>
       </section>
 

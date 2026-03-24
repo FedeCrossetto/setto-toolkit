@@ -16,10 +16,10 @@
 | Plugin | Descripción |
 |---|---|
 | **File Editor** | Abrí, editá y guardás archivos. Soporte para logs grandes con modo tail, file watcher y búsqueda en archivos. |
-| **Smart Diff** | Comparación semántica de dos fragmentos de código con análisis de IA (OpenAI). Detecta cambios de lógica, efectos secundarios y sugiere mejoras. |
-| **Repo Search** | Buscá código en todos los repositorios de tu workspace. Soporta **Bitbucket**, **GitHub** y **GitLab**. Las credenciales se guardan encriptadas localmente con `safeStorage`. |
-| **API Tester** | Cliente HTTP similar a Postman. Soporta colecciones, entornos con variables, historial, autenticación Bearer / Basic, multipart/form-data y scripts pre/post-request. |
-| **Settings** | Configuración de API keys, proveedor de IA (OpenAI / Anthropic / Ollama), fuente, tema de color y backup/restore de settings. |
+| **Smart Diff** | Comparación semántica de dos fragmentos de código con análisis de IA (OpenAI / Anthropic / Ollama). Detecta cambios de lógica, efectos secundarios y sugiere mejoras. |
+| **Repo Search** | Buscá código en todos los repositorios de tu workspace. Soporta **Bitbucket**, **GitHub** y **GitLab**. Autenticación por PAT o por Google. Las credenciales se guardan encriptadas localmente con `safeStorage`. |
+| **API Lab** | Cliente HTTP similar a Postman. Soporta colecciones, entornos con variables, historial, autenticación Bearer / Basic, multipart/form-data y scripts pre/post-request. |
+| **Settings** | Configuración de API keys, proveedor de IA (OpenAI / Anthropic / Ollama), fuente, tema de color, mascota del dashboard y backup/restore de settings. |
 | **About** | Información de versión, stack tecnológico y detalles de seguridad de la app. |
 
 ---
@@ -41,6 +41,9 @@ cd setto-toolkit
 # Instalar dependencias
 npm install
 
+# Copiar el archivo de entorno y completar credenciales OAuth
+cp .env.example .env
+
 # Iniciar en modo desarrollo
 npm run dev
 ```
@@ -55,34 +58,50 @@ La app se abre automáticamente como ventana de escritorio (Electron).
 npm run package
 ```
 
-El instalador queda en la carpeta `release/`.
+El instalador queda en la carpeta `release/`. Las credenciales OAuth del `.env` quedan embebidas en el binario en tiempo de compilación — nunca aparecen en el repositorio.
 
 ---
 
-## Configuración de credenciales
+## Configuración de credenciales OAuth (build-time)
 
-Todas las credenciales se configuran **desde dentro de la app** en la pantalla correspondiente. Nunca se hardcodean en el código fuente — se almacenan encriptadas en el dispositivo mediante la API `safeStorage` de Electron (DPAPI en Windows, Keychain en macOS).
+Las credenciales OAuth se inyectan en el binario en tiempo de compilación via `electron-vite define`. Copiá `.env.example` a `.env` y completá los valores antes de correr `npm run dev` o `npm run package`:
+
+```env
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GITHUB_CLIENT_ID=...
+GITLAB_CLIENT_ID=...
+```
+
+El archivo `.env` está en `.gitignore` — nunca se sube al repositorio.
+
+---
+
+## Configuración de credenciales de usuario
+
+Todas las credenciales de usuario se configuran **desde dentro de la app**. Se almacenan encriptadas en el dispositivo mediante `safeStorage` de Electron (DPAPI en Windows, Keychain en macOS).
 
 ### Repo Search — Bitbucket
 
 1. Abrí el plugin **Repo Search** y seleccioná la pestaña **Bitbucket**.
 2. Ingresá tu usuario, tu workspace y un **App Password** con permisos de lectura de repositorios.
    - Para crear un App Password: Bitbucket → Configuración personal → App passwords → permisos de lectura en Repositories.
-3. Hacé clic en **Connect**. Las credenciales se guardan encriptadas y se reutilizan en sesiones futuras.
+3. Hacé clic en **Conectar**. Las credenciales se guardan encriptadas y se reutilizan en sesiones futuras.
 
 ### Repo Search — GitHub
 
 1. Seleccioná la pestaña **GitHub**.
 2. Ingresá un **Personal Access Token** (classic o fine-grained) con scope `repo` o `read:org`.
    - Para crear uno: GitHub → Settings → Developer settings → Personal access tokens.
-3. Opcionalmente podés especificar una organización para acotar la búsqueda.
+3. Opcionalmente especificá una organización para acotar la búsqueda.
+4. Alternativa: usá **Sign in with Google** para abrir la interfaz de búsqueda sin PAT (limitado — sin acceso a la API de GitHub).
 
 ### Repo Search — GitLab
 
 1. Seleccioná la pestaña **GitLab**.
 2. Ingresá un **Personal Access Token** con scopes `api` y `read_api`.
    - Para crear uno: GitLab → Preferences → Access Tokens.
-3. Opcionalmente podés especificar un grupo para acotar la búsqueda a sus proyectos.
+3. Opcionalmente especificá un grupo para acotar la búsqueda a sus proyectos.
 
 ### Smart Diff — Proveedor de IA
 
@@ -91,6 +110,17 @@ Abrí **Settings → AI Service** y elegí el proveedor:
 - **OpenAI**: pegá tu API Key y seleccioná el modelo (`gpt-4o-mini` por defecto).
 - **Anthropic**: pegá tu API Key y seleccioná el modelo Claude (`claude-haiku-4-5` por defecto).
 - **Ollama (local)**: ingresá la URL de tu instancia (`http://localhost:11434`) y el nombre del modelo. No requiere API key.
+
+---
+
+## Mascota del dashboard
+
+El dashboard soporta dos mascotas intercambiables desde **Settings → Appearance → Dashboard mascot**:
+
+- **Setto Avatar** (por defecto): ilustraciones de Setto en cada card. Los PNGs se cargan desde `public/setto-avatar/`.
+- **Panda**: mascota original.
+
+Para reemplazar las ilustraciones de Setto: copiá tus PNGs en `public/setto-avatar/` respetando los nombres de archivo (`setto-avatar.png`, `setto-avatar-search.png`, `setto-avatar-difference.png`, `setto-avatar-api.png`, `setto-avatar-settings.png`). Si un archivo no existe, la card oculta la imagen automáticamente.
 
 ---
 
@@ -118,6 +148,7 @@ Podés usar `src/plugins/_template/` como punto de partida.
 - **Tailwind CSS** — estilos
 - **OpenAI / Anthropic / Ollama** — análisis semántico en Smart Diff (multi-proveedor)
 - **chokidar** — file watching en el editor
+- **Google OAuth 2.0 PKCE** — autenticación de cuenta Google
 
 ---
 
@@ -125,16 +156,71 @@ Podés usar `src/plugins/_template/` como punto de partida.
 
 - Todos los canales IPC tienen una **allowlist explícita** en el preload — canales desconocidos son bloqueados.
 - Las rutas de archivo son validadas en el proceso principal antes de cualquier operación (path traversal + authorized roots).
-- Las credenciales sensibles (tokens, API keys de OpenAI, Anthropic, GitLab) se encriptan con `safeStorage` antes de escribirse a disco.
+- Las credenciales sensibles (tokens, API keys) se encriptan con `safeStorage` antes de escribirse a disco.
 - El **cache de IA** (`ai-cache.json`) se encripta en disco con `safeStorage` (prefijo `ENCV1:`).
 - Las API keys nunca se retornan al renderer en texto plano — se usa un centinela `__CONFIGURED__`.
 - El renderer corre con `sandbox: true` y `nodeIntegration: false`.
-- Los scripts de pre/post-request en el API Tester corren en un `vm.runInNewContext` aislado con timeout de 2s.
-- Las peticiones HTTPS del API Tester validan certificados TLS.
+- Los scripts de pre/post-request en el API Lab corren en un `vm.runInNewContext` aislado con timeout de 2s.
+- Las peticiones HTTPS del API Lab validan certificados TLS.
+- Las credenciales OAuth (Google, GitHub, GitLab) se inyectan en el binario en build-time desde `.env` (gitignored) — nunca aparecen en el código fuente.
+- Los tokens de Google se almacenan cifrados en `google-auth.json` en `userData`.
 
 ---
 
 ## Changelog
+
+### v2.1.0 — 2026-03-24
+
+#### Nuevas funcionalidades
+
+**Google OAuth (Repo Search)**
+- Nuevo servicio `AuthService` con flujo **OAuth 2.0 PKCE para Desktop** — abre un servidor HTTP local en localhost para recibir el callback.
+- Nuevo componente `GoogleAuthWidget` disponible en cada proveedor de Repo Search como alternativa al PAT.
+- Al iniciar sesión con Google, la app carga la interfaz de búsqueda mostrando el email y avatar de la cuenta Google.
+- Si no hay PAT configurado para el proveedor, aparece un banner amigable "NOT_AUTHENTICATED" con enlace para conectar token.
+- Las sesiones son independientes por proveedor — iniciar sesión con Google en GitHub no afecta GitLab ni Bitbucket.
+- Los tokens de Google se almacenan cifrados con `safeStorage` en `google-auth.json`.
+
+**Avatar en "Conectado como"**
+- Al autenticar con PAT, la sección "Conectado como" muestra el avatar del usuario (obtenido de la API del proveedor).
+- Al autenticar con Google, muestra la foto de perfil de la cuenta Google.
+- Si no hay avatar disponible, muestra un ícono genérico de persona.
+
+**Logos de proveedor en el login**
+- El formulario de login de cada proveedor muestra el logo correspondiente (GitHub, Bitbucket, GitLab) como SVG inline.
+
+**GitHub tree search fallback**
+- Cuando la API de búsqueda de código de GitHub devuelve 0 resultados (repo recién creado / sin indexar), la búsqueda cae automáticamente a un escaneo directo del árbol de archivos vía `raw.githubusercontent.com`.
+
+**Setto Avatar — sistema de mascotas**
+- Nuevo conjunto de ilustraciones `Setto Avatar` como mascota alternativa al panda.
+- Los PNGs se sirven desde `public/setto-avatar/` con fallback automático si el archivo no existe.
+- Selector en **Settings → Appearance → Dashboard mascot**.
+- El mascot seleccionado también aplica al loader de búsqueda en Repo Search (muestra setto-avatar-search o panda-search según la preferencia).
+- **Setto Avatar es la mascota por defecto** en instalaciones nuevas.
+- El cambio de mascota se propaga en tiempo real a todos los tabs abiertos vía evento `mascot-change`.
+
+**Credenciales OAuth embebidas en build-time**
+- Google Client ID/Secret, GitHub Client ID y GitLab Client ID se inyectan en el binario vía `electron-vite define` desde `.env`.
+- El archivo `.env.example` documenta las variables requeridas.
+- Los usuarios finales no necesitan configurar nada — solo hacer click en "Sign in".
+
+#### Cambios de nombre
+
+- **API Tester** renombrado a **API Lab** en toda la interfaz.
+
+#### Mejoras de UX
+
+- **Dashboard Smart Diff card**: columna de artwork ampliada al 55% para acomodar correctamente la imagen landscape `panda-compare-files.png` sin recorte.
+- El loader de búsqueda respeta la preferencia de mascota activa.
+- Settings muestra Setto Avatar seleccionado por defecto en instalaciones nuevas.
+
+#### Fixes
+
+- Eliminado `app.setAppUserModelId` duplicado en `main.ts` (se llamaba dos veces con IDs distintos).
+- Eliminados todos los `console.log` de debug del handler de repo-search (URLs de búsqueda, contadores de archivos, fallback logs).
+
+---
 
 ### v2.0.0 — 2026-03-23
 
@@ -145,13 +231,13 @@ Podés usar `src/plugins/_template/` como punto de partida.
 - Selector de proveedor en Settings con campos condicionales por proveedor.
 - Los modelos disponibles se listan en un dropdown por proveedor.
 
-**API Tester — Scripts pre/post-request**
+**API Lab — Scripts pre/post-request**
 - Nuevo tab **Scripts** en cada request.
 - El script de pre-request puede mutar variables de entorno antes del envío (`pm.environment.set/get`).
 - El script de post-response accede a `pm.response.status`, `pm.response.json()`, `pm.response.body`.
 - Ejecución sandboxada via `vm.runInNewContext` con timeout de 2 segundos.
 
-**API Tester — Soporte multipart/form-data**
+**API Lab — Soporte multipart/form-data**
 - Nuevo body type `form-data` con editor de campos clave/valor.
 - Soporte para adjuntar archivos directamente desde el editor.
 

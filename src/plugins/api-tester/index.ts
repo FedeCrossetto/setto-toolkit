@@ -3,7 +3,7 @@ import { ApiTester } from './ApiTester'
 
 export const apiTesterPlugin: PluginManifest = {
   id: 'api-tester',
-  name: 'API Tester',
+  name: 'API Lab',
   description: 'Test HTTP APIs and integrations without leaving the app.',
   icon: 'webhook',
   component: ApiTester,
