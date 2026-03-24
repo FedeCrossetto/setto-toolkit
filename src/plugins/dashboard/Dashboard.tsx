@@ -242,11 +242,11 @@ function PandaImg({ src, scale = 1.12, tx = 0, ty = 6, objPosition = 'bottom' }:
 
 // Each panda PNG has different internal whitespace — tune scale/tx/ty per image
 // scale: zoom level  tx: horizontal offset (negative = left)  ty: vertical offset (positive = down)
-function ArtworkPanda():         JSX.Element { return <PandaImg src="/panda1.png"               scale={1.15} tx={-4}  ty={6} /> }
-function ArtworkPandaCompare():  JSX.Element { return <PandaImg src="/panda-compare-files.png"  scale={1.0} tx={0} ty={0} objPosition="center" /> }
-function ArtworkPandaSearch():   JSX.Element { return <PandaImg src="/panda-search.png"         scale={1.15} tx={-4}  ty={6} /> }
-function ArtworkPandaSettings(): JSX.Element { return <PandaImg src="/panda-settings.png"       scale={1.15} tx={-10} ty={6} /> }
-function ArtworkPandaRequest():  JSX.Element { return <PandaImg src="/panda-request.png"        scale={1.15} tx={-10} ty={6} /> }
+function ArtworkPanda():         JSX.Element { return <PandaImg src="./panda1.png"               scale={1.15} tx={-4}  ty={6} /> }
+function ArtworkPandaCompare():  JSX.Element { return <PandaImg src="./panda-compare-files.png"  scale={1.0} tx={0} ty={0} objPosition="center" /> }
+function ArtworkPandaSearch():   JSX.Element { return <PandaImg src="./panda-search.png"         scale={1.15} tx={-4}  ty={6} /> }
+function ArtworkPandaSettings(): JSX.Element { return <PandaImg src="./panda-settings.png"       scale={1.15} tx={-10} ty={6} /> }
+function ArtworkPandaRequest():  JSX.Element { return <PandaImg src="./panda-request.png"        scale={1.15} tx={-10} ty={6} /> }
 
 // ── Setto Avatar artwork ──────────────────────────────────────────────────────
 // Place matching PNGs in public/setto-avatar/ — falls back to panda if file is missing
@@ -262,11 +262,11 @@ function SettoImg({ src, scale = 1.12, tx = 0, ty = 6, objPosition = 'bottom' }:
     />
   )
 }
-function ArtworkSettoCompare():  JSX.Element { return <SettoImg src="/setto-avatar/setto-avatar-difference.png" scale={1.15} tx={0} ty={6} /> }
-function ArtworkSettoSearch():   JSX.Element { return <SettoImg src="/setto-avatar/setto-avatar-search.png"     /> }
-function ArtworkSettoRequest():  JSX.Element { return <SettoImg src="/setto-avatar/setto-avatar-api.png"        /> }
-function ArtworkSettoEditor():   JSX.Element { return <SettoImg src="/setto-avatar/setto-avatar.png"            /> }
-function ArtworkSettoSettings(): JSX.Element { return <SettoImg src="/setto-avatar/setto-avatar-settings.png"   /> }
+function ArtworkSettoCompare():  JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar-difference.png" scale={1.15} tx={0} ty={6} /> }
+function ArtworkSettoSearch():   JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar-search.png"     /> }
+function ArtworkSettoRequest():  JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar-api.png"        /> }
+function ArtworkSettoEditor():   JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar.png"            /> }
+function ArtworkSettoSettings(): JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar-settings.png"   /> }
 
 // ── ToolArtwork — swap real images here later ─────────────────────────────────
 // To replace with a real illustration:

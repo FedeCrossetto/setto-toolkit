@@ -1,7 +1,7 @@
 {
   "name": "mytools-app",
-  "version": "1.0.0",
-  "description": "Developer Toolbox — modular developer utilities",
+  "version": "2.1.0",
+  "description": "Setto — modular developer utilities",
   "main": "out/main/main.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -55,17 +55,16 @@
     "vite": "^5.3.1"
   },
   "build": {
-    "appId": "com.devtools.mytools",
-    "productName": "Developer Toolbox",
+    "appId": "com.devtoolkit.app",
+    "productName": "Setto",
     "icon": "public/dev-logo.png",
     "directories": {
       "output": "release"
     },
     "files": [
-      "dist-electron",
-      "dist"
+      "out/**/*"
     ],
-    "nativeRebuilder": "sequential",
+    "asar": true,
     "win": {
       "target": "nsis",
       "icon": "public/dev-logo.ico"

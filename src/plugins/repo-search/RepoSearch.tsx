@@ -250,7 +250,7 @@ function RepoGroup({ repo, results, defaultOpen, query }: { repo: string; result
 // ── Searching loader ───────────────────────────────────────────────────────
 
 function SearchingLoader({ label, mascot }: { label?: string; mascot?: 'panda' | 'setto-avatar' }): JSX.Element {
-  const imgSrc = mascot === 'setto-avatar' ? '/setto-avatar/setto-avatar-search.png' : '/panda-search.png'
+  const imgSrc = mascot === 'setto-avatar' ? './setto-avatar/setto-avatar-search.png' : './panda-search.png'
   return (
     <div className="flex flex-col items-center justify-center py-12 gap-4 select-none">
       {/* Mascot with glow halo */}

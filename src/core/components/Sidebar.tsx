@@ -6,10 +6,7 @@ import type { PluginManifest } from '../types'
 // ── Logo mark ─────────────────────────────────────────────────────────────────
 function AppLogo({ size = 34 }: { size?: number }): JSX.Element {
   return (
-    <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-      <line x1="10.5" y1="30" x2="18.5" y2="6" stroke="currentColor" strokeWidth="5" strokeLinecap="round"/>
-      <line x1="20.5" y1="30" x2="28.5" y2="6" stroke="currentColor" strokeWidth="5" strokeLinecap="round"/>
-    </svg>
+    <img src="./setto-logo.png" width={size} height={size} style={{ flexShrink: 0, objectFit: 'contain', filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.25))' }} />
   )
 }
 
@@ -117,10 +114,10 @@ export function Sidebar(): JSX.Element {
       {/* ── Logo ──────────────────────────────────────────────────────── */}
       <div className={`flex items-center mt-6 mb-6 ${collapsed ? 'justify-center px-2' : 'px-3 justify-between'}`}>
         {collapsed ? (
-          <AppLogo size={36} />
+          <AppLogo size={128} />
         ) : (
-          <div className="flex items-center gap-3">
-            <AppLogo size={32} />
+          <div className="flex items-center gap-1.5">
+            <AppLogo size={52} />
             <div className="leading-none">
               <div className="font-bold text-[15px] text-on-surface tracking-tight">SETTO</div>
               <div className="text-[10px] text-on-surface-variant/50 tracking-widest uppercase font-medium mt-0.5">Toolkit</div>
