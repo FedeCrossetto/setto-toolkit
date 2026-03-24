@@ -15,10 +15,11 @@
 
 | Plugin | Descripción |
 |---|---|
-| **File Editor** | Abrí, editá y guardás archivos. Soporte para logs grandes con modo tail, file watcher y búsqueda en archivos. |
-| **Smart Diff** | Comparación semántica de dos fragmentos de código con análisis de IA (OpenAI / Anthropic / Ollama). Detecta cambios de lógica, efectos secundarios y sugiere mejoras. |
+| **File Editor** | Abrí, editá y guardás archivos. Soporte para logs grandes con modo tail, file watcher y búsqueda en archivos. Menú contextual en tabs (Rename, Save, Copy Path, Reveal in Explorer). |
+| **Smart Diff** | Comparación semántica de dos fragmentos de código con análisis de IA (OpenAI / Anthropic / Ollama). Detecta cambios de lógica, efectos secundarios y sugiere mejoras. Vista side-by-side con word-level diff. |
 | **Repo Search** | Buscá código en todos los repositorios de tu workspace. Soporta **Bitbucket**, **GitHub** y **GitLab**. Autenticación por PAT o por Google. Las credenciales se guardan encriptadas localmente con `safeStorage`. |
-| **API Lab** | Cliente HTTP similar a Postman. Soporta colecciones, entornos con variables, historial, autenticación Bearer / Basic, multipart/form-data y scripts pre/post-request. |
+| **API Lab** | Cliente HTTP similar a Postman. Soporta colecciones, entornos con variables, historial con filtro por URL/método, autenticación Bearer / Basic, multipart/form-data y scripts pre/post-request. |
+| **Snippets** | Manager de snippets de código y notas. Soporte de imágenes inline (drag & drop / paste), sintaxis resaltada con CodeMirror, colecciones, pins, búsqueda fuzzy y export/import a JSON. |
 | **Settings** | Configuración de API keys, proveedor de IA (OpenAI / Anthropic / Ollama), fuente, tema de color, mascota del dashboard y backup/restore de settings. |
 | **About** | Información de versión, stack tecnológico y detalles de seguridad de la app. |
 
@@ -146,7 +147,9 @@ Podés usar `src/plugins/_template/` como punto de partida.
 - **Vite + electron-vite** — bundler y dev server
 - **CodeMirror 6** — editor de código
 - **Tailwind CSS** — estilos
+- **CodeMirror 6** — viewer de snippets con highlighting por lenguaje (también usado en File Editor)
 - **OpenAI / Anthropic / Ollama** — análisis semántico en Smart Diff (multi-proveedor)
+- **Fuse.js** — búsqueda fuzzy de snippets
 - **chokidar** — file watching en el editor
 - **Google OAuth 2.0 PKCE** — autenticación de cuenta Google
 
@@ -168,6 +171,42 @@ Podés usar `src/plugins/_template/` como punto de partida.
 ---
 
 ## Changelog
+
+### v2.2.0 — 2026-03-24
+
+#### Nuevas funcionalidades
+
+**Plugin: Snippet Manager**
+- Nuevo plugin completo para gestión de snippets de código y notas.
+- Tres paneles: navegación (colecciones / all / pinned), lista y detalle/editor.
+- Viewer de código de solo lectura con **CodeMirror 6** y resaltado de sintaxis por lenguaje (JavaScript, TypeScript, Python, SQL, JSON, HTML, CSS, Bash, Java, C#, Go, Rust, YAML, XML, Markdown).
+- Soporte de **imágenes inline** al estilo Notion: pegá (`Ctrl+V`) o arrastrá una imagen directamente en el editor — se inserta como marcador `![img:id]` visible y compacto en la edición, y se renderiza como imagen real en el viewer.
+- `MixedContentViewer`: renderiza snippets que mezclan texto/código e imágenes en bloques intercalados.
+- Colecciones, pin, tags y descripción por snippet.
+- Búsqueda fuzzy con Fuse.js sobre título, contenido, tags y descripción.
+- **Export/Import a JSON**: exportá todos tus snippets y colecciones a un archivo, importalos en otra máquina — las colisiones de ID se omiten automáticamente.
+- Atajos de teclado: `Ctrl+N` (nuevo snippet), `Ctrl+Enter` (guardar), `Escape` (cancelar).
+- Card en el Dashboard con artwork diferenciado por mascota (Setto y Panda).
+
+**API Lab — mejoras**
+- Nuevo icono: `rocket_launch`.
+- **Buscador de URL en el historial**: filtrá las entradas del historial por texto en la URL en tiempo real, combinable con el filtro por método HTTP.
+- **Botón Retry**: aparece junto al mensaje de error en el panel de respuesta para reintentar con un click.
+- **Badge de entorno activo**: muestra el nombre del environment seleccionado directamente en la URL bar — desaparece cuando no hay ninguno activo.
+
+#### Mejoras de UX / UI
+
+- **Dashboard**: las cards entran con animación `fadeSlideUp` escalonada (60ms entre cada card).
+- **Sidebar**: logo corregido en modo colapsado — era 128px en un contenedor de 68px, ahora 44px.
+- **Settings**: sección "Integraciones" y todas las descripciones en español traducidas al inglés para consistencia.
+- **CommandPalette**: instancia de Fuse envuelta en `useMemo` — deja de re-crearse en cada render.
+
+#### Seguridad
+
+- **Content-Security-Policy**: CSP aplicado vía `session.defaultSession.webRequest.onHeadersReceived`. Restringe `script-src`, `style-src`, `font-src`, `img-src` y `connect-src` a orígenes explícitamente permitidos.
+- **`settings:getAll` prefix allowlist**: el handler ahora valida el prefijo contra una lista explícita (`ai`, `repo-search`, `dashboard`, `bitbucket`, `editor`) — prefijos arbitrarios son rechazados.
+
+---
 
 ### v2.1.0 — 2026-03-24
 

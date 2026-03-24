@@ -1,6 +1,6 @@
 {
   "name": "mytools-app",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Setto — modular developer utilities",
   "main": "out/main/main.js",
   "scripts": {
@@ -65,6 +65,20 @@
       "out/**/*"
     ],
     "asar": true,
+    "fileAssociations": [
+      {
+        "ext": "txt",
+        "name": "Text File",
+        "description": "Open with Setto",
+        "role": "Editor"
+      },
+      {
+        "ext": ["js", "ts", "tsx", "jsx", "json", "css", "html", "md", "py", "java", "cpp", "c", "cs", "go", "rs", "yaml", "yml", "xml", "sql"],
+        "name": "Source File",
+        "description": "Open with Setto",
+        "role": "Editor"
+      }
+    ],
     "win": {
       "target": "nsis",
       "icon": "public/dev-logo.ico"

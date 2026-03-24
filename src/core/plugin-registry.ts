@@ -5,17 +5,19 @@ import type { PluginManifest } from './types'
 import { dashboardPlugin } from '../plugins/dashboard'
 import { smartDiffPlugin } from '../plugins/smart-diff'
 import { repoSearchPlugin } from '../plugins/repo-search'
-import { apiTesterPlugin } from '../plugins/api-tester'
+import { apiLabPlugin } from '../plugins/api-tester'
 import { fileEditorPlugin } from '../plugins/file-editor'
 import { settingsPlugin } from '../plugins/settings'
 import { aboutPlugin } from '../plugins/about'
+import { snippetsPlugin } from '../plugins/snippets'
 
 export const allPlugins: PluginManifest[] = [
   dashboardPlugin,
   fileEditorPlugin,
   smartDiffPlugin,
   repoSearchPlugin,
-  apiTesterPlugin,
+  apiLabPlugin,
+  snippetsPlugin,
   settingsPlugin,
   aboutPlugin,
 ]

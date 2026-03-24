@@ -17,6 +17,23 @@ export function tryFormatJson(str: string): string {
   }
 }
 
+/** Apply syntax highlighting to a JSON/text string — returns HTML with span wrappers */
+export function highlightJson(str: string): string {
+  const escaped = str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return escaped.replace(
+    /("(?:\\u[0-9a-fA-F]{4}|\\[^u]|[^\\"])*"(?:\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+    (match) => {
+      if (match.startsWith('"')) {
+        if (match.endsWith(':')) return `<span class="json-key">${match.slice(0, -1)}</span>:`
+        return `<span class="json-string">${match}</span>`
+      }
+      if (match === 'true' || match === 'false') return `<span class="json-bool">${match}</span>`
+      if (match === 'null') return `<span class="json-null">${match}</span>`
+      return `<span class="json-number">${match}</span>`
+    }
+  )
+}
+
 /** Human-readable byte size */
 export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`

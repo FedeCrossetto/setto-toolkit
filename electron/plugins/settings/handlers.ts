@@ -31,6 +31,7 @@ const ALLOWED_KEYS = new Set([
   'repo-search.aliases',
   'repo-search.github.client_id',  // public — needed for GitHub OAuth Device Flow
   'repo-search.github.org',        // optional org filter for GitHub searches
+  'dashboard.mascot',              // 'panda' | 'setto-avatar'
 ])
 
 /**
@@ -85,6 +86,10 @@ export const handlers: PluginHandlers = {
     ipcMain.handle('settings:getAll', (_event, prefix?: string) => {
       if (!prefix || typeof prefix !== 'string' || prefix.trim() === '') {
         throw new Error('settings:getAll requires a non-empty prefix')
+      }
+      const ALLOWED_PREFIXES = new Set(['ai', 'repo-search', 'dashboard', 'bitbucket', 'editor'])
+      if (!ALLOWED_PREFIXES.has(prefix.trim())) {
+        throw new Error(`settings:getAll prefix not permitted: "${prefix}"`)
       }
       return settings.getAll(prefix)
     })

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useCollections } from './hooks/useCollections'
 import { useRequestRunner } from './hooks/useRequestRunner'
 import {
-  tryFormatJson, formatXml, formatSize, newKV, randomUUID,
+  tryFormatJson, highlightJson, formatXml, formatSize, newKV, randomUUID,
   parseCurl, exportToCurl, parseFormPairs, serializeFormPairs,
   importCollectionFromJSON,
 } from './utils'
@@ -59,6 +59,148 @@ function MethodSelect({ value, onChange }: { value: HttpMethod; onChange: (m: Ht
   )
 }
 
+// ── History components ─────────────────────────────────────────────────────
+
+function HistoryItem({
+  entry,
+  collections,
+  onRestore,
+  onSave,
+}: {
+  entry: HistoryEntry
+  collections: Collection[]
+  onRestore: () => void
+  onSave: (collectionId: string) => void
+}): JSX.Element {
+  const [showSave, setShowSave] = useState(false)
+  const d = new Date(entry.executedAt)
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const date = d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+
+  return (
+    <div className="group px-2 py-1.5 hover:bg-surface-container transition-colors">
+      <button onClick={onRestore} className="w-full flex items-start gap-2 text-left">
+        <span className={`text-[10px] font-bold mt-0.5 w-12 flex-shrink-0 ${METHOD_COLOR[entry.request.method]}`}>
+          {entry.request.method}
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] text-on-surface truncate leading-tight">{entry.request.url}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className={`text-[10px] font-semibold ${entry.response.status < 400 ? 'text-accent' : 'text-error'}`}>
+              {entry.response.status}
+            </span>
+            <span className="text-[10px] text-on-surface-variant/50">{entry.response.duration}ms</span>
+            <span className="text-[10px] text-on-surface-variant/40">{date} {time}</span>
+          </div>
+        </div>
+      </button>
+      {collections.length > 0 && (
+        <div className="mt-0.5 hidden group-hover:flex justify-end">
+          {!showSave ? (
+            <button onClick={() => setShowSave(true)}
+              className="text-[10px] text-on-surface-variant/50 hover:text-primary transition-colors flex items-center gap-0.5">
+              <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>bookmark_add</span> Save
+            </button>
+          ) : (
+            <div className="flex gap-1 items-center">
+              <select defaultValue="" onChange={(e) => { if (e.target.value) { onSave(e.target.value); setShowSave(false) } }}
+                className="text-[10px] bg-surface-container border border-outline-variant/30 rounded px-1 py-0.5 text-on-surface focus:outline-none">
+                <option value="" disabled>Collection...</option>
+                {collections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <button onClick={() => setShowSave(false)} className="text-on-surface-variant/50 hover:text-error">
+                <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>close</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function HistoryPanel({
+  history,
+  collections,
+  onRestore,
+  onClear,
+  onSave,
+}: {
+  history: HistoryEntry[]
+  collections: Collection[]
+  onRestore: (entry: HistoryEntry) => void
+  onClear: () => void
+  onSave: (entry: HistoryEntry, collectionId: string) => void
+}): JSX.Element {
+  const [methodFilter, setMethodFilter] = useState<string>('ALL')
+  const [urlSearch, setUrlSearch] = useState('')
+  const methods = ['ALL', ...Array.from(new Set(history.map((h) => h.request.method)))]
+  const filtered = history
+    .filter((h) => methodFilter === 'ALL' || h.request.method === methodFilter)
+    .filter((h) => !urlSearch.trim() || h.request.url.toLowerCase().includes(urlSearch.toLowerCase()))
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="px-3 pt-3 pb-2 border-b border-outline-variant/15 flex-shrink-0">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">
+            {history.length} request{history.length !== 1 ? 's' : ''}
+          </span>
+          {history.length > 0 && (
+            <button onClick={onClear} className="text-[10px] text-on-surface-variant hover:text-error transition-colors">
+              Clear all
+            </button>
+          )}
+        </div>
+        {history.length > 0 && (
+          <>
+            <div className="flex items-center gap-1.5 bg-surface-container border border-outline-variant/25 rounded-lg px-2 py-1 mb-2">
+              <span className="material-symbols-outlined text-on-surface-variant/40" style={{ fontSize: '12px' }}>search</span>
+              <input
+                value={urlSearch} onChange={(e) => setUrlSearch(e.target.value)}
+                placeholder="Filter by URL…"
+                className="flex-1 bg-transparent text-[11px] text-on-surface placeholder-on-surface-variant/40 outline-none"
+              />
+              {urlSearch && (
+                <button onClick={() => setUrlSearch('')} className="text-on-surface-variant/40 hover:text-on-surface-variant">
+                  <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>close</span>
+                </button>
+              )}
+            </div>
+            <div className="flex gap-1 flex-wrap">
+              {methods.map((m) => (
+                <button key={m} onClick={() => setMethodFilter(m)}
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded-full border transition-colors ${
+                    methodFilter === m
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-outline-variant/30 text-on-surface-variant/60 hover:text-on-surface'
+                  }`}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      <div className="flex-1 overflow-y-auto py-1">
+        {history.length === 0 ? (
+          <p className="text-xs text-on-surface-variant/60 text-center py-8 px-4">
+            No requests yet.<br />Execute a request to see history.
+          </p>
+        ) : filtered.length === 0 ? (
+          <p className="text-xs text-on-surface-variant/60 text-center py-8">No {methodFilter} requests.</p>
+        ) : (
+          filtered.map((h) => (
+            <HistoryItem key={h.id} entry={h} collections={collections}
+              onRestore={() => onRestore(h)}
+              onSave={(colId) => onSave(h, colId)} />
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
 function emptyRequest(collectionId = ''): ActiveRequest {
   return {
     requestId: null, collectionId,
@@ -72,7 +214,7 @@ function emptyRequest(collectionId = ''): ActiveRequest {
 type RequestTab = 'headers' | 'params' | 'body' | 'auth' | 'scripts'
 type ResponseTab = 'body' | 'headers' | 'raw'
 
-export function ApiTester(): JSX.Element {
+export function ApiLab(): JSX.Element {
   const { collections, loading, createCollection, deleteCollection, saveRequest, deleteRequest, duplicateRequest, reload: reloadCollections } = useCollections()
   const [environments, setEnvironments] = useState<Environment[]>([])
   const { status, response, error, history, execute, cancel, loadHistory, clearHistory } = useRequestRunner(environments)
@@ -85,7 +227,7 @@ export function ApiTester(): JSX.Element {
   const [showImportCurl, setShowImportCurl] = useState(false)
   const [curlCopied, setCurlCopied] = useState(false)
   const [beautified, setBeautified] = useState(false)
-  const [leftTab, setLeftTab] = useState<'collections' | 'environments'>('collections')
+  const [leftTab, setLeftTab] = useState<'collections' | 'environments' | 'history'>('collections')
   const [showImportCollection, setShowImportCollection] = useState(false)
   const [responseHeight, setResponseHeight] = useState(260)
   const resizeStartRef = useRef<{ y: number; h: number } | null>(null)
@@ -131,6 +273,22 @@ export function ApiTester(): JSX.Element {
     if (!req) return
     setActive({ requestId: req.id, collectionId: req.collectionId, method: req.method, url: req.url, headers: req.headers, params: req.params, body: req.body, auth: req.auth })
     setBeautified(false)
+  }
+
+  const loadFromHistory = (entry: HistoryEntry): void => {
+    setActive({ requestId: null, collectionId: '', method: entry.request.method, url: entry.request.url, headers: entry.request.headers, params: entry.request.params, body: entry.request.body, auth: entry.request.auth })
+    setBeautified(false)
+  }
+
+  const handleSaveFromHistory = async (entry: HistoryEntry, collectionId: string): Promise<void> => {
+    await saveRequest({
+      id: randomUUID(), collectionId,
+      name: `${entry.request.method} ${entry.request.url}`.slice(0, 60),
+      method: entry.request.method, url: entry.request.url,
+      headers: entry.request.headers, params: entry.request.params,
+      body: entry.request.body, auth: entry.request.auth,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    })
   }
 
   const handleRename = async (colId: string, reqId: string, newName: string): Promise<void> => {
@@ -183,6 +341,7 @@ export function ApiTester(): JSX.Element {
 
   const isOk = response && response.status < 400
   const formattedBody = response ? tryFormatJson(response.body) : ''
+  const activeEnvName = environments.find((e) => e.isActive)?.name
 
   // For form body type, work with KV pairs derived from content
   const formPairs: KeyValuePair[] = active.body.type === 'form' ? parseFormPairs(active.body.content) : []
@@ -197,10 +356,13 @@ export function ApiTester(): JSX.Element {
 
         {/* Tab toggle */}
         <div className="flex border-b border-outline-variant/15 flex-shrink-0">
-          {([['collections', 'Collections'], ['environments', 'Envs']] as const).map(([t, label]) => (
+          {([['collections', 'Saved'], ['environments', 'Envs'], ['history', 'History']] as const).map(([t, label]) => (
             <button key={t} onClick={() => setLeftTab(t)}
               className={`flex-1 py-2 text-[11px] font-semibold transition-colors border-b-2 ${leftTab === t ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/60 hover:text-on-surface'}`}>
               {label}
+              {t === 'history' && history.length > 0 && (
+                <span className="ml-1 text-[9px] bg-primary/20 text-primary rounded-full px-1.5 py-0.5">{history.length}</span>
+              )}
             </button>
           ))}
         </div>
@@ -247,26 +409,15 @@ export function ApiTester(): JSX.Element {
               )}
             </div>
 
-            {/* History */}
-            {history.length > 0 && (
-              <div className="border-t border-outline-variant/15 px-3 py-3 flex-shrink-0">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">Recent</span>
-                  <button onClick={clearHistory} className="text-[10px] text-on-surface-variant hover:text-error transition-colors">Clear</button>
-                </div>
-                <div className="space-y-0.5 max-h-32 overflow-y-auto">
-                  {history.slice(0, 10).map((h) => (
-                    <button key={h.id} onClick={() => setActive({ requestId: null, collectionId: '', method: h.request.method, url: h.request.url, headers: h.request.headers, params: h.request.params, body: h.request.body, auth: h.request.auth })}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-container text-left transition-colors">
-                      <span className={`text-[10px] font-bold ${METHOD_COLOR[h.request.method]}`}>{h.request.method}</span>
-                      <span className="text-[10px] text-on-surface-variant truncate flex-1">{h.request.url}</span>
-                      <span className={`text-[10px] font-medium ${h.response.status < 400 ? 'text-accent' : 'text-error'}`}>{h.response.status}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </>
+        ) : leftTab === 'history' ? (
+          <HistoryPanel
+            history={history}
+            collections={collections}
+            onRestore={loadFromHistory}
+            onClear={clearHistory}
+            onSave={handleSaveFromHistory}
+          />
         ) : (
           <EnvironmentPanel environments={environments} onChange={saveEnvironments} />
         )}
@@ -283,6 +434,13 @@ export function ApiTester(): JSX.Element {
             onKeyDown={(e) => e.key === 'Enter' && handleExecute()}
             placeholder="https://api.example.com/endpoint"
             className="flex-1 bg-surface-container border border-outline-variant/30 rounded-lg px-3 py-2 text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/50" />
+
+          {activeEnvName && (
+            <span className="flex-shrink-0 flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-md bg-accent/10 text-accent border border-accent/20" title="Active environment">
+              <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>hub</span>
+              {activeEnvName}
+            </span>
+          )}
 
           {/* Copy as cURL */}
           <button onClick={handleCopyCurl} title="Copy as cURL" disabled={!active.url.trim()}
@@ -424,7 +582,16 @@ export function ApiTester(): JSX.Element {
                 <span className="text-xs text-on-surface-variant">{formatSize(response.size)}</span>
               </>
             )}
-            {error && <span className="text-sm text-error">{error}</span>}
+            {error && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-error">{error}</span>
+                <button onClick={handleExecute} disabled={!active.url.trim()}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium border border-error/30 text-error hover:bg-error/10 transition-colors disabled:opacity-40">
+                  <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>refresh</span>
+                  Retry
+                </button>
+              </div>
+            )}
             {status === 'idle' && !response && <span className="text-xs text-on-surface-variant">Send a request to see the response</span>}
 
             <div className="ml-auto flex items-center gap-1">
@@ -444,7 +611,7 @@ export function ApiTester(): JSX.Element {
           </div>
 
           <div className="flex-1 overflow-auto p-3 font-mono text-xs text-on-surface leading-relaxed">
-            {response && resTab === 'body' && <pre className="whitespace-pre-wrap break-all">{formattedBody}</pre>}
+            {response && resTab === 'body' && <pre className="whitespace-pre-wrap break-all" dangerouslySetInnerHTML={{ __html: highlightJson(formattedBody) }} />}
             {response && resTab === 'headers' && (
               <div className="space-y-1">
                 {Object.entries(response.headers).map(([k, v]) => (

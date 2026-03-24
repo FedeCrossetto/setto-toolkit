@@ -1,11 +1,11 @@
 import type { PluginManifest } from '../../core/types'
-import { ApiTester } from './ApiTester'
+import { ApiLab } from './ApiLab'
 
-export const apiTesterPlugin: PluginManifest = {
+export const apiLabPlugin: PluginManifest = {
   id: 'api-tester',
   name: 'API Lab',
   description: 'Test HTTP APIs and integrations without leaving the app.',
-  icon: 'webhook',
-  component: ApiTester,
+  icon: 'rocket_launch',
+  component: ApiLab,
   keywords: ['api', 'http', 'rest', 'postman', 'request', 'endpoint', 'integration'],
 }

@@ -52,8 +52,9 @@ export function FileEditor(): JSX.Element {
   const [quickOpen, setQuickOpen]   = useState(false)
   const [showFind, setShowFind]     = useState(false)
   const [ctxMenu, setCtxMenu]       = useState<{ x: number; y: number; items: MenuItem[] } | null>(null)
-  const [renaming, setRenaming]     = useState<string | null>(null)
-  const [creating, setCreating]     = useState<{ parentPath: string; type: 'file' | 'dir' } | null>(null)
+  const [renaming, setRenaming]         = useState<string | null>(null)
+  const [renamingTabId, setRenamingTabId] = useState<string | null>(null)
+  const [creating, setCreating]         = useState<{ parentPath: string; type: 'file' | 'dir' } | null>(null)
   const [openFilesHeight, setOpenFilesHeight] = useState(180)
   const [closeConfirm, setCloseConfirm] = useState<{
     tabId: string; name: string; resolve: (r: 'save' | 'discard' | 'cancel') => void
@@ -301,6 +302,48 @@ export function FileEditor(): JSX.Element {
     } catch (err) { console.error('Rename failed', err) }
   }
 
+  const handleRenameTab = async (tabId: string, newName: string): Promise<void> => {
+    setRenamingTabId(null)
+    const tab = tabs.find((t) => t.id === tabId)
+    if (!tab || !newName.trim() || newName === tab.name) return
+    if (tab.path) {
+      await handleRenameCommit(tab.path, newName.trim())
+    } else {
+      updateTab(tabId, { name: newName.trim() })
+    }
+  }
+
+  const handleTabContextMenu = (e: React.MouseEvent, tab: OpenFile): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCtxMenu({
+      x: e.clientX, y: e.clientY,
+      items: [
+        { label: 'Rename',             icon: 'edit',         action: () => setRenamingTabId(tab.id) },
+        { label: 'Save',               icon: 'save',         action: saveActive },
+        { divider: true, label: '', icon: '', action: () => {} },
+        ...(tab.path ? [
+          { label: 'Copy Path',          icon: 'content_copy', action: () => navigator.clipboard.writeText(tab.path!) },
+          { label: 'Reveal in Explorer', icon: 'folder_open',  action: () => window.api.invoke('editor:reveal', tab.path!) },
+          { divider: true, label: '', icon: '', action: () => {} },
+        ] : []),
+        { label: 'Close', icon: 'close', action: () => handleCloseTab(tab.id), danger: true },
+      ],
+    })
+  }
+
+  const handleOpenFilesPanelContextMenu = (e: React.MouseEvent): void => {
+    if ((e.target as HTMLElement).closest('[data-tab-item]')) return
+    e.preventDefault()
+    setCtxMenu({
+      x: e.clientX, y: e.clientY,
+      items: [
+        { label: 'New file', icon: 'note_add', action: createNewFile },
+        { label: 'Open file...', icon: 'folder_open', action: openDialog },
+      ],
+    })
+  }
+
   const handleCreateCommit = async (parentPath: string, name: string, type: 'file' | 'dir'): Promise<void> => {
     setCreating(null)
     const newPath = appendPath(parentPath, name)
@@ -409,6 +452,7 @@ export function FileEditor(): JSX.Element {
         <div
           className={`flex flex-col border-outline-variant/15 flex-shrink-0 ${folders.length > 0 ? 'border-t-0' : 'border-t flex-1'}`}
           style={folders.length > 0 ? { height: openFilesHeight } : undefined}
+          onContextMenu={handleOpenFilesPanelContextMenu}
         >
           <div className="flex items-center justify-between px-3 pt-3 pb-1.5 flex-shrink-0">
             <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">Open files</span>
@@ -438,6 +482,10 @@ export function FileEditor(): JSX.Element {
                   onClick={() => setActiveId(tab.id)}
                   onClose={() => handleCloseTab(tab.id)}
                   onSave={saveActive}
+                  onContextMenu={(e) => handleTabContextMenu(e, tab)}
+                  renaming={renamingTabId === tab.id}
+                  onRenameCommit={(name) => handleRenameTab(tab.id, name)}
+                  onRenameCancel={() => setRenamingTabId(null)}
                 />
               ))
             )}
@@ -855,29 +903,37 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
   )
 }
 
-function FileListItem({ tab, isActive, onClick, onClose, onSave }: {
+function FileListItem({ tab, isActive, onClick, onClose, onSave, onContextMenu, renaming, onRenameCommit, onRenameCancel }: {
   tab: OpenFile; isActive: boolean; onClick: () => void; onClose: () => void; onSave: () => void
+  onContextMenu: (e: React.MouseEvent) => void
+  renaming: boolean; onRenameCommit: (name: string) => void; onRenameCancel: () => void
 }): JSX.Element {
   const dir = tab.path ? tab.path.split(/[\\/]/).slice(0, -1).join('\\') : null
   return (
-    <div onClick={onClick} title={dir ?? 'Unsaved — not on disk'}
+    <div data-tab-item onClick={onClick} onContextMenu={onContextMenu} title={dir ?? 'Unsaved — not on disk'}
       className={`flex items-center gap-2 w-full px-3 py-2 cursor-pointer group transition-colors ${isActive ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}>
       <span className={`material-symbols-outlined flex-shrink-0 ${isActive ? 'text-primary' : 'text-on-surface-variant/60'}`} style={{ fontSize: '15px' }}>
         {languageIcon(tab.language)}
       </span>
-      <span className={`text-[11px] font-medium truncate flex-1 ${tab.path === null ? 'italic' : ''}`}>{tab.name}</span>
+      {renaming ? (
+        <InlineInput defaultValue={tab.name} onCommit={onRenameCommit} onCancel={onRenameCancel} />
+      ) : (
+        <span className={`text-[11px] font-medium truncate flex-1 ${tab.path === null ? 'italic' : ''}`}>{tab.name}</span>
+      )}
       {tab.watchActive && !tab.frozen && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" />}
       {tab.isDirty && <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />}
-      {(tab.isDirty || tab.path === null) && isActive && (
+      {!renaming && (tab.isDirty || tab.path === null) && isActive && (
         <button onClick={(e) => { e.stopPropagation(); onSave() }} title="Save"
           className="opacity-0 group-hover:opacity-100 hover:text-primary transition-all flex-shrink-0">
           <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>save</span>
         </button>
       )}
-      <button onClick={(e) => { e.stopPropagation(); onClose() }}
-        className="opacity-0 group-hover:opacity-100 hover:text-error transition-all flex-shrink-0">
-        <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>close</span>
-      </button>
+      {!renaming && (
+        <button onClick={(e) => { e.stopPropagation(); onClose() }}
+          className="opacity-0 group-hover:opacity-100 hover:text-error transition-all flex-shrink-0">
+          <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>close</span>
+        </button>
+      )}
     </div>
   )
 }

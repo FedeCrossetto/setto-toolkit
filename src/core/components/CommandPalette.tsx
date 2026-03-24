@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import Fuse from 'fuse.js'
 import { useApp } from '../AppContext'
 import { allPlugins } from '../plugin-registry'
@@ -9,10 +9,10 @@ export function CommandPalette(): JSX.Element | null {
   const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const fuse = new Fuse<PluginManifest>(allPlugins, {
+  const fuse = useMemo(() => new Fuse<PluginManifest>(allPlugins, {
     keys: ['name', 'description', 'keywords'],
     threshold: 0.4,
-  })
+  }), [])
 
   const results = query.trim() ? fuse.search(query).map((r) => r.item) : allPlugins
 

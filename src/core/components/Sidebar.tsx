@@ -114,7 +114,7 @@ export function Sidebar(): JSX.Element {
       {/* ── Logo ──────────────────────────────────────────────────────── */}
       <div className={`flex items-center mt-6 mb-6 ${collapsed ? 'justify-center px-2' : 'px-3 justify-between'}`}>
         {collapsed ? (
-          <AppLogo size={128} />
+          <AppLogo size={44} />
         ) : (
           <div className="flex items-center gap-1.5">
             <AppLogo size={52} />

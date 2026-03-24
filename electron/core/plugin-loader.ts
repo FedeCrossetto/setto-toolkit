@@ -6,17 +6,19 @@ import type { CoreServices, PluginHandlers } from './types'
 import { handlers as repoSearchHandlers } from '../plugins/repo-search/handlers'
 import { handlers as smartDiffHandlers } from '../plugins/smart-diff/handlers'
 import { handlers as settingsHandlers } from '../plugins/settings/handlers'
-import { handlers as apiTesterHandlers } from '../plugins/api-tester/handlers'
+import { handlers as apiLabHandlers } from '../plugins/api-tester/handlers'
 import { handlers as fileEditorHandlers } from '../plugins/file-editor/handlers'
 import { handlers as authHandlers } from '../plugins/auth/handlers'
+import { handlers as snippetsHandlers } from '../plugins/snippets/handlers'
 
 const allHandlers: PluginHandlers[] = [
   repoSearchHandlers,
   smartDiffHandlers,
   settingsHandlers,
-  apiTesterHandlers,
+  apiLabHandlers,
   fileEditorHandlers,
   authHandlers,
+  snippetsHandlers,
 ]
 
 export function loadPlugins(ipcMain: IpcMain, services: CoreServices): void {

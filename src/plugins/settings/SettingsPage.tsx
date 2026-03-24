@@ -407,7 +407,7 @@ export function SettingsPage(): JSX.Element {
 
       {/* Integrations Section */}
       <section className="mb-8">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-secondary mb-3">Integraciones</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-secondary mb-3">Integrations</h2>
         <div className="bg-surface rounded-xl border border-outline-variant/20 px-6">
 
           {/* GitHub OAuth App Client ID */}
@@ -415,9 +415,9 @@ export function SettingsPage(): JSX.Element {
             label="GitHub OAuth App — Client ID"
             description={
               <span>
-                Requerido para Sign in with GitHub (Device Flow).{' '}
+                Required for Sign in with GitHub (Device Flow).{' '}
                 <span className="text-on-surface-variant/60">
-                  github.com → Settings → Developer settings → OAuth Apps → New OAuth App → Enable Device Flow → copiá el Client ID.
+                  github.com → Settings → Developer settings → OAuth Apps → New OAuth App → Enable Device Flow → copy the Client ID.
                 </span>
               </span>
             }
@@ -436,9 +436,9 @@ export function SettingsPage(): JSX.Element {
             label="GitLab OAuth Application — Application ID"
             description={
               <span>
-                Requerido para Sign in with GitLab (Device Flow).{' '}
+                Required for Sign in with GitLab (Device Flow).{' '}
                 <span className="text-on-surface-variant/60">
-                  gitlab.com → Preferences → Applications → New application → Scope: read_api → Enable Device Authorization Grant → copiá el Application ID.
+                  gitlab.com → Preferences → Applications → New application → Scope: read_api → Enable Device Authorization Grant → copy the Application ID.
                 </span>
               </span>
             }
@@ -453,7 +453,7 @@ export function SettingsPage(): JSX.Element {
           </SettingRow>
 
           {/* Bitbucket default workspace */}
-          <SettingRow label="Bitbucket — Default Workspace" description="Workspace slug por defecto para búsquedas en Bitbucket.">
+          <SettingRow label="Bitbucket — Default Workspace" description="Default workspace slug for Bitbucket searches.">
             <input
               type="text"
               value={settings['bitbucket.workspace']}

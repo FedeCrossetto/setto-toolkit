@@ -25,6 +25,8 @@ const INVOKE_CHANNELS = new Set([
   'api-tester:history-get', 'api-tester:history-clear',
   'api-tester:execute',
   'api-tester:run-script',
+  'snippets:load', 'snippets:save', 'snippets:delete', 'snippets:collections-save',
+  'snippets:export', 'snippets:import',
 ])
 
 /** Channels the renderer may send (fire-and-forget → main) */

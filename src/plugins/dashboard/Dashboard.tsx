@@ -51,6 +51,14 @@ const PLUGIN_CONFIG: Record<string, PluginConfig> = {
     artwork:      ArtworkPanda,
     settoArtwork: ArtworkSettoEditor,
   },
+  'snippets': {
+    gradient:     'from-[#fff8e8]/80 via-[#F59E0B]/10 to-[#F59E0B]/5',
+    glow:         'rgba(245,158,11,0.28)',
+    accent:       '#F59E0B',
+    badge:        'bg-[#F59E0B]/15 text-[#F59E0B] border-[#F59E0B]/20',
+    artwork:      ArtworkPandaSnippet,
+    settoArtwork: ArtworkSettoSnippet,
+  },
   'settings': {
     gradient:     'from-[#e8f4f8]/80 via-[#16C8C7]/10 to-[#16C8C7]/5',
     glow:         'rgba(22,200,199,0.25)',
@@ -126,7 +134,7 @@ function ArtworkBitbucket(): JSX.Element {
   )
 }
 
-function ArtworkApiTester(): JSX.Element {
+function ArtworkApiLab(): JSX.Element {
   return (
     <svg viewBox="0 0 200 110" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
       {/* Central node */}
@@ -243,6 +251,7 @@ function PandaImg({ src, scale = 1.12, tx = 0, ty = 6, objPosition = 'bottom' }:
 // Each panda PNG has different internal whitespace — tune scale/tx/ty per image
 // scale: zoom level  tx: horizontal offset (negative = left)  ty: vertical offset (positive = down)
 function ArtworkPanda():         JSX.Element { return <PandaImg src="./panda1.png"               scale={1.15} tx={-4}  ty={6} /> }
+function ArtworkPandaSnippet():  JSX.Element { return <PandaImg src="./panda-snippet.png"         scale={1.15} tx={-4}  ty={6} /> }
 function ArtworkPandaCompare():  JSX.Element { return <PandaImg src="./panda-compare-files.png"  scale={1.0} tx={0} ty={0} objPosition="center" /> }
 function ArtworkPandaSearch():   JSX.Element { return <PandaImg src="./panda-search.png"         scale={1.15} tx={-4}  ty={6} /> }
 function ArtworkPandaSettings(): JSX.Element { return <PandaImg src="./panda-settings.png"       scale={1.15} tx={-10} ty={6} /> }
@@ -266,6 +275,7 @@ function ArtworkSettoCompare():  JSX.Element { return <SettoImg src="./setto-ava
 function ArtworkSettoSearch():   JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar-search.png"     /> }
 function ArtworkSettoRequest():  JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar-api.png"        /> }
 function ArtworkSettoEditor():   JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar.png"            /> }
+function ArtworkSettoSnippet():  JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar-snippet.png"    /> }
 function ArtworkSettoSettings(): JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar-settings.png"   /> }
 
 // ── ToolArtwork — swap real images here later ─────────────────────────────────
@@ -520,8 +530,14 @@ export function Dashboard(): JSX.Element {
           Available Tools
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {tools.map((plugin) => (
-            <ToolCard key={plugin.id} plugin={plugin} onOpen={() => openTool(plugin.id)} mascot={mascot} />
+          {tools.map((plugin, i) => (
+            <div key={plugin.id}
+              style={{
+                animation: `fadeSlideUp 0.35s ease both`,
+                animationDelay: `${i * 60}ms`,
+              }}>
+              <ToolCard plugin={plugin} onOpen={() => openTool(plugin.id)} mascot={mascot} />
+            </div>
           ))}
 
           {/* Add plugin placeholder */}
