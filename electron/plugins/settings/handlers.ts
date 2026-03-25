@@ -31,6 +31,7 @@ const ALLOWED_KEYS = new Set([
   'repo-search.aliases',
   'repo-search.github.client_id',  // public — needed for GitHub OAuth Device Flow
   'repo-search.github.org',        // optional org filter for GitHub searches
+  'repo-search.gitlab.client_id',  // public — needed for GitLab OAuth Device Flow
   'dashboard.mascot',              // 'panda' | 'setto-avatar'
   'ticket-resolver.jira_url',
   'ticket-resolver.jira_user',

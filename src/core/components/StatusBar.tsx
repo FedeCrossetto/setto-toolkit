@@ -4,10 +4,21 @@ import { getPlugin } from '../plugin-registry'
 export function StatusBar(): JSX.Element {
   const { state } = useApp()
   const activePlugin = state.activeTabId ? getPlugin(state.activeTabId) : null
-  const leftPad = state.sidebarCollapsed ? '84px' : '240px'
+  const leftEdge = state.sidebarCollapsed ? 76 : 224
 
   return (
-    <footer className="fixed bottom-0 left-0 right-0 h-6 border-t border-outline-variant/20 flex items-center px-4 justify-between z-50 bg-surface" style={{ paddingLeft: leftPad }}>
+    <footer
+      className="fixed flex items-center px-4 justify-between z-50 transition-all duration-200"
+      style={{
+        bottom: 8,
+        left: leftEdge + 6,
+        right: 8,
+        height: 28,
+        borderRadius: 12,
+        background: 'rgb(var(--c-surface-container))',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.14), 0 1px 4px rgba(0,0,0,0.10)',
+      }}
+    >
       <div className="flex items-center gap-4 text-[10px] uppercase tracking-widest">
         <div className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-accent" />

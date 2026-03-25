@@ -3,17 +3,55 @@ import { useApp } from '../AppContext'
 import { allPlugins } from '../plugin-registry'
 import type { PluginManifest } from '../types'
 
-// ── Logo mark ─────────────────────────────────────────────────────────────────
+const PANEL_BG  = 'rgb(var(--c-sidebar))'
+const ACTIVE_BG = 'rgb(var(--c-background))'
+const CORNER_R  = 16
+
+// ── Logo ───────────────────────────────────────────────────────────────────────
 function AppLogo({ size = 34 }: { size?: number }): JSX.Element {
   return (
-    <img src="./setto_icon.png" width={size} height={size} style={{ flexShrink: 0, objectFit: 'contain', filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.25))' }} />
+    <img
+      src="./setto_icon.png"
+      width={size}
+      height={size}
+      style={{ flexShrink: 0, objectFit: 'contain', filter: 'drop-shadow(0 0 6px rgba(255,255,255,0.15))' }}
+    />
   )
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-const ITEM_R = 14   // border-radius for all items (px)
+// ── Concave notch corner ───────────────────────────────────────────────────────
+function Notch({ side, visible }: { side: 'above' | 'below'; visible: boolean }): JSX.Element {
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: 'absolute',
+        right: 0,
+        ...(side === 'above' ? { bottom: '100%' } : { top: '100%' }),
+        width: CORNER_R,
+        height: CORNER_R,
+        background: visible ? ACTIVE_BG : 'transparent',
+        zIndex: 2,
+        pointerEvents: 'none',
+        opacity: visible ? 1 : 0,
+        transition: 'opacity 200ms ease-out',
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: PANEL_BG,
+          borderRadius: side === 'above'
+            ? `0 0 ${CORNER_R}px 0`
+            : `0 ${CORNER_R}px 0 0`,
+        }}
+      />
+    </div>
+  )
+}
 
-// ── SidebarItem ───────────────────────────────────────────────────────────────
+// ── Nav item ───────────────────────────────────────────────────────────────────
 interface SidebarItemProps {
   plugin: PluginManifest
   active: boolean
@@ -25,46 +63,51 @@ function SidebarItem({ plugin, active, collapsed, onClick }: SidebarItemProps): 
   const h = collapsed ? 44 : 40
 
   return (
-    <div className="relative" style={{ height: h, marginBottom: 2 }}>
+    <div style={{
+      position: 'relative',
+      marginBottom: 2,
+      zIndex: active ? 10 : undefined,
+    }}>
+
+      <Notch side="above" visible={active} />
+
       <button
         onClick={onClick}
         title={plugin.name}
         style={{
           height: h,
-          borderRadius: ITEM_R,
-          // In dark mode 0.18 opacity reads fine against dark surfaces.
-          // In light mode the same opacity on white is nearly invisible, so we
-          // use a CSS variable trick: --item-bg is set per-theme in globals.css.
-          background: active ? 'var(--sidebar-item-active-bg)' : undefined,
+          display: 'flex',
+          alignItems: 'center',
+          width: active ? 'calc(100% - 8px)' : 'calc(100% - 16px)',
+          marginLeft: 8,
+          marginRight: 0,
+          paddingLeft: collapsed ? 0 : 12,
+          paddingRight: collapsed ? 0 : 12,
+          justifyContent: collapsed ? 'center' : undefined,
+          borderTopLeftRadius: 12,
+          borderBottomLeftRadius: 12,
+          borderTopRightRadius: active ? 0 : 12,
+          borderBottomRightRadius: active ? 0 : 12,
+          background: active ? ACTIVE_BG : undefined,
+          position: 'relative',
+          zIndex: 1,
+          transition: 'none',
+          color: active ? undefined : 'rgba(255,255,255,0.45)',
         }}
         className={[
-          'relative flex items-center w-full transition-colors duration-150',
-          collapsed ? 'justify-center' : 'gap-3 px-3',
-          active
-            ? 'text-on-surface'
-            : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-white/[0.04]',
-        ].join(' ')}
+          'transition-colors duration-200',
+          !active && 'hover:!bg-white/[0.07]',
+          active ? 'text-on-surface' : '',
+        ].filter(Boolean).join(' ')}
       >
-        {/* Fluorescent left accent strip */}
-        {active && (
-          <span
-            aria-hidden
-            className="absolute left-0 rounded-full pointer-events-none"
-            style={{
-              top: 7, bottom: 7, width: 3,
-              background: 'linear-gradient(to bottom, rgb(var(--c-primary-light)), rgb(var(--c-primary)))',
-              boxShadow: '0 0 12px 3px rgb(var(--c-primary) / 0.55), 0 0 4px 1px rgb(var(--c-primary-light) / 0.8)',
-            }}
-          />
-        )}
-
         {/* Icon */}
         <span
-          className="material-symbols-outlined flex-shrink-0 relative z-10"
+          className="material-symbols-outlined flex-shrink-0"
           style={{
             fontSize: active ? '21px' : '19px',
+            color: active ? 'rgb(var(--c-primary-light))' : 'inherit',
             fontVariationSettings: active ? "'FILL' 1, 'wght' 500" : "'FILL' 0, 'wght' 400",
-            transition: 'font-size 150ms ease, font-variation-settings 150ms ease',
+            transition: 'font-size 200ms, font-variation-settings 200ms, color 200ms',
           }}
         >
           {plugin.icon}
@@ -72,22 +115,30 @@ function SidebarItem({ plugin, active, collapsed, onClick }: SidebarItemProps): 
 
         {/* Label */}
         {!collapsed && (
-          <span className={`truncate text-[13px] relative z-10 select-none ${active ? 'font-semibold' : 'font-medium'}`}>
+          <span
+            className="truncate text-[13px] select-none ml-3"
+            style={{
+              fontWeight: active ? 600 : 500,
+              color: active ? 'rgb(var(--c-primary-light))' : 'inherit',
+            }}
+          >
             {plugin.name}
           </span>
         )}
       </button>
+
+      <Notch side="below" visible={active} />
     </div>
   )
 }
 
-// ── Sidebar ───────────────────────────────────────────────────────────────────
+// ── Sidebar ────────────────────────────────────────────────────────────────────
 export function Sidebar(): JSX.Element {
   const { state, dispatch } = useApp()
   const collapsed = state.sidebarCollapsed
 
-  const mainPlugins   = useMemo(() => allPlugins.filter((p) => !p.pinned), [])
-  const pinnedPlugins = useMemo(() => allPlugins.filter((p) =>  p.pinned), [])
+  const mainPlugins   = useMemo(() => allPlugins.filter(p => !p.pinned && !state.disabledPlugins.includes(p.id)), [state.disabledPlugins])
+  const pinnedPlugins = useMemo(() => allPlugins.filter(p =>  p.pinned && !state.disabledPlugins.includes(p.id)), [state.disabledPlugins])
 
   const openTab = (pluginId: string): void => {
     dispatch({ type: 'OPEN_TAB', pluginId })
@@ -96,115 +147,135 @@ export function Sidebar(): JSX.Element {
 
   const isActive = (pluginId: string): boolean =>
     state.activeTabId === pluginId ||
-    state.openTabs.some((t) => t.pluginId === pluginId && t.tabId === state.activeTabId)
+    state.openTabs.some(t => t.pluginId === pluginId && t.tabId === state.activeTabId)
 
   const toggleTheme = (): void =>
     dispatch({ type: 'SET_THEME', theme: state.theme === 'dark' ? 'light' : 'dark' })
 
+  const outerW = collapsed ? 76 : 224
+
   return (
     <aside
-      className={[
-        'fixed left-0 top-0 h-full z-50 flex flex-col',
-        'bg-surface',
-        'transition-all duration-200',
-        collapsed ? 'w-[68px]' : 'w-56',
-      ].join(' ')}
-      style={{ borderRight: '1px solid rgb(var(--c-outline-variant) / 0.15)' }}
+      className="fixed left-0 top-0 h-full z-50 transition-all duration-200"
+      style={{ width: outerW, background: 'transparent' }}
     >
-      {/* ── Logo ──────────────────────────────────────────────────────── */}
-      <div className={`flex items-center mt-6 mb-6 ${collapsed ? 'justify-center px-2' : 'px-3 justify-between'}`}>
-        {collapsed ? (
-          <AppLogo size={56} />
-        ) : (
-          <div className="flex items-center gap-1.5">
+      <div
+        className="absolute flex flex-col"
+        style={{
+          top: 26,
+          bottom: 30,
+          left: 8,
+          right: 0,
+          borderRadius: '16px',
+          background: PANEL_BG,
+        }}
+      >
+
+        {/* ── Logo ──────────────────────────────────────────────────────────── */}
+        <div className={`flex items-center mt-2 mb-3 flex-shrink-0 ${collapsed ? 'justify-center pr-0 pl-0' : 'pl-4 pr-3 justify-between'}`}>
+          {collapsed ? (
             <AppLogo size={64} />
-            <div className="leading-none">
-              <div className="font-bold text-[15px] text-on-surface tracking-tight">SETTO</div>
-              <div className="text-[10px] text-on-surface-variant/50 tracking-widest uppercase font-medium mt-0.5">Toolkit</div>
-            </div>
-          </div>
-        )}
-        {!collapsed && (
-          <button
-            onClick={() => dispatch({ type: 'TOGGLE_SIDEBAR' })}
-            className="p-1 rounded-lg text-on-surface-variant/40 hover:text-on-surface hover:bg-white/[0.04] transition-colors flex-shrink-0"
-            title="Collapse sidebar"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>chevron_left</span>
-          </button>
-        )}
-      </div>
-
-      {/* ── Main nav ──────────────────────────────────────────────────── */}
-      <nav className={`relative flex flex-col flex-1 ${collapsed ? 'px-[10px]' : 'px-2'}`}>
-        {mainPlugins.map((plugin) => (
-          <SidebarItem
-            key={plugin.id}
-            plugin={plugin}
-            active={isActive(plugin.id)}
-            collapsed={collapsed}
-            onClick={() => openTab(plugin.id)}
-          />
-        ))}
-      </nav>
-
-      {/* ── Bottom: pinned plugins + theme toggle + expand ────────────── */}
-      <div className={`mt-auto flex flex-col ${collapsed ? 'px-[10px]' : 'px-2'}`}>
-
-        {pinnedPlugins.map((plugin) => {
-          const active = isActive(plugin.id)
-          return (
-            <button
-              key={plugin.id}
-              title={plugin.name}
-              onClick={() => openTab(plugin.id)}
-              className={[
-                'flex items-center w-full text-[13px] font-medium rounded-2xl mb-0.5',
-                'transition-colors duration-150',
-                collapsed ? 'justify-center h-11' : 'gap-3 px-3 h-10',
-                active
-                  ? 'text-primary bg-primary/10'
-                  : 'text-on-surface-variant hover:text-on-surface hover:bg-white/[0.04]',
-              ].join(' ')}
-            >
-              <span
-                className="material-symbols-outlined flex-shrink-0"
-                style={{ fontSize: '20px', fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <AppLogo size={60} />
+                <div className="leading-none">
+                  <div className="font-bold text-[14px] tracking-tight" style={{ color: '#ffffff' }}>SETTO</div>
+                  <div className="text-[9px] tracking-widest uppercase font-medium mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>Toolkit</div>
+                </div>
+              </div>
+              <button
+                onClick={() => dispatch({ type: 'TOGGLE_SIDEBAR' })}
+                className="p-1 rounded-lg transition-colors flex-shrink-0 hover:bg-white/[0.07]"
+                style={{ color: 'rgba(255,255,255,0.25)' }}
+                title="Collapse sidebar"
               >
-                {plugin.icon}
-              </span>
-              {!collapsed && <span className="truncate">{plugin.name}</span>}
-            </button>
-          )
-        })}
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>chevron_left</span>
+              </button>
+            </>
+          )}
+        </div>
 
-        <div className="border-t border-white/[0.06] mt-2 pt-2 mb-4 flex flex-col gap-0.5">
+        {/* ── Main nav ──────────────────────────────────────────────────────── */}
+        <nav
+          className="relative flex flex-col flex-1 overflow-x-visible"
+          style={{
+            overflowY: 'auto',
+            paddingTop: CORNER_R,
+            paddingBottom: CORNER_R,
+          }}
+        >
+          {mainPlugins.map(plugin => (
+            <SidebarItem
+              key={plugin.id}
+              plugin={plugin}
+              active={isActive(plugin.id)}
+              collapsed={collapsed}
+              onClick={() => openTab(plugin.id)}
+            />
+          ))}
+        </nav>
+
+        {/* ── Bottom ────────────────────────────────────────────────────────── */}
+        <div className="flex flex-col flex-shrink-0 mb-3">
+          <div
+            className="mb-2 mt-1"
+            style={{ height: 1, background: 'rgba(255,255,255,0.08)', marginLeft: 12, marginRight: 12 }}
+          />
+
+          {pinnedPlugins.map(plugin => (
+            <SidebarItem
+              key={plugin.id}
+              plugin={plugin}
+              active={isActive(plugin.id)}
+              collapsed={collapsed}
+              onClick={() => openTab(plugin.id)}
+            />
+          ))}
 
           {/* Theme toggle */}
-          <button
-            onClick={toggleTheme}
-            title={state.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            className={[
-              'flex items-center w-full rounded-2xl text-[13px] font-medium',
-              'text-on-surface-variant hover:text-on-surface hover:bg-white/[0.04]',
-              'transition-colors duration-150',
-              collapsed ? 'justify-center h-11' : 'gap-3 px-3 h-10',
-            ].join(' ')}
-          >
-            <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '20px' }}>
-              {state.theme === 'dark' ? 'light_mode' : 'dark_mode'}
-            </span>
-            {!collapsed && <span>{state.theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>}
-          </button>
+          <div style={{ marginBottom: 2 }}>
+            <button
+              onClick={toggleTheme}
+              title={state.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              style={{
+                height: 40,
+                display: 'flex',
+                alignItems: 'center',
+                width: 'calc(100% - 16px)',
+                marginLeft: 8,
+                borderRadius: 12,
+                justifyContent: collapsed ? 'center' : undefined,
+                paddingLeft: collapsed ? 0 : 12,
+                paddingRight: collapsed ? 0 : 12,
+                color: 'rgba(255,255,255,0.35)',
+              }}
+              className="hover:bg-white/[0.07] hover:!text-white/70 transition-colors duration-150 gap-3 text-[13px] font-medium"
+            >
+              <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '19px' }}>
+                {state.theme === 'dark' ? 'light_mode' : 'dark_mode'}
+              </span>
+              {!collapsed && <span>{state.theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>}
+            </button>
+          </div>
 
-          {/* Expand button (collapsed state only) */}
+          {/* Expand (collapsed only) */}
           {collapsed && (
             <button
               onClick={() => dispatch({ type: 'TOGGLE_SIDEBAR' })}
               title="Expand sidebar"
-              className="flex items-center justify-center w-full h-9 rounded-2xl text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-white/[0.04] transition-colors duration-150"
+              style={{
+                height: 36,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 12,
+                margin: '0 8px',
+                color: 'rgba(255,255,255,0.2)',
+              }}
+              className="hover:bg-white/[0.07] hover:!text-white/50 transition-colors duration-150"
             >
-              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>chevron_right</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>chevron_right</span>
             </button>
           )}
         </div>

@@ -72,13 +72,22 @@ export const handlers: PluginHandlers = {
       const jiraToken = settings.get('ticket-resolver.jira_token') ?? ''
       if (!jiraUrl || !jiraUser || !jiraToken) throw new Error('JIRA_NOT_CONFIGURED')
 
-      const auth = Buffer.from(`${jiraUser}:${jiraToken}`).toString('base64')
-      const url  = `${jiraUrl.replace(/\/$/, '')}/rest/api/3/issue/${ticketKey.toUpperCase()}`
+      // Validate ticket key format to prevent URL path injection
+      const normalizedKey = ticketKey.trim().toUpperCase()
+      if (!/^[A-Z]+-\d+$/.test(normalizedKey)) {
+        throw new Error(`Invalid ticket key format: "${ticketKey}"`)
+      }
 
+      const auth = Buffer.from(`${jiraUser}:${jiraToken}`).toString('base64')
+      const url  = `${jiraUrl.replace(/\/$/, '')}/rest/api/3/issue/${normalizedKey}`
+
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 15_000)
       const res = await fetch(url, {
         headers: { Authorization: `Basic ${auth}`, Accept: 'application/json' },
-      })
-      if (res.status === 404) throw new Error(`Ticket ${ticketKey} not found in Jira`)
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout))
+      if (res.status === 404) throw new Error(`Ticket ${normalizedKey} not found in Jira`)
       if (res.status === 401) throw new Error('Jira authentication failed — check credentials in config')
       if (!res.ok) throw new Error(`Jira API error ${res.status}`)
 
@@ -145,7 +154,11 @@ Return exactly this JSON shape:
       ], { skipCache: true })
 
       const json = text.replace(/```json|```/g, '').trim()
-      return JSON.parse(json) as AnalysisPlan
+      try {
+        return JSON.parse(json) as AnalysisPlan
+      } catch {
+        throw new Error('AI returned invalid JSON for analysis plan — try again')
+      }
     })
 
     // Search code in wigos local repo
@@ -200,7 +213,11 @@ Return exactly this JSON shape:
       ], { skipCache: true })
 
       const json = text.replace(/```json|```/g, '').trim()
-      return JSON.parse(json) as AnalysisResult
+      try {
+        return JSON.parse(json) as AnalysisResult
+      } catch {
+        throw new Error('AI returned invalid JSON for analysis result — try again')
+      }
     })
 
     // History — get

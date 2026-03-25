@@ -1,8 +1,9 @@
 import { createContext, useContext, useReducer, useEffect, type ReactNode } from 'react'
 import type { AppState, AppAction, Tab, Theme } from './types'
 
-const THEME_KEY   = 'app-theme'
-const SIDEBAR_KEY = 'app-sidebar-collapsed'
+const THEME_KEY    = 'app-theme'
+const SIDEBAR_KEY  = 'app-sidebar-collapsed'
+const DISABLED_KEY = 'plugins-disabled'
 
 function getInitialTheme(): Theme {
   const stored = localStorage.getItem(THEME_KEY)
@@ -12,8 +13,16 @@ function getInitialTheme(): Theme {
 
 function getInitialSidebarCollapsed(): boolean {
   const stored = localStorage.getItem(SIDEBAR_KEY)
-  // Default to collapsed (true) if nothing stored yet
   return stored === null ? true : stored === 'true'
+}
+
+function getInitialDisabledPlugins(): string[] {
+  try {
+    const stored = localStorage.getItem(DISABLED_KEY)
+    return stored ? (JSON.parse(stored) as string[]) : []
+  } catch {
+    return []
+  }
 }
 
 const initialState: AppState = {
@@ -22,6 +31,7 @@ const initialState: AppState = {
   commandPaletteOpen: false,
   theme: getInitialTheme(),
   sidebarCollapsed: getInitialSidebarCollapsed(),
+  disabledPlugins: getInitialDisabledPlugins(),
   dirtyPlugins: {},
 }
 
@@ -105,6 +115,21 @@ function appReducer(state: AppState, action: AppAction): AppState {
         dirtyPlugins: { ...state.dirtyPlugins, [action.pluginId]: action.dirty },
       }
     }
+    case 'TOGGLE_PLUGIN': {
+      const isDisabled = state.disabledPlugins.includes(action.pluginId)
+      const disabledPlugins = isDisabled
+        ? state.disabledPlugins.filter(id => id !== action.pluginId)
+        : [...state.disabledPlugins, action.pluginId]
+      // Close the tab if disabling and it's open
+      const openTabs = isDisabled
+        ? state.openTabs
+        : state.openTabs.filter(t => t.pluginId !== action.pluginId)
+      const activeTabId =
+        !isDisabled && state.activeTabId === action.pluginId
+          ? (openTabs[openTabs.length - 1]?.tabId ?? null)
+          : state.activeTabId
+      return { ...state, disabledPlugins, openTabs, activeTabId }
+    }
     default:
       return state
   }
@@ -133,6 +158,10 @@ export function AppProvider({ children }: { children: ReactNode }): JSX.Element 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_KEY, String(state.sidebarCollapsed))
   }, [state.sidebarCollapsed])
+
+  useEffect(() => {
+    localStorage.setItem(DISABLED_KEY, JSON.stringify(state.disabledPlugins))
+  }, [state.disabledPlugins])
 
   return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>
 }

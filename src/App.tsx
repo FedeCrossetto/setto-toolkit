@@ -38,43 +38,53 @@ function AppShell(): JSX.Element {
       <GlobalSearch />
 
       {/* Main content — offset matches sidebar width */}
-      <main className={`flex-1 flex flex-col h-screen overflow-hidden transition-all duration-200 ${state.sidebarCollapsed ? 'ml-[68px]' : 'ml-56'}`}>
-        <div className="mt-8">
-          <TabBar />
-        </div>
+      <main className={`flex-1 flex flex-col h-screen overflow-hidden transition-all duration-200 ${state.sidebarCollapsed ? 'ml-[76px]' : 'ml-[224px]'}`}>
 
-        {/* Plugin content area — all tabs stay mounted, inactive ones are hidden */}
-        <div className="flex-1 overflow-hidden mb-6 relative">
-          {state.openTabs.length === 0 ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <span
-                  className="material-symbols-outlined text-on-surface-variant mb-4 block"
-                  style={{ fontSize: '48px' }}
-                >
-                  grid_view
-                </span>
-                <p className="text-on-surface-variant text-sm">Select a tool from the sidebar</p>
-              </div>
-            </div>
-          ) : (
-            state.openTabs.map((tab) => {
-              const plugin = getPlugin(tab.pluginId)
-              if (!plugin) return null
-              const Component = plugin.component
-              const active = state.activeTabId === tab.tabId
-              return (
-                <div
-                  key={tab.tabId}
-                  className={`absolute inset-0 w-full h-full overflow-auto ${active ? '' : 'hidden'}`}
-                >
-                  <ErrorBoundary label={plugin.name}>
-                    <Component />
-                  </ErrorBoundary>
+        {/* Floating card — sits below TitleBar, above floating StatusBar */}
+        <div
+          className="flex flex-col flex-1 overflow-hidden"
+          style={{
+            margin: '40px 8px 44px 6px',
+            borderRadius: 18,
+            background: 'rgb(var(--c-background))',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.07)',
+          }}
+        >
+          <TabBar />
+
+          {/* Plugin content — all tabs stay mounted, inactive ones are hidden */}
+          <div className="flex-1 overflow-hidden relative">
+            {state.openTabs.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <span
+                    className="material-symbols-outlined text-on-surface-variant mb-4 block"
+                    style={{ fontSize: '48px' }}
+                  >
+                    grid_view
+                  </span>
+                  <p className="text-on-surface-variant text-sm">Select a tool from the sidebar</p>
                 </div>
-              )
-            })
-          )}
+              </div>
+            ) : (
+              state.openTabs.map((tab) => {
+                const plugin = getPlugin(tab.pluginId)
+                if (!plugin) return null
+                const Component = plugin.component
+                const active = state.activeTabId === tab.tabId
+                return (
+                  <div
+                    key={tab.tabId}
+                    className={`absolute inset-0 w-full h-full overflow-auto ${active ? '' : 'hidden'}`}
+                  >
+                    <ErrorBoundary label={plugin.name}>
+                      <Component />
+                    </ErrorBoundary>
+                  </div>
+                )
+              })
+            )}
+          </div>
         </div>
       </main>
 

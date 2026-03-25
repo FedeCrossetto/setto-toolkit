@@ -25,6 +25,7 @@ export interface AppState {
   commandPaletteOpen: boolean
   theme: Theme
   sidebarCollapsed: boolean
+  disabledPlugins: string[]
   /** Set by OPEN_IN_EDITOR — consumed and cleared by FileEditor on mount */
   editorTarget?: { path: string; line?: number }
   /** Set by SEND_TO_DIFF / SEND_PAIR_TO_DIFF — consumed and cleared by SmartDiff */
@@ -54,3 +55,5 @@ export type AppAction =
   | { type: 'CLEAR_DIFF_TARGET' }
   /** Plugins report their unsaved-changes status */
   | { type: 'SET_PLUGIN_DIRTY'; pluginId: string; dirty: boolean }
+  /** Enable or disable a plugin (hides from sidebar, closes open tab) */
+  | { type: 'TOGGLE_PLUGIN'; pluginId: string }

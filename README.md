@@ -20,7 +20,8 @@
 | **Repo Search** | Buscá código en todos los repositorios de tu workspace. Soporta **Bitbucket**, **GitHub** y **GitLab**. Autenticación por PAT o por Google. Las credenciales se guardan encriptadas localmente con `safeStorage`. |
 | **API Lab** | Cliente HTTP similar a Postman. Soporta colecciones, entornos con variables, historial con filtro por URL/método, autenticación Bearer / Basic, multipart/form-data y scripts pre/post-request. |
 | **Snippets** | Manager de snippets de código y notas. Soporte de imágenes inline (drag & drop / paste), sintaxis resaltada con CodeMirror, colecciones, pins, búsqueda fuzzy y export/import a JSON. |
-| **Settings** | Configuración de API keys, proveedor de IA (OpenAI / Anthropic / Ollama), fuente, tema de color, mascota del dashboard y backup/restore de settings. |
+| **Ticket Resolver** | Análisis y resolución de tickets Jira asistido por IA. Fetchea el ticket, genera un plan de análisis, busca código relevante en el repo local y propone causa raíz + fix con diff antes/después. |
+| **Settings** | Configuración de API keys, proveedor de IA (OpenAI / Anthropic / Ollama), fuente, tema de color, mascota del dashboard, módulos habilitados y backup/restore de settings. |
 | **About** | Información de versión, stack tecnológico y detalles de seguridad de la app. |
 
 ---
@@ -121,7 +122,7 @@ El dashboard soporta dos mascotas intercambiables desde **Settings → Appearanc
 - **Setto Avatar** (por defecto): ilustraciones de Setto en cada card. Los PNGs se cargan desde `public/setto-avatar/`.
 - **Panda**: mascota original.
 
-Para reemplazar las ilustraciones de Setto: copiá tus PNGs en `public/setto-avatar/` respetando los nombres de archivo (`setto-avatar.png`, `setto-avatar-search.png`, `setto-avatar-difference.png`, `setto-avatar-api.png`, `setto-avatar-settings.png`). Si un archivo no existe, la card oculta la imagen automáticamente.
+Para reemplazar las ilustraciones de Setto: copiá tus PNGs en `public/setto-avatar/` respetando los nombres de archivo (`setto-avatar.png`, `setto-avatar-search.png`, `setto-avatar-difference.png`, `setto-avatar-api.png`, `setto-avatar-settings.png`, `setto-avatar-snippet.png`, `setto-avatar-ticket.png`). Si un archivo no existe, la card oculta la imagen automáticamente.
 
 ---
 
@@ -171,6 +172,28 @@ Podés usar `src/plugins/_template/` como punto de partida.
 ---
 
 ## Changelog
+
+### v2.3.1 — 2026-03-25
+
+#### UI — Layout flotante
+
+- **Sidebar**: panel completamente redondeado (`border-radius: 16px`), fondo propio (`--c-sidebar`), flotante con márgenes superior e inferior. Los iconos inactivos usan color blanco semitransparente para mejor contraste sobre el fondo oscuro del panel.
+- **Main content card**: todo el contenido principal (TabBar + plugins) envuelto en una card flotante con `border-radius: 18px`, margen de 40px arriba (respeta el TitleBar), 8px derecha, 44px abajo y 6px izquierda — separado visualmente del sidebar.
+- **StatusBar flotante**: la barra de estado pasa de ser full-width pegada al borde a una card flotante con `border-radius: 12px`, `bottom: 8px`, alineada con la card principal. Mismo fondo que el sidebar.
+- Los tres paneles principales (sidebar, content card, statusbar) son ahora elementos flotantes independientes con márgenes y radios consistentes.
+
+#### Dashboard
+
+- **Ticket Resolver card**: la card del Ticket Resolver en el dashboard ahora muestra `setto-avatar-ticket.png` (robot Setto con ticket de checkmark) como artwork. Acento y glow en verde/teal (`#0FAD77`).
+
+#### Seguridad / Bugs
+
+- **`repo-search.gitlab.client_id` en allowlist**: la clave faltaba en `ALLOWED_KEYS` del handler de settings — al guardar la configuración de GitLab lanzaba `"Settings key not permitted"`. Corregido.
+- **Validación de `ticketKey` en main process**: el handler `ticket-resolver:fetch` ahora valida el formato del ticket key con `/^[A-Z]+-\d+$/` antes de construir la URL de Jira, evitando path injection.
+- **`JSON.parse` sin manejo de error**: los handlers `ticket-resolver:plan` y `ticket-resolver:analyze` envolvían el parse sin try/catch — un JSON malformado de la IA producía errores crípticos. Ahora lanzan mensajes legibles (`"AI returned invalid JSON for analysis plan — try again"`).
+- **Timeout en fetch de Jira**: el llamado HTTP a la API de Jira ahora tiene un timeout de 15 segundos via `AbortController` — antes podía colgar indefinidamente si Jira no respondía.
+
+---
 
 ### v2.2.2 — 2026-03-25
 

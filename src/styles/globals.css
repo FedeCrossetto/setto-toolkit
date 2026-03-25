@@ -36,6 +36,9 @@
 
   --gradient-brand: linear-gradient(135deg, #5347CE, #4896FE);
 
+  /* Sidebar panel */
+  --c-sidebar:                   20  20  28;   /* #14141C */
+
   /* Sidebar active item — stronger opacity on light backgrounds */
   --sidebar-item-active-bg: linear-gradient(135deg, rgb(var(--c-primary) / 0.14) 0%, rgb(var(--c-primary-light) / 0.08) 100%);
 }
@@ -61,6 +64,9 @@
   --c-error:                    255 110 132;   /* #FF6E84 */
 
   --gradient-brand: linear-gradient(135deg, #887CFD, #4896FE);
+
+  /* Sidebar panel — lighter than background for contrast */
+  --c-sidebar:                   30  32  48;   /* #1E2030 */
 
   /* Sidebar active item — neons pop on dark surfaces even at low opacity */
   --sidebar-item-active-bg: linear-gradient(135deg, rgb(var(--c-primary) / 0.22) 0%, rgb(var(--c-primary-light) / 0.12) 100%);

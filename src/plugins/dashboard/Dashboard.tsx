@@ -67,6 +67,14 @@ const PLUGIN_CONFIG: Record<string, PluginConfig> = {
     artwork:      ArtworkPandaSettings,
     settoArtwork: ArtworkSettoSettings,
   },
+  'ticket-resolver': {
+    gradient:     'from-[#e8fff8]/80 via-[#0FAD77]/10 to-[#0FAD77]/5',
+    glow:         'rgba(15,173,119,0.30)',
+    accent:       '#0FAD77',
+    badge:        'bg-[#0FAD77]/15 text-[#0FAD77] border-[#0FAD77]/20',
+    artwork:      ArtworkPandaTicket,
+    settoArtwork: ArtworkSettoTicket,
+  },
 }
 
 const DEFAULT_CONFIG: PluginConfig = {
@@ -256,6 +264,7 @@ function ArtworkPandaCompare():  JSX.Element { return <PandaImg src="./panda-ava
 function ArtworkPandaSearch():   JSX.Element { return <PandaImg src="./panda-avatar/panda-search.png"         scale={1.15} tx={-4}  ty={6} /> }
 function ArtworkPandaSettings(): JSX.Element { return <PandaImg src="./panda-avatar/panda-settings.png"       scale={1.15} tx={-10} ty={6} /> }
 function ArtworkPandaRequest():  JSX.Element { return <PandaImg src="./panda-avatar/panda-request.png"        scale={1.15} tx={-10} ty={6} /> }
+function ArtworkPandaTicket():   JSX.Element { return <PandaImg src="./panda-avatar/panda-ticket.png"           scale={1.15} tx={-4}  ty={4} /> }
 
 // ── Setto Avatar artwork ──────────────────────────────────────────────────────
 // Place matching PNGs in public/setto-avatar/ — falls back to panda if file is missing
@@ -277,6 +286,7 @@ function ArtworkSettoRequest():  JSX.Element { return <SettoImg src="./setto-ava
 function ArtworkSettoEditor():   JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar.png"            /> }
 function ArtworkSettoSnippet():  JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar-snippet.png"    /> }
 function ArtworkSettoSettings(): JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar-settings.png"   /> }
+function ArtworkSettoTicket():   JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar-ticket.png"     scale={1.1} tx={-4} ty={4} /> }
 
 // ── ToolArtwork — swap real images here later ─────────────────────────────────
 // To replace with a real illustration:

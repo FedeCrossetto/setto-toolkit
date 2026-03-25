@@ -1,7 +1,32 @@
 import { useState, useEffect } from 'react'
 import { useApp } from '../../core/AppContext'
+import { allPlugins } from '../../core/plugin-registry'
 import { useAppFont, APP_FONT_FAMILIES, APP_FONT_SIZES } from '../../core/hooks/useAppFont'
 import { useThemePalette, PALETTES } from '../../core/hooks/useThemePalette'
+
+// ── Toggle switch ──────────────────────────────────────────────────────────────
+function Toggle({ enabled, onChange }: { enabled: boolean; onChange: () => void }): JSX.Element {
+  return (
+    <button
+      role="switch"
+      aria-checked={enabled}
+      onClick={onChange}
+      className={[
+        'relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-lg p-1',
+        'transition-colors duration-200 ease-in-out focus:outline-none',
+        enabled ? 'bg-primary' : 'bg-outline-variant/30',
+      ].join(' ')}
+    >
+      <span
+        className={[
+          'pointer-events-none inline-block h-5 w-5 rounded-md bg-white shadow-sm',
+          'transform transition-transform duration-200 ease-in-out',
+          enabled ? 'translate-x-5' : 'translate-x-0',
+        ].join(' ')}
+      />
+    </button>
+  )
+}
 
 interface SettingsState {
   'ai.provider': string
@@ -522,6 +547,55 @@ export function SettingsPage(): JSX.Element {
               {importMsg.text}
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Modules */}
+      <section className="mb-8">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-primary mb-1">Modules</h2>
+        <p className="text-xs text-on-surface-variant mb-3">Enable or disable plugins. Disabled modules are hidden from the sidebar.</p>
+        <div className="grid grid-cols-1 gap-2">
+          {allPlugins.map((plugin) => {
+            const locked   = ['dashboard', 'settings', 'about'].includes(plugin.id)
+            const enabled  = !state.disabledPlugins.includes(plugin.id)
+            return (
+              <div
+                key={plugin.id}
+                className={[
+                  'flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-colors',
+                  enabled
+                    ? 'bg-surface border-outline-variant/20'
+                    : 'bg-surface/50 border-outline-variant/10 opacity-60',
+                ].join(' ')}
+              >
+                <span
+                  className="material-symbols-outlined flex-shrink-0"
+                  style={{
+                    fontSize: '20px',
+                    color: enabled ? 'rgb(var(--c-primary))' : undefined,
+                    fontVariationSettings: enabled ? "'FILL' 1" : "'FILL' 0",
+                    transition: 'color 200ms, font-variation-settings 200ms',
+                  }}
+                >
+                  {plugin.icon}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-on-surface">{plugin.name}</div>
+                  <div className="text-xs text-on-surface-variant/60 truncate mt-0.5">{plugin.description}</div>
+                </div>
+                {locked ? (
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-2 py-1 rounded-full border border-outline-variant/20 flex-shrink-0">
+                    Always on
+                  </span>
+                ) : (
+                  <Toggle
+                    enabled={enabled}
+                    onChange={() => dispatch({ type: 'TOGGLE_PLUGIN', pluginId: plugin.id })}
+                  />
+                )}
+              </div>
+            )
+          })}
         </div>
       </section>
 
