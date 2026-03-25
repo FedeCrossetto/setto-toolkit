@@ -32,6 +32,11 @@ const ALLOWED_KEYS = new Set([
   'repo-search.github.client_id',  // public — needed for GitHub OAuth Device Flow
   'repo-search.github.org',        // optional org filter for GitHub searches
   'dashboard.mascot',              // 'panda' | 'setto-avatar'
+  'ticket-resolver.jira_url',
+  'ticket-resolver.jira_user',
+  'ticket-resolver.jira_token',
+  'ticket-resolver.repo_path',
+  'ticket-resolver.project_prefix',
 ])
 
 /**
@@ -45,7 +50,7 @@ export const SECURE_SET_SENTINEL = '__CONFIGURED__'
  * Keys that are encrypted at rest (via safeStorage) and must never be
  * returned in plaintext to the renderer. Instead, the sentinel is returned.
  */
-const RENDERER_MASKED_KEYS = new Set(['ai.openai_key', 'ai.anthropic_key'])
+const RENDERER_MASKED_KEYS = new Set(['ai.openai_key', 'ai.anthropic_key', 'ticket-resolver.jira_token'])
 
 function validateKey(key: unknown): string {
   if (!key || typeof key !== 'string') throw new Error('Invalid settings key')

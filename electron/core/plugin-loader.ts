@@ -10,6 +10,7 @@ import { handlers as apiLabHandlers } from '../plugins/api-tester/handlers'
 import { handlers as fileEditorHandlers } from '../plugins/file-editor/handlers'
 import { handlers as authHandlers } from '../plugins/auth/handlers'
 import { handlers as snippetsHandlers } from '../plugins/snippets/handlers'
+import { handlers as ticketResolverHandlers } from '../plugins/ticket-resolver/handlers'
 
 const allHandlers: PluginHandlers[] = [
   repoSearchHandlers,
@@ -19,6 +20,7 @@ const allHandlers: PluginHandlers[] = [
   fileEditorHandlers,
   authHandlers,
   snippetsHandlers,
+  ticketResolverHandlers,
 ]
 
 export function loadPlugins(ipcMain: IpcMain, services: CoreServices): void {

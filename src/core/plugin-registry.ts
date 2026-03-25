@@ -10,6 +10,7 @@ import { fileEditorPlugin } from '../plugins/file-editor'
 import { settingsPlugin } from '../plugins/settings'
 import { aboutPlugin } from '../plugins/about'
 import { snippetsPlugin } from '../plugins/snippets'
+import { ticketResolverPlugin } from '../plugins/ticket-resolver'
 
 export const allPlugins: PluginManifest[] = [
   dashboardPlugin,
@@ -18,6 +19,7 @@ export const allPlugins: PluginManifest[] = [
   repoSearchPlugin,
   apiLabPlugin,
   snippetsPlugin,
+  ticketResolverPlugin,
   settingsPlugin,
   aboutPlugin,
 ]

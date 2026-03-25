@@ -187,6 +187,36 @@ Podés usar `src/plugins/_template/` como punto de partida.
 
 ---
 
+### v2.3.0 — 2026-03-25
+
+#### Nuevo plugin: Ticket Resolver
+
+Plugin para analizar y resolver tickets de Jira (WinSystems / wigos) asistido por IA.
+
+**Flujo:**
+1. Ingresás el número de ticket (ej. `1234` o `WIN-1234`) — el prefijo se completa automáticamente según la configuración.
+2. La app fetchea el ticket de Jira via REST API v3 y genera un **plan de análisis** con AI (~300 tokens): componente afectado, tecnología, naturaleza del problema y términos de búsqueda.
+3. Revisás el plan y confirmás la ejecución.
+4. El sistema **busca código relevante** en el repo local de wigos (grep quirúrgico, sin AI).
+5. Un segundo llamado AI (~800–1500 tokens) genera **causa raíz + fix propuesto + diff antes/after** con el contexto exacto encontrado.
+
+**Características:**
+- Clasificación dinámica del problema (no categorías hardcodeadas) — el AI infiere componente y tecnología del ticket.
+- Búsqueda de código limitada a extensiones `.cs`, `.vb`, `.ts`, `.js`, `.sql`, `.xml`, `.config` — omite `bin/`, `obj/`, `node_modules/`, `.vs/`, etc.
+- Panel derecho de **Code context** con los snippets encontrados (file + line + contexto).
+- **Historial persistente** de tickets resueltos (máximo 100 entradas), con búsqueda por clave y navegación rápida.
+- Acciones en el resultado: copiar causa raíz, copiar fix completo, guardar en historial, nuevo ticket.
+- Config inline (engranaje): Jira URL, email, API token (cifrado con `safeStorage`), path del repo wigos, prefijo de proyecto.
+- El commit/push del fix queda **siempre bajo supervisión del usuario** — el módulo no toca git.
+
+**Archivos:**
+- `src/plugins/ticket-resolver/` — componente React + tipos + manifest
+- `electron/plugins/ticket-resolver/handlers.ts` — handlers IPC
+- Settings keys: `ticket-resolver.jira_url`, `ticket-resolver.jira_user`, `ticket-resolver.jira_token` (masked), `ticket-resolver.repo_path`, `ticket-resolver.project_prefix`
+- IPC channels: `ticket-resolver:fetch`, `ticket-resolver:plan`, `ticket-resolver:search`, `ticket-resolver:analyze`, `ticket-resolver:history-{get,save,delete}`
+
+---
+
 ### v2.2.1 — 2026-03-25
 
 #### UX / Assets
