@@ -92,6 +92,113 @@ const nexusLightHighlight = HighlightStyle.define([
   { tag: tags.invalid,                                        color: '#cc0000', textDecoration: 'underline wavy' },
 ])
 
+// ── Plain-text token highlight plugin ────────────────────────────────────────
+// Patterns are applied in priority order; first match "wins" per character position
+const TXT_PATTERNS: Array<{ re: RegExp; cls: string }> = [
+  { re: /"(?:[^"\\]|\\.)*"/g,                                      cls: 'cm-txt-string' },
+  { re: /'(?:[^'\\]|\\.)*'/g,                                      cls: 'cm-txt-string' },
+  { re: /`(?:[^`\\]|\\.)*`/g,                                      cls: 'cm-txt-string' },
+  { re: /https?:\/\/[^\s"'<>)[\]]+/g,                              cls: 'cm-txt-url'    },
+  { re: /\b(?:0x[\da-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g, cls: 'cm-txt-number' },
+  { re: /\b(?:true|false|null|undefined|yes|no)\b/gi,              cls: 'cm-txt-bool'   },
+]
+
+const textHighlightPlugin = ViewPlugin.fromClass(class {
+  decorations: DecorationSet
+  constructor(view: EditorView) { this.decorations = this.build(view) }
+  update(u: ViewUpdate) { if (u.docChanged || u.viewportChanged) this.decorations = this.build(u.view) }
+  build(view: EditorView): DecorationSet {
+    const b = new RangeSetBuilder<Decoration>()
+    for (const { from, to } of view.visibleRanges) {
+      for (let pos = from; pos <= to;) {
+        const line = view.state.doc.lineAt(pos)
+        const ranges: Array<{ from: number; to: number; cls: string }> = []
+        const covered: boolean[] = []
+        for (const { re, cls } of TXT_PATTERNS) {
+          re.lastIndex = 0
+          let m: RegExpExecArray | null
+          while ((m = re.exec(line.text)) !== null) {
+            if (!covered[m.index]) {
+              ranges.push({ from: line.from + m.index, to: line.from + m.index + m[0].length, cls })
+              for (let i = m.index; i < m.index + m[0].length; i++) covered[i] = true
+            }
+          }
+        }
+        ranges.sort((a, r) => a.from - r.from)
+        for (const r of ranges) b.add(r.from, r.to, Decoration.mark({ class: r.cls }))
+        pos = line.to + 1
+      }
+    }
+    return b.finish()
+  }
+}, { decorations: (v) => v.decorations })
+
+// ── INI / properties / .env highlight plugin ─────────────────────────────────
+// Handles: [section], key = value, key: value, # comment, ; comment
+const iniHighlightPlugin = ViewPlugin.fromClass(class {
+  decorations: DecorationSet
+  constructor(view: EditorView) { this.decorations = this.build(view) }
+  update(u: ViewUpdate) { if (u.docChanged || u.viewportChanged) this.decorations = this.build(u.view) }
+  build(view: EditorView): DecorationSet {
+    const b = new RangeSetBuilder<Decoration>()
+    for (const { from, to } of view.visibleRanges) {
+      for (let pos = from; pos <= to;) {
+        const line = view.state.doc.lineAt(pos)
+        const text = line.text
+
+        // Full-line comment: # ... or ; ...
+        const commentMatch = /^\s*[#;]/.exec(text)
+        if (commentMatch) {
+          b.add(line.from, line.to, Decoration.mark({ class: 'cm-ini-comment' }))
+          pos = line.to + 1
+          continue
+        }
+
+        // Section header: [section name]
+        const sectionMatch = /^\s*\[([^\]]*)\]/.exec(text)
+        if (sectionMatch) {
+          b.add(line.from, line.to, Decoration.mark({ class: 'cm-ini-section' }))
+          pos = line.to + 1
+          continue
+        }
+
+        // key = value  or  key: value  or  key value (export KEY=val)
+        const kvMatch = /^(\s*(?:export\s+)?)([\w.\-/\\]+)(\s*[=:]\s*)(.*)$/.exec(text)
+        if (kvMatch) {
+          const keyStart   = line.from + kvMatch[1].length
+          const keyEnd     = keyStart  + kvMatch[2].length
+          const sepEnd     = keyEnd    + kvMatch[3].length
+          const valStart   = sepEnd
+          const valEnd     = line.to
+
+          b.add(keyStart, keyEnd, Decoration.mark({ class: 'cm-ini-key' }))
+
+          if (valStart < valEnd) {
+            const val = kvMatch[4]
+            // Quoted value
+            if (/^["'`]/.test(val)) {
+              b.add(valStart, valEnd, Decoration.mark({ class: 'cm-ini-string' }))
+            } else {
+              // Inline comment at end of value
+              const inlineComment = val.search(/\s+[#;]/)
+              if (inlineComment >= 0) {
+                const commentStart = valStart + inlineComment
+                if (valStart < commentStart) b.add(valStart, commentStart, Decoration.mark({ class: 'cm-ini-value' }))
+                b.add(commentStart, valEnd, Decoration.mark({ class: 'cm-ini-comment' }))
+              } else {
+                b.add(valStart, valEnd, Decoration.mark({ class: 'cm-ini-value' }))
+              }
+            }
+          }
+        }
+
+        pos = line.to + 1
+      }
+    }
+    return b.finish()
+  }
+}, { decorations: (v) => v.decorations })
+
 // ── Log line coloring ─────────────────────────────────────────────────────────
 const LOG_LEVELS = [
   { re: /\b(ERROR|FATAL|CRITICAL|SEVERE)\b/i, cls: 'cm-log-error' },
@@ -178,6 +285,17 @@ function buildNexusDarkTheme(fontSize: number, fontFamily: string) {
     '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgb(83 71 206 / 0.45)' },
     '.cm-foldPlaceholder': { backgroundColor: 'rgb(83 71 206 / 0.2)', border: `1px solid ${C.primary}60`, color: C.secondary },
     '.cm-tooltip': { backgroundColor: C.surface, border: `1px solid ${C.border}`, color: C.text },
+    // ── Plain-text token colors ──────────────────────────────────────────────
+    '.cm-txt-string': { color: C.accent },
+    '.cm-txt-number': { color: C.blue },
+    '.cm-txt-bool':   { color: C.secondary },
+    '.cm-txt-url':    { color: C.blue, textDecoration: 'underline' },
+    // ── INI / .env / .properties colors ─────────────────────────────────────
+    '.cm-ini-section': { color: C.secondary, fontWeight: 'bold' },
+    '.cm-ini-key':     { color: C.blue },
+    '.cm-ini-value':   { color: C.accent },
+    '.cm-ini-string':  { color: C.accent },
+    '.cm-ini-comment': { color: C.muted, fontStyle: 'italic' },
     // ── Search / goto panel ──────────────────────────────────────────────────
     '.cm-panels': { backgroundColor: C.surface, borderTop: `1px solid ${C.border}`, color: C.text },
     '.cm-panels.cm-panels-bottom': { borderTop: `1px solid ${C.border}`, borderBottom: 'none' },
@@ -223,6 +341,17 @@ function buildNexusLightTheme(fontSize: number, fontFamily: string) {
     '.cm-searchMatch': { backgroundColor: 'rgb(72 150 254 / 0.2)', outline: '1px solid rgb(72 150 254 / 0.5)' },
     '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgb(83 71 206 / 0.3)' },
     '.cm-foldPlaceholder': { backgroundColor: 'rgb(236 238 244)', border: '1px solid rgb(200 202 216)', color: 'rgb(91 94 114)' },
+    // ── Plain-text token colors ──────────────────────────────────────────────
+    '.cm-txt-string': { color: '#0a9e9e' },
+    '.cm-txt-number': { color: '#2b7adf' },
+    '.cm-txt-bool':   { color: '#5347CE' },
+    '.cm-txt-url':    { color: '#2b7adf', textDecoration: 'underline' },
+    // ── INI / .env / .properties colors ─────────────────────────────────────
+    '.cm-ini-section': { color: '#5347CE', fontWeight: 'bold' },
+    '.cm-ini-key':     { color: '#2b7adf' },
+    '.cm-ini-value':   { color: '#0a9e9e' },
+    '.cm-ini-string':  { color: '#0a9e9e' },
+    '.cm-ini-comment': { color: '#8890aa', fontStyle: 'italic' },
     // ── Search / goto panel ──────────────────────────────────────────────────
     '.cm-panels': { backgroundColor: 'rgb(244 245 249)', borderTop: '1px solid rgb(200 202 216 / 0.6)', color: 'rgb(30 30 50)' },
     '.cm-panels.cm-panels-bottom': { borderTop: '1px solid rgb(200 202 216 / 0.6)', borderBottom: 'none' },
@@ -270,6 +399,8 @@ function getLanguageExt(lang: FileLanguage) {
     case 'python':     return python()
     case 'cpp':        return cpp()
     case 'java':       return java()
+    case 'text':       return [textHighlightPlugin]
+    case 'ini':        return [iniHighlightPlugin]
     default:           return []
   }
 }

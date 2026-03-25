@@ -172,6 +172,21 @@ Podés usar `src/plugins/_template/` como punto de partida.
 
 ## Changelog
 
+### v2.2.2 — 2026-03-25
+
+#### Smart Diff
+
+- **Botón Cancelar diff**: nuevo botón que aparece junto a "Compare" cuando hay un diff activo. Descarta el resultado del diff y los insights de IA manteniendo ambos archivos cargados en los editores — sin necesidad de volver a abrirlos.
+- **Detección de archivos idénticos**: cuando los archivos comparados no tienen diferencias, aparece un banner centrado con el mensaje *"There are no differences between files."* superpuesto sobre los paneles de código, con un enlace "Dismiss". La sección de estadísticas del sidebar muestra un ícono de check y *"Files are identical"* en lugar de los contadores +0 / -0. El OverviewRuler se oculta en este caso.
+- **Token de gradiente**: el botón "Analyze with AI" ahora usa `var(--gradient-brand)` en lugar de un gradiente hex hardcodeado, consistente con el resto de la app.
+
+#### Repo Search
+
+- **Traducción completa al inglés**: todos los textos de interfaz en español reemplazados por inglés — botones (Search, Connect, Clear, Copy, Open, Sign out, Add alias), labels (Repositories, Filter by repo, Repo aliases, Connected as, Searching in, Suggestions, History, Results, No aliases defined, No matches), placeholders, banners de error, estados de carga, panel "Coming soon" de GitLab y acciones de las cards de resultados.
+- **Token de gradiente**: el botón Search, el botón Connect, los puntos animados del loader y el ícono de la card de estadísticas ahora usan `var(--gradient-brand)` en lugar de valores hex hardcodeados.
+
+---
+
 ### v2.2.1 — 2026-03-25
 
 #### UX / Assets

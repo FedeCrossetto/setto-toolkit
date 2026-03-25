@@ -1,6 +1,8 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { diffLines, diffWords, type Change } from 'diff'
 import { useEditorPrefs, FONT_FAMILIES, FONT_SIZE_MIN, FONT_SIZE_MAX } from '../file-editor/hooks/useEditorPrefs'
+import { useApp } from '../../core/AppContext'
+import { dragState } from '../../core/dragState'
 
 interface AIInsights {
   primaryChange: string
@@ -189,6 +191,15 @@ function CodePane({
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
+    // Accept setto-file drags from the File Editor (module-level drag state)
+    const settoFile = dragState.get()
+    if (settoFile) {
+      dragState.set(null)
+      onChange(settoFile.content)
+      onFileLoad({ name: settoFile.name, size: new TextEncoder().encode(settoFile.content).length }, settoFile.content)
+      return
+    }
+    // Fall back to filesystem file drop
     const file = e.dataTransfer.files[0]
     if (!file) return
     const reader = new FileReader()
@@ -327,6 +338,7 @@ function FileCard({ label, dotColor, info, onClear }: {
 // ── Main component ────────────────────────────────────────────────────────────
 export function SmartDiff(): JSX.Element {
   const { prefs, updatePrefs } = useEditorPrefs()
+  const { state, dispatch }    = useApp()
   const [original, setOriginal]     = useState('')
   const [modified, setModified]     = useState('')
   const [origFile, setOrigFile]     = useState<FileInfo | null>(null)
@@ -339,6 +351,38 @@ export function SmartDiff(): JSX.Element {
   const [aiLoading, setAiLoading]   = useState(false)
   const [aiError, setAiError]       = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+
+  // Keep a stable ref of original so the diffTarget effect can read it without going stale
+  const originalRef = useRef(original)
+  originalRef.current = original
+
+  // Consume files forwarded from the File Editor.
+  // Handles both single-file (SEND_TO_DIFF) and two-file pairs (SEND_PAIR_TO_DIFF).
+  useEffect(() => {
+    const t1 = state.diffTarget
+    const t2 = state.diffTarget2
+    if (!t1 && !t2) return
+
+    const makeInfo = (t: NonNullable<typeof t1>): FileInfo =>
+      ({ name: t.name, size: new TextEncoder().encode(t.content).length })
+
+    if (t1 && t2) {
+      // Pair: always load file1 → Original, file2 → Modified
+      setOriginal(t1.content); setOrigFile(makeInfo(t1))
+      setModified(t2.content); setModFile(makeInfo(t2))
+    } else if (t1) {
+      // Single file: first empty pane wins
+      if (!originalRef.current.trim()) {
+        setOriginal(t1.content); setOrigFile(makeInfo(t1))
+      } else {
+        setModified(t1.content); setModFile(makeInfo(t1))
+      }
+    }
+
+    setHasDiff(false); setChanges([])
+    dispatch({ type: 'CLEAR_DIFF_TARGET' })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.diffTarget, state.diffTarget2])
 
   const leftScrollRef  = useRef<HTMLDivElement>(null)
   const rightScrollRef = useRef<HTMLDivElement>(null)
@@ -390,6 +434,12 @@ export function SmartDiff(): JSX.Element {
     setInsights(null); setAiError(null)
   }
 
+  /** Discard the diff result and AI insights but keep both files loaded in the editors. */
+  const cancelDiff = (): void => {
+    setHasDiff(false); setChanges([])
+    setInsights(null); setAiError(null)
+  }
+
   const swapSides = (): void => {
     setOriginal(modified); setModified(original)
     setOrigFile(modFile);  setModFile(origFile)
@@ -413,6 +463,7 @@ export function SmartDiff(): JSX.Element {
   const { left, right } = hasDiff ? buildDiffLines(changes) : { left: [], right: [] }
   const addedCount   = changes.filter((c) => c.added).reduce((n, c) => n + c.value.split('\n').filter(Boolean).length, 0)
   const removedCount = changes.filter((c) => c.removed).reduce((n, c) => n + c.value.split('\n').filter(Boolean).length, 0)
+  const isIdentical  = hasDiff && addedCount === 0 && removedCount === 0
 
   // Build word-diff maps: for each changed line, pair removed↔added lines by index
   // and compute intra-line word highlights.
@@ -451,18 +502,25 @@ export function SmartDiff(): JSX.Element {
               <div className="mx-3 mt-2 border-t border-outline-variant/10" />
               <div className="px-3 py-2.5">
                 <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/50">Changes</span>
-                <div className="mt-2 flex flex-col gap-1">
-                  <div className="flex items-center gap-2 text-[11px]">
-                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: ADDED_COLOR }} />
-                    <span className="text-on-surface-variant/70">Added</span>
-                    <span className="ml-auto font-mono font-medium" style={{ color: ADDED_COLOR }}>+{addedCount}</span>
+                {isIdentical ? (
+                  <div className="mt-2 flex items-center gap-1.5 text-[11px] text-secondary">
+                    <span className="material-symbols-outlined" style={{ fontSize: '13px', fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                    <span className="font-medium">Files are identical</span>
                   </div>
-                  <div className="flex items-center gap-2 text-[11px]">
-                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: REMOVED_COLOR }} />
-                    <span className="text-on-surface-variant/70">Removed</span>
-                    <span className="ml-auto font-mono font-medium" style={{ color: REMOVED_COLOR }}>-{removedCount}</span>
+                ) : (
+                  <div className="mt-2 flex flex-col gap-1">
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: ADDED_COLOR }} />
+                      <span className="text-on-surface-variant/70">Added</span>
+                      <span className="ml-auto font-mono font-medium" style={{ color: ADDED_COLOR }}>+{addedCount}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: REMOVED_COLOR }} />
+                      <span className="text-on-surface-variant/70">Removed</span>
+                      <span className="ml-auto font-mono font-medium" style={{ color: REMOVED_COLOR }}>-{removedCount}</span>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </>
           )}
@@ -512,9 +570,17 @@ export function SmartDiff(): JSX.Element {
             Compare
           </button>
 
+          {hasDiff && (
+            <button onClick={cancelDiff}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors border border-outline-variant/20">
+              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+              Cancel diff
+            </button>
+          )}
+
           <button onClick={runAI} disabled={aiLoading || !original.trim() || !modified.trim()}
             className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-[12px] font-bold text-on-primary-fixed shadow-neon-btn hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: 'linear-gradient(to right, #ba9eff, #53ddfc)' }}>
+            style={{ background: 'var(--gradient-brand)' }}>
             <span className="material-symbols-outlined" style={{ fontSize: '14px', fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
             {aiLoading ? 'Analyzing…' : 'Analyze with AI'}
           </button>
@@ -566,7 +632,7 @@ export function SmartDiff(): JSX.Element {
         </div>
 
         {/* Code panels */}
-        <section className="flex flex-1 overflow-hidden">
+        <section className="flex flex-1 overflow-hidden relative">
           <CodePane
             side="original"
             lines={hasDiff ? left : []}
@@ -581,7 +647,7 @@ export function SmartDiff(): JSX.Element {
             wordDiffMap={leftWordDiff}
           />
 
-          {hasDiff && (
+          {hasDiff && !isIdentical && (
             <OverviewRuler
               leftLines={left} rightLines={right}
               scrollTop={scrollInfo.scrollTop}
@@ -604,6 +670,27 @@ export function SmartDiff(): JSX.Element {
             fontSize={prefs.fontSize}
             wordDiffMap={rightWordDiff}
           />
+
+          {/* No-differences banner */}
+          {isIdentical && (
+            <div className="absolute inset-0 flex items-center justify-center bg-surface/50 backdrop-blur-[2px] z-10 pointer-events-none">
+              <div className="flex flex-col items-center gap-3 px-10 py-7 rounded-2xl bg-surface-container border border-secondary/20 shadow-xl pointer-events-auto">
+                <span
+                  className="material-symbols-outlined text-secondary"
+                  style={{ fontSize: '40px', fontVariationSettings: "'FILL' 1" }}
+                >
+                  check_circle
+                </span>
+                <p className="text-sm font-semibold text-on-surface">There are no differences between files.</p>
+                <button
+                  onClick={cancelDiff}
+                  className="mt-1 text-[11px] text-on-surface-variant hover:text-primary transition-colors underline underline-offset-2"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* AI Insights panel */}

@@ -182,13 +182,13 @@ function ResultCard({ result, query = '' }: { result: SearchResult; query?: stri
             className="flex items-center gap-1 text-[10px] text-on-surface-variant hover:text-primary transition-colors px-2 py-1 rounded-md hover:bg-primary/10"
           >
             <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>{copied ? 'check' : 'content_copy'}</span>
-            {copied ? 'Copiado' : 'Copiar'}
+            {copied ? 'Copied' : 'Copy'}
           </button>
           <button
             onClick={() => window.open(result.link, '_blank')}
             className="flex items-center gap-1 text-[10px] text-primary hover:text-secondary transition-colors px-2 py-1 rounded-md hover:bg-primary/10"
           >
-            Abrir
+            Open
             <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>open_in_new</span>
           </button>
         </div>
@@ -262,7 +262,7 @@ function SearchingLoader({ label, mascot }: { label?: string; mascot?: 'panda' |
         />
         <img
           src={imgSrc}
-          alt="Buscando…"
+          alt="Searching…"
           className="relative w-36 h-36 object-contain"
           style={{ animation: 'pandaFloat 2.4s ease-in-out infinite' }}
         />
@@ -270,13 +270,13 @@ function SearchingLoader({ label, mascot }: { label?: string; mascot?: 'panda' |
 
       {/* Label + dots */}
       <div className="text-center space-y-2">
-        <p className="text-sm font-semibold text-on-surface">{label ?? 'Buscando…'}</p>
+        <p className="text-sm font-semibold text-on-surface">{label ?? 'Searching…'}</p>
         <div className="flex items-center justify-center gap-1.5">
           {[0, 160, 320].map((delay, i) => (
             <span
               key={i}
               className="block w-1.5 h-1.5 rounded-full animate-bounce"
-              style={{ background: 'linear-gradient(90deg, #ba9eff, #53ddfc)', animationDelay: `${delay}ms` }}
+              style={{ background: 'var(--gradient-brand)', animationDelay: `${delay}ms` }}
             />
           ))}
         </div>
@@ -345,7 +345,7 @@ function LoginForm({ provider, onLogin }: { provider: Provider; onLogin: (auth: 
       const me = await window.api.invoke<AuthInfo>('repo-search:me', { provider })
       onLogin(me)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Conexión fallida')
+      setError(e instanceof Error ? e.message : 'Connection failed')
     } finally {
       setLoading(false)
     }
@@ -364,7 +364,7 @@ function LoginForm({ provider, onLogin }: { provider: Provider; onLogin: (auth: 
             </div>
             <div>
               <h2 className="font-bold text-on-surface">{providerLabel} Auth</h2>
-              <p className="text-xs text-on-surface-variant">Conectá tu workspace</p>
+              <p className="text-xs text-on-surface-variant">Connect your workspace</p>
             </div>
           </div>
 
@@ -435,8 +435,8 @@ function LoginForm({ provider, onLogin }: { provider: Provider; onLogin: (auth: 
 
             <button onClick={handleLogin} disabled={loading || !isValid}
               className="w-full py-2.5 rounded-full text-sm font-bold text-on-primary-fixed shadow-neon-btn hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: 'linear-gradient(to right, #ba9eff, #53ddfc)' }}>
-              {loading ? 'Conectando...' : 'Conectar'}
+              style={{ background: 'var(--gradient-brand)' }}>
+              {loading ? 'Connecting…' : 'Connect'}
             </button>
           </div>
 
@@ -528,13 +528,13 @@ function GitHubRepoPanel({
       {/* Header */}
       <div className="px-3 pt-3 pb-2 border-b border-outline-variant/10">
         <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-2">
-          Repositorios
+          Repositories
         </p>
         <input
           type="text"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filtrar..."
+          placeholder="Filter…"
           className="w-full bg-surface-container rounded-lg px-2.5 py-1.5 text-xs text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary"
         />
       </div>
@@ -557,7 +557,7 @@ function GitHubRepoPanel({
               }`}
             >
               <span className="material-symbols-outlined flex-shrink-0 text-[13px]">person</span>
-              <span className="font-medium truncate">Mis repos</span>
+              <span className="font-medium truncate">My repos</span>
               <span className="ml-auto text-[10px] text-on-surface-variant/40 flex-shrink-0">{personalRepos.length}</span>
             </button>
 
@@ -585,7 +585,7 @@ function GitHubRepoPanel({
             })}
 
             {repos.length > 0 && repos.filter(matchesFilter).length === 0 && filter && (
-              <p className="text-[10px] text-on-surface-variant/50 text-center py-4">Sin coincidencias</p>
+              <p className="text-[10px] text-on-surface-variant/50 text-center py-4">No matches</p>
             )}
           </>
         )}
@@ -730,7 +730,7 @@ export function RepoSearch(): JSX.Element {
     // If search takes >1.5s (tree-search fallback), show a more descriptive label
     const labelTimer = setTimeout(() => {
       if (provider === 'github' && selectedRepo)
-        setLoadingLabel(`Leyendo archivos de ${selectedRepo.split('/')[1]}…`)
+        setLoadingLabel(`Reading files from ${selectedRepo.split('/')[1]}…`)
     }, 1500)
 
     try {
@@ -802,8 +802,8 @@ export function RepoSearch(): JSX.Element {
               <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: '28px' }}>construction</span>
             </div>
             <div>
-              <p className="text-sm font-semibold text-on-surface">GitLab — En construcción</p>
-              <p className="text-xs text-on-surface-variant mt-1 max-w-xs">La integración con GitLab estará disponible próximamente.</p>
+              <p className="text-sm font-semibold text-on-surface">GitLab — Coming soon</p>
+              <p className="text-xs text-on-surface-variant mt-1 max-w-xs">GitLab integration will be available soon.</p>
             </div>
           </div>
         </div>
@@ -838,16 +838,16 @@ export function RepoSearch(): JSX.Element {
               <div className="mx-8 mt-4 flex items-start gap-3 px-4 py-3 rounded-xl bg-warning/10 border border-warning/20 text-sm text-on-surface">
                 <span className="material-symbols-outlined flex-shrink-0 text-warning mt-0.5" style={{ fontSize: '18px' }}>key_off</span>
                 <span className="flex-1">
-                  <span className="font-semibold text-warning">Token de proveedor requerido.</span>
-                  {' '}Tu sesión Google identifica quién sos, pero para buscar en{' '}
+                  <span className="font-semibold text-warning">Provider token required.</span>
+                  {' '}Your Google session identifies who you are, but to search in{' '}
                   {provider === 'github' ? 'GitHub' : provider === 'gitlab' ? 'GitLab' : 'Bitbucket'}{' '}
-                  necesitás un{' '}
+                  you need a{' '}
                   {provider === 'bitbucket' ? 'App Password' : 'Personal Access Token (PAT)'}.
                   <button
                     onClick={handleLogout}
                     className="ml-2 underline hover:no-underline font-semibold text-primary"
                   >
-                    Conectar con token →
+                    Connect with token →
                   </button>
                 </span>
               </div>
@@ -869,10 +869,10 @@ export function RepoSearch(): JSX.Element {
                   }}
                   placeholder={
                     provider === 'github' && selectedRepo
-                      ? `Buscar en ${selectedRepo}…`
+                      ? `Search in ${selectedRepo}…`
                       : provider === 'github'
-                        ? `Buscar en mis repos de GitHub…`
-                        : 'Buscar código…'
+                        ? `Search in my GitHub repos…`
+                        : 'Search code…'
                   }
                   className="w-full bg-surface-container-highest border-none rounded-lg pl-10 pr-10 py-2.5 text-sm text-on-surface placeholder-on-surface-variant/50 focus:outline-none focus:ring-1 focus:ring-primary"
                 />
@@ -884,12 +884,12 @@ export function RepoSearch(): JSX.Element {
                 {showHistory && history.length > 0 && (
                   <div className="absolute top-full mt-1.5 left-0 right-0 z-20 bg-surface-container-low border border-outline-variant/15 rounded-xl shadow-lg overflow-hidden">
                     <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 border-b border-outline-variant/10 flex items-center justify-between">
-                      <span>Historial</span>
+                      <span>History</span>
                       <button
                         onClick={() => { setHistory([]); saveHistory([]); setShowHistory(false) }}
                         className="text-[10px] text-on-surface-variant hover:text-error transition-colors normal-case font-normal"
                       >
-                        Limpiar
+                        Clear
                       </button>
                     </div>
                     {history.map((h) => (
@@ -909,14 +909,14 @@ export function RepoSearch(): JSX.Element {
                 onClick={() => void handleSearch()}
                 disabled={loading || !query.trim()}
                 className="px-5 py-2.5 rounded-lg text-sm font-bold text-on-primary-fixed shadow-neon-btn hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                style={{ background: 'linear-gradient(to right, #ba9eff, #53ddfc)' }}
+                style={{ background: 'var(--gradient-brand)' }}
               >
                 {loading ? (
                   <span className="flex items-center gap-2">
                     <span className="material-symbols-outlined animate-spin" style={{ fontSize: '14px' }}>progress_activity</span>
-                    Buscando…
+                    Searching…
                   </span>
-                ) : 'Buscar'}
+                ) : 'Search'}
               </button>
             </div>
 
@@ -931,9 +931,9 @@ export function RepoSearch(): JSX.Element {
 
               {!loading && count > 0 && (
                 <h2 className="text-xl font-extrabold tracking-tight text-on-surface">
-                  Resultados{' '}
+                  Results{' '}
                   <span className="text-on-surface-variant font-normal text-base ml-2">
-                    {count} coincidencias en {allRepos.length} {allRepos.length === 1 ? 'repositorio' : 'repositorios'}
+                    {count} matches in {allRepos.length} {allRepos.length === 1 ? 'repository' : 'repositories'}
                   </span>
                 </h2>
               )}
@@ -945,12 +945,12 @@ export function RepoSearch(): JSX.Element {
                 <div className="flex items-center justify-center py-16">
                   <div className="text-center max-w-xs">
                     <span className="material-symbols-outlined text-on-surface-variant block mb-3" style={{ fontSize: '40px' }}>search_off</span>
-                    <p className="text-on-surface text-sm font-medium">Sin resultados para "{query}"</p>
+                    <p className="text-on-surface text-sm font-medium">No results for "{query}"</p>
                     {provider === 'github' && (
                       <p className="text-on-surface-variant text-xs mt-2 leading-relaxed">
                         {selectedRepo
-                          ? <>Se buscó en <span className="text-primary font-medium">{selectedRepo}</span>. Verificá que el contenido exista en ese repositorio.</>
-                          : <>Se buscó en todos tus repos. Verificá el término o seleccioná un repositorio específico.</>
+                          ? <>Searched in <span className="text-primary font-medium">{selectedRepo}</span>. Make sure the content exists in that repository.</>
+                          : <>Searched across all your repos. Check the term or select a specific repository.</>
                         }
                       </p>
                     )}
@@ -961,7 +961,7 @@ export function RepoSearch(): JSX.Element {
               {/* Empty state — no search yet */}
               {!loading && !error && count === 0 && !query && (
                 <div className="py-6">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-3">Sugerencias</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-3">Suggestions</p>
                   <div className="flex flex-wrap gap-2">
                     {SUGGESTIONS.map((s) => (
                       <button key={s}
@@ -994,7 +994,7 @@ export function RepoSearch(): JSX.Element {
 
             {/* Connection info */}
             <div>
-              <h3 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Conectado como</h3>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Connected as</h3>
               <div className="bg-surface-container rounded-xl px-3 py-2.5 border border-outline-variant/10">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
@@ -1021,7 +1021,7 @@ export function RepoSearch(): JSX.Element {
                     </div>
                   </div>
                   <button onClick={handleLogout} className="text-xs text-on-surface-variant hover:text-error transition-colors flex-shrink-0">
-                    Salir
+                    Sign out
                   </button>
                 </div>
               </div>
@@ -1030,7 +1030,7 @@ export function RepoSearch(): JSX.Element {
             {/* Search scope indicator */}
             {provider === 'github' && auth.authenticated && (
               <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Buscando en</h3>
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Searching in</h3>
                 <div className="bg-surface-container rounded-xl px-3 py-2 border border-outline-variant/10 text-xs text-on-surface-variant flex items-center gap-2">
                   <span className="material-symbols-outlined flex-shrink-0 text-primary" style={{ fontSize: '14px' }}>
                     {selectedRepo ? 'folder_open' : 'folder_special'}
@@ -1043,7 +1043,7 @@ export function RepoSearch(): JSX.Element {
                           )}
                           <span className="text-on-surface font-medium">{selectedRepo.split('/')[1]}</span>
                         </>
-                      : <><span className="text-on-surface font-medium">Mis repos</span> <span className="text-on-surface-variant/50">({auth.username})</span></>
+                      : <><span className="text-on-surface font-medium">My repos</span> <span className="text-on-surface-variant/50">({auth.username})</span></>
                     }
                   </span>
                 </div>
@@ -1053,7 +1053,7 @@ export function RepoSearch(): JSX.Element {
             {/* Repo filter */}
             {allRepos.length > 1 && (
               <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Filtrar por repo</h3>
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Filter by repo</h3>
                 <div className="space-y-0.5">
                   {['All', ...allRepos].map((repo) => {
                     const c = repo === 'All' ? results.length : (repoMap.get(repo)?.length ?? 0)
@@ -1069,7 +1069,7 @@ export function RepoSearch(): JSX.Element {
                           <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '13px' }}>
                             {repo === 'All' ? 'select_all' : 'folder'}
                           </span>
-                          <span className="truncate">{repo === 'All' ? 'Todos' : repo}</span>
+                          <span className="truncate">{repo === 'All' ? 'All' : repo}</span>
                         </span>
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ml-2 ${
                           filterRepo === repo ? 'bg-primary/20 text-primary' : 'bg-surface-container text-on-surface-variant'
@@ -1083,10 +1083,10 @@ export function RepoSearch(): JSX.Element {
 
             {/* Repo aliases */}
             <div>
-              <h3 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Alias de repos</h3>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Repo aliases</h3>
               <div className="space-y-1 mb-2">
                 {aliases.length === 0 && (
-                  <p className="text-[10px] text-on-surface-variant/50 px-1">Sin alias definidos.</p>
+                  <p className="text-[10px] text-on-surface-variant/50 px-1">No aliases defined.</p>
                 )}
                 {aliases.map((a, i) => (
                   <div key={i} className="flex items-center gap-1.5 bg-surface-container rounded-lg px-2 py-1.5">
@@ -1131,7 +1131,7 @@ export function RepoSearch(): JSX.Element {
                 }}
                 className="w-full py-1.5 rounded-lg text-[11px] font-bold text-on-surface-variant border border-outline-variant/20 hover:text-primary hover:border-primary/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                + Agregar alias
+                + Add alias
               </button>
             </div>
 
@@ -1141,16 +1141,16 @@ export function RepoSearch(): JSX.Element {
                 <div className="absolute -right-4 -top-4 w-24 h-24 bg-primary/5 rounded-full blur-2xl" />
                 <div className="relative">
                   <div className="w-9 h-9 rounded-xl mb-3 flex items-center justify-center"
-                    style={{ background: 'linear-gradient(135deg, #ba9eff, #53ddfc)', boxShadow: '0 0 20px rgba(83,221,252,0.3)' }}>
+                    style={{ background: 'var(--gradient-brand)', boxShadow: '0 0 20px rgba(83,221,252,0.3)' }}>
                     <span className="material-symbols-outlined text-on-primary-fixed" style={{ fontSize: '16px' }}>bar_chart</span>
                   </div>
-                  <div className="text-sm font-extrabold text-on-surface">{count} resultados</div>
+                  <div className="text-sm font-extrabold text-on-surface">{count} results</div>
                   <div className="text-xs text-on-surface-variant mt-0.5">
-                    {allRepos.length} {allRepos.length === 1 ? 'repositorio' : 'repositorios'}
+                    {allRepos.length} {allRepos.length === 1 ? 'repository' : 'repositories'}
                   </div>
                   {filterRepo !== 'All' && (
                     <div className="mt-3 pt-3 border-t border-outline-variant/10 text-[10px] text-primary font-bold">
-                      Filtrado: {repoMap.get(filterRepo)?.length ?? 0} mostrados
+                      Filtered: {repoMap.get(filterRepo)?.length ?? 0} shown
                     </div>
                   )}
                 </div>

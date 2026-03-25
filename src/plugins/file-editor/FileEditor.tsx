@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { useApp } from '../../core/AppContext'
+import { dragState } from '../../core/dragState'
 import { useEditorTabs, languageIcon, detectLanguage } from './hooks/useEditorTabs'
 import { useFileWatcher } from './hooks/useFileWatcher'
 import { useEditorPrefs, FONT_FAMILIES, FONT_SIZE_MIN, FONT_SIZE_MAX } from './hooks/useEditorPrefs'
@@ -56,6 +57,7 @@ export function FileEditor(): JSX.Element {
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null)
   const [creating, setCreating]         = useState<{ parentPath: string; type: 'file' | 'dir' } | null>(null)
   const [openFilesHeight, setOpenFilesHeight] = useState(180)
+  const [selectedIds, setSelectedIds]         = useState<Set<string>>(new Set())
   const [closeConfirm, setCloseConfirm] = useState<{
     tabId: string; name: string; resolve: (r: 'save' | 'discard' | 'cancel') => void
   } | null>(null)
@@ -238,6 +240,34 @@ export function FileEditor(): JSX.Element {
     }
     closeTab(tabId)
   }, [tabs, closeTab, updateTab])
+  const toggleSelection = useCallback((id: string): void => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        if (next.size >= 2) {
+          // Drop the oldest selection when a 3rd is added
+          const [first] = next
+          next.delete(first)
+        }
+        next.add(id)
+      }
+      return next
+    })
+  }, [])
+
+  const sendSelectedToDiff = useCallback((): void => {
+    const selected = tabs.filter((t) => selectedIds.has(t.id))
+    if (selected.length !== 2) return
+    dispatch({
+      type: 'SEND_PAIR_TO_DIFF',
+      file1: { name: selected[0].name, path: selected[0].path, content: selected[0].content },
+      file2: { name: selected[1].name, path: selected[1].path, content: selected[1].content },
+    })
+    setSelectedIds(new Set())
+  }, [tabs, selectedIds, dispatch])
+
   const toggleExpanded = (p: string): void => setExpanded((prev) => { const n = new Set(prev); n.has(p) ? n.delete(p) : n.add(p); return n })
 
   const handleSplitPointerDown = (e: React.PointerEvent): void => {
@@ -321,6 +351,11 @@ export function FileEditor(): JSX.Element {
       items: [
         { label: 'Rename',             icon: 'edit',         action: () => setRenamingTabId(tab.id) },
         { label: 'Save',               icon: 'save',         action: saveActive },
+        { divider: true, label: '', icon: '', action: () => {} },
+        { label: 'Compare in Smart Diff', icon: 'difference', action: () => dispatch({ type: 'SEND_TO_DIFF', name: tab.name, path: tab.path, content: tab.content }) },
+        ...(selectedIds.size === 2 && selectedIds.has(tab.id) ? [
+          { label: 'Compare 2 selected files', icon: 'difference', action: sendSelectedToDiff },
+        ] : []),
         { divider: true, label: '', icon: '', action: () => {} },
         ...(tab.path ? [
           { label: 'Copy Path',          icon: 'content_copy', action: () => navigator.clipboard.writeText(tab.path!) },
@@ -471,6 +506,28 @@ export function FileEditor(): JSX.Element {
               </button>
             </div>
           </div>
+
+          {/* Multi-select banner — shown when ≥1 file is Ctrl+clicked */}
+          {selectedIds.size > 0 && (
+            <div className="mx-2 mb-1 px-2.5 py-1.5 rounded-lg flex items-center gap-2 flex-shrink-0"
+              style={{ background: 'rgb(136 124 253 / 0.12)', border: '1px solid rgb(136 124 253 / 0.25)' }}>
+              <span className="text-[10px] font-semibold text-[#887CFD]">
+                {selectedIds.size}/2 selected
+              </span>
+              {selectedIds.size === 2 && (
+                <button onClick={sendSelectedToDiff}
+                  className="flex items-center gap-1 ml-auto px-2 py-0.5 rounded-md text-[10px] font-bold text-[#887CFD] hover:bg-[#887CFD]/20 transition-colors">
+                  <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>difference</span>
+                  Compare
+                </button>
+              )}
+              <button onClick={() => setSelectedIds(new Set())} title="Clear selection"
+                className="text-[#887CFD]/50 hover:text-[#887CFD] transition-colors">
+                <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>close</span>
+              </button>
+            </div>
+          )}
+
           <div className="flex-1 overflow-y-auto py-1 min-h-0">
             {tabs.length === 0 ? (
               <p className="text-[11px] text-on-surface-variant/50 text-center pt-4 px-3">
@@ -480,8 +537,10 @@ export function FileEditor(): JSX.Element {
               tabs.map((tab) => (
                 <FileListItem
                   key={tab.id} tab={tab} isActive={activeId === tab.id}
-                  onClick={() => setActiveId(tab.id)}
-                  onClose={() => handleCloseTab(tab.id)}
+                  isSelected={selectedIds.has(tab.id)}
+                  onClick={() => { setSelectedIds(new Set()); setActiveId(tab.id) }}
+                  onCtrlClick={() => toggleSelection(tab.id)}
+                  onClose={() => { setSelectedIds((p) => { const n = new Set(p); n.delete(tab.id); return n }); void handleCloseTab(tab.id) }}
                   onSave={saveActive}
                   onContextMenu={(e) => handleTabContextMenu(e, tab)}
                   renaming={renamingTabId === tab.id}
@@ -517,9 +576,26 @@ export function FileEditor(): JSX.Element {
         <div className="flex items-center border-b border-outline-variant/20 bg-surface flex-shrink-0">
           <div className="flex-1 flex items-center overflow-x-auto scrollbar-hide">
             {tabs.map((tab) => (
-              <div key={tab.id} onClick={() => setActiveId(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium cursor-pointer border-b-2 whitespace-nowrap group transition-colors flex-shrink-0 ${
-                  activeId === tab.id ? 'border-primary text-primary bg-surface-container-low' : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}>
+              <div key={tab.id}
+                draggable
+                onDragStart={(e) => {
+                  dragState.set({ name: tab.name, path: tab.path, content: tab.content })
+                  e.dataTransfer.setData('text/plain', tab.name)
+                  e.dataTransfer.effectAllowed = 'copy'
+                }}
+                onDragEnd={() => dragState.set(null)}
+                onClick={(e) => {
+                  if (e.ctrlKey || e.metaKey) { e.preventDefault(); toggleSelection(tab.id) }
+                  else { setSelectedIds(new Set()); setActiveId(tab.id) }
+                }}
+                onContextMenu={(e) => handleTabContextMenu(e, tab)}
+                title={`${tab.name}${tab.path ? `\n${tab.path}` : ''}\nCtrl+click to select · Drag to Compare in Smart Diff`}
+                className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium cursor-grab active:cursor-grabbing border-b-2 whitespace-nowrap group transition-colors flex-shrink-0 ${
+                  selectedIds.has(tab.id)
+                    ? 'border-[#887CFD] text-[#887CFD] bg-[#887CFD]/10'
+                    : activeId === tab.id
+                      ? 'border-primary text-primary bg-surface-container-low'
+                      : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}>
                 <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>{languageIcon(tab.language)}</span>
                 <span className={`max-w-[120px] truncate ${tab.path === null ? 'italic' : ''}`}>{tab.name}</span>
                 {tab.isDirty && <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />}
@@ -904,15 +980,32 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
   )
 }
 
-function FileListItem({ tab, isActive, onClick, onClose, onSave, onContextMenu, renaming, onRenameCommit, onRenameCancel }: {
-  tab: OpenFile; isActive: boolean; onClick: () => void; onClose: () => void; onSave: () => void
+function FileListItem({ tab, isActive, isSelected = false, onClick, onCtrlClick, onClose, onSave, onContextMenu, renaming, onRenameCommit, onRenameCancel }: {
+  tab: OpenFile; isActive: boolean; isSelected?: boolean
+  onClick: () => void; onCtrlClick?: () => void; onClose: () => void; onSave: () => void
   onContextMenu: (e: React.MouseEvent) => void
   renaming: boolean; onRenameCommit: (name: string) => void; onRenameCancel: () => void
 }): JSX.Element {
   const dir = tab.path ? tab.path.split(/[\\/]/).slice(0, -1).join('\\') : null
   return (
-    <div data-tab-item onClick={onClick} onContextMenu={onContextMenu} title={dir ?? 'Unsaved — not on disk'}
-      className={`flex items-center gap-2 w-full px-3 py-2 cursor-pointer group transition-colors ${isActive ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}>
+    <div data-tab-item
+      draggable
+      onDragStart={(e) => {
+        dragState.set({ name: tab.name, path: tab.path, content: tab.content })
+        e.dataTransfer.setData('text/plain', tab.name)
+        e.dataTransfer.effectAllowed = 'copy'
+      }}
+      onDragEnd={() => dragState.set(null)}
+      onClick={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); onCtrlClick?.() } else { onClick() } }}
+      onContextMenu={onContextMenu}
+      title={`${tab.name}${tab.path ? `\n${tab.path}` : ''}\nCtrl+click to select · Drag to Compare in Smart Diff`}
+      className={`flex items-center gap-2 w-full px-3 py-2 cursor-grab active:cursor-grabbing group transition-colors border-l-2 ${
+        isSelected
+          ? 'border-[#887CFD] bg-[#887CFD]/10 text-[#887CFD]'
+          : isActive
+            ? 'border-transparent bg-primary/10 text-primary'
+            : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
+      }`}>
       <span className={`material-symbols-outlined flex-shrink-0 ${isActive ? 'text-primary' : 'text-on-surface-variant/60'}`} style={{ fontSize: '15px' }}>
         {languageIcon(tab.language)}
       </span>

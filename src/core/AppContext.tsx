@@ -69,6 +69,35 @@ function appReducer(state: AppState, action: AppAction): AppState {
         editorTarget: { path: action.path, line: action.line },
       }
     }
+    case 'SEND_TO_DIFF': {
+      const existing = state.openTabs.find((t) => t.pluginId === 'smart-diff')
+      const tabId    = existing?.tabId ?? 'smart-diff'
+      const openTabs = existing
+        ? state.openTabs
+        : [...state.openTabs, { tabId: 'smart-diff', pluginId: 'smart-diff' }]
+      return {
+        ...state,
+        openTabs,
+        activeTabId: tabId,
+        diffTarget: { name: action.name, path: action.path, content: action.content },
+      }
+    }
+    case 'SEND_PAIR_TO_DIFF': {
+      const existing = state.openTabs.find((t) => t.pluginId === 'smart-diff')
+      const tabId    = existing?.tabId ?? 'smart-diff'
+      const openTabs = existing
+        ? state.openTabs
+        : [...state.openTabs, { tabId: 'smart-diff', pluginId: 'smart-diff' }]
+      return {
+        ...state,
+        openTabs,
+        activeTabId: tabId,
+        diffTarget:  action.file1,
+        diffTarget2: action.file2,
+      }
+    }
+    case 'CLEAR_DIFF_TARGET':
+      return { ...state, diffTarget: undefined, diffTarget2: undefined }
     case 'SET_PLUGIN_DIRTY': {
       if (state.dirtyPlugins[action.pluginId] === action.dirty) return state
       return {
