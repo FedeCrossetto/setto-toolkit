@@ -242,11 +242,11 @@ export function FileEditor(): JSX.Element {
 
   const handleSplitPointerDown = (e: React.PointerEvent): void => {
     e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
     const startY = e.clientY
-    let currentH = openFilesHeight
+    const startH = openFilesHeight
     const onMove = (ev: PointerEvent): void => {
-      currentH = Math.max(60, Math.min(startY - ev.clientY + openFilesHeight, 480))
-      setOpenFilesHeight(currentH)
+      setOpenFilesHeight(Math.max(60, Math.min(startY - ev.clientY + startH, 480)))
     }
     const onUp = (): void => {
       window.removeEventListener('pointermove', onMove)
@@ -441,10 +441,11 @@ export function FileEditor(): JSX.Element {
         {folders.length > 0 && (
           <div
             onPointerDown={handleSplitPointerDown}
-            className="flex-shrink-0 h-[5px] cursor-row-resize group border-t border-outline-variant/15 hover:bg-primary/20 transition-colors"
+            className="flex-shrink-0 h-[10px] cursor-row-resize group border-t border-outline-variant/15 hover:bg-primary/20 transition-colors"
+            style={{ touchAction: 'none' }}
             title="Drag to resize"
           >
-            <div className="mx-auto mt-[1px] w-8 h-[2px] rounded-full bg-outline-variant/30 group-hover:bg-primary/50 transition-colors" />
+            <div className="mx-auto mt-[3px] w-8 h-[2px] rounded-full bg-outline-variant/30 group-hover:bg-primary/50 transition-colors" />
           </div>
         )}
 

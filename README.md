@@ -172,6 +172,21 @@ Podés usar `src/plugins/_template/` como punto de partida.
 
 ## Changelog
 
+### v2.2.1 — 2026-03-25
+
+#### UX / Assets
+
+- **Sidebar logo**: reemplazado `setto-logo.png` por `setto_icon.png` (robot Setto). Tamaño aumentado: 44 → 56 px (colapsado) y 52 → 64 px (expandido).
+- **App icon**: el `.ico` de la ventana y taskbar pasa a usar `setto_icon.ico` (256×256, 32bpp) en lugar de `dev-logo.ico`. Actualizado en `electron/main.ts` y `package.json`.
+- **Reorganización assets panda**: los PNGs del mascot panda se movieron de `public/` a `public/panda-avatar/`. Referencias actualizadas en `Dashboard.tsx` y `RepoSearch.tsx`.
+
+#### File Editor
+
+- **Drag handle Explorer ↔ Open Files**: altura aumentada de 5 px a 10 px, se agregó `touch-action: none` y `setPointerCapture` para drag más confiable (no se corta al mover el mouse rápido).
+- **Scrollbar global**: ancho aumentado de 5 px a 8 px — más fácil de agarrar en el árbol de archivos y demás paneles con scroll.
+
+---
+
 ### v2.2.0 — 2026-03-24
 
 #### Nuevas funcionalidades

@@ -81,7 +81,7 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "public/dev-logo.ico"
+      "icon": "public/setto_icon.ico"
     },
     "mac": {
       "target": "dmg",

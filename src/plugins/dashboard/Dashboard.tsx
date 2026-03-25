@@ -250,12 +250,12 @@ function PandaImg({ src, scale = 1.12, tx = 0, ty = 6, objPosition = 'bottom' }:
 
 // Each panda PNG has different internal whitespace — tune scale/tx/ty per image
 // scale: zoom level  tx: horizontal offset (negative = left)  ty: vertical offset (positive = down)
-function ArtworkPanda():         JSX.Element { return <PandaImg src="./panda1.png"               scale={1.15} tx={-4}  ty={6} /> }
-function ArtworkPandaSnippet():  JSX.Element { return <PandaImg src="./panda-snippet.png"         scale={1.15} tx={-4}  ty={6} /> }
-function ArtworkPandaCompare():  JSX.Element { return <PandaImg src="./panda-compare-files.png"  scale={1.0} tx={0} ty={0} objPosition="center" /> }
-function ArtworkPandaSearch():   JSX.Element { return <PandaImg src="./panda-search.png"         scale={1.15} tx={-4}  ty={6} /> }
-function ArtworkPandaSettings(): JSX.Element { return <PandaImg src="./panda-settings.png"       scale={1.15} tx={-10} ty={6} /> }
-function ArtworkPandaRequest():  JSX.Element { return <PandaImg src="./panda-request.png"        scale={1.15} tx={-10} ty={6} /> }
+function ArtworkPanda():         JSX.Element { return <PandaImg src="./panda-avatar/panda1.png"               scale={1.15} tx={-4}  ty={6} /> }
+function ArtworkPandaSnippet():  JSX.Element { return <PandaImg src="./panda-avatar/panda-snippet.png"         scale={1.15} tx={-4}  ty={6} /> }
+function ArtworkPandaCompare():  JSX.Element { return <PandaImg src="./panda-avatar/panda-compare-files.png"  scale={1.0} tx={0} ty={0} objPosition="center" /> }
+function ArtworkPandaSearch():   JSX.Element { return <PandaImg src="./panda-avatar/panda-search.png"         scale={1.15} tx={-4}  ty={6} /> }
+function ArtworkPandaSettings(): JSX.Element { return <PandaImg src="./panda-avatar/panda-settings.png"       scale={1.15} tx={-10} ty={6} /> }
+function ArtworkPandaRequest():  JSX.Element { return <PandaImg src="./panda-avatar/panda-request.png"        scale={1.15} tx={-10} ty={6} /> }
 
 // ── Setto Avatar artwork ──────────────────────────────────────────────────────
 // Place matching PNGs in public/setto-avatar/ — falls back to panda if file is missing

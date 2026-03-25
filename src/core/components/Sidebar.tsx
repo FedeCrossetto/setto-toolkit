@@ -6,7 +6,7 @@ import type { PluginManifest } from '../types'
 // ── Logo mark ─────────────────────────────────────────────────────────────────
 function AppLogo({ size = 34 }: { size?: number }): JSX.Element {
   return (
-    <img src="./setto-logo.png" width={size} height={size} style={{ flexShrink: 0, objectFit: 'contain', filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.25))' }} />
+    <img src="./setto_icon.png" width={size} height={size} style={{ flexShrink: 0, objectFit: 'contain', filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.25))' }} />
   )
 }
 
@@ -114,10 +114,10 @@ export function Sidebar(): JSX.Element {
       {/* ── Logo ──────────────────────────────────────────────────────── */}
       <div className={`flex items-center mt-6 mb-6 ${collapsed ? 'justify-center px-2' : 'px-3 justify-between'}`}>
         {collapsed ? (
-          <AppLogo size={44} />
+          <AppLogo size={56} />
         ) : (
           <div className="flex items-center gap-1.5">
-            <AppLogo size={52} />
+            <AppLogo size={64} />
             <div className="leading-none">
               <div className="font-bold text-[15px] text-on-surface tracking-tight">SETTO</div>
               <div className="text-[10px] text-on-surface-variant/50 tracking-widest uppercase font-medium mt-0.5">Toolkit</div>
