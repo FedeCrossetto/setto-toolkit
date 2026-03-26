@@ -1,4 +1,6 @@
 import crypto from 'crypto'
+import http from 'http'
+import https from 'https'
 import type { DatabaseService } from './db.service'
 import type { SettingsService } from './settings.service'
 
@@ -7,9 +9,15 @@ export interface AIMessage {
   content: string
 }
 
+export interface TokenUsage {
+  inputTokens: number
+  outputTokens: number
+}
+
 export interface AIResponse {
   text: string
   cached: boolean
+  usage?: TokenUsage
 }
 
 interface CacheEntry {
@@ -23,14 +31,32 @@ type CacheStore = Record<string, CacheEntry>
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 const CACHE_FILE = 'ai-cache.json'
 
+const CONTEXT_WINDOW = 200_000 // Claude Sonnet context window
+
+export interface AISessionUsage {
+  inputTokens: number
+  outputTokens: number
+  calls: number
+  contextWindowSize: number
+}
+
 export class AIService {
   private cache: CacheStore
+  private session: AISessionUsage = { inputTokens: 0, outputTokens: 0, calls: 0, contextWindowSize: CONTEXT_WINDOW }
 
   constructor(
     private db: DatabaseService,
     private settings: SettingsService
   ) {
     this.cache = db.readEncryptedJSON<CacheStore>(CACHE_FILE) ?? {}
+  }
+
+  getSessionUsage(): AISessionUsage {
+    return { ...this.session }
+  }
+
+  resetSessionUsage(): void {
+    this.session = { inputTokens: 0, outputTokens: 0, calls: 0, contextWindowSize: CONTEXT_WINDOW }
   }
 
   private hash(input: string): string {
@@ -97,24 +123,79 @@ export class AIService {
       const err = (await response.json()) as { error?: { message?: string } }
       throw new Error(err.error?.message ?? `Anthropic API error: ${response.status}`)
     }
-    const data = (await response.json()) as { content: Array<{ type: string; text: string }> }
+    const data = (await response.json()) as {
+      content: Array<{ type: string; text: string }>
+      usage: { input_tokens: number; output_tokens: number }
+    }
+    const usage: TokenUsage = {
+      inputTokens:  data.usage?.input_tokens  ?? 0,
+      outputTokens: data.usage?.output_tokens ?? 0,
+    }
+    this.session.inputTokens  += usage.inputTokens
+    this.session.outputTokens += usage.outputTokens
+    this.session.calls        += 1
     return data.content.find((c) => c.type === 'text')?.text ?? ''
   }
 
-  private async completeOllama(messages: AIMessage[]): Promise<string> {
-    const baseUrl = (this.settings.get('ai.ollama_url') ?? 'http://localhost:11434').replace(/\/$/, '')
-    const model = this.settings.get('ai.ollama_model') ?? 'llama3'
+  private completeOllama(messages: AIMessage[]): Promise<string> {
+    const baseUrl      = (this.settings.get('ai.ollama_url') ?? 'http://localhost:11434').replace(/\/$/, '')
+    const model        = this.settings.get('ai.ollama_model') ?? 'llama3'
+    const rawTimeout   = parseInt(this.settings.get('ai.ollama_timeout') ?? '30', 10)
+    const timeoutMins  = Number.isNaN(rawTimeout) ? 30 : Math.min(Math.max(rawTimeout, 5), 120)
+    const TIMEOUT      = timeoutMins * 60 * 1000
 
-    const response = await fetch(`${baseUrl}/v1/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, stream: false }),
+    return new Promise((resolve, reject) => {
+      // think:false disables slow reasoning/thinking mode on qwen3, deepseek-r1, etc.
+      const body   = JSON.stringify({ model, messages, stream: false, think: false })
+      const parsed = new URL(`${baseUrl}/api/chat`)
+      const isHttps = parsed.protocol === 'https:'
+      const transport = isHttps ? https : http
+
+      const req = transport.request(
+        {
+          hostname: parsed.hostname,
+          port:     parsed.port || (isHttps ? 443 : 80),
+          path:     parsed.pathname,
+          method:   'POST',
+          headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+          timeout:  TIMEOUT,
+        },
+        (res) => {
+          let raw = ''
+          const MAX_BYTES = 4 * 1024 * 1024 // 4 MB guard against runaway responses
+          res.on('data', (chunk: Buffer) => {
+            if (raw.length + chunk.length > MAX_BYTES) {
+              req.destroy()
+              reject(new Error('Ollama response exceeded 4 MB — something went wrong'))
+              return
+            }
+            raw += chunk.toString()
+          })
+          res.on('end', () => {
+            if (res.statusCode !== 200) {
+              reject(new Error(`Ollama error: ${res.statusCode} — ${raw.slice(0, 200)}`))
+              return
+            }
+            try {
+              const data = JSON.parse(raw) as { message?: { content?: string } }
+              // Strip thinking blocks (<think>...</think>) from qwen3/deepseek-r1 responses
+              const content = (data.message?.content ?? '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+              resolve(content)
+            } catch {
+              reject(new Error('Ollama devolvió JSON inválido'))
+            }
+          })
+        },
+      )
+
+      req.on('timeout', () => {
+        req.destroy()
+        reject(new Error(`Ollama timeout (${timeoutMins} min) — el modelo tardó demasiado. Aumentá el timeout en Settings → AI o usá un modelo más liviano.`))
+      })
+      req.on('error', (err) => reject(new Error(`Ollama error: ${err.message}`)))
+      req.write(body)
+      req.end()
     })
-    if (!response.ok) {
-      throw new Error(`Ollama error: ${response.status} — is Ollama running at ${baseUrl}?`)
-    }
-    const data = (await response.json()) as { choices: Array<{ message: { content: string } }> }
-    return data.choices[0]?.message?.content ?? ''
   }
 
   async complete(messages: AIMessage[], options?: { skipCache?: boolean }): Promise<AIResponse> {

@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { LayoutGrid } from 'lucide-react'
 import { AppProvider, useApp } from './core/AppContext'
 import { useAppFont } from './core/hooks/useAppFont'
 import { useThemePalette } from './core/hooks/useThemePalette'
@@ -57,12 +58,7 @@ function AppShell(): JSX.Element {
             {state.openTabs.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
-                  <span
-                    className="material-symbols-outlined text-on-surface-variant mb-4 block"
-                    style={{ fontSize: '48px' }}
-                  >
-                    grid_view
-                  </span>
+                  <LayoutGrid size={48} className="text-on-surface-variant mb-4 block" />
                   <p className="text-on-surface-variant text-sm">Select a tool from the sidebar</p>
                 </div>
               </div>

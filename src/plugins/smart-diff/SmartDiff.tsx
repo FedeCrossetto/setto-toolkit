@@ -1,5 +1,10 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, type ComponentType } from 'react'
 import { diffLines, diffWords, type Change } from 'diff'
+import {
+  ArrowLeftRight, Brain, CheckCircle2, CircleAlert, Code2, Diff,
+  FileCode2, FileText, FolderOpen, Loader2, Palette,
+  Settings, Sparkles, Terminal, Trash2, X,
+} from 'lucide-react'
 import { useEditorPrefs, FONT_FAMILIES, FONT_SIZE_MIN, FONT_SIZE_MAX } from '../file-editor/hooks/useEditorPrefs'
 import { useApp } from '../../core/AppContext'
 import { dragState } from '../../core/dragState'
@@ -91,17 +96,16 @@ function formatBytes(b: number): string {
   return `${(b / 1048576).toFixed(1)} MB`
 }
 
-function fileIcon(name: string): string {
+function fileIcon(name: string): ComponentType<{ size?: number; className?: string }> {
   const ext = name.split('.').pop()?.toLowerCase() ?? ''
-  if (['js', 'jsx', 'ts', 'tsx'].includes(ext)) return 'javascript'
-  if (['py'].includes(ext))                       return 'code'
-  if (['json'].includes(ext))                     return 'data_object'
-  if (['md'].includes(ext))                       return 'article'
-  if (['css', 'scss', 'less'].includes(ext))      return 'palette'
-  if (['html', 'xml', 'svg'].includes(ext))       return 'html'
-  if (['sh', 'bash', 'zsh'].includes(ext))        return 'terminal'
-  if (['sql'].includes(ext))                      return 'database'
-  return 'description'
+  if (['js', 'jsx', 'ts', 'tsx'].includes(ext)) return FileCode2
+  if (['py'].includes(ext))                       return Code2
+  if (['json'].includes(ext))                     return FileCode2
+  if (['md'].includes(ext))                       return FileText
+  if (['css', 'scss', 'less'].includes(ext))      return Palette
+  if (['html', 'xml', 'svg'].includes(ext))       return FileCode2
+  if (['sh', 'bash', 'zsh'].includes(ext))        return Terminal
+  return FileText
 }
 
 // ── Overview ruler ────────────────────────────────────────────────────────────
@@ -245,12 +249,12 @@ function CodePane({
         <div className="ml-auto flex items-center gap-1">
           {value && (
             <button onClick={onClear} title="Clear" className="text-on-surface-variant/35 hover:text-error transition-colors">
-              <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>close</span>
+              <X size={13} />
             </button>
           )}
           <button onClick={() => fileInputRef.current?.click()} title="Open file"
             className="text-on-surface-variant/35 hover:text-primary transition-colors">
-            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>folder_open</span>
+            <FolderOpen size={14} />
           </button>
         </div>
       </div>
@@ -311,9 +315,7 @@ function FileCard({ label, dotColor, info, onClear }: {
       </div>
       {info ? (
         <div className="flex items-center gap-2 px-2 py-1.5 bg-surface-container rounded-lg border border-outline-variant/15 group">
-          <span className="material-symbols-outlined text-on-surface-variant/50 flex-shrink-0" style={{ fontSize: '14px' }}>
-            {fileIcon(info.name)}
-          </span>
+          {(() => { const Icon = fileIcon(info.name); return <Icon size={14} className="text-on-surface-variant/50 flex-shrink-0" /> })()}
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-medium text-on-surface truncate">{info.name}</p>
             <p className="text-[10px] text-on-surface-variant/45">{formatBytes(info.size)}</p>
@@ -323,7 +325,7 @@ function FileCard({ label, dotColor, info, onClear }: {
             title="Remove file"
             className="opacity-0 group-hover:opacity-100 text-on-surface-variant/40 hover:text-error transition-all flex-shrink-0"
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>close</span>
+            <X size={13} />
           </button>
         </div>
       ) : (
@@ -504,7 +506,7 @@ export function SmartDiff(): JSX.Element {
                 <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/50">Changes</span>
                 {isIdentical ? (
                   <div className="mt-2 flex items-center gap-1.5 text-[11px] text-secondary">
-                    <span className="material-symbols-outlined" style={{ fontSize: '13px', fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                    <CheckCircle2 size={13} />
                     <span className="font-medium">Files are identical</span>
                   </div>
                 ) : (
@@ -548,12 +550,12 @@ export function SmartDiff(): JSX.Element {
         <div className="border-t border-outline-variant/15 px-3 py-2 flex-shrink-0 flex flex-col gap-1.5">
           <button onClick={swapSides} disabled={!original && !modified}
             className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-[11px] text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors disabled:opacity-40">
-            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>swap_horiz</span>
+            <ArrowLeftRight size={14} />
             Swap sides
           </button>
           <button onClick={clearAll} disabled={!original && !modified}
             className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-[11px] text-error/70 hover:bg-error/10 hover:text-error transition-colors disabled:opacity-40">
-            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>delete_sweep</span>
+            <Trash2 size={14} />
             Clear all
           </button>
         </div>
@@ -566,14 +568,14 @@ export function SmartDiff(): JSX.Element {
         <div className="px-4 py-2.5 bg-surface border-b border-outline-variant/15 flex items-center gap-3 flex-shrink-0">
           <button onClick={runDiff} disabled={!original.trim() || !modified.trim()}
             className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-[12px] font-medium transition-colors disabled:opacity-40 border border-primary/20">
-            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>difference</span>
+            <Diff size={14} />
             Compare
           </button>
 
           {hasDiff && (
             <button onClick={cancelDiff}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors border border-outline-variant/20">
-              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+              <X size={14} />
               Cancel diff
             </button>
           )}
@@ -581,7 +583,7 @@ export function SmartDiff(): JSX.Element {
           <button onClick={runAI} disabled={aiLoading || !original.trim() || !modified.trim()}
             className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-[12px] font-bold text-on-primary-fixed shadow-neon-btn hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ background: 'var(--gradient-brand)' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '14px', fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
+            <Sparkles size={14} />
             {aiLoading ? 'Analyzing…' : 'Analyze with AI'}
           </button>
 
@@ -596,7 +598,7 @@ export function SmartDiff(): JSX.Element {
           <div className="ml-auto relative" ref={settingsRef}>
             <button onClick={() => setSettingsOpen((v) => !v)} title="Editor settings"
               className={`p-1.5 rounded-lg transition-colors ${settingsOpen ? 'text-primary bg-primary/10' : 'text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container'}`}>
-              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>settings</span>
+              <Settings size={16} />
             </button>
 
             {settingsOpen && (
@@ -675,12 +677,7 @@ export function SmartDiff(): JSX.Element {
           {isIdentical && (
             <div className="absolute inset-0 flex items-center justify-center bg-surface/50 backdrop-blur-[2px] z-10 pointer-events-none">
               <div className="flex flex-col items-center gap-3 px-10 py-7 rounded-2xl bg-surface-container border border-secondary/20 shadow-xl pointer-events-auto">
-                <span
-                  className="material-symbols-outlined text-secondary"
-                  style={{ fontSize: '40px', fontVariationSettings: "'FILL' 1" }}
-                >
-                  check_circle
-                </span>
+                <CheckCircle2 size={40} className="text-secondary" />
                 <p className="text-sm font-semibold text-on-surface">There are no differences between files.</p>
                 <button
                   onClick={cancelDiff}
@@ -697,7 +694,7 @@ export function SmartDiff(): JSX.Element {
         {(insights || aiLoading || aiError) && (
           <section className="min-h-[100px] max-h-64 bg-surface border-t border-outline-variant/15 p-5 overflow-y-auto flex-shrink-0">
             <div className="flex items-center gap-3 mb-4">
-              <span className="material-symbols-outlined text-primary" style={{ fontSize: '18px', fontVariationSettings: "'FILL' 1" }}>psychology</span>
+              <Brain size={18} className="text-primary" />
               <h2 className="text-sm font-bold tracking-tight">AI Insights</h2>
               {insights?.cached && (
                 <span className="text-[10px] bg-surface-container px-2 py-0.5 rounded-full text-on-surface-variant border border-outline-variant/20">cached</span>
@@ -706,13 +703,13 @@ export function SmartDiff(): JSX.Element {
             </div>
             {aiLoading && (
               <div className="flex items-center gap-3 text-on-surface-variant text-sm">
-                <span className="material-symbols-outlined animate-spin text-primary" style={{ fontSize: '18px' }}>progress_activity</span>
+                <Loader2 size={18} className="animate-spin text-primary" />
                 Analyzing semantic changes…
               </div>
             )}
             {aiError && (
               <div className="flex items-center gap-3 text-error text-sm bg-error-container/20 px-4 py-3 rounded-xl border border-error/20">
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>error</span>
+                <CircleAlert size={18} />
                 {aiError}
               </div>
             )}
@@ -729,7 +726,7 @@ export function SmartDiff(): JSX.Element {
                 <div className="bg-surface-container-highest p-4 rounded-xl border border-primary/20">
                   <div className="text-[10px] uppercase font-bold tracking-widest text-secondary mb-2">Recommendation</div>
                   <div className="flex items-start gap-2">
-                    <span className="material-symbols-outlined text-secondary flex-shrink-0" style={{ fontSize: '14px' }}>task_alt</span>
+                    <CheckCircle2 size={14} className="text-secondary flex-shrink-0" />
                     <p className="text-xs text-on-surface leading-relaxed">{insights.recommendation}</p>
                   </div>
                 </div>

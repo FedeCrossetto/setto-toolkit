@@ -1,4 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import {
+  BookmarkPlus, Check, ChevronDown, ChevronRight, CircleAlert, CircleStop,
+  Copy, Download, FileUp, FolderOpen, Network, Paperclip, Pencil, Plus,
+  RotateCcw, Save, Search, Send, Sparkles, Terminal, Trash2, Upload, X,
+} from 'lucide-react'
 import { useCollections } from './hooks/useCollections'
 import { useRequestRunner } from './hooks/useRequestRunner'
 import {
@@ -36,9 +41,7 @@ function MethodSelect({ value, onChange }: { value: HttpMethod; onChange: (m: Ht
         className={`flex items-center gap-1.5 bg-surface-container border border-outline-variant/30 rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors hover:border-outline-variant/60 ${METHOD_COLOR[value]}`}
       >
         {value}
-        <span className="material-symbols-outlined text-on-surface-variant/40" style={{ fontSize: '14px' }}>
-          expand_more
-        </span>
+        <ChevronDown size={14} className="text-on-surface-variant/40" />
       </button>
 
       {open && (
@@ -99,7 +102,7 @@ function HistoryItem({
           {!showSave ? (
             <button onClick={() => setShowSave(true)}
               className="text-[10px] text-on-surface-variant/50 hover:text-primary transition-colors flex items-center gap-0.5">
-              <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>bookmark_add</span> Save
+              <BookmarkPlus size={11} /> Save
             </button>
           ) : (
             <div className="flex gap-1 items-center">
@@ -109,7 +112,7 @@ function HistoryItem({
                 {collections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               <button onClick={() => setShowSave(false)} className="text-on-surface-variant/50 hover:text-error">
-                <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>close</span>
+                <X size={11} />
               </button>
             </div>
           )}
@@ -155,7 +158,7 @@ function HistoryPanel({
         {history.length > 0 && (
           <>
             <div className="flex items-center gap-1.5 bg-surface-container border border-outline-variant/25 rounded-lg px-2 py-1 mb-2">
-              <span className="material-symbols-outlined text-on-surface-variant/40" style={{ fontSize: '12px' }}>search</span>
+              <Search size={12} className="text-on-surface-variant/40" />
               <input
                 value={urlSearch} onChange={(e) => setUrlSearch(e.target.value)}
                 placeholder="Filter by URL…"
@@ -163,7 +166,7 @@ function HistoryPanel({
               />
               {urlSearch && (
                 <button onClick={() => setUrlSearch('')} className="text-on-surface-variant/40 hover:text-on-surface-variant">
-                  <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>close</span>
+                  <X size={11} />
                 </button>
               )}
             </div>
@@ -374,10 +377,10 @@ export function ApiLab(): JSX.Element {
                 <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">Collections</span>
                 <div className="flex items-center gap-1">
                   <button onClick={() => setShowImportCollection(true)} className="text-on-surface-variant hover:text-primary transition-colors" title="Import collection">
-                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>upload</span>
+                    <Upload size={16} />
                   </button>
                   <button onClick={() => setShowNewCol(true)} className="text-on-surface-variant hover:text-primary transition-colors" title="New collection">
-                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
+                    <Plus size={16} />
                   </button>
                 </div>
               </div>
@@ -385,7 +388,7 @@ export function ApiLab(): JSX.Element {
                 <form onSubmit={async (e) => { e.preventDefault(); if (newColName.trim()) { await createCollection(newColName.trim()); setNewColName(''); setShowNewCol(false) } }} className="flex gap-1">
                   <input autoFocus value={newColName} onChange={(e) => setNewColName(e.target.value)} placeholder="Collection name"
                     className="flex-1 text-xs bg-surface-container border border-outline-variant/30 rounded-lg px-2 py-1.5 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                  <button type="submit" className="text-primary"><span className="material-symbols-outlined" style={{ fontSize: '16px' }}>check</span></button>
+                  <button type="submit" className="text-primary"><Check size={16} /></button>
                 </form>
               )}
             </div>
@@ -437,7 +440,7 @@ export function ApiLab(): JSX.Element {
 
           {activeEnvName && (
             <span className="flex-shrink-0 flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-md bg-accent/10 text-accent border border-accent/20" title="Active environment">
-              <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>hub</span>
+              <Network size={11} />
               {activeEnvName}
             </span>
           )}
@@ -446,33 +449,33 @@ export function ApiLab(): JSX.Element {
           <button onClick={handleCopyCurl} title="Copy as cURL" disabled={!active.url.trim()}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:border-primary/40 transition-colors disabled:opacity-40">
             {curlCopied
-              ? <><span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check</span> Copied!</>
-              : <><span className="material-symbols-outlined" style={{ fontSize: '14px' }}>terminal</span> cURL</>
+              ? <><Check size={14} /> Copied!</>
+              : <><Terminal size={14} /> cURL</>
             }
           </button>
 
           {/* Import cURL */}
           <button onClick={() => setShowImportCurl(true)} title="Import from cURL"
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:border-primary/40 transition-colors">
-            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>download</span> Import
+            <Download size={14} /> Import
           </button>
 
           {status === 'loading' ? (
             <button onClick={cancel}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border border-error/40 text-error hover:bg-error/10 transition-all">
-              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>stop_circle</span> Cancel
+              <CircleStop size={15} /> Cancel
             </button>
           ) : (
             <button onClick={handleExecute} disabled={!active.url.trim()}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-on-primary transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: 'var(--gradient-brand)' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>send</span> Send
+              <Send size={15} /> Send
             </button>
           )}
 
           {active.collectionId && (
             <button onClick={handleSave} title="Save request" className="p-2 text-on-surface-variant hover:text-primary transition-colors">
-              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>save</span>
+              <Save size={18} />
             </button>
           )}
         </div>
@@ -503,7 +506,7 @@ export function ApiLab(): JSX.Element {
                 {(active.body.type === 'json' || active.body.type === 'xml') && (
                   <button onClick={handleBeautify}
                     className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border transition-colors ${beautified ? 'border-accent/50 text-accent bg-accent/10' : 'border-outline-variant/30 text-on-surface-variant hover:text-primary hover:border-primary/40'}`}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>auto_fix_high</span>
+                    <Sparkles size={13} />
                     {beautified ? 'Beautified!' : 'Beautify'}
                   </button>
                 )}
@@ -587,7 +590,7 @@ export function ApiLab(): JSX.Element {
                 <span className="text-sm text-error">{error}</span>
                 <button onClick={handleExecute} disabled={!active.url.trim()}
                   className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium border border-error/30 text-error hover:bg-error/10 transition-colors disabled:opacity-40">
-                  <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>refresh</span>
+                  <RotateCcw size={12} />
                   Retry
                 </button>
               </div>
@@ -604,7 +607,7 @@ export function ApiLab(): JSX.Element {
               {response && (
                 <button onClick={() => navigator.clipboard.writeText(formattedBody)} title="Copy response"
                   className="ml-2 text-on-surface-variant hover:text-primary transition-colors">
-                  <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>content_copy</span>
+                  <Copy size={15} />
                 </button>
               )}
             </div>
@@ -684,7 +687,7 @@ function ImportCollectionModal({ onImport, onClose }: {
             <p className="text-xs text-on-surface-variant mt-0.5">Supports Postman Collection v2/v2.1 and native format.</p>
           </div>
           <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
-            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
+            <X size={20} />
           </button>
         </div>
 
@@ -698,7 +701,7 @@ function ImportCollectionModal({ onImport, onClose }: {
 
         {error && (
           <p className="text-xs text-error flex items-center gap-1.5">
-            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+            <CircleAlert size={14} />
             {error}
           </p>
         )}
@@ -706,7 +709,7 @@ function ImportCollectionModal({ onImport, onClose }: {
         <div className="flex items-center gap-2">
           <button onClick={() => void handleBrowse()}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:border-primary/40 transition-colors">
-            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>folder_open</span> Browse file
+            <FolderOpen size={14} /> Browse file
           </button>
           <div className="flex-1" />
           <button onClick={onClose}
@@ -748,7 +751,7 @@ function ImportCurlModal({ onImport, onClose }: {
             <p className="text-xs text-on-surface-variant mt-0.5">Paste a cURL command to populate the request fields.</p>
           </div>
           <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
-            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
+            <X size={20} />
           </button>
         </div>
 
@@ -762,7 +765,7 @@ function ImportCurlModal({ onImport, onClose }: {
 
         {parseError && (
           <p className="text-xs text-error flex items-center gap-1.5">
-            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+            <CircleAlert size={14} />
             {parseError}
           </p>
         )}
@@ -826,13 +829,13 @@ function CollectionItem({ collection, activeRequestId, onSelectRequest, onNewReq
   return (
     <div className="mb-1">
       <div className="flex items-center gap-1 px-3 py-1.5 group hover:bg-surface-container rounded-lg cursor-pointer" onClick={() => setOpen((o) => !o)}>
-        <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: '14px' }}>{open ? 'expand_more' : 'chevron_right'}</span>
+        {open ? <ChevronDown size={14} className="text-on-surface-variant" /> : <ChevronRight size={14} className="text-on-surface-variant" />}
         <span className="text-xs font-medium text-on-surface flex-1 truncate">{collection.name}</span>
         <button onClick={(e) => { e.stopPropagation(); onNewRequest() }} className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-primary" title="New request">
-          <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>add</span>
+          <Plus size={13} />
         </button>
         <button onClick={(e) => { e.stopPropagation(); onDelete() }} className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error" title="Delete collection">
-          <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>delete</span>
+          <Trash2 size={13} />
         </button>
       </div>
 
@@ -858,10 +861,10 @@ function CollectionItem({ collection, activeRequestId, onSelectRequest, onNewReq
           )}
 
           <button onClick={(e) => { e.stopPropagation(); onDuplicate(req.id) }} className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-primary">
-            <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>content_copy</span>
+            <Copy size={12} />
           </button>
           <button onClick={(e) => { e.stopPropagation(); onDeleteRequest(req.id) }} className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error">
-            <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>delete</span>
+            <Trash2 size={12} />
           </button>
         </div>
       ))}
@@ -878,16 +881,16 @@ function CollectionItem({ collection, activeRequestId, onSelectRequest, onNewReq
           >
             <button onClick={() => startRename(req.id, req.name)}
               className="w-full flex items-center gap-2 px-3 py-2 text-xs text-on-surface hover:bg-surface-container transition-colors">
-              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>edit</span> Rename
+              <Pencil size={14} /> Rename
             </button>
             <button onClick={() => { onDuplicate(req.id); setCtxMenu(null) }}
               className="w-full flex items-center gap-2 px-3 py-2 text-xs text-on-surface hover:bg-surface-container transition-colors">
-              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>content_copy</span> Duplicate
+              <Copy size={14} /> Duplicate
             </button>
             <div className="border-t border-outline-variant/15 my-1" />
             <button onClick={() => { onDeleteRequest(req.id); setCtxMenu(null) }}
               className="w-full flex items-center gap-2 px-3 py-2 text-xs text-error hover:bg-error/10 transition-colors">
-              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>delete</span> Delete
+              <Trash2 size={14} /> Delete
             </button>
           </div>
         )
@@ -913,12 +916,12 @@ function KVEditor({ pairs, onChange }: { pairs: KeyValuePair[]; onChange: (p: Ke
           <input value={p.value} onChange={(e) => update(p.id, 'value', e.target.value)} placeholder="Value"
             className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
           <button onClick={() => remove(p.id)} className="text-on-surface-variant hover:text-error transition-colors">
-            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+            <X size={14} />
           </button>
         </div>
       ))}
       <button onClick={add} className="flex items-center gap-1 text-xs text-on-surface-variant hover:text-primary transition-colors mt-2">
-        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span> Add row
+        <Plus size={14} /> Add row
       </button>
     </div>
   )
@@ -957,10 +960,10 @@ function FormDataEditor({ fields, onChange }: { fields: FormDataField[]; onChang
             className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
           {f.isFile ? (
             <div className="flex-1 flex items-center gap-1 text-xs text-on-surface-variant bg-surface border border-outline-variant/20 rounded-lg px-2.5 py-1.5">
-              <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>attach_file</span>
+              <Paperclip size={12} />
               <span className="truncate">{getFileLabel(f.value)}</span>
               <button onClick={() => update(f.id, { value: '', isFile: false })} className="ml-auto text-on-surface-variant/50 hover:text-error">
-                <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>close</span>
+                <X size={12} />
               </button>
             </div>
           ) : (
@@ -968,16 +971,16 @@ function FormDataEditor({ fields, onChange }: { fields: FormDataField[]; onChang
               className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
           )}
           <label title="Attach file" className="cursor-pointer text-on-surface-variant/50 hover:text-primary transition-colors">
-            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>upload_file</span>
+            <FileUp size={14} />
             <input type="file" className="hidden" onChange={(e) => handleFileChange(f.id, e)} />
           </label>
           <button onClick={() => remove(f.id)} className="text-on-surface-variant hover:text-error transition-colors">
-            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+            <X size={14} />
           </button>
         </div>
       ))}
       <button onClick={add} className="flex items-center gap-1 text-xs text-on-surface-variant hover:text-primary transition-colors mt-2">
-        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span> Add field
+        <Plus size={14} /> Add field
       </button>
     </div>
   )
@@ -1037,14 +1040,14 @@ function EnvironmentPanel({ environments, onChange }: {
         <div className="flex items-center justify-between mb-2">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">Environments</span>
           <button onClick={() => setShowNew(true)} className="text-on-surface-variant hover:text-primary transition-colors">
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
+            <Plus size={16} />
           </button>
         </div>
         {showNew && (
           <form onSubmit={(e) => { e.preventDefault(); void handleAddEnv() }} className="flex gap-1 mb-2">
             <input autoFocus value={newEnvName} onChange={(e) => setNewEnvName(e.target.value)} placeholder="Environment name"
               className="flex-1 text-xs bg-surface-container border border-outline-variant/30 rounded-lg px-2 py-1.5 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/50" />
-            <button type="submit" className="text-primary"><span className="material-symbols-outlined" style={{ fontSize: '16px' }}>check</span></button>
+            <button type="submit" className="text-primary"><Check size={16} /></button>
           </form>
         )}
         <div className="space-y-0.5">
@@ -1060,7 +1063,7 @@ function EnvironmentPanel({ environments, onChange }: {
               {env.isActive && <span className="text-[9px] text-accent font-bold">ACTIVE</span>}
               <button onClick={(e) => { e.stopPropagation(); void handleDeleteEnv(env.id) }}
                 className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error transition-colors">
-                <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>delete</span>
+                <Trash2 size={12} />
               </button>
             </div>
           ))}
@@ -1089,14 +1092,14 @@ function EnvironmentPanel({ environments, onChange }: {
                     placeholder="Value"
                     className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
                   <button onClick={() => setVarPairs((ps) => ps.filter((x) => x.id !== p.id))} className="text-on-surface-variant hover:text-error transition-colors">
-                    <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>close</span>
+                    <X size={13} />
                   </button>
                 </div>
               ))}
             </div>
             <button onClick={() => setVarPairs((ps) => [...ps, { id: randomUUID(), key: '', value: '', enabled: true }])}
               className="flex items-center gap-1 text-xs text-on-surface-variant hover:text-primary transition-colors mt-2">
-              <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>add</span> Add variable
+              <Plus size={13} /> Add variable
             </button>
           </div>
           <div className="px-3 pb-3 flex-shrink-0">

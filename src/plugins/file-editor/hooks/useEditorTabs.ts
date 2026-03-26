@@ -1,4 +1,8 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, type ComponentType } from 'react'
+import {
+  Code2, Database, FileCode2, FileText, Palette,
+  ScrollText, Settings, Terminal,
+} from 'lucide-react'
 import type { OpenFile, FileLanguage, ReadFileResponse } from '../types'
 
 let tabCounter = 0
@@ -34,22 +38,22 @@ export function detectLanguage(filename: string): FileLanguage {
   return map[ext] ?? 'text'
 }
 
-/** Material icon name for a given language */
-export function languageIcon(lang: FileLanguage): string {
+/** Lucide icon component for a given language */
+export function languageIcon(lang: FileLanguage): ComponentType<{ size?: number; className?: string }> {
   switch (lang) {
-    case 'log':        return 'receipt_long'
-    case 'json':       return 'data_object'
+    case 'log':        return ScrollText
+    case 'json':       return FileCode2
     case 'typescript':
-    case 'javascript': return 'code'
+    case 'javascript': return Code2
     case 'html':
-    case 'xml':        return 'html'
-    case 'markdown':   return 'text_fields'
-    case 'sql':        return 'storage'
-    case 'yaml':       return 'settings'
-    case 'python':     return 'terminal'
-    case 'css':        return 'style'
-    case 'shell':      return 'terminal'
-    default:           return 'description'
+    case 'xml':        return FileCode2
+    case 'markdown':   return FileText
+    case 'sql':        return Database
+    case 'yaml':       return Settings
+    case 'python':     return Terminal
+    case 'css':        return Palette
+    case 'shell':      return Terminal
+    default:           return FileText
   }
 }
 

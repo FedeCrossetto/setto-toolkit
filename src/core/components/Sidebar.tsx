@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useApp } from '../AppContext'
 import { allPlugins } from '../plugin-registry'
+import { PluginIcon } from '../pluginIcons'
 import type { PluginManifest } from '../types'
 
 const PANEL_BG  = 'rgb(var(--c-sidebar))'
@@ -60,7 +62,7 @@ interface SidebarItemProps {
 }
 
 function SidebarItem({ plugin, active, collapsed, onClick }: SidebarItemProps): JSX.Element {
-  const h = collapsed ? 44 : 40
+  const h = collapsed ? 40 : 38
 
   return (
     <div style={{
@@ -101,17 +103,15 @@ function SidebarItem({ plugin, active, collapsed, onClick }: SidebarItemProps): 
         ].filter(Boolean).join(' ')}
       >
         {/* Icon */}
-        <span
-          className="material-symbols-outlined flex-shrink-0"
+        <PluginIcon
+          icon={plugin.icon}
+          size={active ? 21 : 19}
+          className="flex-shrink-0"
           style={{
-            fontSize: active ? '21px' : '19px',
             color: active ? 'rgb(var(--c-primary-light))' : 'inherit',
-            fontVariationSettings: active ? "'FILL' 1, 'wght' 500" : "'FILL' 0, 'wght' 400",
-            transition: 'font-size 200ms, font-variation-settings 200ms, color 200ms',
+            transition: 'width 200ms, height 200ms, color 200ms',
           }}
-        >
-          {plugin.icon}
-        </span>
+        />
 
         {/* Label */}
         {!collapsed && (
@@ -152,7 +152,7 @@ export function Sidebar(): JSX.Element {
   const toggleTheme = (): void =>
     dispatch({ type: 'SET_THEME', theme: state.theme === 'dark' ? 'light' : 'dark' })
 
-  const outerW = collapsed ? 76 : 224
+  const outerW = collapsed ? 62 : 204
 
   return (
     <aside
@@ -174,11 +174,11 @@ export function Sidebar(): JSX.Element {
         {/* ── Logo ──────────────────────────────────────────────────────────── */}
         <div className={`flex items-center mt-2 mb-3 flex-shrink-0 ${collapsed ? 'justify-center pr-0 pl-0' : 'pl-4 pr-3 justify-between'}`}>
           {collapsed ? (
-            <AppLogo size={64} />
+            <AppLogo size={48} />
           ) : (
             <>
               <div className="flex items-center gap-2">
-                <AppLogo size={60} />
+                <AppLogo size={46} />
                 <div className="leading-none">
                   <div className="font-bold text-[14px] tracking-tight" style={{ color: '#ffffff' }}>SETTO</div>
                   <div className="text-[9px] tracking-widest uppercase font-medium mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>Toolkit</div>
@@ -190,7 +190,7 @@ export function Sidebar(): JSX.Element {
                 style={{ color: 'rgba(255,255,255,0.25)' }}
                 title="Collapse sidebar"
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>chevron_left</span>
+                <ChevronLeft size={16} />
               </button>
             </>
           )}
@@ -233,31 +233,6 @@ export function Sidebar(): JSX.Element {
             />
           ))}
 
-          {/* Theme toggle */}
-          <div style={{ marginBottom: 2 }}>
-            <button
-              onClick={toggleTheme}
-              title={state.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-              style={{
-                height: 40,
-                display: 'flex',
-                alignItems: 'center',
-                width: 'calc(100% - 16px)',
-                marginLeft: 8,
-                borderRadius: 12,
-                justifyContent: collapsed ? 'center' : undefined,
-                paddingLeft: collapsed ? 0 : 12,
-                paddingRight: collapsed ? 0 : 12,
-                color: 'rgba(255,255,255,0.35)',
-              }}
-              className="hover:bg-white/[0.07] hover:!text-white/70 transition-colors duration-150 gap-3 text-[13px] font-medium"
-            >
-              <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '19px' }}>
-                {state.theme === 'dark' ? 'light_mode' : 'dark_mode'}
-              </span>
-              {!collapsed && <span>{state.theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>}
-            </button>
-          </div>
 
           {/* Expand (collapsed only) */}
           {collapsed && (
@@ -275,7 +250,7 @@ export function Sidebar(): JSX.Element {
               }}
               className="hover:bg-white/[0.07] hover:!text-white/50 transition-colors duration-150"
             >
-              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>chevron_right</span>
+              <ChevronRight size={15} />
             </button>
           )}
         </div>

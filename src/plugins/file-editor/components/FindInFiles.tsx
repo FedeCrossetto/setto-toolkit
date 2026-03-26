@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { Loader2, Search, X } from 'lucide-react'
 import type { FileTreeNode, FindResult } from '../types'
 import { languageIcon, detectLanguage } from '../hooks/useEditorTabs'
 
@@ -85,12 +86,12 @@ export function FindInFiles({ folders, onOpenAt, onClose }: FindInFilesProps): J
           disabled={!query.trim() || !scopeFolder || searching}
           className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 transition-colors"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>search</span>
+          {searching ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
           {searching ? 'Searching…' : 'Search'}
         </button>
 
         <button onClick={onClose} className="text-on-surface-variant/40 hover:text-on-surface-variant transition-colors">
-          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
+          <X size={16} />
         </button>
       </div>
 
@@ -105,9 +106,7 @@ export function FindInFiles({ folders, onOpenAt, onClose }: FindInFilesProps): J
         {Object.entries(grouped).map(([filePath, matches]) => (
           <div key={filePath}>
             <div className="flex items-center gap-2 px-3 py-1 bg-surface-container-low/60 sticky top-0">
-              <span className="material-symbols-outlined text-on-surface-variant/50" style={{ fontSize: '12px' }}>
-                {languageIcon(detectLanguage(matches[0].name))}
-              </span>
+              {(() => { const Icon = languageIcon(detectLanguage(matches[0].name)); return <Icon size={12} className="text-on-surface-variant/50" /> })()}
               <span className="font-medium text-on-surface-variant truncate">{matches[0].name}</span>
               <span className="text-on-surface-variant/30 text-[10px] truncate hidden sm:block">{filePath}</span>
               <span className="ml-auto text-on-surface-variant/40 text-[10px] flex-shrink-0">{matches.length}</span>

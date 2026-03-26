@@ -11,6 +11,7 @@ const SECURE_KEYS = new Set([
   'repo-search.bitbucket.token',
   'repo-search.github.token',
   'repo-search.gitlab.token',
+  'ticket-resolver.jira_token',
 ])
 
 const ENC_PREFIX = 'enc:'

@@ -27,6 +27,7 @@ const ALLOWED_KEYS = new Set([
   'ai.anthropic_model',     // Anthropic model name
   'ai.ollama_url',          // Ollama base URL (default: http://localhost:11434)
   'ai.ollama_model',        // Ollama model name
+  'ai.ollama_timeout',      // Ollama request timeout in minutes (default: 30)
   'bitbucket.workspace',
   'repo-search.aliases',
   'repo-search.github.client_id',  // public — needed for GitHub OAuth Device Flow
@@ -38,6 +39,9 @@ const ALLOWED_KEYS = new Set([
   'ticket-resolver.jira_token',
   'ticket-resolver.repo_path',
   'ticket-resolver.project_prefix',
+  'ticket-resolver.ui.font_size',
+  'ticket-resolver.ui.density',
+  'ticket-resolver.ui.line_height',
 ])
 
 /**

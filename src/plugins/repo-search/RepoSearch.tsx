@@ -1,4 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
+import {
+  ArrowRight, BarChart2, Building2, Check, ChevronDown, CircleAlert,
+  Copy, ExternalLink, Eye, EyeOff, FileText, Folder, FolderOpen,
+  History, KeyRound, LayoutGrid, Lock, Loader2, Search, SearchX,
+  User, Wrench, X,
+} from 'lucide-react'
 import { GoogleAuthWidget } from '../../core/components/GoogleAuthWidget'
 
 export type Provider = 'bitbucket' | 'github' | 'gitlab'
@@ -170,7 +176,7 @@ function ResultCard({ result, query = '' }: { result: SearchResult; query?: stri
       {/* Header */}
       <div className="px-4 py-2.5 bg-surface-container flex items-center justify-between border-b border-outline-variant/10">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="material-symbols-outlined text-secondary flex-shrink-0" style={{ fontSize: '15px' }}>description</span>
+          <FileText size={15} className="text-secondary flex-shrink-0" />
           <span className="text-sm font-semibold text-on-surface truncate">{fileName}</span>
           {result.line != null && (
             <span className="text-[10px] text-on-surface-variant/50 flex-shrink-0 font-mono">:{result.line}</span>
@@ -181,7 +187,7 @@ function ResultCard({ result, query = '' }: { result: SearchResult; query?: stri
             onClick={copySnippet}
             className="flex items-center gap-1 text-[10px] text-on-surface-variant hover:text-primary transition-colors px-2 py-1 rounded-md hover:bg-primary/10"
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>{copied ? 'check' : 'content_copy'}</span>
+            {copied ? <Check size={13} /> : <Copy size={13} />}
             {copied ? 'Copied' : 'Copy'}
           </button>
           <button
@@ -189,7 +195,7 @@ function ResultCard({ result, query = '' }: { result: SearchResult; query?: stri
             className="flex items-center gap-1 text-[10px] text-primary hover:text-secondary transition-colors px-2 py-1 rounded-md hover:bg-primary/10"
           >
             Open
-            <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>open_in_new</span>
+            <ExternalLink size={12} />
           </button>
         </div>
       </div>
@@ -224,13 +230,12 @@ function RepoGroup({ repo, results, defaultOpen, query }: { repo: string; result
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-3 px-4 py-3 bg-surface-container hover:bg-surface-container-high transition-colors text-left"
       >
-        <span
-          className="material-symbols-outlined text-on-surface-variant transition-transform duration-200 flex-shrink-0"
-          style={{ fontSize: '16px', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}
-        >
-          expand_more
-        </span>
-        <span className="material-symbols-outlined text-secondary flex-shrink-0" style={{ fontSize: '16px' }}>folder_open</span>
+        <ChevronDown
+          size={16}
+          className="text-on-surface-variant transition-transform duration-200 flex-shrink-0"
+          style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+        />
+        <FolderOpen size={16} className="text-secondary flex-shrink-0" />
         <span className="text-sm font-bold text-on-surface flex-1 truncate">{repo}</span>
         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary flex-shrink-0">
           {results.length} {results.length === 1 ? 'match' : 'matches'}
@@ -419,16 +424,14 @@ function LoginForm({ provider, onLogin }: { provider: Provider; onLogin: (auth: 
                 />
                 <button onClick={() => setShowToken((s) => !s)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary">
-                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                    {showToken ? 'visibility_off' : 'visibility'}
-                  </span>
+                  {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
 
             {error && (
               <div className="flex items-center gap-2 text-error text-xs bg-error-container/20 px-3 py-2 rounded-lg">
-                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+                <CircleAlert size={14} />
                 {error}
               </div>
             )}
@@ -518,7 +521,7 @@ function GitHubRepoPanel({
       />
       <span className="truncate">{repo.name}</span>
       {repo.private && (
-        <span className="material-symbols-outlined flex-shrink-0 text-[10px] text-on-surface-variant/30">lock</span>
+        <Lock size={10} className="flex-shrink-0 text-on-surface-variant/30" />
       )}
     </button>
   )
@@ -556,7 +559,7 @@ function GitHubRepoPanel({
                   : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
               }`}
             >
-              <span className="material-symbols-outlined flex-shrink-0 text-[13px]">person</span>
+              <User size={13} className="flex-shrink-0" />
               <span className="font-medium truncate">My repos</span>
               <span className="ml-auto text-[10px] text-on-surface-variant/40 flex-shrink-0">{personalRepos.length}</span>
             </button>
@@ -574,7 +577,7 @@ function GitHubRepoPanel({
                 <div key={org}>
                   {/* Org header */}
                   <div className="flex items-center gap-1.5 px-3 pt-3 pb-1">
-                    <span className="material-symbols-outlined text-on-surface-variant/40 text-[12px]">corporate_fare</span>
+                    <Building2 size={12} className="text-on-surface-variant/40" />
                     <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 truncate">{org}</span>
                   </div>
                   {visibleOrgRepos.map((repo) => (
@@ -799,7 +802,7 @@ export function RepoSearch(): JSX.Element {
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center flex flex-col items-center gap-4 p-8">
             <div className="w-14 h-14 rounded-2xl bg-surface-container flex items-center justify-center border border-outline-variant/20">
-              <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: '28px' }}>construction</span>
+              <Wrench size={28} className="text-on-surface-variant" />
             </div>
             <div>
               <p className="text-sm font-semibold text-on-surface">GitLab — Coming soon</p>
@@ -836,7 +839,7 @@ export function RepoSearch(): JSX.Element {
             {/* No-token banner: logged in with Google but no provider PAT stored */}
             {error === 'NOT_AUTHENTICATED' && (
               <div className="mx-8 mt-4 flex items-start gap-3 px-4 py-3 rounded-xl bg-warning/10 border border-warning/20 text-sm text-on-surface">
-                <span className="material-symbols-outlined flex-shrink-0 text-warning mt-0.5" style={{ fontSize: '18px' }}>key_off</span>
+                <KeyRound size={18} className="flex-shrink-0 text-warning mt-0.5" />
                 <span className="flex-1">
                   <span className="font-semibold text-warning">Provider token required.</span>
                   {' '}Your Google session identifies who you are, but to search in{' '}
@@ -856,7 +859,7 @@ export function RepoSearch(): JSX.Element {
             {/* Search bar */}
             <div className="px-8 py-4 border-b border-outline-variant/10 bg-surface-container-low flex items-center gap-4">
               <div className="relative flex-1 max-w-2xl" ref={historyContainerRef}>
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-on-surface-variant" style={{ fontSize: '18px' }}>search</span>
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <input
                   ref={inputRef}
                   type="text"
@@ -897,7 +900,7 @@ export function RepoSearch(): JSX.Element {
                         onClick={() => { setQuery(h); setShowHistory(false); void handleSearch(h) }}
                         className="w-full flex items-center gap-3 px-3 py-2 text-sm text-on-surface hover:bg-primary/5 transition-colors text-left"
                       >
-                        <span className="material-symbols-outlined text-on-surface-variant/50" style={{ fontSize: '14px' }}>history</span>
+                        <History size={14} className="text-on-surface-variant/50" />
                         {h}
                       </button>
                     ))}
@@ -913,7 +916,7 @@ export function RepoSearch(): JSX.Element {
               >
                 {loading ? (
                   <span className="flex items-center gap-2">
-                    <span className="material-symbols-outlined animate-spin" style={{ fontSize: '14px' }}>progress_activity</span>
+                    <Loader2 size={14} className="animate-spin" />
                     Searching…
                   </span>
                 ) : 'Search'}
@@ -924,7 +927,7 @@ export function RepoSearch(): JSX.Element {
             <div className="flex-1 overflow-y-auto p-8 space-y-4">
               {error && error !== 'NOT_AUTHENTICATED' && (
                 <div className="flex items-center gap-3 text-error bg-error-container/20 px-4 py-3 rounded-xl border border-error/20">
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>error</span>
+                  <CircleAlert size={18} />
                   <span className="text-sm">{error}</span>
                 </div>
               )}
@@ -944,7 +947,7 @@ export function RepoSearch(): JSX.Element {
               {!loading && !error && count === 0 && query && (
                 <div className="flex items-center justify-center py-16">
                   <div className="text-center max-w-xs">
-                    <span className="material-symbols-outlined text-on-surface-variant block mb-3" style={{ fontSize: '40px' }}>search_off</span>
+                    <SearchX size={40} className="text-on-surface-variant block mb-3 mx-auto" />
                     <p className="text-on-surface text-sm font-medium">No results for "{query}"</p>
                     {provider === 'github' && (
                       <p className="text-on-surface-variant text-xs mt-2 leading-relaxed">
@@ -968,7 +971,7 @@ export function RepoSearch(): JSX.Element {
                         onClick={() => { setQuery(s); void handleSearch(s) }}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs bg-surface-container border border-outline-variant/15 text-on-surface-variant hover:text-primary hover:border-primary/30 transition-colors font-mono"
                       >
-                        <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>search</span>
+                        <Search size={12} />
                         {s}
                       </button>
                     ))}
@@ -1007,14 +1010,14 @@ export function RepoSearch(): JSX.Element {
                       />
                     ) : (
                       <div className="w-6 h-6 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0">
-                        <span className="material-symbols-outlined text-secondary" style={{ fontSize: '14px' }}>person</span>
+                        <User size={14} className="text-secondary" />
                       </div>
                     )}
                     <div className="min-w-0">
                       <div className="text-sm font-medium text-on-surface truncate">{auth.username}</div>
                       {(auth.workspace ?? auth.org) && (
                         <div className="flex items-center gap-1 text-[10px] text-on-surface-variant mt-0.5">
-                          <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>folder</span>
+                          <Folder size={11} />
                           <span className="truncate">{auth.workspace ?? auth.org}</span>
                         </div>
                       )}
@@ -1032,9 +1035,7 @@ export function RepoSearch(): JSX.Element {
               <div>
                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Searching in</h3>
                 <div className="bg-surface-container rounded-xl px-3 py-2 border border-outline-variant/10 text-xs text-on-surface-variant flex items-center gap-2">
-                  <span className="material-symbols-outlined flex-shrink-0 text-primary" style={{ fontSize: '14px' }}>
-                    {selectedRepo ? 'folder_open' : 'folder_special'}
-                  </span>
+                  <FolderOpen size={14} className="flex-shrink-0 text-primary" />
                   <span className="truncate">
                     {selectedRepo
                       ? <>
@@ -1066,9 +1067,7 @@ export function RepoSearch(): JSX.Element {
                         }`}
                       >
                         <span className="flex items-center gap-2 min-w-0">
-                          <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '13px' }}>
-                            {repo === 'All' ? 'select_all' : 'folder'}
-                          </span>
+                          {repo === 'All' ? <LayoutGrid size={13} className="flex-shrink-0" /> : <Folder size={13} className="flex-shrink-0" />}
                           <span className="truncate">{repo === 'All' ? 'All' : repo}</span>
                         </span>
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ml-2 ${
@@ -1091,7 +1090,7 @@ export function RepoSearch(): JSX.Element {
                 {aliases.map((a, i) => (
                   <div key={i} className="flex items-center gap-1.5 bg-surface-container rounded-lg px-2 py-1.5">
                     <span className="text-[10px] font-mono text-on-surface flex-1 truncate">{a.from}</span>
-                    <span className="material-symbols-outlined text-on-surface-variant/40 flex-shrink-0" style={{ fontSize: '11px' }}>arrow_forward</span>
+                    <ArrowRight size={11} className="text-on-surface-variant/40 flex-shrink-0" />
                     <span className="text-[10px] font-mono text-primary flex-1 truncate">{a.to}</span>
                     <button
                       onClick={() => {
@@ -1101,7 +1100,7 @@ export function RepoSearch(): JSX.Element {
                       }}
                       className="text-on-surface-variant hover:text-error transition-colors flex-shrink-0"
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>close</span>
+                      <X size={13} />
                     </button>
                   </div>
                 ))}
@@ -1113,7 +1112,7 @@ export function RepoSearch(): JSX.Element {
                   placeholder="repo"
                   className="flex-1 min-w-0 bg-surface-container-highest border-none rounded-lg px-2 py-1.5 text-[11px] font-mono text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary"
                 />
-                <span className="material-symbols-outlined text-on-surface-variant/40 self-center flex-shrink-0" style={{ fontSize: '12px' }}>arrow_forward</span>
+                <ArrowRight size={12} className="text-on-surface-variant/40 self-center flex-shrink-0" />
                 <input
                   value={newAliasTo}
                   onChange={(e) => setNewAliasTo(e.target.value)}
@@ -1142,7 +1141,7 @@ export function RepoSearch(): JSX.Element {
                 <div className="relative">
                   <div className="w-9 h-9 rounded-xl mb-3 flex items-center justify-center"
                     style={{ background: 'var(--gradient-brand)', boxShadow: '0 0 20px rgba(83,221,252,0.3)' }}>
-                    <span className="material-symbols-outlined text-on-primary-fixed" style={{ fontSize: '16px' }}>bar_chart</span>
+                    <BarChart2 size={16} className="text-on-primary-fixed" />
                   </div>
                   <div className="text-sm font-extrabold text-on-surface">{count} results</div>
                   <div className="text-xs text-on-surface-variant mt-0.5">

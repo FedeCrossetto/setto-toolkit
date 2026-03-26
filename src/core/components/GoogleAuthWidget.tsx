@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { LogOut, MoreVertical } from 'lucide-react'
 
 interface GoogleUser {
   email:   string
@@ -79,9 +80,7 @@ export function GoogleAuthWidget({ collapsed, onSignIn }: GoogleAuthWidgetProps)
             </div>
           )}
           {!collapsed && (
-            <span className="material-symbols-outlined text-on-surface-variant/40 flex-shrink-0" style={{ fontSize: '14px' }}>
-              more_vert
-            </span>
+            <MoreVertical size={14} className="text-on-surface-variant/40 flex-shrink-0" />
           )}
         </button>
 
@@ -99,7 +98,7 @@ export function GoogleAuthWidget({ collapsed, onSignIn }: GoogleAuthWidgetProps)
                 onClick={handleSignOut}
                 className="w-full flex items-center gap-2 px-3 py-2 text-xs text-error hover:bg-error/10 transition-colors"
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>logout</span>
+                <LogOut size={14} />
                 Sign out
               </button>
             </div>

@@ -1,4 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ComponentType } from 'react'
+import { Database, Lock, ShieldCheck, Tag, Wrench } from 'lucide-react'
+
+const INFO_ICONS: Record<string, ComponentType<{ size?: number; className?: string }>> = {
+  category:  Tag,
+  security:  ShieldCheck,
+  storage:   Database,
+  lock:      Lock,
+  construction: Wrench,
+}
 
 export function About(): JSX.Element {
   const [version, setVersion] = useState<string>('...')
@@ -12,12 +21,7 @@ export function About(): JSX.Element {
       {/* Header */}
       <div className="flex items-center gap-5 mb-10">
         <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
-          <span
-            className="material-symbols-outlined text-primary"
-            style={{ fontSize: '32px', fontVariationSettings: "'FILL' 1" }}
-          >
-            construction
-          </span>
+          <Wrench size={32} className="text-primary" />
         </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-on-surface">Setto Toolkit</h1>
@@ -49,14 +53,10 @@ export function About(): JSX.Element {
 }
 
 function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }): JSX.Element {
+  const Icon = INFO_ICONS[icon] ?? Tag
   return (
     <div className="flex items-center gap-4 px-4 py-3 bg-surface rounded-xl border border-outline-variant/15">
-      <span
-        className="material-symbols-outlined text-on-surface-variant/50 flex-shrink-0"
-        style={{ fontSize: '18px' }}
-      >
-        {icon}
-      </span>
+      <Icon size={18} className="text-on-surface-variant/50 flex-shrink-0" />
       <span className="text-xs text-on-surface-variant/60 w-36 flex-shrink-0">{label}</span>
       <span className="text-xs text-on-surface font-medium">{value}</span>
     </div>

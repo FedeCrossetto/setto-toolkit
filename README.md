@@ -173,6 +173,54 @@ Podés usar `src/plugins/_template/` como punto de partida.
 
 ## Changelog
 
+### v2.4.0 — 2026-03-26
+
+#### Ticket Resolver — refactor visual completo
+
+- **Animaciones CSS**: se inyectan estilos globales al montar el plugin (`tr-fadein`, `tr-shimmer`, `tr-pop`, `tr-pulse`) para transiciones coherentes sin depender del sistema de clases de Tailwind.
+- **`TicketDetailCard`**: nuevo diseño con skeleton loading mientras se fetchea el ticket, descripción expandible y badge de prioridad con color de fondo diferenciado.
+- **`PlanCard`**: rediseñado con chips de metadata (componente, tecnología, tokens estimados, términos), barra de progreso de pasos con indicador de porcentaje y estado "Completado" por paso.
+- **`AnalyzingPanel`**: barra de progreso global durante el análisis, con conteo de pasos completados / totales.
+- **`CommentCard`** (nuevo): genera un comentario estructurado listo para pegar en el ticket de Jira — tres secciones (Causa del error, Solución, Cómo probarlo) con botón de copia del bloque completo.
+- **`DisplaySettings`** (nuevo): panel de configuración visual inline dentro del engranaje de config — font size (small / normal / large), densidad de cards (compact / comfortable) e interlineado (tight / normal / relaxed). Las preferencias se persisten por sesión.
+- **`TokenCounter`** (nuevo): contador de tokens de sesión en el header — muestra tokens totales, desglose in/out, porcentaje de uso de la ventana de contexto (200k) con barra de colores (verde → naranja → rojo), y botón de reset.
+- **Tabs en el panel de configuración**: el engranaje abre ahora dos pestañas — "Conexión" (Jira URL / email / token / repo / prefijo) y "Visualización" (DisplaySettings).
+- **`Skel`**: nuevo componente de skeleton genérico reutilizable dentro del plugin.
+- **`TicketComment`**: nuevo tipo en `types.ts` con campos `causa`, `solucion` y `comoProbarlo`.
+
+#### AI Service — token tracking y Ollama mejorado
+
+- **Token tracking por sesión**: `AIService` acumula `inputTokens`, `outputTokens`, `calls` y `contextWindowSize` (200k) durante la sesión. Métodos `getSessionUsage()` y `resetSessionUsage()`. Nuevo canal IPC `ticket-resolver:ai-usage-get`.
+- **Anthropic**: los tokens de uso se leen de la respuesta de la API y se suman al acumulador de sesión.
+- **Ollama timeout configurable**: nuevo campo en Settings (5–120 min, default 30). El timeout se aplica via `http.request` nativo en lugar de `fetch` para soportar respuestas lentas de modelos grandes.
+- **Ollama HTTPS**: el cliente detecta automáticamente el protocolo de la URL (`http` / `https`) y usa el transport correspondiente.
+- **`think: false`**: se envía en el body de Ollama para desactivar el modo de razonamiento lento en modelos como `qwen3`, `deepseek-r1`, etc.
+
+#### Settings — modelos Anthropic actualizados y Ollama timeout
+
+- **Modelos Anthropic**: lista actualizada — `claude-haiku-4-5-20251001`, `claude-sonnet-4-5-20251001`, `claude-sonnet-4-6`, `claude-opus-4-6`. Modelo por defecto cambiado a `claude-sonnet-4-5-20251001`.
+- **Ollama Timeout**: nuevo campo numérico (5–120 min) con descripción orientativa para modelos grandes en CPU.
+- **Iconos de módulos en Lucide**: la lista de plugins habilitados en Settings usa `PluginIcon` (Lucide) en lugar de `<span class="material-symbols-outlined">`.
+
+#### Core — `pluginIcons.tsx` (nuevo archivo)
+
+- Centraliza el mapeo de los icon strings de los manifests de plugin a sus componentes Lucide correspondientes.
+- Exporta `PluginIcon` con props `icon`, `size`, `className` y `style`.
+- Usado en Sidebar, SettingsPage y cualquier lugar que necesite renderizar el ícono de un plugin sin depender de Material Symbols.
+
+#### Migración a Lucide (Sidebar y About)
+
+- **Sidebar**: los iconos de navegación de plugins ahora usan `PluginIcon` (Lucide) en lugar de `<span class="material-symbols-outlined">`. Los botones de colapso usan `ChevronLeft` / `ChevronRight`.
+- **About**: los íconos de las cards de información usan componentes Lucide (`ShieldCheck`, `Database`, `Lock`, `Wrench`, `Tag`) en lugar de Material Symbols.
+
+#### Handlers — robustez y calidad de prompts
+
+- **Detección de respuesta no-JSON de Jira**: `ticket-resolver:fetch` verifica el `content-type` antes de parsear — si Jira retorna HTML (p. ej. redirección a SSO o login), lanza un mensaje de error claro con instrucción de verificar la URL en Settings.
+- **Prompts reforzados en español**: los handlers de `plan` y `analyze` incluyen instrucciones explícitas y redundantes para que la IA responda íntegramente en español (`REGLA ABSOLUTA E INQUEBRANTABLE`).
+- **`ticketComment` en el resultado**: el handler `ticket-resolver:analyze` incluye el campo `ticketComment` en el JSON solicitado a la IA — causa raíz, solución y pasos de prueba, todos en español.
+
+---
+
 ### v2.3.1 — 2026-03-25
 
 #### UI — Layout flotante

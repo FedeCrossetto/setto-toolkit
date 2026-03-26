@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Fuse from 'fuse.js'
+import { ArrowRight, Search } from 'lucide-react'
 import { useApp } from '../AppContext'
 import { allPlugins } from '../plugin-registry'
+import { PluginIcon } from '../pluginIcons'
 import type { PluginManifest } from '../types'
 
 export function CommandPalette(): JSX.Element | null {
@@ -55,7 +57,7 @@ export function CommandPalette(): JSX.Element | null {
       >
         {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-outline-variant/20">
-          <span className="material-symbols-outlined text-primary" style={{ fontSize: '20px' }}>search</span>
+          <Search size={20} className="text-primary" />
           <input
             ref={inputRef}
             value={query}
@@ -78,17 +80,13 @@ export function CommandPalette(): JSX.Element | null {
                 onClick={() => openPlugin(plugin.id)}
               >
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-primary" style={{ fontSize: '16px' }}>
-                    {plugin.icon}
-                  </span>
+                  <PluginIcon icon={plugin.icon} size={16} className="text-primary" />
                 </div>
                 <div>
                   <div className="text-sm font-medium text-on-surface">{plugin.name}</div>
                   <div className="text-xs text-on-surface-variant">{plugin.description}</div>
                 </div>
-                <span className="material-symbols-outlined text-on-surface-variant ml-auto" style={{ fontSize: '14px' }}>
-                  arrow_forward
-                </span>
+                <ArrowRight size={14} className="text-on-surface-variant ml-auto" />
               </button>
             ))
           )}

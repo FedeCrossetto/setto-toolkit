@@ -83,13 +83,31 @@ export const handlers: PluginHandlers = {
 
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 15_000)
-      const res = await fetch(url, {
-        headers: { Authorization: `Basic ${auth}`, Accept: 'application/json' },
-        signal: controller.signal,
-      }).finally(() => clearTimeout(timeout))
+      let res: Response
+      try {
+        res = await fetch(url, {
+          headers: { Authorization: `Basic ${auth}`, Accept: 'application/json' },
+          signal: controller.signal,
+        })
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          throw new Error('Jira request timed out after 15 seconds — check the Jira URL and your network connection')
+        }
+        throw err
+      } finally {
+        clearTimeout(timeout)
+      }
       if (res.status === 404) throw new Error(`Ticket ${normalizedKey} not found in Jira`)
       if (res.status === 401) throw new Error('Jira authentication failed — check credentials in config')
       if (!res.ok) throw new Error(`Jira API error ${res.status}`)
+
+      const contentType = res.headers.get('content-type') ?? ''
+      if (!contentType.includes('application/json')) {
+        throw new Error(
+          `Jira returned non-JSON response (${contentType || 'no content-type'}) — ` +
+          `the URL may be wrong or redirecting to an SSO/login page. Check the Jira URL in settings.`
+        )
+      }
 
       const d = await res.json() as {
         key: string
@@ -127,26 +145,33 @@ export const handlers: PluginHandlers = {
       const { text } = await ai.complete([
         {
           role: 'system',
-          content: 'You are a code analyst for WinSystems financial software. Return ONLY valid JSON — no markdown fences, no explanation.',
+          content: [
+            'Eres un analista de código para WinSystems, software financiero.',
+            'REGLA ABSOLUTA E INQUEBRANTABLE: escribir SOLO en idioma español.',
+            'Está estrictamente PROHIBIDO usar inglés en cualquier campo.',
+            'Responde ÚNICAMENTE con JSON válido. Sin bloques markdown, sin texto extra.',
+          ].join(' '),
         },
         {
           role: 'user',
-          content: `Analyze this Jira ticket and return a JSON analysis plan.
+          content: `IMPORTANTE: TODA tu respuesta debe estar en español. Ningún campo puede contener inglés.
+
+Analiza este ticket de Jira y devuelve un plan de análisis en JSON.
 
 Ticket: ${ticket.key} — ${ticket.summary}
-Type: ${ticket.type} | Priority: ${ticket.priority}
-Components: ${ticket.components.join(', ') || 'none'}
-Description:
+Tipo: ${ticket.type} | Prioridad: ${ticket.priority}
+Componentes: ${ticket.components.join(', ') || 'ninguno'}
+Descripción:
 ${ticket.description.slice(0, 600)}
 
-Return exactly this JSON shape:
+Devuelve SOLO este JSON con todos los textos en español:
 {
-  "component": "affected component or module name",
-  "technology": "main tech involved (C#, VB.NET, SQL, etc)",
-  "nature": "one-sentence problem summary",
-  "searchTerms": ["ClassName", "methodOrErrorKeyword", "folderOrModule"],
+  "component": "nombre del componente o módulo afectado",
+  "technology": "tecnología principal (C#, VB.NET, SQL, etc)",
+  "nature": "resumen del problema en una oración en español",
+  "searchTerms": ["NombreClase", "metodoOErrorClave", "carpetaOModulo"],
   "steps": [
-    { "id": "1", "label": "step label", "detail": "what will be done" }
+    { "id": "1", "label": "etiqueta del paso en español", "detail": "descripción en español de qué se hará" }
   ],
   "estimatedTokens": 900
 }`,
@@ -176,38 +201,50 @@ Return exactly this JSON shape:
       snippets: CodeSnippet[],
     ) => {
       const codeCtx = snippets.length > 0
-        ? snippets.map(s => `// ${s.file} (line ${s.line})\n${s.context}`).join('\n\n---\n\n')
-        : 'No relevant code found in repo — analyze from description only.'
+        ? snippets.map(s => `// ${s.file} (línea ${s.line})\n${s.context}`).join('\n\n---\n\n')
+        : 'Sin código encontrado en el repositorio. Analizar únicamente desde la descripción del ticket.'
 
       const { text } = await ai.complete([
         {
           role: 'system',
-          content: 'You are a senior developer fixing bugs in WinSystems financial software. Return ONLY valid JSON — no markdown fences.',
+          content: [
+            'Eres un desarrollador senior resolviendo bugs en WinSystems, software financiero.',
+            'REGLA ABSOLUTA E INQUEBRANTABLE: escribir SOLO en idioma español.',
+            'Está estrictamente PROHIBIDO escribir en inglés.',
+            'Responde ÚNICAMENTE con JSON válido. Sin bloques markdown, sin texto extra.',
+          ].join(' '),
         },
         {
           role: 'user',
-          content: `TICKET: ${ticket.key} — ${ticket.summary}
-TYPE: ${ticket.type} | PRIORITY: ${ticket.priority}
-COMPONENT: ${plan.component} | TECH: ${plan.technology}
-PROBLEM: ${plan.nature}
-DESCRIPTION: ${ticket.description.slice(0, 400)}
+          content: `IMPORTANTE: TODA tu respuesta debe estar en español. Ningún campo puede contener inglés.
 
-RELEVANT CODE:
+TICKET: ${ticket.key} — ${ticket.summary}
+TIPO: ${ticket.type} | PRIORIDAD: ${ticket.priority}
+COMPONENTE: ${plan.component} | TECNOLOGÍA: ${plan.technology}
+PROBLEMA: ${plan.nature}
+DESCRIPCIÓN: ${ticket.description.slice(0, 400)}
+
+CÓDIGO RELEVANTE:
 ${codeCtx}
 
-Return exactly this JSON shape:
+Devuelve SOLO este JSON con TODOS los textos en español:
 {
-  "rootCause": "clear explanation of root cause",
-  "fix": "detailed fix description with code where applicable",
-  "affectedFiles": ["relative/path/to/file.cs"],
+  "rootCause": "explicación clara de la causa raíz EN ESPAÑOL",
+  "fix": "descripción detallada del fix EN ESPAÑOL, con código donde corresponda",
+  "affectedFiles": ["ruta/relativa/archivo.cs"],
   "diff": [
     {
-      "file": "relative/path/to/file.cs",
+      "file": "ruta/relativa/archivo.cs",
       "lineStart": 100,
-      "original": "original code line(s)",
-      "modified": "fixed code line(s)"
+      "original": "línea(s) de código original",
+      "modified": "línea(s) de código corregido"
     }
-  ]
+  ],
+  "ticketComment": {
+    "causa": "causa raíz concisa EN ESPAÑOL para comentar en el ticket",
+    "solucion": "solución implementada EN ESPAÑOL para comentar en el ticket",
+    "comoProbarlo": "pasos concretos EN ESPAÑOL para verificar que el fix funciona"
+  }
 }`,
         },
       ], { skipCache: true })
@@ -231,6 +268,15 @@ Return exactly this JSON shape:
       const idx = all.findIndex(h => h.id === entry.id)
       if (idx >= 0) { all[idx] = entry } else { all.unshift(entry) }
       db.writeJSON(HISTORY_FILE, all.slice(0, 100))
+      return { ok: true }
+    })
+
+    // AI usage — get session stats
+    ipcMain.handle('ticket-resolver:ai-usage-get', () => ai.getSessionUsage())
+
+    // AI usage — reset session stats
+    ipcMain.handle('ticket-resolver:ai-usage-reset', () => {
+      ai.resetSessionUsage()
       return { ok: true }
     })
 

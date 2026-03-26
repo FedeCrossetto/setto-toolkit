@@ -33,6 +33,7 @@
     "diff": "^5.2.0",
     "electron-store": "^11.0.2",
     "fuse.js": "^7.0.0",
+    "lucide-react": "^1.7.0",
     "openai": "^4.47.0"
   },
   "devDependencies": {
@@ -73,7 +74,27 @@
         "role": "Editor"
       },
       {
-        "ext": ["js", "ts", "tsx", "jsx", "json", "css", "html", "md", "py", "java", "cpp", "c", "cs", "go", "rs", "yaml", "yml", "xml", "sql"],
+        "ext": [
+          "js",
+          "ts",
+          "tsx",
+          "jsx",
+          "json",
+          "css",
+          "html",
+          "md",
+          "py",
+          "java",
+          "cpp",
+          "c",
+          "cs",
+          "go",
+          "rs",
+          "yaml",
+          "yml",
+          "xml",
+          "sql"
+        ],
         "name": "Source File",
         "description": "Open with Setto",
         "role": "Editor"

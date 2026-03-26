@@ -1,4 +1,10 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
+import {
+  ArrowDown, ChevronDown, ChevronRight, Copy, Diff, Eye, EyeOff,
+  FileInput, FilePlus, FileSearch, FileText, Filter, Folder,
+  FolderOpen, FolderPlus, FolderSearch, History, Pause, Pencil, Play,
+  RotateCcw, Save, SlidersHorizontal, Trash2, WrapText, X,
+} from 'lucide-react'
 import { useApp } from '../../core/AppContext'
 import { dragState } from '../../core/dragState'
 import { useEditorTabs, languageIcon, detectLanguage } from './hooks/useEditorTabs'
@@ -296,12 +302,12 @@ export function FileEditor(): JSX.Element {
     e.preventDefault(); e.stopPropagation()
     const dirPath = node.isDir ? node.path : getParentDir(node.path)
     const items: MenuItem[] = [
-      { label: 'New File',   icon: 'note_add',          action: () => setCreating({ parentPath: dirPath, type: 'file' }) },
-      { label: 'New Folder', icon: 'create_new_folder', action: () => setCreating({ parentPath: dirPath, type: 'dir'  }) },
-      { divider: true, label: '', icon: '', action: () => {} },
-      { label: 'Rename', icon: 'drive_file_rename_outline', action: () => setRenaming(node.path) },
+      { label: 'New File',   icon: FilePlus,   action: () => setCreating({ parentPath: dirPath, type: 'file' }) },
+      { label: 'New Folder', icon: FolderPlus, action: () => setCreating({ parentPath: dirPath, type: 'dir'  }) },
+      { divider: true, label: '', action: () => {} },
+      { label: 'Rename', icon: Pencil, action: () => setRenaming(node.path) },
       ...(node.path !== rootPath ? [{
-        label: 'Delete', icon: 'delete', danger: true,
+        label: 'Delete', icon: Trash2, danger: true,
         action: async () => {
           const confirmed = await new Promise<boolean>((resolve) =>
             setDeleteConfirm({ name: node.name, isDir: node.isDir, resolve })
@@ -312,9 +318,9 @@ export function FileEditor(): JSX.Element {
           refreshFolder(rootPath)
         },
       }] : []),
-      { divider: true, label: '', icon: '', action: () => {} },
-      { label: 'Copy Path',          icon: 'content_copy', action: () => navigator.clipboard.writeText(node.path) },
-      { label: 'Reveal in Explorer', icon: 'folder_open',  action: () => window.api.invoke('editor:reveal', node.path) },
+      { divider: true, label: '', action: () => {} },
+      { label: 'Copy Path',          icon: Copy,       action: () => navigator.clipboard.writeText(node.path) },
+      { label: 'Reveal in Explorer', icon: FolderOpen, action: () => window.api.invoke('editor:reveal', node.path) },
     ]
     setCtxMenu({ x: e.clientX, y: e.clientY, items })
   }
@@ -349,20 +355,20 @@ export function FileEditor(): JSX.Element {
     setCtxMenu({
       x: e.clientX, y: e.clientY,
       items: [
-        { label: 'Rename',             icon: 'edit',         action: () => setRenamingTabId(tab.id) },
-        { label: 'Save',               icon: 'save',         action: saveActive },
-        { divider: true, label: '', icon: '', action: () => {} },
-        { label: 'Compare in Smart Diff', icon: 'difference', action: () => dispatch({ type: 'SEND_TO_DIFF', name: tab.name, path: tab.path, content: tab.content }) },
+        { label: 'Rename',             icon: Pencil, action: () => setRenamingTabId(tab.id) },
+        { label: 'Save',               icon: Save,   action: saveActive },
+        { divider: true, label: '', action: () => {} },
+        { label: 'Compare in Smart Diff', icon: Diff, action: () => dispatch({ type: 'SEND_TO_DIFF', name: tab.name, path: tab.path, content: tab.content }) },
         ...(selectedIds.size === 2 && selectedIds.has(tab.id) ? [
-          { label: 'Compare 2 selected files', icon: 'difference', action: sendSelectedToDiff },
+          { label: 'Compare 2 selected files', icon: Diff, action: sendSelectedToDiff },
         ] : []),
         { divider: true, label: '', icon: '', action: () => {} },
         ...(tab.path ? [
-          { label: 'Copy Path',          icon: 'content_copy', action: () => navigator.clipboard.writeText(tab.path!) },
-          { label: 'Reveal in Explorer', icon: 'folder_open',  action: () => window.api.invoke('editor:reveal', tab.path!) },
-          { divider: true, label: '', icon: '', action: () => {} },
+          { label: 'Copy Path',          icon: Copy,       action: () => navigator.clipboard.writeText(tab.path!) },
+          { label: 'Reveal in Explorer', icon: FolderOpen, action: () => window.api.invoke('editor:reveal', tab.path!) },
+          { divider: true, label: '', action: () => {} },
         ] : []),
-        { label: 'Close', icon: 'close', action: () => handleCloseTab(tab.id), danger: true },
+        { label: 'Close', icon: X, action: () => handleCloseTab(tab.id), danger: true },
       ],
     })
   }
@@ -373,8 +379,8 @@ export function FileEditor(): JSX.Element {
     setCtxMenu({
       x: e.clientX, y: e.clientY,
       items: [
-        { label: 'New file', icon: 'note_add', action: createNewFile },
-        { label: 'Open file...', icon: 'folder_open', action: openDialog },
+        { label: 'New file',   icon: FilePlus,   action: createNewFile },
+        { label: 'Open file...', icon: FolderOpen, action: openDialog },
       ],
     })
   }
@@ -461,7 +467,7 @@ export function FileEditor(): JSX.Element {
             <div className="flex items-center justify-between px-3 pt-3 pb-1.5 flex-shrink-0">
               <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">Explorer</span>
               <button onClick={openFolderDialog} title="Open folder" className="text-on-surface-variant hover:text-primary transition-colors">
-                <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>create_new_folder</span>
+                <FolderPlus size={15} />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto min-h-0 pb-1">
@@ -495,14 +501,14 @@ export function FileEditor(): JSX.Element {
             <div className="flex items-center gap-1">
               {folders.length === 0 && (
                 <button onClick={openFolderDialog} title="Open folder" className="text-on-surface-variant hover:text-primary transition-colors">
-                  <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>create_new_folder</span>
+                  <FolderPlus size={15} />
                 </button>
               )}
               <button onClick={createNewFile} title="New file (Untitled)" className="text-on-surface-variant hover:text-primary transition-colors">
-                <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>note_add</span>
+                <FilePlus size={15} />
               </button>
               <button onClick={openDialog} title="Open file" className="text-on-surface-variant hover:text-primary transition-colors">
-                <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>folder_open</span>
+                <FolderOpen size={15} />
               </button>
             </div>
           </div>
@@ -517,13 +523,13 @@ export function FileEditor(): JSX.Element {
               {selectedIds.size === 2 && (
                 <button onClick={sendSelectedToDiff}
                   className="flex items-center gap-1 ml-auto px-2 py-0.5 rounded-md text-[10px] font-bold text-[#887CFD] hover:bg-[#887CFD]/20 transition-colors">
-                  <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>difference</span>
+                  <Diff size={12} />
                   Compare
                 </button>
               )}
               <button onClick={() => setSelectedIds(new Set())} title="Clear selection"
                 className="text-[#887CFD]/50 hover:text-[#887CFD] transition-colors">
-                <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>close</span>
+                <X size={12} />
               </button>
             </div>
           )}
@@ -560,7 +566,7 @@ export function FileEditor(): JSX.Element {
               {recents.slice(0, 8).map((r) => (
                 <button key={r.path} onClick={() => openFile(r.path)} title={r.path}
                   className="flex items-center gap-2 w-full px-3 py-1.5 text-left hover:bg-surface-container transition-colors group">
-                  <span className="material-symbols-outlined text-on-surface-variant/50 flex-shrink-0" style={{ fontSize: '13px' }}>history</span>
+                  <History size={13} className="text-on-surface-variant/50 flex-shrink-0" />
                   <span className="text-[11px] text-on-surface-variant group-hover:text-on-surface truncate">{r.name}</span>
                 </button>
               ))}
@@ -596,13 +602,13 @@ export function FileEditor(): JSX.Element {
                     : activeId === tab.id
                       ? 'border-primary text-primary bg-surface-container-low'
                       : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}>
-                <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>{languageIcon(tab.language)}</span>
+                {(() => { const Icon = languageIcon(tab.language); return <Icon size={13} /> })()}
                 <span className={`max-w-[120px] truncate ${tab.path === null ? 'italic' : ''}`}>{tab.name}</span>
                 {tab.isDirty && <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />}
                 {tab.hasUpdate && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" />}
                 <button onClick={(e) => { e.stopPropagation(); void handleCloseTab(tab.id) }}
                   className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error transition-all ml-0.5">
-                  <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>close</span>
+                  <X size={11} />
                 </button>
               </div>
             ))}
@@ -612,18 +618,18 @@ export function FileEditor(): JSX.Element {
           <div className="flex items-center gap-0.5 px-2 flex-shrink-0">
             <button onClick={() => setQuickOpen(true)} title="Quick Open (Ctrl+P)"
               className="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors">
-              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>manage_search</span>
+              <FolderSearch size={15} />
             </button>
             <button onClick={() => setShowFind((v) => !v)} title="Find in files (Ctrl+Shift+F)"
               className={`p-1.5 rounded-lg transition-colors ${showFind ? 'text-primary bg-primary/10' : 'text-on-surface-variant hover:text-primary hover:bg-surface-container'}`}>
-              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>find_in_page</span>
+              <FileSearch size={15} />
             </button>
 
             {/* Settings */}
             <div className="relative" ref={settingsRef}>
               <button onClick={() => setSettingsOpen((v) => !v)} title="Editor settings"
                 className={`p-1.5 rounded-lg transition-colors ${settingsOpen ? 'text-primary bg-primary/10' : 'text-on-surface-variant hover:text-primary hover:bg-surface-container'}`}>
-                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>tune</span>
+                <SlidersHorizontal size={16} />
               </button>
 
               {settingsOpen && (
@@ -679,7 +685,7 @@ export function FileEditor(): JSX.Element {
           <div className="flex items-center gap-3 px-3 py-1 border-b border-outline-variant/15 bg-surface flex-shrink-0 text-xs">
             <button onClick={toggleWatch} title={activeTab.watchActive ? 'Stop monitoring' : 'Monitor file for changes'}
               className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-colors flex-shrink-0 ${activeTab.watchActive ? 'border-accent/40 text-accent bg-accent/10 font-semibold' : 'border-outline-variant/30 text-on-surface-variant hover:border-accent/30 hover:text-accent'}`}>
-              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>{activeTab.watchActive ? 'visibility' : 'visibility_off'}</span>
+              {activeTab.watchActive ? <Eye size={14} /> : <EyeOff size={14} />}
               Monitoring
             </button>
 
@@ -694,23 +700,23 @@ export function FileEditor(): JSX.Element {
                 )}
                 {/* Log filter */}
                 <div className="flex items-center gap-1.5 bg-surface-container border border-outline-variant/20 rounded-lg px-2 py-0.5">
-                  <span className="material-symbols-outlined text-on-surface-variant/40" style={{ fontSize: '12px' }}>filter_alt</span>
+                  <Filter size={12} className="text-on-surface-variant/40" />
                   <input value={logFilter} onChange={(e) => setLogFilter(e.target.value)} placeholder="Filter lines…"
                     className="bg-transparent text-[11px] text-on-surface outline-none placeholder:text-on-surface-variant/30 w-28" />
                   {logFilter && (
                     <button onClick={() => setLogFilter('')} className="text-on-surface-variant/40 hover:text-on-surface-variant">
-                      <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>close</span>
+                      <X size={11} />
                     </button>
                   )}
                 </div>
                 <div className="ml-auto flex items-center gap-1.5">
                   <button onClick={toggleTail} title="Auto-scroll to bottom"
                     className={`flex items-center gap-1 px-2 py-1 rounded-lg border transition-colors ${activeTab.tailMode ? 'border-primary/40 text-primary bg-primary/10' : 'border-outline-variant/30 text-on-surface-variant hover:border-primary/30'}`}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>arrow_downward</span>Tail
+                    <ArrowDown size={12} />Tail
                   </button>
                   <button onClick={toggleFreeze}
                     className={`flex items-center gap-1 px-2 py-1 rounded-lg border transition-colors ${activeTab.frozen ? 'border-error/40 text-error bg-error/10' : 'border-outline-variant/30 text-on-surface-variant hover:border-error/30'}`}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>{activeTab.frozen ? 'play_arrow' : 'pause'}</span>
+                    {activeTab.frozen ? <Play size={12} /> : <Pause size={12} />}
                     {activeTab.frozen ? 'Resume' : 'Freeze'}
                   </button>
                 </div>
@@ -745,7 +751,7 @@ export function FileEditor(): JSX.Element {
             {/* Drag overlay */}
             {isDragging && (
               <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 border-2 border-dashed border-primary/50 bg-primary/5 backdrop-blur-sm pointer-events-none">
-                <span className="material-symbols-outlined text-primary" style={{ fontSize: '48px' }}>file_open</span>
+                <FileInput size={48} className="text-primary" />
                 <p className="text-sm font-medium text-primary">Drop file or folder to open</p>
               </div>
             )}
@@ -773,25 +779,25 @@ export function FileEditor(): JSX.Element {
                   <>
                     <button onClick={() => navigator.clipboard.writeText(activeTab.path!)} title="Copy path"
                       className="flex items-center gap-0.5 hover:text-primary transition-colors">
-                      <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>content_copy</span>
+                      <Copy size={11} />
                       Path
                     </button>
                     <button onClick={() => window.api.invoke('editor:reveal', activeTab.path!)} title="Reveal in Explorer"
                       className="flex items-center gap-0.5 hover:text-primary transition-colors">
-                      <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>folder_open</span>
+                      <FolderOpen size={11} />
                       Reveal
                     </button>
                   </>
                 )}
                 <button onClick={toggleWrap} title="Toggle word wrap"
                   className={`flex items-center gap-0.5 transition-colors ${activeTab.wordWrap ? 'text-primary' : 'hover:text-primary'}`}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>wrap_text</span>
+                  <WrapText size={11} />
                   Wrap
                 </button>
                 {(activeTab.isDirty || activeTab.path === null) && (
                   <button onClick={saveActive} title={activeTab.path === null ? 'Save As (Ctrl+S)' : 'Save (Ctrl+S)'}
                     className="flex items-center gap-0.5 text-primary hover:opacity-80 transition-opacity">
-                    <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>save</span>
+                    <Save size={11} />
                     {activeTab.path === null ? 'Save As' : 'Save'}
                   </button>
                 )}
@@ -810,9 +816,7 @@ export function FileEditor(): JSX.Element {
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="w-[360px] bg-surface-container border border-outline-variant/30 rounded-2xl shadow-2xl p-5 flex flex-col gap-5">
             <div className="flex items-start gap-3">
-              <span className="material-symbols-outlined text-error flex-shrink-0 mt-0.5" style={{ fontSize: '22px', fontVariationSettings: "'FILL' 1" }}>
-                {deleteConfirm.isDir ? 'folder_delete' : 'delete'}
-              </span>
+              <Trash2 size={22} className="text-error flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-semibold text-on-surface">Delete {deleteConfirm.isDir ? 'folder' : 'file'}?</p>
                 <p className="text-[12px] text-on-surface-variant mt-1">
@@ -842,7 +846,7 @@ export function FileEditor(): JSX.Element {
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="w-[360px] bg-surface-container border border-outline-variant/30 rounded-2xl shadow-2xl p-5 flex flex-col gap-5">
             <div className="flex items-start gap-3">
-              <span className="material-symbols-outlined text-primary flex-shrink-0 mt-0.5" style={{ fontSize: '22px' }}>save</span>
+              <Save size={22} className="text-primary flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-semibold text-on-surface">Save changes?</p>
                 <p className="text-[12px] text-on-surface-variant mt-1">
@@ -903,8 +907,8 @@ function FolderRoot({ folder, expanded, onToggle, onClose, cb }: {
       <div className="flex items-center gap-1 px-2 py-1 group cursor-pointer hover:bg-surface-container transition-colors"
         onContextMenu={(e) => cb.onContextMenu(e, folder, folder.path)}>
         <button onClick={() => onToggle(folder.path)} className="flex items-center gap-1.5 flex-1 min-w-0 text-left">
-          <span className="material-symbols-outlined text-on-surface-variant/50 flex-shrink-0" style={{ fontSize: '13px' }}>{isOpen ? 'expand_more' : 'chevron_right'}</span>
-          <span className="material-symbols-outlined text-primary/70 flex-shrink-0" style={{ fontSize: '14px' }}>{isOpen ? 'folder_open' : 'folder'}</span>
+          {isOpen ? <ChevronDown size={13} className="text-on-surface-variant/50 flex-shrink-0" /> : <ChevronRight size={13} className="text-on-surface-variant/50 flex-shrink-0" />}
+          {isOpen ? <FolderOpen size={14} className="text-primary/70 flex-shrink-0" /> : <Folder size={14} className="text-primary/70 flex-shrink-0" />}
           {cb.renaming === folder.path
             ? <InlineInput defaultValue={folder.name} onCommit={(n) => cb.onRenameCommit(folder.path, n)} onCancel={cb.onCancel} />
             : <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wide truncate" title={folder.path}>{folder.name}</span>
@@ -912,7 +916,7 @@ function FolderRoot({ folder, expanded, onToggle, onClose, cb }: {
         </button>
         <button onClick={() => onClose(folder.path)} title="Close folder"
           className="opacity-0 group-hover:opacity-100 text-on-surface-variant/50 hover:text-error transition-all flex-shrink-0">
-          <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>close</span>
+          <X size={12} />
         </button>
       </div>
       {isOpen && (
@@ -920,9 +924,7 @@ function FolderRoot({ folder, expanded, onToggle, onClose, cb }: {
           {/* New file/folder inline input at top of root children */}
           {cb.creating?.parentPath === folder.path && (
             <div className="flex items-center gap-1 py-[3px]" style={{ paddingLeft: '20px', paddingRight: '8px' }}>
-              <span className="material-symbols-outlined text-primary/60 flex-shrink-0" style={{ fontSize: '13px' }}>
-                {cb.creating.type === 'file' ? 'description' : 'folder'}
-              </span>
+              {cb.creating.type === 'file' ? <FileText size={13} className="text-primary/60 flex-shrink-0" /> : <Folder size={13} className="text-primary/60 flex-shrink-0" />}
               <InlineInput defaultValue="" onCommit={(n) => cb.onCreateCommit(folder.path, n, cb.creating!.type)} onCancel={cb.onCancel} />
             </div>
           )}
@@ -949,12 +951,13 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
         className="flex items-center gap-1 py-[3px] cursor-pointer hover:bg-surface-container group transition-colors"
         style={{ paddingLeft: `${8 + indent}px`, paddingRight: '8px' }}>
         {node.isDir
-          ? <span className="material-symbols-outlined text-on-surface-variant/40 flex-shrink-0" style={{ fontSize: '13px' }}>{isOpen ? 'expand_more' : 'chevron_right'}</span>
+          ? (isOpen ? <ChevronDown size={13} className="text-on-surface-variant/40 flex-shrink-0" /> : <ChevronRight size={13} className="text-on-surface-variant/40 flex-shrink-0" />)
           : <span className="flex-shrink-0" style={{ width: '13px' }} />
         }
-        <span className={`material-symbols-outlined flex-shrink-0 ${node.isDir ? 'text-primary/60' : 'text-on-surface-variant/50'}`} style={{ fontSize: '13px' }}>
-          {node.isDir ? (isOpen ? 'folder_open' : 'folder') : languageIcon(detectLanguage(node.name))}
-        </span>
+        {node.isDir
+          ? (isOpen ? <FolderOpen size={13} className="text-primary/60 flex-shrink-0" /> : <Folder size={13} className="text-primary/60 flex-shrink-0" />)
+          : (() => { const Icon = languageIcon(detectLanguage(node.name)); return <Icon size={13} className="text-on-surface-variant/50 flex-shrink-0" /> })()
+        }
         {cb.renaming === node.path
           ? <InlineInput defaultValue={node.name} onCommit={(n) => cb.onRenameCommit(node.path, n)} onCancel={cb.onCancel} />
           : <span className="text-[11px] text-on-surface-variant group-hover:text-on-surface truncate flex-1">{node.name}</span>
@@ -966,9 +969,7 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
           {/* Inline create input inside this directory */}
           {cb.creating?.parentPath === node.path && (
             <div className="flex items-center gap-1 py-[3px]" style={{ paddingLeft: `${8 + (depth + 1) * 10}px`, paddingRight: '8px' }}>
-              <span className="material-symbols-outlined text-primary/60 flex-shrink-0" style={{ fontSize: '13px' }}>
-                {cb.creating.type === 'file' ? 'description' : 'folder'}
-              </span>
+              {cb.creating.type === 'file' ? <FileText size={13} className="text-primary/60 flex-shrink-0" /> : <Folder size={13} className="text-primary/60 flex-shrink-0" />}
               <InlineInput defaultValue="" onCommit={(n) => cb.onCreateCommit(node.path, n, cb.creating!.type)} onCancel={cb.onCancel} />
             </div>
           )}
@@ -1006,9 +1007,7 @@ function FileListItem({ tab, isActive, isSelected = false, onClick, onCtrlClick,
             ? 'border-transparent bg-primary/10 text-primary'
             : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
       }`}>
-      <span className={`material-symbols-outlined flex-shrink-0 ${isActive ? 'text-primary' : 'text-on-surface-variant/60'}`} style={{ fontSize: '15px' }}>
-        {languageIcon(tab.language)}
-      </span>
+      {(() => { const Icon = languageIcon(tab.language); return <Icon size={15} className={`flex-shrink-0 ${isActive ? 'text-primary' : 'text-on-surface-variant/60'}`} /> })()}
       {renaming ? (
         <InlineInput defaultValue={tab.name} onCommit={onRenameCommit} onCancel={onRenameCancel} />
       ) : (
@@ -1019,13 +1018,13 @@ function FileListItem({ tab, isActive, isSelected = false, onClick, onCtrlClick,
       {!renaming && (tab.isDirty || tab.path === null) && isActive && (
         <button onClick={(e) => { e.stopPropagation(); onSave() }} title="Save"
           className="opacity-0 group-hover:opacity-100 hover:text-primary transition-all flex-shrink-0">
-          <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>save</span>
+          <Save size={12} />
         </button>
       )}
       {!renaming && (
         <button onClick={(e) => { e.stopPropagation(); onClose() }}
           className="opacity-0 group-hover:opacity-100 hover:text-error transition-all flex-shrink-0">
-          <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>close</span>
+          <X size={12} />
         </button>
       )}
     </div>
@@ -1035,7 +1034,7 @@ function FileListItem({ tab, isActive, isSelected = false, onClick, onCtrlClick,
 function EmptyState({ onOpen }: { onOpen: () => void }): JSX.Element {
   return (
     <div className="flex flex-col items-center justify-center h-full gap-5 text-center select-none">
-      <span className="material-symbols-outlined text-on-surface-variant/20" style={{ fontSize: '72px' }}>text_snippet</span>
+      <FileText size={72} className="text-on-surface-variant/20" />
       <div>
         <p className="font-medium text-on-surface-variant text-sm">No file open</p>
         <p className="text-xs text-on-surface-variant/50 mt-1">Drop a file or folder here</p>
@@ -1043,7 +1042,7 @@ function EmptyState({ onOpen }: { onOpen: () => void }): JSX.Element {
       <button onClick={onOpen}
         className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-on-primary hover:opacity-90 transition-opacity"
         style={{ background: 'var(--gradient-brand)' }}>
-        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>folder_open</span>Open file
+        <FolderOpen size={16} />Open file
       </button>
     </div>
   )

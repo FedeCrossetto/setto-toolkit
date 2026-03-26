@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ComponentType } from 'react'
 
 export interface MenuItem {
   label: string
-  icon: string
+  icon?: ComponentType<{ size?: number; className?: string }>
   action: () => void
   danger?: boolean
   divider?: boolean
@@ -49,7 +49,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
                 : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
             }`}
           >
-            <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '15px' }}>{item.icon}</span>
+            {item.icon && <item.icon size={15} className="flex-shrink-0" />}
             {item.label}
           </button>
         )

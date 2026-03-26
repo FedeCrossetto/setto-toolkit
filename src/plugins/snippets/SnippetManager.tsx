@@ -1,5 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import Fuse from 'fuse.js'
+import {
+  BookMarked, Check, Copy, Download, Folder, LayoutGrid,
+  Pencil, Pin, Plus, Search, Trash2, Upload, X,
+} from 'lucide-react'
 import type { Snippet, SnippetCollection, SnippetLanguage } from './types'
 import { EditorView, basicSetup } from 'codemirror'
 import { EditorState } from '@codemirror/state'
@@ -97,7 +101,7 @@ function Tag({ label, onRemove }: { label: string; onRemove?: () => void }): JSX
       {label}
       {onRemove && (
         <button onClick={onRemove} className="hover:text-error transition-colors leading-none">
-          <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>close</span>
+          <X size={11} />
         </button>
       )}
     </span>
@@ -269,7 +273,7 @@ export function SnippetManager(): JSX.Element {
         {/* Search */}
         <div className="px-3 pt-3 pb-2 flex-shrink-0">
           <div className="flex items-center gap-2 bg-surface-container border border-outline-variant/25 rounded-xl px-3 py-2">
-            <span className="material-symbols-outlined text-on-surface-variant/50 flex-shrink-0" style={{ fontSize: '15px' }}>search</span>
+            <Search size={15} className="text-on-surface-variant/50 flex-shrink-0" />
             <input
               value={search} onChange={(e) => setSearch(e.target.value)}
               placeholder="Search snippets..."
@@ -277,7 +281,7 @@ export function SnippetManager(): JSX.Element {
             />
             {search && (
               <button onClick={() => setSearch('')} className="text-on-surface-variant/40 hover:text-on-surface-variant">
-                <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>close</span>
+                <X size={13} />
               </button>
             )}
           </div>
@@ -287,12 +291,12 @@ export function SnippetManager(): JSX.Element {
         <nav className="flex-1 overflow-y-auto px-2 pb-2">
           {/* All / Pinned */}
           {[
-            { id: 'all',    label: 'All snippets', icon: 'grid_view',     count: snippets.length },
-            { id: 'pinned', label: 'Pinned',        icon: 'push_pin',      count: snippets.filter((s) => s.pinned).length },
-          ].map(({ id, label, icon, count }) => (
+            { id: 'all',    label: 'All snippets', Icon: LayoutGrid, count: snippets.length },
+            { id: 'pinned', label: 'Pinned',        Icon: Pin,        count: snippets.filter((s) => s.pinned).length },
+          ].map(({ id, label, Icon, count }) => (
             <button key={id} onClick={() => setFilter(id)}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] font-medium transition-colors mb-0.5 ${filter === id ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}>
-              <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '15px' }}>{icon}</span>
+              <Icon size={15} className="flex-shrink-0" />
               <span className="flex-1 text-left">{label}</span>
               <span className="text-[10px] opacity-50">{count}</span>
             </button>
@@ -310,14 +314,14 @@ export function SnippetManager(): JSX.Element {
               <div key={col.id} className="group flex items-center">
                 <button onClick={() => setFilter(col.id)}
                   className={`flex-1 flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] font-medium transition-colors mb-0.5 ${filter === col.id ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}>
-                  <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '15px' }}>folder</span>
+                  <Folder size={15} className="flex-shrink-0" />
                   <span className="flex-1 text-left truncate">{col.name}</span>
                   <span className="text-[10px] opacity-50">{count}</span>
                 </button>
                 <button onClick={() => deleteCollection(col.id)}
                   className="opacity-0 group-hover:opacity-100 p-1 mr-1 text-on-surface-variant/40 hover:text-error transition-all"
                   title="Delete collection">
-                  <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>delete</span>
+                  <Trash2 size={13} />
                 </button>
               </div>
             )
@@ -330,13 +334,13 @@ export function SnippetManager(): JSX.Element {
                 <input autoFocus value={newColName} onChange={(e) => setNewColName(e.target.value)}
                   placeholder="Collection name"
                   className="flex-1 text-xs bg-surface-container border border-outline-variant/30 rounded-lg px-2 py-1.5 text-on-surface placeholder-on-surface-variant/40 outline-none focus:ring-1 focus:ring-primary/50" />
-                <button type="submit" className="text-primary"><span className="material-symbols-outlined" style={{ fontSize: '16px' }}>check</span></button>
-                <button type="button" onClick={() => setShowNewCol(false)} className="text-on-surface-variant/50"><span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span></button>
+                <button type="submit" className="text-primary"><Check size={16} /></button>
+                <button type="button" onClick={() => setShowNewCol(false)} className="text-on-surface-variant/50"><X size={16} /></button>
               </form>
             ) : (
               <button onClick={() => setShowNewCol(true)}
                 className="flex items-center gap-1.5 text-[11px] text-on-surface-variant/50 hover:text-on-surface-variant transition-colors px-1 py-1">
-                <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>add</span>
+                <Plus size={13} />
                 New collection
               </button>
             )}
@@ -348,7 +352,7 @@ export function SnippetManager(): JSX.Element {
           <button onClick={startNew}
             className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-[12px] font-semibold text-on-primary transition-all hover:opacity-90"
             style={{ background: 'var(--gradient-brand)' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>add</span>
+            <Plus size={15} />
             New snippet <span className="opacity-60 text-[10px] font-normal ml-1">Ctrl+N</span>
           </button>
           <div className="flex gap-1.5">
@@ -360,7 +364,7 @@ export function SnippetManager(): JSX.Element {
             }}
               className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-medium border border-outline-variant/30 text-on-surface-variant hover:text-primary hover:border-primary/40 transition-colors"
               title="Export snippets to JSON">
-              <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>download</span>
+              <Download size={13} />
               Export
             </button>
             <button onClick={async () => {
@@ -371,7 +375,7 @@ export function SnippetManager(): JSX.Element {
             }}
               className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-medium border border-outline-variant/30 text-on-surface-variant hover:text-primary hover:border-primary/40 transition-colors"
               title="Import snippets from JSON">
-              <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>upload</span>
+              <Upload size={13} />
               Import
             </button>
           </div>
@@ -391,7 +395,7 @@ export function SnippetManager(): JSX.Element {
           <div className="flex-1 overflow-y-auto py-1">
             {visible.length === 0 ? (
               <div className="text-center py-12 px-4">
-                <span className="material-symbols-outlined text-on-surface-variant/20 block mb-2" style={{ fontSize: '32px' }}>collections_bookmark</span>
+                <BookMarked size={32} className="text-on-surface-variant/20 block mb-2 mx-auto" />
                 <p className="text-xs text-on-surface-variant/50">
                   {search ? 'No snippets match your search.' : 'No snippets yet.\nCreate your first one.'}
                 </p>
@@ -402,7 +406,7 @@ export function SnippetManager(): JSX.Element {
                   className={`w-full text-left px-3 py-2.5 transition-colors border-b border-outline-variant/10 ${selected?.id === s.id ? 'bg-primary/10' : 'hover:bg-surface-container'}`}>
                   <div className="flex items-start gap-1.5">
                     {s.pinned && (
-                      <span className="material-symbols-outlined text-primary/60 flex-shrink-0 mt-0.5" style={{ fontSize: '12px', fontVariationSettings: "'FILL' 1" }}>push_pin</span>
+                      <Pin size={12} className="text-primary/60 flex-shrink-0 mt-0.5" />
                     )}
                     <p className={`text-[12px] font-medium truncate flex-1 ${selected?.id === s.id ? 'text-primary' : 'text-on-surface'}`}>{s.title || 'Untitled'}</p>
                   </div>
@@ -444,7 +448,7 @@ export function SnippetManager(): JSX.Element {
             />
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
-              <span className="material-symbols-outlined text-on-surface-variant/15 mb-4" style={{ fontSize: '56px' }}>collections_bookmark</span>
+              <BookMarked size={56} className="text-on-surface-variant/15 mb-4 mx-auto" />
               <p className="text-sm text-on-surface-variant/40 font-medium">Select a snippet to view it</p>
               <p className="text-xs text-on-surface-variant/30 mt-1">or create a new one</p>
             </div>
@@ -555,7 +559,7 @@ function SnippetDetail({
               <LangBadge lang={snippet.language} />
               {collectionName && (
                 <span className="flex items-center gap-0.5 text-[10px] text-on-surface-variant/50">
-                  <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>folder</span>
+                  <Folder size={11} />
                   {collectionName}
                 </span>
               )}
@@ -565,15 +569,15 @@ function SnippetDetail({
           <div className="flex items-center gap-1 flex-shrink-0">
             <button onClick={onTogglePin} title={snippet.pinned ? 'Unpin' : 'Pin'}
               className={`p-2 rounded-lg transition-colors ${snippet.pinned ? 'text-primary bg-primary/10' : 'text-on-surface-variant/40 hover:text-on-surface hover:bg-surface-container'}`}>
-              <span className="material-symbols-outlined" style={{ fontSize: '16px', fontVariationSettings: snippet.pinned ? "'FILL' 1" : "'FILL' 0" }}>push_pin</span>
+              <Pin size={16} />
             </button>
             <button onClick={onEdit} title="Edit"
               className="p-2 rounded-lg text-on-surface-variant/40 hover:text-on-surface hover:bg-surface-container transition-colors">
-              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>edit</span>
+              <Pencil size={16} />
             </button>
             <button onClick={onDelete} title="Delete"
               className="p-2 rounded-lg text-on-surface-variant/40 hover:text-error hover:bg-error/10 transition-colors">
-              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
+              <Trash2 size={16} />
             </button>
           </div>
         </div>
@@ -589,7 +593,7 @@ function SnippetDetail({
           <button onClick={onCopy}
             className={`flex items-center gap-2 self-end px-4 py-2 rounded-xl text-sm font-semibold transition-all ${copied ? 'bg-accent/20 text-accent' : 'text-on-primary hover:opacity-90'}`}
             style={copied ? {} : { background: 'var(--gradient-brand)' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>{copied ? 'check' : 'content_copy'}</span>
+            {copied ? <Check size={16} /> : <Copy size={16} />}
             {copied ? 'Copied!' : 'Copy'}
           </button>
         )}

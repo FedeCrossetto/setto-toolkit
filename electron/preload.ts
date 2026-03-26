@@ -29,6 +29,7 @@ const INVOKE_CHANNELS = new Set([
   'snippets:export', 'snippets:import',
   'ticket-resolver:fetch', 'ticket-resolver:plan', 'ticket-resolver:search', 'ticket-resolver:analyze',
   'ticket-resolver:history-get', 'ticket-resolver:history-save', 'ticket-resolver:history-delete',
+  'ticket-resolver:ai-usage-get', 'ticket-resolver:ai-usage-reset',
 ])
 
 /** Channels the renderer may send (fire-and-forget → main) */

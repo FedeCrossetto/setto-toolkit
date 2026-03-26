@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { Diff, Search, X } from 'lucide-react'
 import { useApp } from '../AppContext'
 import { getPlugin } from '../plugin-registry'
+import { PluginIcon } from '../pluginIcons'
 import { dragState } from '../dragState'
 
 export function TabBar(): JSX.Element {
@@ -28,9 +30,7 @@ export function TabBar(): JSX.Element {
               }`}
               onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', tabId: tab.tabId })}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
-                {plugin.icon}
-              </span>
+              <PluginIcon icon={plugin.icon} size={14} />
               <span>{plugin.name}</span>
               {state.dirtyPlugins[tab.pluginId] && (
                 <span title="Unsaved changes" className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
@@ -40,7 +40,7 @@ export function TabBar(): JSX.Element {
                   className="ml-1 opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error transition-all"
                   onClick={(e) => { e.stopPropagation(); dispatch({ type: 'CLOSE_TAB', tabId: tab.tabId }) }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>close</span>
+                  <X size={12} />
                 </button>
               )}
             </div>
@@ -79,7 +79,7 @@ export function TabBar(): JSX.Element {
             : 'bg-surface-container/60 border-outline-variant/20 text-on-surface-variant/40 hover:text-on-surface-variant hover:border-outline-variant/50 hover:bg-surface-container'
         }`}
       >
-        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>difference</span>
+        <Diff size={14} />
         <span className="hidden lg:inline">{isDiffDropOver ? 'Drop to compare' : 'Smart Diff'}</span>
       </div>
 
@@ -89,7 +89,7 @@ export function TabBar(): JSX.Element {
           onClick={openPalette}
           className="flex items-center gap-2 bg-surface-container px-3 py-1.5 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:border-primary/40 hover:text-on-surface transition-colors"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>search</span>
+          <Search size={14} />
           <span className="text-xs hidden md:block pr-4">Search tools...</span>
           <kbd className="text-[10px] bg-surface-container-low px-1.5 py-0.5 rounded border border-outline-variant/30 hidden md:block">⌘K</kbd>
         </button>

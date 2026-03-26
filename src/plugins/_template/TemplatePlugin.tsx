@@ -13,6 +13,8 @@
  *   - Primary button: gradient from-primary to-secondary, text-on-primary-fixed, rounded-full
  */
 
+import { Puzzle } from 'lucide-react'
+
 export function TemplatePlugin(): JSX.Element {
   return (
     <div className="p-8 max-w-3xl mx-auto w-full">
@@ -26,7 +28,7 @@ export function TemplatePlugin(): JSX.Element {
       <div className="bg-surface-container-low rounded-xl p-6 border border-outline-variant/10">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 bg-primary/10 rounded-lg">
-            <span className="material-symbols-outlined text-primary" style={{ fontSize: '20px' }}>extension</span>
+            <Puzzle size={20} className="text-primary" />
           </div>
           <h2 className="font-bold text-on-surface">Example Card</h2>
         </div>

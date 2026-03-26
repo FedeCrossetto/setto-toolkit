@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { ChevronDown, ChevronUp, Search, X } from 'lucide-react'
 import { useApp } from '../AppContext'
 
 interface FoundResult { activeMatchOrdinal: number; matches: number; finalUpdate: boolean }
@@ -68,7 +69,7 @@ export function GlobalSearch(): JSX.Element | null {
     <div className="fixed top-10 right-4 z-[250] flex items-center gap-1.5 px-3 py-2 bg-surface-container border border-outline-variant/30 rounded-2xl shadow-2xl">
 
       {/* Search icon */}
-      <span className="material-symbols-outlined text-on-surface-variant/50 flex-shrink-0" style={{ fontSize: '15px' }}>search</span>
+      <Search size={15} className="text-on-surface-variant/50 flex-shrink-0" />
 
       {/* Input */}
       <input
@@ -98,7 +99,7 @@ export function GlobalSearch(): JSX.Element | null {
         title="Previous (Shift+Enter)"
         className="p-1 rounded-lg text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container-high disabled:opacity-30 transition-colors"
       >
-        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>keyboard_arrow_up</span>
+        <ChevronUp size={14} />
       </button>
 
       {/* Next */}
@@ -108,7 +109,7 @@ export function GlobalSearch(): JSX.Element | null {
         title="Next (Enter)"
         className="p-1 rounded-lg text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container-high disabled:opacity-30 transition-colors"
       >
-        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>keyboard_arrow_down</span>
+        <ChevronDown size={14} />
       </button>
 
       {/* Match case toggle */}
@@ -125,7 +126,7 @@ export function GlobalSearch(): JSX.Element | null {
         onClick={closeSearch}
         className="p-1 rounded-lg text-on-surface-variant/40 hover:text-on-surface hover:bg-surface-container-high transition-colors"
       >
-        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+        <X size={14} />
       </button>
     </div>
   )

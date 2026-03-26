@@ -40,11 +40,18 @@ export interface DiffChunk {
   modified: string
 }
 
+export interface TicketComment {
+  causa: string
+  solucion: string
+  comoProbarlo: string
+}
+
 export interface AnalysisResult {
   rootCause: string
   fix: string
   affectedFiles: string[]
   diff: DiffChunk[]
+  ticketComment?: TicketComment
 }
 
 export interface HistoryEntry {

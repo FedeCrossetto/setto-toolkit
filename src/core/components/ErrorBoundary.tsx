@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react'
+import { CircleAlert } from 'lucide-react'
 
 interface Props {
   children: ReactNode
@@ -40,12 +41,7 @@ export class ErrorBoundary extends Component<Props, State> {
     return (
       <div className="flex items-center justify-center h-full w-full p-8">
         <div className="max-w-md w-full bg-error-container/20 border border-error/25 rounded-2xl p-6 text-center">
-          <span
-            className="material-symbols-outlined text-error mb-3 block"
-            style={{ fontSize: '36px', fontVariationSettings: "'FILL' 1" }}
-          >
-            error
-          </span>
+          <CircleAlert size={36} className="text-error mb-3 mx-auto" />
           <h2 className="text-sm font-bold text-on-surface mb-1">
             {this.props.label ? `${this.props.label} crashed` : 'Something went wrong'}
           </h2>

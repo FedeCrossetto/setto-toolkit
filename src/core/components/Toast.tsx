@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type ComponentType } from 'react'
+import { CheckCircle2, CircleAlert, Info, TriangleAlert, X } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -27,11 +28,11 @@ export function useToast(): ToastContextValue {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const ICON: Record<ToastType, string> = {
-  success: 'check_circle',
-  error:   'error',
-  warning: 'warning',
-  info:    'info',
+const ICON: Record<ToastType, ComponentType<{ size?: number; className?: string }>> = {
+  success: CheckCircle2,
+  error:   CircleAlert,
+  warning: TriangleAlert,
+  info:    Info,
 }
 
 const COLOR: Record<ToastType, string> = {
@@ -84,18 +85,13 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
       ].join(' ')}
       style={{ minWidth: '260px', maxWidth: '400px' }}
     >
-      <span
-        className={`material-symbols-outlined flex-shrink-0 mt-px ${ICON_COLOR[toast.type]}`}
-        style={{ fontSize: '18px', fontVariationSettings: "'FILL' 1" }}
-      >
-        {ICON[toast.type]}
-      </span>
+      {(() => { const Icon = ICON[toast.type]; return <Icon size={18} className={`flex-shrink-0 mt-px ${ICON_COLOR[toast.type]}`} /> })()}
       <span className="flex-1 text-on-surface leading-snug">{toast.message}</span>
       <button
         onClick={handleDismiss}
         className="flex-shrink-0 text-on-surface-variant/40 hover:text-on-surface transition-colors mt-px"
       >
-        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+        <X size={14} />
       </button>
     </div>
   )

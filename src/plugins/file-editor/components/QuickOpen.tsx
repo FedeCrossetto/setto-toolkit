@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { Search } from 'lucide-react'
 import { detectLanguage, languageIcon } from '../hooks/useEditorTabs'
 import type { FileTreeNode } from '../types'
 
@@ -69,7 +70,7 @@ export function QuickOpen({ folders, onOpen, onClose }: QuickOpenProps): JSX.Ele
       >
         {/* Input */}
         <div className="flex items-center gap-2.5 px-4 py-3 border-b border-outline-variant/20">
-          <span className="material-symbols-outlined text-on-surface-variant/50" style={{ fontSize: '18px' }}>search</span>
+          <Search size={18} className="text-on-surface-variant/50" />
           <input
             ref={inputRef}
             value={query}
@@ -94,9 +95,7 @@ export function QuickOpen({ folders, onOpen, onClose }: QuickOpenProps): JSX.Ele
                   i === selected ? 'bg-primary/10' : 'hover:bg-surface-container-high'
                 }`}
               >
-                <span className="material-symbols-outlined text-on-surface-variant/50 flex-shrink-0" style={{ fontSize: '14px' }}>
-                  {languageIcon(detectLanguage(f.name))}
-                </span>
+                {(() => { const Icon = languageIcon(detectLanguage(f.name)); return <Icon size={14} className="text-on-surface-variant/50 flex-shrink-0" /> })()}
                 <div className="flex-1 min-w-0">
                   <p className="text-[12px] font-medium text-on-surface truncate">{f.name}</p>
                   <p className="text-[10px] text-on-surface-variant/45 truncate">{f.display}</p>

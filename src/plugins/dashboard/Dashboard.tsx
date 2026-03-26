@@ -1,6 +1,8 @@
 import { useRef, useState, useEffect } from 'react'
+import { ArrowRight, Plus, Search, Sparkles, X } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
 import { allPlugins } from '../../core/plugin-registry'
+import { PluginIcon } from '../../core/pluginIcons'
 import type { PluginManifest } from '../../core/types'
 
 const ONBOARDING_DISMISSED_KEY = 'dashboard:onboarding-dismissed'
@@ -360,12 +362,7 @@ function ToolCard({ plugin, onOpen, mascot }: { plugin: PluginManifest; onOpen: 
                 className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
                 style={{ background: cfg.accent + '28', border: `1px solid ${cfg.accent}44` }}
               >
-                <span
-                  className="material-symbols-outlined"
-                  style={{ fontSize: '16px', color: cfg.accent, fontVariationSettings: "'FILL' 1" }}
-                >
-                  {plugin.icon}
-                </span>
+                <PluginIcon icon={plugin.icon} size={16} style={{ color: cfg.accent }} />
               </div>
               <h3 className="text-[14px] font-semibold text-on-surface tracking-tight leading-tight">
                 {plugin.name}
@@ -380,7 +377,7 @@ function ToolCard({ plugin, onOpen, mascot }: { plugin: PluginManifest; onOpen: 
           {/* Bottom: Open link */}
           <div className="flex items-center gap-1 mt-4 text-[11px] font-bold" style={{ color: cfg.accent }}>
             <span>Open</span>
-            <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>arrow_forward</span>
+            <ArrowRight size={13} />
           </div>
         </div>
 
@@ -406,12 +403,7 @@ function OnboardingBanner({ onDismiss, onGoToSettings }: {
 }): JSX.Element {
   return (
     <div className="relative flex items-start gap-4 px-5 py-4 rounded-2xl border border-primary/20 bg-primary/5">
-      <span
-        className="material-symbols-outlined text-primary flex-shrink-0 mt-0.5"
-        style={{ fontSize: '22px', fontVariationSettings: "'FILL' 1" }}
-      >
-        auto_awesome
-      </span>
+      <Sparkles size={22} className="text-primary flex-shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-on-surface">Unlock AI features</p>
         <p className="text-xs text-on-surface-variant mt-0.5 leading-relaxed">
@@ -422,7 +414,7 @@ function OnboardingBanner({ onDismiss, onGoToSettings }: {
           className="mt-2.5 text-xs font-semibold text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
         >
           <span>Go to Settings</span>
-          <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>arrow_forward</span>
+          <ArrowRight size={12} />
         </button>
       </div>
       <button
@@ -430,7 +422,7 @@ function OnboardingBanner({ onDismiss, onGoToSettings }: {
         title="Dismiss"
         className="flex-shrink-0 text-on-surface-variant/40 hover:text-on-surface transition-colors"
       >
-        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
+        <X size={16} />
       </button>
     </div>
   )
@@ -514,7 +506,7 @@ export function Dashboard(): JSX.Element {
           e.currentTarget.style.borderColor = 'rgba(83,71,206,0.2)'
         }}
       >
-        <span className="material-symbols-outlined text-primary/70" style={{ fontSize: '18px' }}>search</span>
+        <Search size={18} className="text-primary/70" />
         <span className="flex-1 text-sm text-on-surface-variant/50">Search tools or run a command…</span>
         <div className="flex gap-1">
           {['Ctrl', 'K'].map((k) => (
@@ -554,7 +546,7 @@ export function Dashboard(): JSX.Element {
           <div className="rounded-3xl border border-dashed border-outline-variant/25 bg-surface-container/40
             flex flex-col items-center justify-center gap-3 p-8 min-h-[220px] text-center">
             <div className="w-10 h-10 rounded-2xl bg-surface-container flex items-center justify-center border border-outline-variant/20">
-              <span className="material-symbols-outlined text-on-surface-variant/40" style={{ fontSize: '20px' }}>add</span>
+              <Plus size={20} className="text-on-surface-variant/40" />
             </div>
             <div>
               <p className="text-sm font-semibold text-on-surface-variant/50">Add Plugin</p>
