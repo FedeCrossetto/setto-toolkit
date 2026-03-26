@@ -1,5 +1,7 @@
+import { lazy } from 'react'
 import type { PluginManifest } from '../../core/types'
-import { Dashboard } from './Dashboard'
+
+const Dashboard = lazy(() => import('./Dashboard').then((m) => ({ default: m.Dashboard })))
 
 export const dashboardPlugin: PluginManifest = {
   id: 'dashboard',

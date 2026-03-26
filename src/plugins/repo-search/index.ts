@@ -1,5 +1,7 @@
+import { lazy } from 'react'
 import type { PluginManifest } from '../../core/types'
-import { RepoSearch } from './RepoSearch'
+
+const RepoSearch = lazy(() => import('./RepoSearch').then((m) => ({ default: m.RepoSearch })))
 
 export const repoSearchPlugin: PluginManifest = {
   id: 'repo-search',

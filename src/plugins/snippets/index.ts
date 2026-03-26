@@ -1,5 +1,7 @@
+import { lazy } from 'react'
 import type { PluginManifest } from '../../core/types'
-import { SnippetManager } from './SnippetManager'
+
+const SnippetManager = lazy(() => import('./SnippetManager').then((m) => ({ default: m.SnippetManager })))
 
 export const snippetsPlugin: PluginManifest = {
   id: 'snippets',

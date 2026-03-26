@@ -1,5 +1,7 @@
+import { lazy } from 'react'
 import type { PluginManifest } from '../../core/types'
-import { SettingsPage } from './SettingsPage'
+
+const SettingsPage = lazy(() => import('./SettingsPage').then((m) => ({ default: m.SettingsPage })))
 
 export const settingsPlugin: PluginManifest = {
   id: 'settings',

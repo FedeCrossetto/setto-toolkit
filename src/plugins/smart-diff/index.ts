@@ -1,5 +1,7 @@
+import { lazy } from 'react'
 import type { PluginManifest } from '../../core/types'
-import { SmartDiff } from './SmartDiff'
+
+const SmartDiff = lazy(() => import('./SmartDiff').then((m) => ({ default: m.SmartDiff })))
 
 export const smartDiffPlugin: PluginManifest = {
   id: 'smart-diff',

@@ -93,9 +93,20 @@ export function CommandPalette(): JSX.Element | null {
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-2 border-t border-outline-variant/20 flex items-center gap-4 text-[10px] text-on-surface-variant uppercase tracking-wider">
-          <span>↵ Open</span>
-          <span>ESC Close</span>
+        <div className="px-4 py-2 border-t border-outline-variant/20 flex items-center justify-between gap-4 text-[10px] text-on-surface-variant uppercase tracking-wider">
+          <div className="flex items-center gap-4">
+            <span>↵ Open</span>
+            <span>ESC Close</span>
+          </div>
+          <button
+            type="button"
+            className="no-drag uppercase tracking-wider hover:text-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded px-1 -mr-1"
+            onClick={() => {
+              dispatch({ type: 'OPEN_KEYBOARD_SHORTCUTS' })
+            }}
+          >
+            Shortcuts
+          </button>
         </div>
       </div>
     </div>

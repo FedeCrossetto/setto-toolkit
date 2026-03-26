@@ -1,5 +1,7 @@
+import { lazy } from 'react'
 import type { PluginManifest } from '../../core/types'
-import { ApiLab } from './ApiLab'
+
+const ApiLab = lazy(() => import('./ApiLab').then((m) => ({ default: m.ApiLab })))
 
 export const apiLabPlugin: PluginManifest = {
   id: 'api-tester',

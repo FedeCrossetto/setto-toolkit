@@ -1,5 +1,7 @@
+import { lazy } from 'react'
 import type { PluginManifest } from '../../core/types'
-import { FileEditor } from './FileEditor'
+
+const FileEditor = lazy(() => import('./FileEditor').then((m) => ({ default: m.FileEditor })))
 
 export const fileEditorPlugin: PluginManifest = {
   id: 'file-editor',

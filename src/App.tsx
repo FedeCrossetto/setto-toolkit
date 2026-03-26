@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { Suspense, useEffect } from 'react'
 import { LayoutGrid } from 'lucide-react'
 import { AppProvider, useApp } from './core/AppContext'
 import { useAppFont } from './core/hooks/useAppFont'
@@ -6,6 +6,8 @@ import { useThemePalette } from './core/hooks/useThemePalette'
 import { Sidebar } from './core/components/Sidebar'
 import { TabBar } from './core/components/TabBar'
 import { CommandPalette } from './core/components/CommandPalette'
+import { KeyboardShortcutsModal } from './core/components/KeyboardShortcutsModal'
+import { EmptyState } from './core/components/EmptyState'
 import { GlobalSearch } from './core/components/GlobalSearch'
 import { StatusBar } from './core/components/StatusBar'
 import { TitleBar } from './core/components/TitleBar'
@@ -36,6 +38,7 @@ function AppShell(): JSX.Element {
       <TitleBar />
       <Sidebar />
       <CommandPalette />
+      <KeyboardShortcutsModal />
       <GlobalSearch />
 
       {/* Main content — offset matches sidebar width */}
@@ -56,11 +59,12 @@ function AppShell(): JSX.Element {
           {/* Plugin content — all tabs stay mounted, inactive ones are hidden */}
           <div className="flex-1 overflow-hidden relative">
             {state.openTabs.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <LayoutGrid size={48} className="text-on-surface-variant mb-4 block" />
-                  <p className="text-on-surface-variant text-sm">Select a tool from the sidebar</p>
-                </div>
+              <div className="flex items-center justify-center h-full min-h-[200px]">
+                <EmptyState
+                  icon={LayoutGrid}
+                  title="No tool open"
+                  description="Select a tool from the sidebar or press Ctrl+K to search tools."
+                />
               </div>
             ) : (
               state.openTabs.map((tab) => {
@@ -74,7 +78,15 @@ function AppShell(): JSX.Element {
                     className={`absolute inset-0 w-full h-full overflow-auto ${active ? '' : 'hidden'}`}
                   >
                     <ErrorBoundary label={plugin.name}>
-                      <Component />
+                      <Suspense
+                        fallback={
+                          <div className="flex items-center justify-center h-full min-h-[120px] text-on-surface-variant text-sm">
+                            Loading…
+                          </div>
+                        }
+                      >
+                        <Component />
+                      </Suspense>
                     </ErrorBoundary>
                   </div>
                 )

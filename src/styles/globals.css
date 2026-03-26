@@ -79,6 +79,22 @@
 }
 
 
+/* ─── Pastel (light): slightly stronger body text for contrast on pale cards ─ */
+:root[data-palette="pastel"]:not(.dark) {
+  --c-on-surface:         18 18 34;
+  --c-on-surface-variant: 58 58 82;
+}
+
+/* ─── Focus visibility (keyboard / a11y) ───────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid rgb(var(--c-primary) / 0.85);
+  outline-offset: 2px;
+}
+button:focus:not(:focus-visible),
+[role="button"]:focus:not(:focus-visible) {
+  outline: none;
+}
+
 /* ─── Global resets ──────────────────────────────────────────────────────── */
 * {
   box-sizing: border-box;

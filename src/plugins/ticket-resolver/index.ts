@@ -1,5 +1,7 @@
+import { lazy } from 'react'
 import type { PluginManifest } from '../../core/types'
-import { TicketResolver } from './TicketResolver'
+
+const TicketResolver = lazy(() => import('./TicketResolver').then((m) => ({ default: m.TicketResolver })))
 
 export const ticketResolverPlugin: PluginManifest = {
   id: 'ticket-resolver',

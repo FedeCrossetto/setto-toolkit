@@ -29,6 +29,7 @@ const initialState: AppState = {
   openTabs: [{ tabId: 'dashboard', pluginId: 'dashboard' }],
   activeTabId: 'dashboard',
   commandPaletteOpen: false,
+  keyboardShortcutsOpen: false,
   theme: getInitialTheme(),
   sidebarCollapsed: getInitialSidebarCollapsed(),
   disabledPlugins: getInitialDisabledPlugins(),
@@ -61,6 +62,10 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, commandPaletteOpen: !state.commandPaletteOpen }
     case 'CLOSE_COMMAND_PALETTE':
       return { ...state, commandPaletteOpen: false }
+    case 'OPEN_KEYBOARD_SHORTCUTS':
+      return { ...state, keyboardShortcutsOpen: true, commandPaletteOpen: false }
+    case 'CLOSE_KEYBOARD_SHORTCUTS':
+      return { ...state, keyboardShortcutsOpen: false }
     case 'SET_THEME':
       return { ...state, theme: action.theme }
     case 'TOGGLE_SIDEBAR':

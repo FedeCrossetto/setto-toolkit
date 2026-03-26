@@ -1,5 +1,7 @@
+import { lazy } from 'react'
 import type { PluginManifest } from '../../core/types'
-import { About } from './About'
+
+const About = lazy(() => import('./About').then((m) => ({ default: m.About })))
 
 export const aboutPlugin: PluginManifest = {
   id: 'about',

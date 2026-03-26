@@ -6,6 +6,7 @@ import {
   RotateCcw, Save, SlidersHorizontal, Trash2, WrapText, X,
 } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
+import { useToast } from '../../core/components/Toast'
 import { dragState } from '../../core/dragState'
 import { useEditorTabs, languageIcon, detectLanguage } from './hooks/useEditorTabs'
 import { useFileWatcher } from './hooks/useFileWatcher'
@@ -47,6 +48,13 @@ export function FileEditor(): JSX.Element {
   const { state, dispatch } = useApp()
   const { tabs, activeId, activeTab, setActiveId, openFile, openBuffer, closeTab, updateTab } = useEditorTabs()
   const { prefs, updatePrefs } = useEditorPrefs()
+  const { show: showToast } = useToast()
+
+  const notifySaved = useCallback((): void => {
+    setSavedFlash(true)
+    setTimeout(() => setSavedFlash(false), 1500)
+    showToast('File saved', 'success', 2200)
+  }, [showToast])
 
   // ── Core state ────────────────────────────────────────────────────────────
   const [recents, setRecents]       = useState<RecentFile[]>([])
@@ -177,17 +185,17 @@ export function FileEditor(): JSX.Element {
           const n = fp.split(/[\\/]/).pop() ?? fp
           updateTab(activeTab.id, { path: fp, name: n, isDirty: false })
           setRecents((prev) => [{ path: fp, name: n, openedAt: new Date().toISOString() }, ...prev.filter((r) => r.path !== fp)])
+          notifySaved()
         } else {
           await window.api.invoke('editor:write-file', activeTab.path, activeTab.content)
           updateTab(activeTab.id, { isDirty: false })
-          setSavedFlash(true)
-          setTimeout(() => setSavedFlash(false), 1500)
+          notifySaved()
         }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [activeTab, updateTab])
+  }, [activeTab, updateTab, notifySaved])
 
   // ── Filter → CodeEditor ───────────────────────────────────────────────────
   useEffect(() => { editorRef.current?.setFilter(logFilter) }, [logFilter])
@@ -447,9 +455,11 @@ export function FileEditor(): JSX.Element {
       await window.api.invoke('editor:write-file', fp, activeTab.content)
       const n = fp.split(/[\\/]/).pop() ?? fp
       updateTab(activeTab.id, { path: fp, name: n, isDirty: false })
+      notifySaved()
     } else if (activeTab.isDirty) {
       await window.api.invoke('editor:write-file', activeTab.path, activeTab.content)
       updateTab(activeTab.id, { isDirty: false })
+      notifySaved()
     }
   }
 

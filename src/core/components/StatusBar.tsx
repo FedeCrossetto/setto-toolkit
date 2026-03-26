@@ -2,7 +2,7 @@ import { useApp } from '../AppContext'
 import { getPlugin } from '../plugin-registry'
 
 export function StatusBar(): JSX.Element {
-  const { state } = useApp()
+  const { state, dispatch } = useApp()
   const activePlugin = state.activeTabId ? getPlugin(state.activeTabId) : null
   const leftEdge = state.sidebarCollapsed ? 76 : 224
 
@@ -28,7 +28,14 @@ export function StatusBar(): JSX.Element {
           <span className="text-on-surface-variant">{activePlugin.name}</span>
         )}
       </div>
-      <div className="flex gap-6 text-[10px] uppercase tracking-widest">
+      <div className="flex gap-6 text-[10px] uppercase tracking-widest items-center">
+        <button
+          type="button"
+          className="text-on-surface-variant hover:text-primary transition-colors no-drag focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 rounded px-1"
+          onClick={() => dispatch({ type: 'OPEN_KEYBOARD_SHORTCUTS' })}
+        >
+          Shortcuts <span className="opacity-60 normal-case">(F1)</span>
+        </button>
         <span className="text-on-surface-variant hover:text-primary cursor-default transition-colors">Logs</span>
         <span className="text-on-surface-variant hover:text-primary cursor-default transition-colors">Runtime</span>
         <span className="text-on-surface-variant hover:text-primary cursor-default transition-colors">Settings</span>

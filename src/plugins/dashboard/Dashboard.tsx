@@ -10,7 +10,6 @@ const SECURE_SET_SENTINEL = '__CONFIGURED__'
 
 // ── Per-plugin config ─────────────────────────────────────────────────────────
 interface PluginConfig {
-  gradient: string
   glow: string
   accent: string
   badge: string
@@ -21,7 +20,6 @@ interface PluginConfig {
 
 const PLUGIN_CONFIG: Record<string, PluginConfig> = {
   'smart-diff': {
-    gradient:     'from-[#eeeeff]/80 via-[#887CFD]/10 to-[#887CFD]/5',
     glow:         'rgba(136,124,253,0.3)',
     accent:       '#887CFD',
     badge:        'bg-[#887CFD]/15 text-[#887CFD] border-[#887CFD]/20',
@@ -30,7 +28,6 @@ const PLUGIN_CONFIG: Record<string, PluginConfig> = {
     artworkWidth: '55%',
   },
   'repo-search': {
-    gradient:     'from-[#e8f0ff]/80 via-[#4896FE]/10 to-[#4896FE]/5',
     glow:         'rgba(72,150,254,0.3)',
     accent:       '#4896FE',
     badge:        'bg-[#4896FE]/15 text-[#4896FE] border-[#4896FE]/20',
@@ -38,7 +35,6 @@ const PLUGIN_CONFIG: Record<string, PluginConfig> = {
     settoArtwork: ArtworkSettoSearch,
   },
   'api-tester': {
-    gradient:     'from-[#e8f4f8]/80 via-[#16C8C7]/10 to-[#16C8C7]/5',
     glow:         'rgba(22,200,199,0.35)',
     accent:       '#16C8C7',
     badge:        'bg-[#16C8C7]/15 text-[#16C8C7] border-[#16C8C7]/20',
@@ -46,7 +42,6 @@ const PLUGIN_CONFIG: Record<string, PluginConfig> = {
     settoArtwork: ArtworkSettoRequest,
   },
   'file-editor': {
-    gradient:     'from-[#eeeeff]/80 via-[#7C6FFF]/10 to-[#7C6FFF]/5',
     glow:         'rgba(83,71,206,0.3)',
     accent:       '#7C6FFF',
     badge:        'bg-[#7C6FFF]/15 text-[#7C6FFF] border-[#7C6FFF]/20',
@@ -54,7 +49,6 @@ const PLUGIN_CONFIG: Record<string, PluginConfig> = {
     settoArtwork: ArtworkSettoEditor,
   },
   'snippets': {
-    gradient:     'from-[#fff8e8]/80 via-[#F59E0B]/10 to-[#F59E0B]/5',
     glow:         'rgba(245,158,11,0.28)',
     accent:       '#F59E0B',
     badge:        'bg-[#F59E0B]/15 text-[#F59E0B] border-[#F59E0B]/20',
@@ -62,7 +56,6 @@ const PLUGIN_CONFIG: Record<string, PluginConfig> = {
     settoArtwork: ArtworkSettoSnippet,
   },
   'settings': {
-    gradient:     'from-[#e8f4f8]/80 via-[#16C8C7]/10 to-[#16C8C7]/5',
     glow:         'rgba(22,200,199,0.25)',
     accent:       '#16C8C7',
     badge:        'bg-[#16C8C7]/15 text-[#16C8C7] border-[#16C8C7]/20',
@@ -70,7 +63,6 @@ const PLUGIN_CONFIG: Record<string, PluginConfig> = {
     settoArtwork: ArtworkSettoSettings,
   },
   'ticket-resolver': {
-    gradient:     'from-[#e8fff8]/80 via-[#0FAD77]/10 to-[#0FAD77]/5',
     glow:         'rgba(15,173,119,0.30)',
     accent:       '#0FAD77',
     badge:        'bg-[#0FAD77]/15 text-[#0FAD77] border-[#0FAD77]/20',
@@ -80,7 +72,6 @@ const PLUGIN_CONFIG: Record<string, PluginConfig> = {
 }
 
 const DEFAULT_CONFIG: PluginConfig = {
-  gradient:     'from-[#5347CE]/15 to-transparent',
   glow:         'rgba(83,71,206,0.2)',
   accent:       '#887CFD',
   badge:        'bg-[#887CFD]/15 text-[#887CFD] border-[#887CFD]/20',
@@ -301,27 +292,36 @@ function ToolArtwork({ pluginId, artwork }: { pluginId: string; artwork: () => J
   return <Scene />
 }
 
-// ── TiltCard — 3D hover effect ────────────────────────────────────────────────
-function TiltCard({ children, onClick, glow }: {
+// ── TiltCard — mismo lenguaje claro/oscuro: sombra suave + hover con acento ──
+function TiltCard({ children, onClick, glow, isDark }: {
   children: React.ReactNode
   onClick: () => void
   glow: string
+  isDark: boolean
 }): JSX.Element {
   const ref = useRef<HTMLButtonElement>(null)
   const [tilt, setTilt] = useState({ x: 0, y: 0, hover: false })
 
   const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>): void => {
     const rect = e.currentTarget.getBoundingClientRect()
-    const x = (e.clientX - rect.left) / rect.width  - 0.5   // -0.5 to 0.5
+    const x = (e.clientX - rect.left) / rect.width  - 0.5
     const y = (e.clientY - rect.top)  / rect.height - 0.5
     setTilt({ x: y * -8, y: x * 8, hover: true })
   }
 
   const handleMouseLeave = (): void => setTilt({ x: 0, y: 0, hover: false })
 
+  const shadowIdle = isDark
+    ? '0 2px 10px rgba(0,0,0,0.35)'
+    : '0 2px 10px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04)'
+  const shadowHover = isDark
+    ? `0 8px 24px rgba(0,0,0,0.45), 0 0 18px ${glow}`
+    : `0 8px 24px rgba(0,0,0,0.1), 0 0 22px ${glow}`
+
   return (
     <button
       ref={ref}
+      type="button"
       onClick={onClick}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -332,11 +332,13 @@ function TiltCard({ children, onClick, glow }: {
         transition: tilt.hover
           ? 'transform 0.12s ease-out'
           : 'transform 0.35s cubic-bezier(0.34,1.56,0.64,1)',
-        boxShadow: tilt.hover
-          ? `0 20px 50px rgba(0,0,0,0.35), 0 8px 20px rgba(0,0,0,0.2), 0 0 30px ${glow}`
-          : '0 2px 8px rgba(0,0,0,0.2), 0 1px 3px rgba(0,0,0,0.15)',
+        boxShadow: tilt.hover ? shadowHover : shadowIdle,
       }}
-      className="text-left w-full rounded-3xl overflow-hidden bg-surface-container border border-outline-variant/20 cursor-pointer flex flex-col relative"
+      className={[
+        'text-left w-full rounded-3xl overflow-hidden cursor-pointer flex flex-col relative',
+        'bg-surface-container border border-outline-variant/20',
+        isDark && 'border-outline-variant/10',
+      ].filter(Boolean).join(' ')}
     >
       {children}
     </button>
@@ -345,17 +347,22 @@ function TiltCard({ children, onClick, glow }: {
 
 // ── ToolCard ──────────────────────────────────────────────────────────────────
 function ToolCard({ plugin, onOpen, mascot }: { plugin: PluginManifest; onOpen: () => void; mascot: 'panda' | 'setto-avatar' }): JSX.Element {
+  const { state } = useApp()
+  const isDark = state.theme === 'dark'
   const cfg = PLUGIN_CONFIG[plugin.id] ?? DEFAULT_CONFIG
   const ArtworkComponent = mascot === 'setto-avatar' ? cfg.settoArtwork : cfg.artwork
 
   return (
-    <TiltCard onClick={onOpen} glow={cfg.glow}>
-      {/* Full-card gradient background */}
-      <div className={`relative flex flex-1 bg-gradient-to-br ${cfg.gradient} min-h-[168px] overflow-hidden`}>
+    <TiltCard onClick={onOpen} glow={cfg.glow} isDark={isDark}>
+      <div className="relative flex flex-1 min-h-[168px] overflow-hidden bg-surface-container-high">
+        <div
+          aria-hidden
+          className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-3xl"
+          style={{ background: `linear-gradient(180deg, ${cfg.accent}cc, ${cfg.accent}66)` }}
+        />
 
         {/* ── Left: text content ─────────────────────────────────── */}
         <div className="flex flex-col justify-between flex-1 min-w-0 p-5 pr-3">
-          {/* Top: icon + name */}
           <div>
             <div className="flex items-center gap-2.5 mb-2.5">
               <div
@@ -374,20 +381,14 @@ function ToolCard({ plugin, onOpen, mascot }: { plugin: PluginManifest; onOpen: 
             </p>
           </div>
 
-          {/* Bottom: Open link */}
           <div className="flex items-center gap-1 mt-4 text-[11px] font-bold" style={{ color: cfg.accent }}>
             <span>Open</span>
             <ArrowRight size={13} />
           </div>
         </div>
 
-        {/* ── Right: mascot image ────────────────────────────────── */}
+        {/* ── Right: mascot ──────────────────────────────────────── */}
         <div className="flex-shrink-0 relative self-stretch" style={{ width: cfg.artworkWidth ?? '38%' }}>
-          {/* soft glow behind mascot */}
-          <div
-            className="absolute inset-x-0 bottom-0 h-3/4 blur-2xl rounded-full"
-            style={{ background: cfg.accent, opacity: 0.15 }}
-          />
           <ToolArtwork pluginId={plugin.id} artwork={ArtworkComponent} />
         </div>
 
@@ -430,7 +431,8 @@ function OnboardingBanner({ onDismiss, onGoToSettings }: {
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export function Dashboard(): JSX.Element {
-  const { dispatch } = useApp()
+  const { dispatch, state } = useApp()
+  const isDark = state.theme === 'dark'
   const tools = allPlugins.filter((p) => p.id !== 'dashboard' && p.id !== 'about')
   const openTool = (id: string): void => dispatch({ type: 'OPEN_TAB', pluginId: id })
 
@@ -485,33 +487,33 @@ export function Dashboard(): JSX.Element {
         <p className="text-on-surface-variant text-sm">Your modular workspace for developer utilities.</p>
       </div>
 
-      {/* Search bar — premium depth style */}
+      {/* Search — mismo patrón que las cards: superficie + borde token (claro y oscuro) */}
       <button
+        type="button"
         onClick={() => dispatch({ type: 'TOGGLE_COMMAND_PALETTE' })}
-        className="w-full max-w-2xl flex items-center gap-3 text-left group"
+        className="w-full max-w-2xl flex items-center gap-3 text-left rounded-2xl px-[18px] py-3 transition-all duration-200"
         style={{
-          background: 'linear-gradient(135deg, rgba(83,71,206,0.08), rgba(72,150,254,0.05))',
-          border: '1px solid rgba(83,71,206,0.2)',
-          borderRadius: '16px',
-          padding: '12px 18px',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.05)',
-          transition: 'all 0.2s ease',
+          background: 'rgb(var(--c-surface-container-high) / 0.92)',
+          border: '1px solid rgb(var(--c-outline-variant) / 0.35)',
+          boxShadow: isDark ? '0 2px 14px rgba(0,0,0,0.35)' : '0 2px 12px rgba(0,0,0,0.06)',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.boxShadow = '0 4px 20px rgba(83,71,206,0.2), inset 0 1px 0 rgba(255,255,255,0.07)'
-          e.currentTarget.style.borderColor = 'rgba(83,71,206,0.4)'
+          e.currentTarget.style.boxShadow = isDark ? '0 4px 18px rgba(0,0,0,0.45)' : '0 4px 16px rgba(0,0,0,0.1)'
+          e.currentTarget.style.borderColor = 'rgb(var(--c-outline-variant) / 0.5)'
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.05)'
-          e.currentTarget.style.borderColor = 'rgba(83,71,206,0.2)'
+          e.currentTarget.style.boxShadow = isDark ? '0 2px 14px rgba(0,0,0,0.35)' : '0 2px 12px rgba(0,0,0,0.06)'
+          e.currentTarget.style.borderColor = 'rgb(var(--c-outline-variant) / 0.35)'
         }}
       >
-        <Search size={18} className="text-primary/70" />
+        <Search size={18} className="text-primary/60" />
         <span className="flex-1 text-sm text-on-surface-variant/50">Search tools or run a command…</span>
         <div className="flex gap-1">
           {['Ctrl', 'K'].map((k) => (
-            <kbd key={k} className="px-1.5 py-0.5 rounded-md text-[10px] font-mono text-on-surface-variant/50"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <kbd
+              key={k}
+              className="px-1.5 py-0.5 rounded-md text-[10px] font-mono text-on-surface-variant/50 border border-outline-variant/30 bg-surface-container"
+            >
               {k}
             </kbd>
           ))}
@@ -543,7 +545,7 @@ export function Dashboard(): JSX.Element {
           ))}
 
           {/* Add plugin placeholder */}
-          <div className="rounded-3xl border border-dashed border-outline-variant/25 bg-surface-container/40
+          <div className="rounded-3xl border border-dashed border-outline-variant/25 bg-surface-container-high/50
             flex flex-col items-center justify-center gap-3 p-8 min-h-[220px] text-center">
             <div className="w-10 h-10 rounded-2xl bg-surface-container flex items-center justify-center border border-outline-variant/20">
               <Plus size={20} className="text-on-surface-variant/40" />

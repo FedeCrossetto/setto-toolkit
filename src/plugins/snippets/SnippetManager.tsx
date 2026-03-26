@@ -20,6 +20,8 @@ import { xml } from '@codemirror/lang-xml'
 import { java } from '@codemirror/lang-java'
 import { cpp } from '@codemirror/lang-cpp'
 import { useApp } from '../../core/AppContext'
+import { useToast } from '../../core/components/Toast'
+import { EmptyState } from '../../core/components/EmptyState'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -112,6 +114,7 @@ function Tag({ label, onRemove }: { label: string; onRemove?: () => void }): JSX
 
 export function SnippetManager(): JSX.Element {
   const { state } = useApp()
+  const { show: showToast } = useToast()
   const dark = state.theme === 'dark'
   const [snippets, setSnippets]       = useState<Snippet[]>([])
   const [collections, setCollections] = useState<SnippetCollection[]>([])
@@ -191,6 +194,7 @@ export function SnippetManager(): JSX.Element {
     setCollections(fresh.collections)
     setSelected(fresh.snippets.find((s) => s.id === snippetId) ?? snippet)
     setEditing(false)
+    showToast('Snippet saved', 'success', 2200)
   }
 
   const deleteSnippet = async (id: string): Promise<void> => {
@@ -394,12 +398,11 @@ export function SnippetManager(): JSX.Element {
           </div>
           <div className="flex-1 overflow-y-auto py-1">
             {visible.length === 0 ? (
-              <div className="text-center py-12 px-4">
-                <BookMarked size={32} className="text-on-surface-variant/20 block mb-2 mx-auto" />
-                <p className="text-xs text-on-surface-variant/50">
-                  {search ? 'No snippets match your search.' : 'No snippets yet.\nCreate your first one.'}
-                </p>
-              </div>
+              <EmptyState
+                icon={BookMarked}
+                title={search ? 'No matches' : 'No snippets yet'}
+                description={search ? 'Try a different search or clear the filter.' : 'Create your first snippet with Ctrl+N or the + button.'}
+              />
             ) : (
               visible.map((s) => (
                 <button key={s.id} onClick={() => { setSelected(s); setEditing(false) }}

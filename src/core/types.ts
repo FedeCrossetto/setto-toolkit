@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react'
+import type { ComponentType, LazyExoticComponent } from 'react'
 
 export interface PluginManifest {
   id: string
@@ -6,7 +6,7 @@ export interface PluginManifest {
   description: string
   /** Material Symbols Outlined icon name */
   icon: string
-  component: ComponentType
+  component: ComponentType | LazyExoticComponent<ComponentType>
   keywords?: string[]
   /** If true, the plugin icon appears pinned at the bottom of the sidebar */
   pinned?: boolean
@@ -23,6 +23,8 @@ export interface AppState {
   openTabs: Tab[]
   activeTabId: string | null
   commandPaletteOpen: boolean
+  /** In-app keyboard shortcuts reference (F1 or Help in command palette) */
+  keyboardShortcutsOpen: boolean
   theme: Theme
   sidebarCollapsed: boolean
   disabledPlugins: string[]
@@ -41,6 +43,8 @@ export type AppAction =
   | { type: 'SET_ACTIVE_TAB'; tabId: string }
   | { type: 'TOGGLE_COMMAND_PALETTE' }
   | { type: 'CLOSE_COMMAND_PALETTE' }
+  | { type: 'OPEN_KEYBOARD_SHORTCUTS' }
+  | { type: 'CLOSE_KEYBOARD_SHORTCUTS' }
   | { type: 'SET_THEME'; theme: Theme }
   | { type: 'TOGGLE_SIDEBAR' }
   /** Cross-plugin: open a file in the File Editor at an optional line */
