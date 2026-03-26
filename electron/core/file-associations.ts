@@ -3,7 +3,17 @@ import { app } from 'electron'
 import path from 'path'
 
 const APP_NAME = 'SettoToolkit'
-const EXTENSIONS = ['.txt', '.cfg', '.log', '.cs']
+
+/** Extensions we accept from argv when launching / second-instance (“Open with” / double-click). Must include any ext users open from Explorer. */
+const EXTENSIONS = [
+  '.txt', '.cfg', '.log', '.csv',
+  '.md', '.markdown',
+  '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx', '.json',
+  '.css', '.scss', '.html', '.htm',
+  '.py', '.java', '.cpp', '.cc', '.cxx', '.c', '.h', '.hpp',
+  '.cs', '.go', '.rs',
+  '.yaml', '.yml', '.xml', '.sql', '.ini', '.env',
+]
 
 /**
  * Registers the app in Windows registry so it appears in the "Open with" menu

@@ -30,8 +30,8 @@ app.on('second-instance', (_e, argv) => {
 
 // Resolve icon path for both dev and packaged builds
 const iconPath = app.isPackaged
-  ? path.join(__dirname, '../renderer/setto_icon.ico')
-  : path.join(__dirname, '../../public/setto_icon.ico')
+  ? path.join(__dirname, '../renderer/icon.ico')
+  : path.join(__dirname, '../../public/icon.ico')
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({

@@ -548,7 +548,7 @@ export function FileEditor(): JSX.Element {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto py-1 min-h-0">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden py-1 px-2 min-h-0">
             {tabs.length === 0 ? (
               <p className="text-[11px] text-on-surface-variant/50 text-center pt-4 px-3">
                 No files open.<br />Drop a file or folder here.
@@ -1015,12 +1015,12 @@ function FileListItem({ tab, isActive, isSelected = false, savedFlash = false, o
       onClick={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); onCtrlClick?.() } else { onClick() } }}
       onContextMenu={onContextMenu}
       title={`${tab.name}${tab.path ? `\n${tab.path}` : ''}\nCtrl+click to select · Drag to Compare in Smart Diff`}
-      className={`flex items-center gap-2 w-full px-3 py-2 cursor-grab active:cursor-grabbing group transition-colors border-l-2 ${
+      className={`flex items-center gap-2 w-full max-w-full px-3 py-2 rounded-md mb-0.5 cursor-grab active:cursor-grabbing group overflow-hidden transition-[background-color,box-shadow,color] ${
         isSelected
-          ? 'border-[#887CFD] bg-[#887CFD]/10 text-[#887CFD]'
+          ? 'bg-[#887CFD]/12 text-[#887CFD] [box-shadow:inset_0_0_0_1px_rgba(136,124,253,0.35)]'
           : isActive
-            ? 'border-transparent bg-primary/10 text-primary'
-            : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
+            ? 'bg-primary/12 text-primary [box-shadow:inset_0_0_0_1px_rgb(var(--c-primary)_/_0.32)]'
+            : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container/90'
       }`}>
       {(() => { const Icon = languageIcon(tab.language); return <Icon size={15} className={`flex-shrink-0 ${isActive ? 'text-primary' : 'text-on-surface-variant/60'}`} /> })()}
       {renaming ? (

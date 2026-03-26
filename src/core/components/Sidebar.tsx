@@ -105,7 +105,7 @@ function SidebarItem({ plugin, active, collapsed, onClick }: SidebarItemProps): 
         {/* Icon */}
         <PluginIcon
           icon={plugin.icon}
-          size={active ? 21 : 19}
+          size={active ? 20 : 18}
           className="flex-shrink-0"
           style={{
             color: active ? 'rgb(var(--c-primary-light))' : 'inherit',
@@ -116,7 +116,7 @@ function SidebarItem({ plugin, active, collapsed, onClick }: SidebarItemProps): 
         {/* Label */}
         {!collapsed && (
           <span
-            className="truncate text-[13px] select-none ml-3"
+            className="truncate text-[12px] select-none ml-3"
             style={{
               fontWeight: active ? 600 : 500,
               color: active ? 'rgb(var(--c-primary-light))' : 'inherit',
@@ -174,11 +174,11 @@ export function Sidebar(): JSX.Element {
         {/* ── Logo ──────────────────────────────────────────────────────────── */}
         <div className={`flex items-center mt-2 mb-3 flex-shrink-0 ${collapsed ? 'justify-center pr-0 pl-0' : 'pl-4 pr-3 justify-between'}`}>
           {collapsed ? (
-            <AppLogo size={48} />
+            <AppLogo size={80} />
           ) : (
             <>
               <div className="flex items-center gap-2">
-                <AppLogo size={46} />
+                <AppLogo size={80} />
                 <div className="leading-none">
                   <div className="font-bold text-[14px] tracking-tight" style={{ color: '#ffffff' }}>SETTO</div>
                   <div className="text-[9px] tracking-widest uppercase font-medium mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>Toolkit</div>

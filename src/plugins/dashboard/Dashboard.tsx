@@ -433,7 +433,7 @@ function OnboardingBanner({ onDismiss, onGoToSettings }: {
 export function Dashboard(): JSX.Element {
   const { dispatch, state } = useApp()
   const isDark = state.theme === 'dark'
-  const tools = allPlugins.filter((p) => p.id !== 'dashboard' && p.id !== 'about')
+  const tools = allPlugins.filter((p) => p.id !== 'dashboard' && p.id !== 'about' && !state.disabledPlugins.includes(p.id))
   const openTool = (id: string): void => dispatch({ type: 'OPEN_TAB', pluginId: id })
 
   const [showOnboarding, setShowOnboarding] = useState(false)
