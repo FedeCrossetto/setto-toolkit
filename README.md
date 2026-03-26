@@ -173,6 +173,26 @@ Podés usar `src/plugins/_template/` como punto de partida.
 
 ## Changelog
 
+### v2.4.1 — 2026-03-26
+
+#### Shell principal (todos los módulos)
+
+- **Card flotante unificada** (`App.tsx`): el área de pestañas y el contenido de los plugins comparten un mismo contenedor con `border-radius: 18px`, márgenes `40px` arriba, `8px` derecha, `44px` abajo y `6px` izquierda (respecto al TitleBar y a la StatusBar flotante), sombra suave y fondo `rgb(var(--c-background))`. Ticket Resolver, History y el resto de plugins se renderizan dentro de este bloque con bordes redondeados visibles.
+
+#### Sidebar
+
+- **Token `--c-sidebar`** (`globals.css`): color del panel por tema — claro `#14141C`, oscuro `#1E2030` (algo más claro que el fondo de contenido para que el sidebar se distinga en dark mode).
+- **Forma del panel**: las cuatro esquinas redondeadas a `16px` (incluidas superior e inferior derecha).
+- **Posición**: márgenes `top` / `bottom` respecto al viewport para separar el panel del borde superior y del footer; alineación con la zona de pestañas.
+- **Item activo**: muescas cóncavas arriba y abajo; **sin transición** en `background` / `width` / `border-radius` del botón para evitar el flash de fondo oscuro al cambiar de ítem; `z-index` en el wrapper del ítem activo.
+- **Logo Setto**: tamaños `48px` (sidebar colapsado) y `46px` (expandido).
+
+#### StatusBar
+
+- **Barra flotante**: `bottom: 8px`, `border-radius: 12px`, posición horizontal `left: anchoSidebar + 6px` y `right: 8px` para alinearla con la card principal.
+
+---
+
 ### v2.4.0 — 2026-03-26
 
 #### Ticket Resolver — refactor visual completo

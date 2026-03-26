@@ -145,6 +145,9 @@ export const handlers: PluginHandlers = {
 
     ipcMain.handle('editor:read-file', (_e, { path: filePath }: ReadFileRequest): ReadFileResponse => {
       const safe = validatePath(filePath)
+      // Authorize the file's parent so the user can save changes via Ctrl+S
+      // (mirrors what open-dialog does for each selected file).
+      addAuthorizedRoot(path.dirname(safe))
       const stat = fs.statSync(safe)
       const size = stat.size
       const mtime = stat.mtimeMs

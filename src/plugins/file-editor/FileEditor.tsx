@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import {
-  ArrowDown, ChevronDown, ChevronRight, Copy, Diff, Eye, EyeOff,
+  ArrowDown, CheckCircle2, ChevronDown, ChevronRight, Copy, Diff, Eye, EyeOff,
   FileInput, FilePlus, FileSearch, FileText, Filter, Folder,
   FolderOpen, FolderPlus, FolderSearch, History, Pause, Pencil, Play,
   RotateCcw, Save, SlidersHorizontal, Trash2, WrapText, X,
@@ -70,6 +70,8 @@ export function FileEditor(): JSX.Element {
   const [deleteConfirm, setDeleteConfirm] = useState<{
     name: string; isDir: boolean; resolve: (confirmed: boolean) => void
   } | null>(null)
+
+  const [savedFlash, setSavedFlash] = useState(false)
 
   const editorRef    = useRef<EditorHandle | null>(null)
   const settingsRef  = useRef<HTMLDivElement>(null)
@@ -178,6 +180,8 @@ export function FileEditor(): JSX.Element {
         } else {
           await window.api.invoke('editor:write-file', activeTab.path, activeTab.content)
           updateTab(activeTab.id, { isDirty: false })
+          setSavedFlash(true)
+          setTimeout(() => setSavedFlash(false), 1500)
         }
       }
     }
@@ -544,6 +548,7 @@ export function FileEditor(): JSX.Element {
                 <FileListItem
                   key={tab.id} tab={tab} isActive={activeId === tab.id}
                   isSelected={selectedIds.has(tab.id)}
+                  savedFlash={savedFlash && activeId === tab.id}
                   onClick={() => { setSelectedIds(new Set()); setActiveId(tab.id) }}
                   onCtrlClick={() => toggleSelection(tab.id)}
                   onClose={() => { setSelectedIds((p) => { const n = new Set(p); n.delete(tab.id); return n }); void handleCloseTab(tab.id) }}
@@ -981,8 +986,8 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
   )
 }
 
-function FileListItem({ tab, isActive, isSelected = false, onClick, onCtrlClick, onClose, onSave, onContextMenu, renaming, onRenameCommit, onRenameCancel }: {
-  tab: OpenFile; isActive: boolean; isSelected?: boolean
+function FileListItem({ tab, isActive, isSelected = false, savedFlash = false, onClick, onCtrlClick, onClose, onSave, onContextMenu, renaming, onRenameCommit, onRenameCancel }: {
+  tab: OpenFile; isActive: boolean; isSelected?: boolean; savedFlash?: boolean
   onClick: () => void; onCtrlClick?: () => void; onClose: () => void; onSave: () => void
   onContextMenu: (e: React.MouseEvent) => void
   renaming: boolean; onRenameCommit: (name: string) => void; onRenameCancel: () => void
@@ -1014,7 +1019,9 @@ function FileListItem({ tab, isActive, isSelected = false, onClick, onCtrlClick,
         <span className={`text-[11px] font-medium truncate flex-1 ${tab.path === null ? 'italic' : ''}`}>{tab.name}</span>
       )}
       {tab.watchActive && !tab.frozen && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" />}
-      {tab.isDirty && <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />}
+      {savedFlash
+        ? <CheckCircle2 size={12} className="text-green-400 flex-shrink-0" style={{ animation: 'fe-saved-pop 0.2s ease both' }} />
+        : tab.isDirty && <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />}
       {!renaming && (tab.isDirty || tab.path === null) && isActive && (
         <button onClick={(e) => { e.stopPropagation(); onSave() }} title="Save"
           className="opacity-0 group-hover:opacity-100 hover:text-primary transition-all flex-shrink-0">

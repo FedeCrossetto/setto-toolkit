@@ -1,15 +1,15 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   BookmarkPlus, Check, ChevronDown, ChevronRight, CircleAlert, CircleStop,
-  Copy, Download, FileUp, FolderOpen, Network, Paperclip, Pencil, Plus,
-  RotateCcw, Save, Search, Send, Sparkles, Terminal, Trash2, Upload, X,
+  Copy, Download, Eye, FileUp, FolderOpen, Network, Paperclip, Pencil, Plus,
+  RotateCcw, Save, Search, SendHorizontal, Sparkles, Terminal, Trash2, Upload, X,
 } from 'lucide-react'
 import { useCollections } from './hooks/useCollections'
 import { useRequestRunner } from './hooks/useRequestRunner'
 import {
   tryFormatJson, highlightJson, formatXml, formatSize, newKV, randomUUID,
   parseCurl, exportToCurl, parseFormPairs, serializeFormPairs,
-  importCollectionFromJSON,
+  importCollectionFromJSON, extractTemplateVars, interpolateVars,
 } from './utils'
 import type { ActiveRequest, Collection, Environment, HttpMethod, BodyType, KeyValuePair, FormDataField } from './types'
 
@@ -215,7 +215,16 @@ function emptyRequest(collectionId = ''): ActiveRequest {
 }
 
 type RequestTab = 'headers' | 'params' | 'body' | 'auth' | 'scripts'
-type ResponseTab = 'body' | 'headers' | 'raw'
+type ResponseTab = 'body' | 'headers' | 'raw' | 'sent'
+
+interface SentSnapshot {
+  method: string
+  url: string
+  headers: { key: string; value: string }[]
+  bodyType: string
+  body: string
+  auth: ActiveRequest['auth']
+}
 
 export function ApiLab(): JSX.Element {
   const { collections, loading, createCollection, deleteCollection, saveRequest, deleteRequest, duplicateRequest, reload: reloadCollections } = useCollections()
@@ -228,9 +237,12 @@ export function ApiLab(): JSX.Element {
   const [newColName, setNewColName] = useState('')
   const [showNewCol, setShowNewCol] = useState(false)
   const [showImportCurl, setShowImportCurl] = useState(false)
+  const [saveConfirm, setSaveConfirm] = useState<{ resolve: (ok: boolean) => void } | null>(null)
+  const [sentSnapshot, setSentSnapshot] = useState<SentSnapshot | null>(null)
   const [curlCopied, setCurlCopied] = useState(false)
   const [beautified, setBeautified] = useState(false)
   const [leftTab, setLeftTab] = useState<'collections' | 'environments' | 'history'>('collections')
+  const [mascot, setMascot] = useState<'panda' | 'setto-avatar'>('setto-avatar')
   const [showImportCollection, setShowImportCollection] = useState(false)
   const [responseHeight, setResponseHeight] = useState(260)
   const resizeStartRef = useRef<{ y: number; h: number } | null>(null)
@@ -238,6 +250,15 @@ export function ApiLab(): JSX.Element {
   useEffect(() => { loadHistory() }, [loadHistory])
   useEffect(() => {
     window.api.invoke<Environment[]>('api-tester:environments-get').then(setEnvironments)
+    window.api.invoke<string|null>('settings:get', 'dashboard.mascot')
+      .then((v) => { if (v !== null) setMascot(v === 'panda' ? 'panda' : 'setto-avatar') })
+      .catch(() => { /* ignore */ })
+    const onMascotChange = (e: Event): void => {
+      const val = (e as CustomEvent<string>).detail
+      setMascot(val === 'panda' ? 'panda' : 'setto-avatar')
+    }
+    window.addEventListener('mascot-change', onMascotChange)
+    return () => window.removeEventListener('mascot-change', onMascotChange)
   }, [])
 
   const handleImportCollection = async (jsonStr: string): Promise<string | null> => {
@@ -303,6 +324,12 @@ export function ApiLab(): JSX.Element {
 
   const handleSave = async (): Promise<void> => {
     if (!active.collectionId) return
+    // Confirm before overwriting an existing saved request
+    if (active.requestId !== null) {
+      const confirmed = await new Promise<boolean>((resolve) => setSaveConfirm({ resolve }))
+      setSaveConfirm(null)
+      if (!confirmed) return
+    }
     await saveRequest({
       id: active.requestId ?? randomUUID(),
       collectionId: active.collectionId,
@@ -315,6 +342,37 @@ export function ApiLab(): JSX.Element {
   }
 
   const handleExecute = (): void => {
+    // Build resolved URL with params
+    const enabledParams = active.params.filter((p) => p.enabled && p.key)
+    let resolvedUrl = interpolateVars(active.url, activeEnvVars)
+    if (enabledParams.length) {
+      const qs = enabledParams.map((p) => `${encodeURIComponent(interpolateVars(p.key, activeEnvVars))}=${encodeURIComponent(interpolateVars(p.value, activeEnvVars))}`).join('&')
+      resolvedUrl += (resolvedUrl.includes('?') ? '&' : '?') + qs
+    }
+    // Resolved headers
+    const resolvedHeaders = active.headers
+      .filter((h) => h.enabled && h.key)
+      .map((h) => ({ key: interpolateVars(h.key, activeEnvVars), value: interpolateVars(h.value, activeEnvVars) }))
+    if (active.auth.type === 'bearer' && active.auth.token)
+      resolvedHeaders.push({ key: 'Authorization', value: `Bearer ${interpolateVars(active.auth.token, activeEnvVars)}` })
+    // Auto content-type if not set
+    const hasContentType = resolvedHeaders.some((h) => h.key.toLowerCase() === 'content-type')
+    if (!hasContentType && active.body.type !== 'none') {
+      const ct = active.body.type === 'json' ? 'application/json' : active.body.type === 'xml' ? 'application/xml' : active.body.type === 'form' ? 'application/x-www-form-urlencoded' : null
+      if (ct) resolvedHeaders.push({ key: 'Content-Type', value: ct })
+    }
+
+    setSentSnapshot({
+      method: active.method,
+      url: resolvedUrl,
+      headers: resolvedHeaders,
+      bodyType: active.body.type,
+      body: active.body.type !== 'none' && active.body.type !== 'form-data'
+        ? interpolateVars(active.body.content, activeEnvVars)
+        : active.body.content,
+      auth: active.auth,
+    })
+
     execute({
       id: active.requestId ?? '', collectionId: active.collectionId ?? '',
       name: '', method: active.method, url: active.url,
@@ -344,7 +402,9 @@ export function ApiLab(): JSX.Element {
 
   const isOk = response && response.status < 400
   const formattedBody = response ? tryFormatJson(response.body) : ''
-  const activeEnvName = environments.find((e) => e.isActive)?.name
+  const activeEnv = environments.find((e) => e.isActive)
+  const activeEnvName = activeEnv?.name
+  const activeEnvVars = activeEnv?.variables ?? {}
 
   // For form body type, work with KV pairs derived from content
   const formPairs: KeyValuePair[] = active.body.type === 'form' ? parseFormPairs(active.body.content) : []
@@ -469,7 +529,7 @@ export function ApiLab(): JSX.Element {
             <button onClick={handleExecute} disabled={!active.url.trim()}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-on-primary transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: 'var(--gradient-brand)' }}>
-              <Send size={15} /> Send
+              <SendHorizontal size={15} /> Send
             </button>
           )}
 
@@ -527,13 +587,29 @@ export function ApiLab(): JSX.Element {
                   <KVEditor pairs={formPairs} onChange={setFormPairs} />
                 </div>
               ) : active.body.type !== 'none' && (
-                <textarea value={active.body.content} onChange={(e) => setActive((a) => ({ ...a, body: { ...a.body, content: e.target.value } }))}
-                  className="flex-1 font-mono text-xs bg-surface border border-outline-variant/20 rounded-xl p-4 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none"
-                  placeholder={
-                    active.body.type === 'json' ? '{\n  "key": "value"\n}' :
-                    active.body.type === 'xml'  ? '<root>\n  <key>value</key>\n</root>' :
-                    'Request body...'
-                  } />
+                <>
+                  <textarea value={active.body.content} onChange={(e) => setActive((a) => ({ ...a, body: { ...a.body, content: e.target.value } }))}
+                    className="flex-1 font-mono text-xs bg-surface border border-outline-variant/20 rounded-xl p-4 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none"
+                    placeholder={
+                      active.body.type === 'json' ? '{\n  "key": "value"\n}' :
+                      active.body.type === 'xml'  ? '<root>\n  <key>value</key>\n</root>' :
+                      'Request body...'
+                    } />
+                  {extractTemplateVars(active.body.content).length > 0 && (
+                    <div className="flex-shrink-0 border border-outline-variant/20 rounded-xl overflow-hidden">
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-container border-b border-outline-variant/15">
+                        <Eye size={11} className="text-accent" />
+                        <span className="text-[10px] font-semibold text-accent">Resolved preview</span>
+                        {!activeEnvName && (
+                          <span className="ml-auto text-[10px] text-on-surface-variant/50 italic">no active environment</span>
+                        )}
+                      </div>
+                      <pre className="font-mono text-xs p-3 text-on-surface whitespace-pre-wrap break-all max-h-32 overflow-auto bg-surface-container-low leading-relaxed">
+                        {interpolateVars(active.body.content, activeEnvVars)}
+                      </pre>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -573,7 +649,7 @@ export function ApiLab(): JSX.Element {
         </div>
 
         {/* Response panel */}
-        <div className="flex-shrink-0 border-t border-outline-variant/20 flex flex-col bg-surface overflow-hidden" style={{ height: responseHeight }}>
+        <div className="relative flex-shrink-0 border-t border-outline-variant/20 flex flex-col bg-surface overflow-hidden" style={{ height: responseHeight }}>
           <div className="flex items-center gap-4 px-4 py-2 border-b border-outline-variant/15 flex-shrink-0">
             {response && (
               <>
@@ -595,6 +671,16 @@ export function ApiLab(): JSX.Element {
                 </button>
               </div>
             )}
+            {error && /ECONNREFUSED|connection refused/i.test(error) && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+                <img
+                  src={mascot === 'panda' ? 'panda-avatar/panda-refused.png' : 'setto-avatar/setto-avatar-refused.png'}
+                  alt="Connection refused"
+                  className="h-48 opacity-90 drop-shadow-lg"
+                />
+                <p className="text-sm font-semibold text-error/80 mt-2">Connection refused</p>
+              </div>
+            )}
             {status === 'idle' && !response && <span className="text-xs text-on-surface-variant">Send a request to see the response</span>}
 
             <div className="ml-auto flex items-center gap-1">
@@ -604,7 +690,13 @@ export function ApiLab(): JSX.Element {
                   {t}
                 </button>
               ))}
-              {response && (
+              {sentSnapshot && (
+                <button onClick={() => setResTab('sent')}
+                  className={`px-3 py-1 text-xs border-b-2 transition-colors ${resTab === 'sent' ? 'border-accent text-accent' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}>
+                  Sent
+                </button>
+              )}
+              {response && resTab !== 'sent' && (
                 <button onClick={() => navigator.clipboard.writeText(formattedBody)} title="Copy response"
                   className="ml-2 text-on-surface-variant hover:text-primary transition-colors">
                   <Copy size={15} />
@@ -614,15 +706,53 @@ export function ApiLab(): JSX.Element {
           </div>
 
           <div className="flex-1 overflow-auto p-3 font-mono text-xs text-on-surface leading-relaxed">
-            {response && resTab === 'body' && <pre className="whitespace-pre-wrap break-all" dangerouslySetInnerHTML={{ __html: highlightJson(formattedBody) }} />}
-            {response && resTab === 'headers' && (
+            {resTab !== 'sent' && response && resTab === 'body' && <pre className="whitespace-pre-wrap break-all" dangerouslySetInnerHTML={{ __html: highlightJson(formattedBody) }} />}
+            {resTab !== 'sent' && response && resTab === 'headers' && (
               <div className="space-y-1">
                 {Object.entries(response.headers).map(([k, v]) => (
                   <div key={k}><span className="text-primary">{k}:</span> <span>{v}</span></div>
                 ))}
               </div>
             )}
-            {response && resTab === 'raw' && <pre className="whitespace-pre-wrap break-all">{response.body}</pre>}
+            {resTab !== 'sent' && response && resTab === 'raw' && <pre className="whitespace-pre-wrap break-all">{response.body}</pre>}
+            {resTab === 'sent' && sentSnapshot && (
+              <div className="space-y-4 font-sans">
+                {/* Request line */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded ${METHOD_COLOR[sentSnapshot.method as import('./types').HttpMethod] ?? 'text-on-surface-variant'}`}>
+                    {sentSnapshot.method}
+                  </span>
+                  <span className="text-xs text-on-surface break-all font-mono">{sentSnapshot.url}</span>
+                </div>
+
+                {/* Headers */}
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50 mb-1.5">Headers</p>
+                  <div className="space-y-1 bg-surface-container rounded-lg p-2">
+                    {sentSnapshot.headers.length === 0
+                      ? <span className="text-on-surface-variant/40 text-xs italic">none</span>
+                      : sentSnapshot.headers.map((h, i) => (
+                        <div key={i} className="flex gap-2 text-xs">
+                          <span className="text-primary/80 flex-shrink-0">{h.key}:</span>
+                          <span className="text-on-surface break-all">{h.value}</span>
+                        </div>
+                      ))
+                    }
+                  </div>
+                </div>
+
+                {/* Body */}
+                {sentSnapshot.bodyType !== 'none' && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50 mb-1.5">
+                      Body <span className="normal-case text-on-surface-variant/40">({sentSnapshot.bodyType})</span>
+                    </p>
+                    <pre className="whitespace-pre-wrap break-all bg-surface-container rounded-lg p-2 text-xs text-on-surface leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: highlightJson(tryFormatJson(sentSnapshot.body)) }} />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -642,13 +772,68 @@ export function ApiLab(): JSX.Element {
       {/* ── Import cURL modal ─────────────────────────────────────────────── */}
       {showImportCurl && (
         <ImportCurlModal
-          onImport={(parsed) => {
+          activeEnvName={activeEnvName}
+          onImport={(parsed, detectedVars) => {
             setActive((a) => ({ ...a, ...parsed }))
             setShowImportCurl(false)
             setReqTab('headers')
+            if (detectedVars.length > 0) {
+              const activeEnv = environments.find((e) => e.isActive)
+              if (activeEnv) {
+                // Add missing vars to existing active environment
+                const updatedVars = { ...activeEnv.variables }
+                for (const v of detectedVars) {
+                  if (!(v in updatedVars)) updatedVars[v] = ''
+                }
+                void saveEnvironments(environments.map((e) => e.id === activeEnv.id ? { ...e, variables: updatedVars } : e))
+              } else {
+                // No active env — create one automatically
+                const newEnv: Environment = {
+                  id: randomUUID(),
+                  name: 'Imported Variables',
+                  isActive: true,
+                  variables: Object.fromEntries(detectedVars.map((v) => [v, ''])),
+                }
+                void saveEnvironments([...environments, newEnv])
+              }
+              setLeftTab('environments')  // Switch to Envs tab so user fills in the values
+            }
           }}
           onClose={() => setShowImportCurl(false)}
         />
+      )}
+
+      {/* ── Save overwrite confirmation ────────────────────────────────────── */}
+      {saveConfirm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => saveConfirm.resolve(false)}>
+          <div className="bg-surface border border-outline-variant/20 rounded-2xl shadow-2xl w-80 p-6 flex flex-col gap-4"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                <Save size={16} className="text-primary" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-on-surface">Overwrite request?</h2>
+                <p className="text-xs text-on-surface-variant mt-1">
+                  This will replace the saved request
+                  {active.url ? <> at <span className="font-mono text-primary/80 break-all">{active.url}</span></> : ''} with your current changes.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => saveConfirm.resolve(false)}
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
+                Cancel
+              </button>
+              <button onClick={() => saveConfirm.resolve(true)}
+                className="px-4 py-2 text-sm font-semibold rounded-lg text-on-primary transition-all hover:opacity-90"
+                style={{ background: 'var(--gradient-brand)' }}>
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -729,17 +914,28 @@ function ImportCollectionModal({ onImport, onClose }: {
 
 // ── ImportCurlModal ────────────────────────────────────────────────────────────
 
-function ImportCurlModal({ onImport, onClose }: {
-  onImport: (parsed: Partial<ActiveRequest>) => void
+function ImportCurlModal({ onImport, onClose, activeEnvName }: {
+  onImport: (parsed: Partial<ActiveRequest>, detectedVars: string[]) => void
   onClose: () => void
+  activeEnvName?: string
 }): JSX.Element {
   const [value, setValue] = useState('')
   const [parseError, setParseError] = useState('')
 
+  const parsed = useMemo(() => value.trim() ? parseCurl(value.trim()) : null, [value])
+
+  const detectedVars = useMemo(() => {
+    if (!parsed) return []
+    return extractTemplateVars(
+      parsed.url ?? '',
+      ...(parsed.headers ?? []).map((h) => h.value),
+      parsed.body?.content ?? '',
+    )
+  }, [parsed])
+
   const handleImport = (): void => {
-    const result = parseCurl(value.trim())
-    if (!result) { setParseError('Could not parse cURL command. Make sure it starts with "curl".'); return }
-    onImport(result)
+    if (!parsed) { setParseError('Could not parse cURL command. Make sure it starts with "curl".'); return }
+    onImport(parsed, detectedVars)
   }
 
   return (
@@ -762,6 +958,20 @@ function ImportCurlModal({ onImport, onClose }: {
           placeholder={`curl -X POST 'https://api.example.com/data' \\\n  -H 'Content-Type: application/json' \\\n  -H 'Authorization: Bearer token123' \\\n  -d '{"key": "value"}'`}
           className="font-mono text-xs bg-surface-container border border-outline-variant/20 rounded-xl p-4 text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none h-44"
         />
+
+        {detectedVars.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+            <span className="text-accent font-semibold flex-shrink-0">Variables detected:</span>
+            {detectedVars.map((v) => (
+              <span key={v} className="font-mono px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">{`{{${v}}}`}</span>
+            ))}
+            <span className="text-on-surface-variant/50 ml-1">
+              {activeEnvName
+                ? <>→ will be added to <span className="text-accent font-medium">{activeEnvName}</span></>
+                : '→ no active environment (go to Envs tab to create one)'}
+            </span>
+          </div>
+        )}
 
         {parseError && (
           <p className="text-xs text-error flex items-center gap-1.5">
@@ -830,7 +1040,7 @@ function CollectionItem({ collection, activeRequestId, onSelectRequest, onNewReq
     <div className="mb-1">
       <div className="flex items-center gap-1 px-3 py-1.5 group hover:bg-surface-container rounded-lg cursor-pointer" onClick={() => setOpen((o) => !o)}>
         {open ? <ChevronDown size={14} className="text-on-surface-variant" /> : <ChevronRight size={14} className="text-on-surface-variant" />}
-        <span className="text-xs font-medium text-on-surface flex-1 truncate">{collection.name}</span>
+        <span className="text-xs font-medium text-on-surface flex-1 break-words min-w-0">{collection.name}</span>
         <button onClick={(e) => { e.stopPropagation(); onNewRequest() }} className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-primary" title="New request">
           <Plus size={13} />
         </button>
@@ -857,7 +1067,7 @@ function CollectionItem({ collection, activeRequestId, onSelectRequest, onNewReq
               className="flex-1 text-xs bg-surface border border-primary/50 rounded px-1.5 py-0.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
           ) : (
-            <span className="text-xs text-on-surface truncate flex-1">{req.name}</span>
+            <span className="text-xs text-on-surface break-words flex-1 min-w-0">{req.name}</span>
           )}
 
           <button onClick={(e) => { e.stopPropagation(); onDuplicate(req.id) }} className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-primary">
@@ -992,25 +1202,41 @@ function EnvironmentPanel({ environments, onChange }: {
   environments: Environment[]
   onChange: (envs: Environment[]) => Promise<void>
 }): JSX.Element {
-  const [selectedId, setSelectedId] = useState<string | null>(environments[0]?.id ?? null)
+  const [selectedId, setSelectedId] = useState<string | null>(
+    environments.find((e) => e.isActive)?.id ?? environments[0]?.id ?? null
+  )
   const [newEnvName, setNewEnvName] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [varPairs, setVarPairs] = useState<KeyValuePair[]>([])
+  const [varsSaved, setVarsSaved] = useState(false)
 
   const selected = environments.find((e) => e.id === selectedId) ?? null
 
+  // Auto-select active env (or keep valid selection) when environments list changes externally
+  useEffect(() => {
+    const activeId = environments.find((e) => e.isActive)?.id
+    if (activeId && activeId !== selectedId) {
+      setSelectedId(activeId)
+    } else if (!environments.find((e) => e.id === selectedId) && environments.length > 0) {
+      setSelectedId(environments[0].id)
+    }
+  }, [environments]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync varPairs when selected env or its variables change externally (e.g. import curl)
   useEffect(() => {
     if (selected) {
       setVarPairs(Object.entries(selected.variables).map(([k, v]) => ({ id: randomUUID(), key: k, value: v, enabled: true })))
     } else {
       setVarPairs([])
     }
-  }, [selectedId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedId, JSON.stringify(selected?.variables)]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSaveVars = async (): Promise<void> => {
     if (!selected) return
     const variables = Object.fromEntries(varPairs.filter((p) => p.key.trim()).map((p) => [p.key, p.value]))
     await onChange(environments.map((e) => e.id === selected.id ? { ...e, variables } : e))
+    setVarsSaved(true)
+    setTimeout(() => setVarsSaved(false), 1500)
   }
 
   const handleSetActive = async (id: string): Promise<void> => {
@@ -1050,7 +1276,7 @@ function EnvironmentPanel({ environments, onChange }: {
             <button type="submit" className="text-primary"><Check size={16} /></button>
           </form>
         )}
-        <div className="space-y-0.5">
+        <div className="space-y-0.5 max-h-36 overflow-y-auto">
           {environments.map((env) => (
             <div key={env.id} onClick={() => setSelectedId(env.id)}
               className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer group transition-colors ${selectedId === env.id ? 'bg-primary/10' : 'hover:bg-surface-container'}`}>
@@ -1076,22 +1302,35 @@ function EnvironmentPanel({ environments, onChange }: {
       {/* Variable editor */}
       {selected && (
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="px-3 pt-3 pb-1 flex-shrink-0">
+          <div className="px-3 pt-3 pb-1 flex-shrink-0 flex items-center justify-between gap-2">
             <p className="text-[10px] text-on-surface-variant/50">
               Use <code className="bg-surface-container px-1 rounded text-primary/80">{`{{varName}}`}</code> in URLs, headers and body.
             </p>
+            {varsSaved && (
+              <span className="flex items-center gap-0.5 text-[10px] text-green-400 flex-shrink-0" style={{ animation: 'fe-saved-pop 0.2s ease both' }}>
+                <Check size={11} /> Saved
+              </span>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto px-3 py-2">
             <div className="space-y-1.5">
               {varPairs.map((p) => (
                 <div key={p.id} className="flex items-center gap-1.5">
-                  <input value={p.key} onChange={(e) => setVarPairs((ps) => ps.map((x) => x.id === p.id ? { ...x, key: e.target.value } : x))}
+                  <input value={p.key}
+                    onChange={(e) => setVarPairs((ps) => ps.map((x) => x.id === p.id ? { ...x, key: e.target.value } : x))}
                     placeholder="Variable"
                     className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                  <input value={p.value} onChange={(e) => setVarPairs((ps) => ps.map((x) => x.id === p.id ? { ...x, value: e.target.value } : x))}
+                  <input value={p.value}
+                    onChange={(e) => setVarPairs((ps) => ps.map((x) => x.id === p.id ? { ...x, value: e.target.value } : x))}
+                    onBlur={() => void handleSaveVars()}
                     placeholder="Value"
                     className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                  <button onClick={() => setVarPairs((ps) => ps.filter((x) => x.id !== p.id))} className="text-on-surface-variant hover:text-error transition-colors">
+                  <button onClick={() => void handleSaveVars()} title="Save"
+                    className="text-green-400 hover:text-green-300 transition-colors flex-shrink-0">
+                    <Check size={13} />
+                  </button>
+                  <button onClick={() => setVarPairs((ps) => ps.filter((x) => x.id !== p.id))}
+                    className="text-on-surface-variant hover:text-error transition-colors flex-shrink-0">
                     <X size={13} />
                   </button>
                 </div>
@@ -1100,13 +1339,6 @@ function EnvironmentPanel({ environments, onChange }: {
             <button onClick={() => setVarPairs((ps) => [...ps, { id: randomUUID(), key: '', value: '', enabled: true }])}
               className="flex items-center gap-1 text-xs text-on-surface-variant hover:text-primary transition-colors mt-2">
               <Plus size={13} /> Add variable
-            </button>
-          </div>
-          <div className="px-3 pb-3 flex-shrink-0">
-            <button onClick={() => void handleSaveVars()}
-              className="w-full py-1.5 text-xs font-semibold rounded-lg text-on-primary transition-all hover:opacity-90"
-              style={{ background: 'var(--gradient-brand)' }}>
-              Save
             </button>
           </div>
         </div>

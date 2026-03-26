@@ -147,7 +147,14 @@ export function parseCurl(input: string): Partial<import('./types').ActiveReques
     const ct = headers.find((h) => h.key.toLowerCase() === 'content-type')?.value ?? ''
     if (ct.includes('x-www-form-urlencoded')) { bodyType = 'form' }
     else if (ct.includes('xml')) { bodyType = 'xml' }
-    else { try { JSON.parse(bodyContent); bodyType = 'json' } catch { bodyType = 'text' } }
+    else {
+      try { JSON.parse(bodyContent); bodyType = 'json' }
+      catch {
+        // May contain {{vars}} that make it invalid JSON — still treat as json if it looks like an object/array
+        const trimmed = bodyContent.trim()
+        bodyType = (trimmed.startsWith('{') || trimmed.startsWith('[')) ? 'json' : 'text'
+      }
+    }
   }
 
   return {
@@ -262,6 +269,20 @@ export function importCollectionFromJSON(raw: string): import('./types').Collect
   return null
 }
 
+/** Replace {{varName}} tokens with their values from the given map (leaves unresolved tokens as-is) */
+export function interpolateVars(str: string, vars: Record<string, string>): string {
+  return str.replace(/\{\{([^}]+)\}\}/g, (_, k) => vars[k.trim()] ?? `{{${k}}}`)
+}
+
+/** Extract all unique {{varName}} placeholders from one or more strings */
+export function extractTemplateVars(...texts: string[]): string[] {
+  const vars = new Set<string>()
+  for (const t of texts) {
+    for (const m of t.matchAll(/\{\{([^}]+)\}\}/g)) vars.add(m[1].trim())
+  }
+  return [...vars]
+}
+
 /** Export an ActiveRequest as a curl command string */
 export function exportToCurl(req: import('./types').ActiveRequest): string {
   const parts: string[] = ['curl']
@@ -278,11 +299,23 @@ export function exportToCurl(req: import('./types').ActiveRequest): string {
   if (req.auth.type === 'bearer') parts.push(`-H 'Authorization: Bearer ${req.auth.token ?? ''}'`)
   else if (req.auth.type === 'basic') parts.push(`-u '${req.auth.username ?? ''}:${req.auth.password ?? ''}'`)
 
-  for (const h of req.headers.filter((h) => h.enabled && h.key)) {
+  const enabledHeaders = req.headers.filter((h) => h.enabled && h.key)
+  const hasContentType = enabledHeaders.some((h) => h.key.toLowerCase() === 'content-type')
+
+  for (const h of enabledHeaders) {
     parts.push(`-H '${h.key}: ${h.value.replace(/'/g, "'\\''")}'`)
   }
 
   if (req.body.type !== 'none' && req.body.content) {
+    // Auto-inject Content-Type if not explicitly set — mirrors what the server does
+    if (!hasContentType) {
+      const ct =
+        req.body.type === 'json' ? 'application/json' :
+        req.body.type === 'xml'  ? 'application/xml' :
+        req.body.type === 'form' ? 'application/x-www-form-urlencoded' :
+        null
+      if (ct) parts.push(`-H 'Content-Type: ${ct}'`)
+    }
     const escaped = req.body.content.replace(/'/g, "'\\''")
     parts.push(`-d '${escaped}'`)
   }
