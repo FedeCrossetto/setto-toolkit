@@ -3,7 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 /** Channels the renderer may invoke (request → main) */
 const INVOKE_CHANNELS = new Set([
   'settings:get', 'settings:set', 'settings:delete', 'settings:getAll',
-  'settings:export', 'settings:import',
+  'settings:export', 'settings:import', 'settings:encryption-available',
   'repo-search:login', 'repo-search:logout', 'repo-search:me', 'repo-search:search',
   'repo-search:history-get', 'repo-search:history-save',
   'repo-search:github-oauth-start', 'repo-search:github-oauth-poll',

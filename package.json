@@ -1,6 +1,6 @@
 {
   "name": "mytools-app",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "description": "Setto — modular developer utilities",
   "main": "out/main/main.js",
   "scripts": {
@@ -38,8 +38,10 @@
     "electron-store": "^11.0.2",
     "fuse.js": "^7.0.0",
     "lucide-react": "^1.7.0",
-    "node-pty": "^1.0.0",
     "openai": "^4.47.0"
+  },
+  "optionalDependencies": {
+    "node-pty": "^1.0.0"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",

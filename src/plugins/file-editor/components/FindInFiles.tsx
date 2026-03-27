@@ -1,34 +1,70 @@
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Loader2, Search, X } from 'lucide-react'
-import type { FileTreeNode, FindResult } from '../types'
+import type { FileTreeNode, FindResult, OpenFile } from '../types'
 import { languageIcon, detectLanguage } from '../hooks/useEditorTabs'
 
 interface FindInFilesProps {
   folders: FileTreeNode[]
+  openTabs: OpenFile[]
   onOpenAt: (path: string, line: number) => void
   onClose: () => void
 }
 
-export function FindInFiles({ folders, onOpenAt, onClose }: FindInFilesProps): JSX.Element {
+type Scope = 'tabs' | number  // number = folder index
+
+function searchInTabs(tabs: OpenFile[], query: string, useRegex: boolean): FindResult[] {
+  const results: FindResult[] = []
+  let pattern: RegExp | null = null
+  if (useRegex) {
+    try { pattern = new RegExp(query, 'i') } catch { return [] }
+  }
+  for (const tab of tabs) {
+    if (tab.path === null) continue
+    const lines = tab.content.split('\n')
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      const matches = pattern ? pattern.test(line) : line.toLowerCase().includes(query.toLowerCase())
+      if (matches) results.push({ path: tab.path, name: tab.name, lineNumber: i + 1, lineText: line.trim() })
+      if (results.length >= 300) return results
+    }
+  }
+  return results
+}
+
+export function FindInFiles({ folders, openTabs, onOpenAt, onClose }: FindInFilesProps): JSX.Element {
+  const hasTabs    = openTabs.some((t) => t.path !== null)
+  const hasFolders = folders.length > 0
+
   const [query, setQuery]     = useState('')
   const [useRegex, setRegex]  = useState(false)
   const [results, setResults] = useState<FindResult[]>([])
   const [searching, setSearching] = useState(false)
   const [searched, setSearched]   = useState(false)
-  const [scopeIdx, setScopeIdx]   = useState(0)
+  const [scope, setScope]         = useState<Scope>(() => (hasFolders ? 0 : 'tabs'))
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const scopeFolder = folders[scopeIdx] ?? null
+  // If folders change (e.g. first folder opened), keep scope on tabs unless it was already a folder
+  useEffect(() => {
+    if (!hasFolders && scope !== 'tabs') setScope('tabs')
+  }, [hasFolders, scope])
+
+  const scopeFolder = typeof scope === 'number' ? (folders[scope] ?? null) : null
+  const canSearch   = !!query.trim() && (scope === 'tabs' ? hasTabs : scopeFolder !== null)
 
   const run = async (): Promise<void> => {
-    if (!query.trim() || !scopeFolder) return
+    if (!canSearch) return
     setSearching(true)
     setSearched(false)
+    setResults([])
     try {
-      const res = await window.api.invoke<FindResult[]>('editor:find-in-files', {
-        dir: scopeFolder.path, query, useRegex,
-      })
-      setResults(res)
+      if (scope === 'tabs') {
+        setResults(searchInTabs(openTabs, query, useRegex))
+      } else {
+        const res = await window.api.invoke<FindResult[]>('editor:find-in-files', {
+          dir: scopeFolder!.path, query, useRegex,
+        })
+        setResults(res)
+      }
     } finally {
       setSearching(false)
       setSearched(true)
@@ -36,7 +72,7 @@ export function FindInFiles({ folders, onOpenAt, onClose }: FindInFilesProps): J
   }
 
   const handleKey = (e: React.KeyboardEvent): void => {
-    if (e.key === 'Enter') run()
+    if (e.key === 'Enter') void run()
     if (e.key === 'Escape') onClose()
   }
 
@@ -46,20 +82,25 @@ export function FindInFiles({ folders, onOpenAt, onClose }: FindInFilesProps): J
     return acc
   }, {})
 
+  const scopeOptions: { value: string; label: string }[] = [
+    { value: 'tabs', label: 'Open tabs' },
+    ...folders.map((f, i) => ({ value: String(i), label: f.name })),
+  ]
+
   return (
     <div className="flex flex-col border-t border-outline-variant/20 bg-surface flex-shrink-0" style={{ height: '220px' }}>
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-outline-variant/15 flex-shrink-0">
         <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Find in files</span>
 
-        {/* Scope selector */}
-        {folders.length > 1 && (
+        {/* Scope selector — only show when a folder is also open (tabs are always an option) */}
+        {hasFolders && (
           <select
-            value={scopeIdx}
-            onChange={(e) => setScopeIdx(Number(e.target.value))}
+            value={scope === 'tabs' ? 'tabs' : String(scope)}
+            onChange={(e) => setScope(e.target.value === 'tabs' ? 'tabs' : Number(e.target.value))}
             className="text-[11px] bg-surface-container border border-outline-variant/30 rounded-lg px-1.5 py-0.5 text-on-surface-variant outline-none"
           >
-            {folders.map((f, i) => <option key={f.path} value={i}>{f.name}</option>)}
+            {scopeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         )}
 
@@ -82,8 +123,8 @@ export function FindInFiles({ folders, onOpenAt, onClose }: FindInFilesProps): J
         </div>
 
         <button
-          onClick={run}
-          disabled={!query.trim() || !scopeFolder || searching}
+          onClick={() => void run()}
+          disabled={!canSearch || searching}
           className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 transition-colors"
         >
           {searching ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
@@ -97,8 +138,11 @@ export function FindInFiles({ folders, onOpenAt, onClose }: FindInFilesProps): J
 
       {/* Results */}
       <div className="flex-1 overflow-y-auto text-[11px]">
-        {!searched && !searching && (
-          <p className="text-center text-on-surface-variant/30 pt-6">Enter a search query and press Enter or Search</p>
+        {!searched && !searching && !hasTabs && !hasFolders && (
+          <p className="text-center text-on-surface-variant/30 pt-6">Open files or a folder to search</p>
+        )}
+        {!searched && !searching && (hasTabs || hasFolders) && (
+          <p className="text-center text-on-surface-variant/30 pt-6">Enter a query and press Enter or Search</p>
         )}
         {searched && results.length === 0 && (
           <p className="text-center text-on-surface-variant/40 pt-6">No matches found</p>

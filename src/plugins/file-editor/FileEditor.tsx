@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import {
-  ArrowDown, CheckCircle2, ChevronDown, ChevronRight, Copy, Diff, Eye, EyeOff,
+  ArrowDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Copy, Diff, Eye, EyeOff,
   FileInput, FilePlus, FileSearch, FileText, Filter, Folder,
   FolderOpen, FolderPlus, FolderSearch, History, Pause, Pencil, Play,
   RotateCcw, Save, SlidersHorizontal, SquareTerminal, Trash2, WrapText, X,
@@ -80,6 +80,7 @@ export function FileEditor(): JSX.Element {
   } | null>(null)
 
   const [savedFlash, setSavedFlash] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const editorRef    = useRef<EditorHandle | null>(null)
   const settingsRef  = useRef<HTMLDivElement>(null)
@@ -174,7 +175,7 @@ export function FileEditor(): JSX.Element {
       // Ctrl+P — quick open
       if (e.ctrlKey && !e.shiftKey && e.key === 'p') { e.preventDefault(); setQuickOpen(true); return }
       // Ctrl+Shift+F — find in files
-      if (e.ctrlKey && e.shiftKey && e.key === 'F') { e.preventDefault(); setShowFind((v) => !v); return }
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'f') { e.preventDefault(); setShowFind((v) => !v); return }
       // Ctrl+S — save
       if (e.ctrlKey && !e.shiftKey && e.key === 's') {
         e.preventDefault()
@@ -409,7 +410,10 @@ export function FileEditor(): JSX.Element {
       const root = findRootPath(parentPath) ?? parentPath
       await refreshFolder(root)
       setExpanded((prev) => new Set([...prev, parentPath]))
-    } catch (err) { console.error('Create failed', err) }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      showToast(`Could not create ${type}: ${msg}`, 'error')
+    }
   }
 
   const treeCb: TreeCallbacks = {
@@ -476,7 +480,18 @@ export function FileEditor(): JSX.Element {
     <div className="flex h-full overflow-hidden">
 
       {/* ── Left sidebar ─────────────────────────────────────────────────── */}
-      <aside className="w-56 flex-shrink-0 flex flex-col border-r border-outline-variant/20 bg-surface overflow-hidden">
+      <aside className={`flex-shrink-0 flex flex-col border-r border-outline-variant/20 bg-surface overflow-hidden transition-[width] duration-200 ${sidebarCollapsed ? 'w-8' : 'w-56'}`}>
+      {sidebarCollapsed ? (
+        /* ── Collapsed strip ── */
+        <button onClick={() => setSidebarCollapsed(false)} title="Expand sidebar"
+          className="flex-1 flex flex-col items-center justify-center gap-3 hover:bg-surface-container transition-colors w-full">
+          <ChevronRight size={13} className="text-on-surface-variant/40 flex-shrink-0" />
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/35 select-none"
+            style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}>
+            Explorer
+          </span>
+        </button>
+      ) : (<>
 
         {/* EXPLORER */}
         {folders.length > 0 && (
@@ -526,6 +541,10 @@ export function FileEditor(): JSX.Element {
               </button>
               <button onClick={openDialog} title="Open file" className="text-on-surface-variant hover:text-primary transition-colors">
                 <FolderOpen size={15} />
+              </button>
+              <button onClick={() => setSidebarCollapsed(true)} title="Collapse sidebar"
+                className="text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-surface-container rounded-lg p-0.5 transition-colors">
+                <ChevronLeft size={14} />
               </button>
             </div>
           </div>
@@ -614,6 +633,7 @@ export function FileEditor(): JSX.Element {
             </div>
           </div>
         )}
+        </>)}
       </aside>
 
       {/* ── Main editor area ─────────────────────────────────────────────── */}
@@ -822,7 +842,7 @@ export function FileEditor(): JSX.Element {
 
           {/* Find in files panel */}
           {showFind && (
-            <FindInFiles folders={folders} onOpenAt={openFileAtLine} onClose={() => setShowFind(false)} />
+            <FindInFiles folders={folders} openTabs={tabs} onOpenAt={openFileAtLine} onClose={() => setShowFind(false)} />
           )}
 
           {/* Status bar */}
@@ -871,7 +891,7 @@ export function FileEditor(): JSX.Element {
       </div>
 
       {/* ── Overlays ──────────────────────────────────────────────────────── */}
-      {quickOpen && <QuickOpen folders={folders} onOpen={openFile} onClose={() => setQuickOpen(false)} />}
+      {quickOpen && <QuickOpen folders={folders} openTabs={tabs} onOpen={openFile} onClose={() => setQuickOpen(false)} />}
       {ctxMenu && <ContextMenu x={ctxMenu.x} y={ctxMenu.y} items={ctxMenu.items} onClose={() => setCtxMenu(null)} />}
 
       {/* ── Delete confirmation modal ──────────────────────────────────────── */}

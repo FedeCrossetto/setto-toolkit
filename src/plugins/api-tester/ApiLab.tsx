@@ -237,7 +237,8 @@ export function ApiLab(): JSX.Element {
   const [newColName, setNewColName] = useState('')
   const [showNewCol, setShowNewCol] = useState(false)
   const [showImportCurl, setShowImportCurl] = useState(false)
-  const [saveConfirm, setSaveConfirm] = useState<{ resolve: (ok: boolean) => void } | null>(null)
+  const [saveConfirm,   setSaveConfirm]   = useState<{ resolve: (ok: boolean) => void } | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<{ label: string; resolve: (ok: boolean) => void } | null>(null)
   const [sentSnapshot, setSentSnapshot] = useState<SentSnapshot | null>(null)
   const [curlCopied, setCurlCopied] = useState(false)
   const [beautified, setBeautified] = useState(false)
@@ -463,9 +464,18 @@ export function ApiLab(): JSX.Element {
                   <CollectionItem key={col.id} collection={col} activeRequestId={active.requestId}
                     onSelectRequest={(reqId) => loadRequest(col, reqId)}
                     onNewRequest={() => setActive({ ...emptyRequest(col.id), collectionId: col.id })}
-                    onDelete={() => deleteCollection(col.id)}
+                    onDelete={async () => {
+                      const ok = await new Promise<boolean>((resolve) => setDeleteConfirm({ label: `collection "${col.name}"`, resolve }))
+                      setDeleteConfirm(null)
+                      if (ok) deleteCollection(col.id)
+                    }}
                     onDuplicate={async (reqId) => { const req = col.requests.find((r) => r.id === reqId); if (req) await duplicateRequest(req) }}
-                    onDeleteRequest={(reqId) => deleteRequest(col.id, reqId)}
+                    onDeleteRequest={async (reqId) => {
+                      const req = col.requests.find((r) => r.id === reqId)
+                      const ok = await new Promise<boolean>((resolve) => setDeleteConfirm({ label: `request "${req?.name ?? reqId}"`, resolve }))
+                      setDeleteConfirm(null)
+                      if (ok) deleteRequest(col.id, reqId)
+                    }}
                     onRename={(reqId, newName) => handleRename(col.id, reqId, newName)}
                   />
                 ))
@@ -830,6 +840,35 @@ export function ApiLab(): JSX.Element {
                 className="px-4 py-2 text-sm font-semibold rounded-lg text-on-primary transition-all hover:opacity-90"
                 style={{ background: 'var(--gradient-brand)' }}>
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete confirmation ────────────────────────────────────────────── */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => deleteConfirm.resolve(false)}>
+          <div className="bg-surface border border-outline-variant/20 rounded-2xl shadow-2xl w-80 p-6 flex flex-col gap-4"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-error/10 flex items-center justify-center">
+                <Trash2 size={16} className="text-error" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-on-surface">Delete {deleteConfirm.label}?</h2>
+                <p className="text-xs text-on-surface-variant mt-1">This action cannot be undone.</p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => deleteConfirm.resolve(false)}
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
+                Cancel
+              </button>
+              <button onClick={() => deleteConfirm.resolve(true)}
+                className="px-4 py-2 text-sm font-semibold rounded-lg bg-error text-white transition-all hover:opacity-90">
+                Delete
               </button>
             </div>
           </div>

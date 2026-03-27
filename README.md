@@ -32,6 +32,24 @@
 - [Node.js](https://nodejs.org/) v18 o superior
 - npm v9 o superior
 
+### Requisitos adicionales en Windows (dependencias nativas)
+
+La app incluye `better-sqlite3`, un addon nativo de C++ que se compila localmente al instalar. En Windows esto requiere:
+
+- **Python 3** → [python.org](https://python.org) — marcar **"Add to PATH"** durante la instalación
+- **Visual Studio Build Tools 2022** → [visualstudio.microsoft.com/downloads](https://visualstudio.microsoft.com/downloads/) → descargar **"Build Tools for Visual Studio 2022"** → seleccionar workload **"Desktop development with C++"**
+
+> No necesitás Visual Studio completo, solo las Build Tools (gratuitas, ~4 GB).
+
+Una vez instalados ambos, configurá npm para usarlos:
+
+```bash
+npm config set python python3
+npm config set msvs_version 2022
+```
+
+Luego `npm install` compilará el addon sin problemas.
+
 ---
 
 ## Instalación y desarrollo
@@ -173,6 +191,42 @@ Podés usar `src/plugins/_template/` como punto de partida.
 ---
 
 ## Changelog
+
+### v2.5.1 — 2026-03-27
+
+#### Snippets — columnas colapsables
+
+- Las columnas **Filters/Collections** y **Lista de snippets** son ahora colapsables individualmente.
+- Al colapsar queda una tira de `w-8` con el título rotado verticalmente. Clic en cualquier punto de la tira para volver a expandir.
+- Botón `‹` en el header de cada columna para colapsar. Transición animada `transition-[width]`.
+
+#### File Editor — sidebar colapsable
+
+- El sidebar izquierdo (Explorer + Open Files) es ahora colapsable con el mismo patrón visual: tira delgada con título "Explorer" rotado + `›` para expandir.
+- Botón `‹` agregado en el header de "Open Files".
+
+#### Find in Files — búsqueda en archivos abiertos
+
+- Ahora busca directamente en el contenido de las pestañas abiertas, sin necesidad de tener una carpeta abierta.
+- Selector de scope: **Open tabs** (búsqueda client-side instantánea) o cualquier carpeta abierta (búsqueda en disco vía IPC).
+- Soporte de regex en ambos modos.
+
+#### Quick Open (Ctrl+P) — incluye pestañas abiertas
+
+- Muestra archivos de las pestañas abiertas aunque no haya una carpeta seleccionada.
+- Mensaje informativo cuando no hay nada abierto.
+
+#### Correcciones y mejoras de robustez
+
+- `better-sqlite3` y requisitos de compilación en Windows documentados en README.
+- Mensajes de error de Ollama traducidos al inglés (`'Ollama devolvió JSON inválido'` → `'Ollama returned invalid JSON'`).
+- **OpenAI** ahora acumula `inputTokens` / `outputTokens` / `calls` igual que Anthropic (el token tracking estaba ausente para ese proveedor).
+- `editor:create-file` / `editor:create-dir` muestran toast de error en lugar de loguear silenciosamente por consola.
+- Split de archivos con `:` en el nombre en multipart/form-data del API Lab corregido.
+- Fragment wrapper faltante en `SnippetManager` que rompía el modal de confirmación de borrado.
+- Condición redundante en `FindInFiles` simplificada.
+
+---
 
 ### v2.5.0 — 2026-03-27
 

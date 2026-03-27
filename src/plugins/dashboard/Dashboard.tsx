@@ -555,7 +555,7 @@ export function Dashboard(): JSX.Element {
 
           {/* Add plugin placeholder */}
           <div className="rounded-3xl border border-dashed border-outline-variant/25 bg-surface-container-high/50
-            flex flex-col items-center justify-center gap-3 p-8 min-h-[220px] text-center">
+            flex flex-col items-center justify-center gap-3 p-8 min-h-[168px] text-center">
             <div className="w-10 h-10 rounded-2xl bg-surface-container flex items-center justify-center border border-outline-variant/20">
               <Plus size={20} className="text-on-surface-variant/40" />
             </div>

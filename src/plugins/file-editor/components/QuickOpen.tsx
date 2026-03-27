@@ -15,20 +15,26 @@ function flattenTree(node: FileTreeNode, rootName: string): FileEntry[] {
 
 interface QuickOpenProps {
   folders: FileTreeNode[]
+  openTabs?: { path: string | null; name: string }[]
   onOpen: (path: string) => void
   onClose: () => void
 }
 
-export function QuickOpen({ folders, onOpen, onClose }: QuickOpenProps): JSX.Element {
+export function QuickOpen({ folders, openTabs = [], onOpen, onClose }: QuickOpenProps): JSX.Element {
   const [query, setQuery]   = useState('')
   const [selected, setSel]  = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef  = useRef<HTMLDivElement>(null)
 
-  const allFiles = useMemo(
-    () => folders.flatMap((f) => flattenTree(f, f.name)),
-    [folders]
-  )
+  const allFiles = useMemo(() => {
+    const fromFolders = folders.flatMap((f) => flattenTree(f, f.name))
+    const folderPaths = new Set(fromFolders.map((f) => f.path))
+    // Include open tabs that have a path and aren't already in the folder tree
+    const fromTabs = openTabs
+      .filter((t) => t.path !== null && !folderPaths.has(t.path!))
+      .map((t) => ({ path: t.path!, name: t.name, display: t.path! }))
+    return [...fromFolders, ...fromTabs]
+  }, [folders, openTabs])
 
   const filtered = useMemo(() => {
     if (!query.trim()) return allFiles.slice(0, 60)
@@ -85,7 +91,11 @@ export function QuickOpen({ folders, onOpen, onClose }: QuickOpenProps): JSX.Ele
         {/* Results */}
         <div ref={listRef} className="overflow-y-auto flex-1">
           {filtered.length === 0 ? (
-            <p className="text-center text-sm text-on-surface-variant/40 py-10">No files match "{query}"</p>
+            <p className="text-center text-sm text-on-surface-variant/40 py-10">
+              {allFiles.length === 0
+                ? 'Open a folder or file first to use Quick Open'
+                : `No files match "${query}"`}
+            </p>
           ) : (
             filtered.map((f, i) => (
               <button

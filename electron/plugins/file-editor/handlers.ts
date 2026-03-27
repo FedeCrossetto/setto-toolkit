@@ -189,6 +189,10 @@ export const handlers: PluginHandlers = {
           { name: 'All Files', extensions: ['*'] },
         ],
       })
+      if (!result.canceled && result.filePath) {
+        // Authorize the directory the user chose so the subsequent write-file call succeeds.
+        addAuthorizedRoot(path.dirname(result.filePath))
+      }
       return result.canceled ? null : result.filePath
     })
 

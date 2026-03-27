@@ -32,7 +32,11 @@ function buildFormDataBody(
   for (const field of fields.filter((f) => f.enabled && f.key)) {
     const key = interpolate(field.key, vars)
     if (field.isFile && field.value.startsWith('__FILE__:')) {
-      const [, b64, filename] = field.value.split(':')
+      // Format: '__FILE__:<base64>:<filename>' — base64 has no colons so first ':' after prefix is the separator
+      const payload  = field.value.slice('__FILE__:'.length)
+      const sepIdx   = payload.indexOf(':')
+      const b64      = payload.slice(0, sepIdx)
+      const filename = payload.slice(sepIdx + 1)
       const fileData = Buffer.from(b64, 'base64')
       const header = `--${boundary}\r\nContent-Disposition: form-data; name="${key}"; filename="${filename ?? key}"\r\nContent-Type: application/octet-stream\r\n\r\n`
       parts.push(Buffer.from(header, 'utf8'))
@@ -233,21 +237,22 @@ export const handlers: PluginHandlers = {
           : null,
       }
 
-      const sandbox = {
-        pm,
-        console: { log: (...args: unknown[]) => logs.push(args.map(String).join(' ')) },
-        JSON,
-        parseInt,
-        parseFloat,
-        String,
-        Number,
-        Boolean,
-        Array,
-        Object,
-      }
+      // Use a null-prototype context to block prototype-chain escapes.
+      // Only expose safe primitives — deliberately exclude Array/Object constructors.
+      const ctx = Object.create(null) as Record<string, unknown>
+      ctx['pm']         = pm
+      ctx['console']    = Object.freeze({ log: (...args: unknown[]) => logs.push(args.map(String).join(' ')) })
+      ctx['JSON']       = Object.freeze({ parse: JSON.parse.bind(JSON), stringify: JSON.stringify.bind(JSON) })
+      ctx['parseInt']   = parseInt
+      ctx['parseFloat'] = parseFloat
+      ctx['String']     = String
+      ctx['Number']     = Number
+      ctx['Boolean']    = Boolean
+      ctx['Math']       = Object.freeze({ ...Math })
+      const sandbox     = vm.createContext(ctx)
 
       try {
-        vm.runInNewContext(script, sandbox, { timeout: 2000, filename: 'script' })
+        vm.runInContext(script, sandbox, { timeout: 2000, filename: 'script' })
       } catch (err) {
         return { envVars: updatedVars, logs, error: err instanceof Error ? err.message : String(err) }
       }

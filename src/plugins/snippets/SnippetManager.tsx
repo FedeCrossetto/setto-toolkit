@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import Fuse from 'fuse.js'
 import {
-  BookMarked, Check, Copy, Download, Folder, LayoutGrid,
+  BookMarked, Check, ChevronLeft, ChevronRight, Copy, Download, Folder, LayoutGrid,
   Pencil, Pin, Plus, Search, SquareTerminal, Trash2, Upload, X,
 } from 'lucide-react'
 import type { Snippet, SnippetCollection, SnippetLanguage } from './types'
@@ -129,6 +129,9 @@ export function SnippetManager(): JSX.Element {
   const [copied, setCopied]           = useState(false)
   const [showNewCol, setShowNewCol]   = useState(false)
   const [newColName, setNewColName]   = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState<{ name: string; resolve: (ok: boolean) => void } | null>(null)
+  const [leftCollapsed, setLeftCollapsed] = useState(false)
+  const [listCollapsed, setListCollapsed] = useState(false)
 
   // ── Load ──────────────────────────────────────────────────────────────────
   const reload = async (): Promise<void> => {
@@ -200,6 +203,12 @@ export function SnippetManager(): JSX.Element {
   }
 
   const deleteSnippet = async (id: string): Promise<void> => {
+    const snippet = snippets.find((s) => s.id === id)
+    const ok = await new Promise<boolean>((resolve) =>
+      setDeleteConfirm({ name: snippet?.title ?? 'this snippet', resolve })
+    )
+    setDeleteConfirm(null)
+    if (!ok) return
     await window.api.invoke('snippets:delete', id)
     setSelected(null)
     await reload()
@@ -271,160 +280,200 @@ export function SnippetManager(): JSX.Element {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
+    <>
     <div className="flex h-full overflow-hidden">
 
       {/* ── Left sidebar ──────────────────────────────────────────────────── */}
-      <aside className="w-64 flex-shrink-0 border-r border-outline-variant/20 flex flex-col bg-surface overflow-hidden">
-
-        {/* Search */}
-        <div className="px-3 pt-3 pb-2 flex-shrink-0">
-          <div className="flex items-center gap-2 bg-surface-container border border-outline-variant/25 rounded-xl px-3 py-2">
-            <Search size={15} className="text-on-surface-variant/50 flex-shrink-0" />
-            <input
-              value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search snippets..."
-              className="flex-1 bg-transparent text-[12px] text-on-surface placeholder-on-surface-variant/40 outline-none"
-            />
-            {search && (
-              <button onClick={() => setSearch('')} className="text-on-surface-variant/40 hover:text-on-surface-variant">
-                <X size={13} />
+      <aside className={`flex-shrink-0 border-r border-outline-variant/20 flex flex-col bg-surface overflow-hidden transition-[width] duration-200 ${leftCollapsed ? 'w-8' : 'w-64'}`}>
+        {leftCollapsed ? (
+          /* ── Collapsed strip ── */
+          <button onClick={() => setLeftCollapsed(false)} title="Expand"
+            className="flex-1 flex flex-col items-center justify-center gap-3 hover:bg-surface-container transition-colors w-full">
+            <ChevronRight size={13} className="text-on-surface-variant/40 flex-shrink-0" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/35 select-none"
+              style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}>
+              Filters
+            </span>
+          </button>
+        ) : (
+          /* ── Expanded content ── */
+          <>
+            {/* Header */}
+            <div className="px-3 pt-2.5 pb-1 flex items-center justify-between flex-shrink-0">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Snippets</span>
+              <button onClick={() => setLeftCollapsed(true)} title="Collapse"
+                className="p-1 text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-surface-container rounded-lg transition-colors">
+                <ChevronLeft size={14} />
               </button>
-            )}
-          </div>
-        </div>
-
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto px-2 pb-2">
-          {/* All / Pinned */}
-          {[
-            { id: 'all',    label: 'All snippets', Icon: LayoutGrid, count: snippets.length },
-            { id: 'pinned', label: 'Pinned',        Icon: Pin,        count: snippets.filter((s) => s.pinned).length },
-          ].map(({ id, label, Icon, count }) => (
-            <button key={id} onClick={() => setFilter(id)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] font-medium transition-colors mb-0.5 ${filter === id ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}>
-              <Icon size={15} className="flex-shrink-0" />
-              <span className="flex-1 text-left">{label}</span>
-              <span className="text-[10px] opacity-50">{count}</span>
-            </button>
-          ))}
-
-          {/* Collections */}
-          {collections.length > 0 && (
-            <div className="mt-2 mb-1 px-3">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Collections</span>
             </div>
-          )}
-          {collections.map((col) => {
-            const count = snippets.filter((s) => s.collectionId === col.id).length
-            return (
-              <div key={col.id} className="group flex items-center">
-                <button onClick={() => setFilter(col.id)}
-                  className={`flex-1 flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] font-medium transition-colors mb-0.5 ${filter === col.id ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}>
-                  <Folder size={15} className="flex-shrink-0" />
-                  <span className="flex-1 text-left truncate">{col.name}</span>
+
+            {/* Search */}
+            <div className="px-3 pb-2 flex-shrink-0">
+              <div className="flex items-center gap-2 bg-surface-container border border-outline-variant/25 rounded-xl px-3 py-2">
+                <Search size={15} className="text-on-surface-variant/50 flex-shrink-0" />
+                <input
+                  value={search} onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search snippets..."
+                  className="flex-1 bg-transparent text-[12px] text-on-surface placeholder-on-surface-variant/40 outline-none"
+                />
+                {search && (
+                  <button onClick={() => setSearch('')} className="text-on-surface-variant/40 hover:text-on-surface-variant">
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Nav */}
+            <nav className="flex-1 overflow-y-auto px-2 pb-2">
+              <div className="mt-1 mb-0.5 px-3">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Filters</span>
+              </div>
+              {[
+                { id: 'all',    label: 'All snippets', Icon: LayoutGrid, count: snippets.length },
+                { id: 'pinned', label: 'Pinned',        Icon: Pin,        count: snippets.filter((s) => s.pinned).length },
+              ].map(({ id, label, Icon, count }) => (
+                <button key={id} onClick={() => setFilter(id)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] font-medium transition-colors mb-0.5 ${filter === id ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}>
+                  <Icon size={15} className="flex-shrink-0" />
+                  <span className="flex-1 text-left">{label}</span>
                   <span className="text-[10px] opacity-50">{count}</span>
                 </button>
-                <button onClick={() => deleteCollection(col.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1 mr-1 text-on-surface-variant/40 hover:text-error transition-all"
-                  title="Delete collection">
-                  <Trash2 size={13} />
+              ))}
+
+              <div className="mt-3 mb-0.5 px-3">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Collections</span>
+              </div>
+              {collections.map((col) => {
+                const count = snippets.filter((s) => s.collectionId === col.id).length
+                return (
+                  <div key={col.id} className="group flex items-center">
+                    <button onClick={() => setFilter(col.id)}
+                      className={`flex-1 flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] font-medium transition-colors mb-0.5 ${filter === col.id ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}>
+                      <Folder size={15} className="flex-shrink-0" />
+                      <span className="flex-1 text-left truncate">{col.name}</span>
+                      <span className="text-[10px] opacity-50">{count}</span>
+                    </button>
+                    <button onClick={() => deleteCollection(col.id)}
+                      className="opacity-0 group-hover:opacity-100 p-1 mr-1 text-on-surface-variant/40 hover:text-error transition-all"
+                      title="Delete collection">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                )
+              })}
+
+              {/* New collection */}
+              <div className="mt-1 px-2">
+                {showNewCol ? (
+                  <form onSubmit={(e) => { e.preventDefault(); createCollection() }} className="flex gap-1">
+                    <input autoFocus value={newColName} onChange={(e) => setNewColName(e.target.value)}
+                      placeholder="Collection name"
+                      className="flex-1 text-xs bg-surface-container border border-outline-variant/30 rounded-lg px-2 py-1.5 text-on-surface placeholder-on-surface-variant/40 outline-none focus:ring-1 focus:ring-primary/50" />
+                    <button type="submit" className="text-primary"><Check size={16} /></button>
+                    <button type="button" onClick={() => setShowNewCol(false)} className="text-on-surface-variant/50"><X size={16} /></button>
+                  </form>
+                ) : (
+                  <button onClick={() => setShowNewCol(true)}
+                    className="flex items-center gap-1.5 text-[11px] text-on-surface-variant/50 hover:text-on-surface-variant transition-colors px-1 py-1">
+                    <Plus size={13} />
+                    New collection
+                  </button>
+                )}
+              </div>
+            </nav>
+
+            {/* Sidebar footer: New + Export/Import */}
+            <div className="px-3 pb-3 flex-shrink-0 border-t border-outline-variant/15 pt-3 flex flex-col gap-2">
+              <button onClick={startNew}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-[12px] font-semibold text-on-primary transition-all hover:opacity-90"
+                style={{ background: 'var(--gradient-brand)' }}>
+                <Plus size={15} />
+                New snippet <span className="opacity-60 text-[10px] font-normal ml-1">Ctrl+N</span>
+              </button>
+              <div className="flex gap-1.5">
+                <button onClick={async () => {
+                  try {
+                    const res = await window.api.invoke<{ ok: boolean; canceled?: boolean }>('snippets:export')
+                    if (res.ok) await reload()
+                  } catch { /* ignore */ }
+                }}
+                  className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-medium border border-outline-variant/30 text-on-surface-variant hover:text-primary hover:border-primary/40 transition-colors"
+                  title="Export snippets to JSON">
+                  <Download size={13} />
+                  Export
+                </button>
+                <button onClick={async () => {
+                  try {
+                    const res = await window.api.invoke<{ ok: boolean; canceled?: boolean; count?: number }>('snippets:import')
+                    if (res.ok) await reload()
+                  } catch { /* ignore */ }
+                }}
+                  className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-medium border border-outline-variant/30 text-on-surface-variant hover:text-primary hover:border-primary/40 transition-colors"
+                  title="Import snippets from JSON">
+                  <Upload size={13} />
+                  Import
                 </button>
               </div>
-            )
-          })}
-
-          {/* New collection */}
-          <div className="mt-1 px-2">
-            {showNewCol ? (
-              <form onSubmit={(e) => { e.preventDefault(); createCollection() }} className="flex gap-1">
-                <input autoFocus value={newColName} onChange={(e) => setNewColName(e.target.value)}
-                  placeholder="Collection name"
-                  className="flex-1 text-xs bg-surface-container border border-outline-variant/30 rounded-lg px-2 py-1.5 text-on-surface placeholder-on-surface-variant/40 outline-none focus:ring-1 focus:ring-primary/50" />
-                <button type="submit" className="text-primary"><Check size={16} /></button>
-                <button type="button" onClick={() => setShowNewCol(false)} className="text-on-surface-variant/50"><X size={16} /></button>
-              </form>
-            ) : (
-              <button onClick={() => setShowNewCol(true)}
-                className="flex items-center gap-1.5 text-[11px] text-on-surface-variant/50 hover:text-on-surface-variant transition-colors px-1 py-1">
-                <Plus size={13} />
-                New collection
-              </button>
-            )}
-          </div>
-        </nav>
-
-        {/* Sidebar footer: New + Export/Import */}
-        <div className="px-3 pb-3 flex-shrink-0 border-t border-outline-variant/15 pt-3 flex flex-col gap-2">
-          <button onClick={startNew}
-            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-[12px] font-semibold text-on-primary transition-all hover:opacity-90"
-            style={{ background: 'var(--gradient-brand)' }}>
-            <Plus size={15} />
-            New snippet <span className="opacity-60 text-[10px] font-normal ml-1">Ctrl+N</span>
-          </button>
-          <div className="flex gap-1.5">
-            <button onClick={async () => {
-              try {
-                const res = await window.api.invoke<{ ok: boolean; canceled?: boolean }>('snippets:export')
-                if (res.ok) await reload()
-              } catch { /* ignore */ }
-            }}
-              className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-medium border border-outline-variant/30 text-on-surface-variant hover:text-primary hover:border-primary/40 transition-colors"
-              title="Export snippets to JSON">
-              <Download size={13} />
-              Export
-            </button>
-            <button onClick={async () => {
-              try {
-                const res = await window.api.invoke<{ ok: boolean; canceled?: boolean; count?: number }>('snippets:import')
-                if (res.ok) await reload()
-              } catch { /* ignore */ }
-            }}
-              className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-medium border border-outline-variant/30 text-on-surface-variant hover:text-primary hover:border-primary/40 transition-colors"
-              title="Import snippets from JSON">
-              <Upload size={13} />
-              Import
-            </button>
-          </div>
-        </div>
+            </div>
+          </>
+        )}
       </aside>
 
       {/* ── Main panel ────────────────────────────────────────────────────── */}
       <div className="flex-1 flex overflow-hidden">
 
         {/* Snippet list */}
-        <div className="w-64 flex-shrink-0 border-r border-outline-variant/20 flex flex-col overflow-hidden bg-surface-container-low">
-          <div className="px-3 py-2.5 border-b border-outline-variant/15 flex-shrink-0">
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">
-              {visible.length} snippet{visible.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-          <div className="flex-1 overflow-y-auto py-1">
-            {visible.length === 0 ? (
-              <EmptyState
-                icon={BookMarked}
-                title={search ? 'No matches' : 'No snippets yet'}
-                description={search ? 'Try a different search or clear the filter.' : 'Create your first snippet with Ctrl+N or the + button.'}
-              />
-            ) : (
-              visible.map((s) => (
-                <button key={s.id} onClick={() => { setSelected(s); setEditing(false) }}
-                  className={`w-full text-left px-3 py-2.5 transition-colors border-b border-outline-variant/10 ${selected?.id === s.id ? 'bg-primary/10' : 'hover:bg-surface-container'}`}>
-                  <div className="flex items-start gap-1.5">
-                    {s.pinned && (
-                      <Pin size={12} className="text-primary/60 flex-shrink-0 mt-0.5" />
-                    )}
-                    <p className={`text-[12px] font-medium truncate flex-1 ${selected?.id === s.id ? 'text-primary' : 'text-on-surface'}`}>{s.title || 'Untitled'}</p>
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <LangBadge lang={s.language} />
-                    {s.tags.slice(0, 2).map((t) => (
-                      <span key={t} className="text-[10px] text-on-surface-variant/50">#{t}</span>
-                    ))}
-                  </div>
+        <div className={`flex-shrink-0 border-r border-outline-variant/20 flex flex-col overflow-hidden bg-surface-container-low transition-[width] duration-200 ${listCollapsed ? 'w-8' : 'w-64'}`}>
+          {listCollapsed ? (
+            /* ── Collapsed strip ── */
+            <button onClick={() => setListCollapsed(false)} title="Expand"
+              className="flex-1 flex flex-col items-center justify-center gap-3 hover:bg-surface-container transition-colors w-full">
+              <ChevronRight size={13} className="text-on-surface-variant/40 flex-shrink-0" />
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/35 select-none"
+                style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}>
+                Snippets
+              </span>
+            </button>
+          ) : (
+            /* ── Expanded content ── */
+            <>
+              <div className="px-3 py-2.5 border-b border-outline-variant/15 flex items-center justify-between flex-shrink-0">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">
+                  {visible.length} snippet{visible.length !== 1 ? 's' : ''}
+                </span>
+                <button onClick={() => setListCollapsed(true)} title="Collapse"
+                  className="p-1 text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-surface-container rounded-lg transition-colors">
+                  <ChevronLeft size={14} />
                 </button>
-              ))
-            )}
-          </div>
+              </div>
+              <div className="flex-1 overflow-y-auto py-1">
+                {visible.length === 0 ? (
+                  <EmptyState
+                    icon={BookMarked}
+                    title={search ? 'No matches' : 'No snippets yet'}
+                    description={search ? 'Try a different search or clear the filter.' : 'Create your first snippet with Ctrl+N or the + button.'}
+                  />
+                ) : (
+                  visible.map((s) => (
+                    <button key={s.id} onClick={() => { setSelected(s); setEditing(false) }}
+                      className={`w-full text-left px-3 py-2.5 transition-colors border-b border-outline-variant/10 ${selected?.id === s.id ? 'bg-primary/10' : 'hover:bg-surface-container'}`}>
+                      <div className="flex items-start gap-1.5">
+                        {s.pinned && <Pin size={12} className="text-primary/60 flex-shrink-0 mt-0.5" />}
+                        <p className={`text-[12px] font-medium truncate flex-1 ${selected?.id === s.id ? 'text-primary' : 'text-on-surface'}`}>{s.title || 'Untitled'}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <LangBadge lang={s.language} />
+                        {s.tags.slice(0, 2).map((t) => (
+                          <span key={t} className="text-[10px] text-on-surface-variant/50">#{t}</span>
+                        ))}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Detail / Editor panel */}
@@ -462,6 +511,36 @@ export function SnippetManager(): JSX.Element {
         </div>
       </div>
     </div>
+
+    {/* Delete confirmation */}
+    {deleteConfirm && (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+        onClick={() => deleteConfirm.resolve(false)}>
+        <div className="bg-surface border border-outline-variant/20 rounded-2xl shadow-2xl w-80 p-6 flex flex-col gap-4"
+          onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 w-9 h-9 rounded-full bg-error/10 flex items-center justify-center">
+              <Trash2 size={16} className="text-error" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-on-surface">Delete "{deleteConfirm.name}"?</h2>
+              <p className="text-xs text-on-surface-variant mt-1">This action cannot be undone.</p>
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => deleteConfirm.resolve(false)}
+              className="px-4 py-2 text-sm font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
+              Cancel
+            </button>
+            <button onClick={() => deleteConfirm.resolve(true)}
+              className="px-4 py-2 text-sm font-semibold rounded-lg bg-error text-white transition-all hover:opacity-90">
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 

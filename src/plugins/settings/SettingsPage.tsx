@@ -99,6 +99,11 @@ export function SettingsPage(): JSX.Element {
   const [showAnthropicKey, setShowAnthropicKey] = useState(false)
   const [openAIKeyConfigured, setOpenAIKeyConfigured] = useState(false)
   const [anthropicKeyConfigured, setAnthropicKeyConfigured] = useState(false)
+  const [encryptionAvailable, setEncryptionAvailable] = useState(true)
+
+  useEffect(() => {
+    void window.api.invoke<boolean>('settings:encryption-available').then(setEncryptionAvailable).catch(() => {})
+  }, [])
 
   useEffect(() => {
     const load = async (): Promise<void> => {
@@ -170,6 +175,17 @@ export function SettingsPage(): JSX.Element {
         <h1 className="text-2xl font-bold tracking-tight text-on-surface">Settings</h1>
         <p className="text-on-surface-variant mt-1 text-sm">Configure API keys and workspace preferences.</p>
       </div>
+
+      {/* Encryption warning */}
+      {!encryptionAvailable && (
+        <div className="mb-6 flex items-start gap-3 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/10">
+          <CircleAlert size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-300 leading-relaxed">
+            <span className="font-semibold">El cifrado de credenciales no está disponible</span> en este entorno.
+            Las API keys se guardarán en texto plano. Esto puede ocurrir en VMs sin credential manager o en CI.
+          </p>
+        </div>
+      )}
 
       {/* Appearance */}
       <section className="mb-8">

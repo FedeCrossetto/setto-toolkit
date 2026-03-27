@@ -1,4 +1,4 @@
-import { dialog } from 'electron'
+import { dialog, safeStorage } from 'electron'
 import fs from 'fs'
 import type { PluginHandlers, CoreServices } from '../../core/types'
 import type { IpcMain } from 'electron'
@@ -103,6 +103,9 @@ export const handlers: PluginHandlers = {
       }
       return settings.getAll(prefix)
     })
+
+    // ── Encryption status ──────────────────────────────────────────────────
+    ipcMain.handle('settings:encryption-available', () => safeStorage.isEncryptionAvailable())
 
     // ── Export settings ────────────────────────────────────────────────────
     ipcMain.handle('settings:export', async () => {

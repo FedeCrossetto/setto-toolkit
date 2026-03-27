@@ -72,6 +72,14 @@ export const handlers: PluginHandlers = {
       const jiraToken = settings.get('ticket-resolver.jira_token') ?? ''
       if (!jiraUrl || !jiraUser || !jiraToken) throw new Error('JIRA_NOT_CONFIGURED')
 
+      // Validate that jiraUrl is a safe http/https URL before concatenating to prevent SSRF.
+      try {
+        const parsed = new URL(jiraUrl)
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error()
+      } catch {
+        throw new Error('JIRA_NOT_CONFIGURED')
+      }
+
       // Validate ticket key format to prevent URL path injection
       const normalizedKey = ticketKey.trim().toUpperCase()
       if (!/^[A-Z]+-\d+$/.test(normalizedKey)) {

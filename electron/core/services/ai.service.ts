@@ -93,8 +93,16 @@ export class AIService {
       const err = (await response.json()) as { error?: { message?: string } }
       throw new Error(err.error?.message ?? `OpenAI API error: ${response.status}`)
     }
-    const data = (await response.json()) as { choices: Array<{ message: { content: string } }> }
-    return data.choices[0]?.message?.content ?? ''
+    const data = (await response.json()) as {
+      choices: Array<{ message: { content: string } }>
+      usage: { prompt_tokens: number; completion_tokens: number }
+    }
+    this.session.inputTokens  += data.usage?.prompt_tokens     ?? 0
+    this.session.outputTokens += data.usage?.completion_tokens ?? 0
+    this.session.calls        += 1
+    const text = data.choices[0]?.message?.content ?? ''
+    if (!text) throw new Error('AI returned an empty response')
+    return text
   }
 
   private async completeAnthropic(messages: AIMessage[]): Promise<string> {
@@ -134,7 +142,9 @@ export class AIService {
     this.session.inputTokens  += usage.inputTokens
     this.session.outputTokens += usage.outputTokens
     this.session.calls        += 1
-    return data.content.find((c) => c.type === 'text')?.text ?? ''
+    const text = data.content.find((c) => c.type === 'text')?.text ?? ''
+    if (!text) throw new Error('AI returned an empty response')
+    return text
   }
 
   private completeOllama(messages: AIMessage[]): Promise<string> {
@@ -180,9 +190,10 @@ export class AIService {
               const data = JSON.parse(raw) as { message?: { content?: string } }
               // Strip thinking blocks (<think>...</think>) from qwen3/deepseek-r1 responses
               const content = (data.message?.content ?? '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+              if (!content) { reject(new Error('AI returned an empty response')); return }
               resolve(content)
             } catch {
-              reject(new Error('Ollama devolvió JSON inválido'))
+              reject(new Error('Ollama returned invalid JSON'))
             }
           })
         },
@@ -190,7 +201,7 @@ export class AIService {
 
       req.on('timeout', () => {
         req.destroy()
-        reject(new Error(`Ollama timeout (${timeoutMins} min) — el modelo tardó demasiado. Aumentá el timeout en Settings → AI o usá un modelo más liviano.`))
+        reject(new Error(`Ollama timeout (${timeoutMins} min) — the model took too long. Increase the timeout in Settings → AI or use a lighter model.`))
       })
       req.on('error', (err) => reject(new Error(`Ollama error: ${err.message}`)))
       req.write(body)
