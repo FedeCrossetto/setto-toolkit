@@ -33,6 +33,12 @@ export interface AppState {
   /** Set by SEND_TO_DIFF / SEND_PAIR_TO_DIFF — consumed and cleared by SmartDiff */
   diffTarget?:  { name: string; path: string | null; content: string }
   diffTarget2?: { name: string; path: string | null; content: string }
+  /** Set by OPEN_TERMINAL_HERE — consumed and cleared by Terminal */
+  terminalTarget?: { cwd: string }
+  /** Set by RUN_IN_TERMINAL — consumed and cleared by Terminal */
+  terminalCommand?: { content: string; stamp: number }
+  /** Incremented by INTERRUPT_TERMINAL — Terminal sends Ctrl+C to active session */
+  terminalInterrupt?: number
   /** Plugins that have unsaved changes, keyed by pluginId */
   dirtyPlugins: Record<string, boolean>
 }
@@ -61,3 +67,11 @@ export type AppAction =
   | { type: 'SET_PLUGIN_DIRTY'; pluginId: string; dirty: boolean }
   /** Enable or disable a plugin (hides from sidebar, closes open tab) */
   | { type: 'TOGGLE_PLUGIN'; pluginId: string }
+  /** Cross-plugin: open terminal tab in a specific working directory */
+  | { type: 'OPEN_TERMINAL_HERE'; cwd: string }
+  /** Cross-plugin: send a command string to the active terminal session */
+  | { type: 'RUN_IN_TERMINAL'; content: string }
+  /** Clear terminal targets after Terminal has consumed them */
+  | { type: 'CLEAR_TERMINAL_TARGET' }
+  /** Cross-plugin: send a raw control sequence to the active terminal (no \r appended) */
+  | { type: 'INTERRUPT_TERMINAL' }

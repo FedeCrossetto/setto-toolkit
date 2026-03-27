@@ -3,7 +3,7 @@ import {
   ArrowDown, CheckCircle2, ChevronDown, ChevronRight, Copy, Diff, Eye, EyeOff,
   FileInput, FilePlus, FileSearch, FileText, Filter, Folder,
   FolderOpen, FolderPlus, FolderSearch, History, Pause, Pencil, Play,
-  RotateCcw, Save, SlidersHorizontal, Trash2, WrapText, X,
+  RotateCcw, Save, SlidersHorizontal, SquareTerminal, Trash2, WrapText, X,
 } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
 import { useToast } from '../../core/components/Toast'
@@ -46,7 +46,7 @@ interface TreeCallbacks {
 
 export function FileEditor(): JSX.Element {
   const { state, dispatch } = useApp()
-  const { tabs, activeId, activeTab, setActiveId, openFile, openBuffer, closeTab, updateTab } = useEditorTabs()
+  const { tabs, activeId, activeTab, setActiveId, openFile, openBuffer, closeTab, updateTab, reorderTabs } = useEditorTabs()
   const { prefs, updatePrefs } = useEditorPrefs()
   const { show: showToast } = useToast()
 
@@ -84,6 +84,8 @@ export function FileEditor(): JSX.Element {
   const editorRef    = useRef<EditorHandle | null>(null)
   const settingsRef  = useRef<HTMLDivElement>(null)
   const restoredRef  = useRef(false)
+  const dragTabRef   = useRef<string | null>(null)
+  const [dragOverTab, setDragOverTab] = useState<string | null>(null)
 
   const appDark    = state.theme === 'dark'
   const editorDark = prefs.editorTheme === 'auto' ? appDark : prefs.editorTheme === 'dark'
@@ -333,6 +335,7 @@ export function FileEditor(): JSX.Element {
       { divider: true, label: '', action: () => {} },
       { label: 'Copy Path',          icon: Copy,       action: () => navigator.clipboard.writeText(node.path) },
       { label: 'Reveal in Explorer', icon: FolderOpen, action: () => window.api.invoke('editor:reveal', node.path) },
+      { label: 'Open Terminal Here', icon: SquareTerminal, action: () => dispatch({ type: 'OPEN_TERMINAL_HERE', cwd: dirPath }) },
     ]
     setCtxMenu({ x: e.clientX, y: e.clientY, items })
   }
@@ -555,19 +558,42 @@ export function FileEditor(): JSX.Element {
               </p>
             ) : (
               tabs.map((tab) => (
-                <FileListItem
-                  key={tab.id} tab={tab} isActive={activeId === tab.id}
-                  isSelected={selectedIds.has(tab.id)}
-                  savedFlash={savedFlash && activeId === tab.id}
-                  onClick={() => { setSelectedIds(new Set()); setActiveId(tab.id) }}
-                  onCtrlClick={() => toggleSelection(tab.id)}
-                  onClose={() => { setSelectedIds((p) => { const n = new Set(p); n.delete(tab.id); return n }); void handleCloseTab(tab.id) }}
-                  onSave={saveActive}
-                  onContextMenu={(e) => handleTabContextMenu(e, tab)}
-                  renaming={renamingTabId === tab.id}
-                  onRenameCommit={(name) => handleRenameTab(tab.id, name)}
-                  onRenameCancel={() => setRenamingTabId(null)}
-                />
+                <div
+                  key={tab.id}
+                  onDragOver={(e) => {
+                    if (dragTabRef.current && dragTabRef.current !== tab.id) {
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = 'move'
+                      setDragOverTab(tab.id)
+                    }
+                  }}
+                  onDragLeave={() => setDragOverTab((prev) => prev === tab.id ? null : prev)}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    if (dragTabRef.current && dragTabRef.current !== tab.id) {
+                      reorderTabs(dragTabRef.current, tab.id)
+                    }
+                    dragTabRef.current = null
+                    setDragOverTab(null)
+                  }}
+                  style={dragOverTab === tab.id ? { boxShadow: 'inset 0 2px 0 rgb(var(--c-primary))' } : undefined}
+                >
+                  <FileListItem
+                    tab={tab} isActive={activeId === tab.id}
+                    isSelected={selectedIds.has(tab.id)}
+                    savedFlash={savedFlash && activeId === tab.id}
+                    onClick={() => { setSelectedIds(new Set()); setActiveId(tab.id) }}
+                    onCtrlClick={() => toggleSelection(tab.id)}
+                    onClose={() => { setSelectedIds((p) => { const n = new Set(p); n.delete(tab.id); return n }); void handleCloseTab(tab.id) }}
+                    onSave={saveActive}
+                    onContextMenu={(e) => handleTabContextMenu(e, tab)}
+                    renaming={renamingTabId === tab.id}
+                    onRenameCommit={(name) => handleRenameTab(tab.id, name)}
+                    onRenameCancel={() => setRenamingTabId(null)}
+                    onDragStart={() => { dragTabRef.current = tab.id }}
+                    onDragEnd={() => { dragTabRef.current = null; setDragOverTab(null) }}
+                  />
+                </div>
               ))
             )}
           </div>
@@ -600,17 +626,39 @@ export function FileEditor(): JSX.Element {
               <div key={tab.id}
                 draggable
                 onDragStart={(e) => {
+                  dragTabRef.current = tab.id
                   dragState.set({ name: tab.name, path: tab.path, content: tab.content })
                   e.dataTransfer.setData('text/plain', tab.name)
-                  e.dataTransfer.effectAllowed = 'copy'
+                  e.dataTransfer.effectAllowed = 'copyMove'
                 }}
-                onDragEnd={() => dragState.set(null)}
+                onDragOver={(e) => {
+                  if (dragTabRef.current && dragTabRef.current !== tab.id) {
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                    setDragOverTab(tab.id)
+                  }
+                }}
+                onDragLeave={() => setDragOverTab((prev) => prev === tab.id ? null : prev)}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  if (dragTabRef.current && dragTabRef.current !== tab.id) {
+                    reorderTabs(dragTabRef.current, tab.id)
+                  }
+                  dragTabRef.current = null
+                  setDragOverTab(null)
+                }}
+                onDragEnd={() => {
+                  dragTabRef.current = null
+                  dragState.set(null)
+                  setDragOverTab(null)
+                }}
                 onClick={(e) => {
                   if (e.ctrlKey || e.metaKey) { e.preventDefault(); toggleSelection(tab.id) }
                   else { setSelectedIds(new Set()); setActiveId(tab.id) }
                 }}
                 onContextMenu={(e) => handleTabContextMenu(e, tab)}
-                title={`${tab.name}${tab.path ? `\n${tab.path}` : ''}\nCtrl+click to select · Drag to Compare in Smart Diff`}
+                title={`${tab.name}${tab.path ? `\n${tab.path}` : ''}\nCtrl+click to select · Drag to reorder · Drag to Compare in Smart Diff`}
+                style={dragOverTab === tab.id ? { borderLeft: '2px solid rgb(var(--c-primary))' } : undefined}
                 className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium cursor-grab active:cursor-grabbing border-b-2 whitespace-nowrap group transition-colors flex-shrink-0 ${
                   selectedIds.has(tab.id)
                     ? 'border-[#887CFD] text-[#887CFD] bg-[#887CFD]/10'
@@ -996,22 +1044,24 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
   )
 }
 
-function FileListItem({ tab, isActive, isSelected = false, savedFlash = false, onClick, onCtrlClick, onClose, onSave, onContextMenu, renaming, onRenameCommit, onRenameCancel }: {
+function FileListItem({ tab, isActive, isSelected = false, savedFlash = false, onClick, onCtrlClick, onClose, onSave, onContextMenu, renaming, onRenameCommit, onRenameCancel, onDragStart: onDragStartProp, onDragEnd: onDragEndProp }: {
   tab: OpenFile; isActive: boolean; isSelected?: boolean; savedFlash?: boolean
   onClick: () => void; onCtrlClick?: () => void; onClose: () => void; onSave: () => void
   onContextMenu: (e: React.MouseEvent) => void
   renaming: boolean; onRenameCommit: (name: string) => void; onRenameCancel: () => void
+  onDragStart?: () => void; onDragEnd?: () => void
 }): JSX.Element {
   const dir = tab.path ? tab.path.split(/[\\/]/).slice(0, -1).join('\\') : null
   return (
     <div data-tab-item
       draggable
       onDragStart={(e) => {
+        onDragStartProp?.()
         dragState.set({ name: tab.name, path: tab.path, content: tab.content })
         e.dataTransfer.setData('text/plain', tab.name)
-        e.dataTransfer.effectAllowed = 'copy'
+        e.dataTransfer.effectAllowed = 'copyMove'
       }}
-      onDragEnd={() => dragState.set(null)}
+      onDragEnd={() => { onDragEndProp?.(); dragState.set(null) }}
       onClick={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); onCtrlClick?.() } else { onClick() } }}
       onContextMenu={onContextMenu}
       title={`${tab.name}${tab.path ? `\n${tab.path}` : ''}\nCtrl+click to select · Drag to Compare in Smart Diff`}

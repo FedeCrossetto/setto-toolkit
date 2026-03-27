@@ -30,6 +30,10 @@ const INVOKE_CHANNELS = new Set([
   'ticket-resolver:fetch', 'ticket-resolver:plan', 'ticket-resolver:search', 'ticket-resolver:analyze',
   'ticket-resolver:history-get', 'ticket-resolver:history-save', 'ticket-resolver:history-delete',
   'ticket-resolver:ai-usage-get', 'ticket-resolver:ai-usage-reset',
+  'terminal:create', 'terminal:kill', 'terminal:sessions-get', 'terminal:session-delete',
+  'terminal:prefs-get', 'terminal:prefs-set',
+  'terminal:startup-get', 'terminal:startup-set',
+  'terminal:claude-usage',
 ])
 
 /** Channels the renderer may send (fire-and-forget → main) */
@@ -37,11 +41,13 @@ const SEND_CHANNELS = new Set([
   'window:minimize', 'window:maximize', 'window:close',
   'page:find', 'page:find-stop',
   'editor:authorize-root',
+  'terminal:input', 'terminal:resize',
 ])
 
 /** Channels the renderer may subscribe to (main → renderer) */
 const ON_CHANNELS = new Set([
   'open-file', 'page:found', 'editor:file-changed',
+  'terminal:data', 'terminal:exit',
 ])
 
 const api = {

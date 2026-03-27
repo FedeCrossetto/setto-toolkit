@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import Fuse from 'fuse.js'
 import {
   BookMarked, Check, Copy, Download, Folder, LayoutGrid,
-  Pencil, Pin, Plus, Search, Trash2, Upload, X,
+  Pencil, Pin, Plus, Search, SquareTerminal, Trash2, Upload, X,
 } from 'lucide-react'
 import type { Snippet, SnippetCollection, SnippetLanguage } from './types'
 import { EditorView, basicSetup } from 'codemirror'
@@ -24,6 +24,8 @@ import { useToast } from '../../core/components/Toast'
 import { EmptyState } from '../../core/components/EmptyState'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
+
+const SHELL_LANGUAGES = new Set<SnippetLanguage>(['bash'])
 
 const LANGUAGES: SnippetLanguage[] = [
   'plaintext', 'javascript', 'typescript', 'python', 'sql', 'json',
@@ -444,6 +446,7 @@ export function SnippetManager(): JSX.Element {
               copied={copied}
               dark={dark}
               onCopy={() => copyContent(selected.content)}
+              onRunInTerminal={() => dispatch({ type: 'RUN_IN_TERMINAL', content: selected.content })}
               onEdit={() => startEdit(selected)}
               onDelete={() => deleteSnippet(selected.id)}
               onTogglePin={() => togglePin(selected)}
@@ -539,13 +542,14 @@ function MixedContentViewer({ content }: { content: string }): JSX.Element {
 
 function SnippetDetail({
   snippet, copied, dark, collectionName,
-  onCopy, onEdit, onDelete, onTogglePin,
+  onCopy, onRunInTerminal, onEdit, onDelete, onTogglePin,
 }: {
   snippet: Snippet
   copied: boolean
   dark: boolean
   collectionName?: string
   onCopy: () => void
+  onRunInTerminal: () => void
   onEdit: () => void
   onDelete: () => void
   onTogglePin: () => void
@@ -591,14 +595,25 @@ function SnippetDetail({
 
       {/* Content */}
       <div className="flex-1 overflow-hidden flex flex-col p-4 gap-3">
-        {/* Copy button — only for pure-code snippets */}
+        {/* Action buttons — only for pure-code snippets */}
         {!mixed && snippet.content && (
-          <button onClick={onCopy}
-            className={`flex items-center gap-2 self-end px-4 py-2 rounded-xl text-sm font-semibold transition-all ${copied ? 'bg-accent/20 text-accent' : 'text-on-primary hover:opacity-90'}`}
-            style={copied ? {} : { background: 'var(--gradient-brand)' }}>
-            {copied ? <Check size={16} /> : <Copy size={16} />}
-            {copied ? 'Copied!' : 'Copy'}
-          </button>
+          <div className="flex items-center gap-2 self-end">
+            {SHELL_LANGUAGES.has(snippet.language) && (
+              <button onClick={onRunInTerminal}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:opacity-90"
+                style={{ background: 'rgb(var(--c-surface-container-high))', color: 'rgb(74 222 128)', border: '1px solid rgb(74 222 128 / 0.3)' }}
+                title="Run in Terminal">
+                <SquareTerminal size={15} />
+                Run
+              </button>
+            )}
+            <button onClick={onCopy}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${copied ? 'bg-accent/20 text-accent' : 'text-on-primary hover:opacity-90'}`}
+              style={copied ? {} : { background: 'var(--gradient-brand)' }}>
+              {copied ? <Check size={16} /> : <Copy size={16} />}
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
+          </div>
         )}
 
         {/* Content viewer */}

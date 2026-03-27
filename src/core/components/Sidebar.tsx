@@ -83,8 +83,8 @@ function SidebarItem({ plugin, active, collapsed, onClick }: SidebarItemProps): 
           width: active ? 'calc(100% - 8px)' : 'calc(100% - 16px)',
           marginLeft: 8,
           marginRight: 0,
-          paddingLeft: collapsed ? 0 : 12,
-          paddingRight: collapsed ? 0 : 12,
+          paddingLeft: collapsed ? 0 : 8,
+          paddingRight: collapsed ? 0 : 8,
           justifyContent: collapsed ? 'center' : undefined,
           borderTopLeftRadius: 12,
           borderBottomLeftRadius: 12,
@@ -152,7 +152,7 @@ export function Sidebar(): JSX.Element {
   const toggleTheme = (): void =>
     dispatch({ type: 'SET_THEME', theme: state.theme === 'dark' ? 'light' : 'dark' })
 
-  const outerW = collapsed ? 62 : 204
+  const outerW = collapsed ? 62 : 164
 
   return (
     <aside
@@ -172,27 +172,17 @@ export function Sidebar(): JSX.Element {
       >
 
         {/* ── Logo ──────────────────────────────────────────────────────────── */}
-        <div className={`flex items-center mt-2 mb-3 flex-shrink-0 ${collapsed ? 'justify-center pr-0 pl-0' : 'pl-4 pr-3 justify-between'}`}>
+        <div className="flex items-center justify-center mt-2 mb-3 flex-shrink-0">
           {collapsed ? (
-            <AppLogo size={80} />
+            <AppLogo size={48} />
           ) : (
-            <>
-              <div className="flex items-center gap-2">
-                <AppLogo size={80} />
-                <div className="leading-none">
-                  <div className="font-bold text-[14px] tracking-tight" style={{ color: '#ffffff' }}>SETTO</div>
-                  <div className="text-[9px] tracking-widest uppercase font-medium mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>Toolkit</div>
-                </div>
+            <div className="flex flex-col items-center gap-1">
+              <AppLogo size={64} />
+              <div className="leading-none text-center">
+                <div className="font-bold text-[14px] tracking-tight" style={{ color: '#ffffff' }}>SETTO</div>
+                <div className="text-[9px] tracking-widest uppercase font-medium mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>Toolkit</div>
               </div>
-              <button
-                onClick={() => dispatch({ type: 'TOGGLE_SIDEBAR' })}
-                className="p-1 rounded-lg transition-colors flex-shrink-0 hover:bg-white/[0.07]"
-                style={{ color: 'rgba(255,255,255,0.25)' }}
-                title="Collapse sidebar"
-              >
-                <ChevronLeft size={16} />
-              </button>
-            </>
+            </div>
           )}
         </div>
 
@@ -234,25 +224,24 @@ export function Sidebar(): JSX.Element {
           ))}
 
 
-          {/* Expand (collapsed only) */}
-          {collapsed && (
-            <button
-              onClick={() => dispatch({ type: 'TOGGLE_SIDEBAR' })}
-              title="Expand sidebar"
-              style={{
-                height: 36,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 12,
-                margin: '0 8px',
-                color: 'rgba(255,255,255,0.2)',
-              }}
-              className="hover:bg-white/[0.07] hover:!text-white/50 transition-colors duration-150"
-            >
-              <ChevronRight size={15} />
-            </button>
-          )}
+          {/* Toggle sidebar button (always at bottom) */}
+          <button
+            onClick={() => dispatch({ type: 'TOGGLE_SIDEBAR' })}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            style={{
+              height: 36,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: collapsed ? 'center' : undefined,
+              paddingLeft: collapsed ? 0 : 10,
+              borderRadius: 12,
+              margin: '0 8px',
+              color: 'rgba(255,255,255,0.2)',
+            }}
+            className="hover:bg-white/[0.07] hover:!text-white/50 transition-colors duration-150"
+          >
+            {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+          </button>
         </div>
       </div>
     </aside>

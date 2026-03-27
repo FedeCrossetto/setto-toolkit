@@ -1,6 +1,6 @@
 {
   "name": "mytools-app",
-  "version": "2.4.1",
+  "version": "2.5.0",
   "description": "Setto — modular developer utilities",
   "main": "out/main/main.js",
   "scripts": {
@@ -8,6 +8,7 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "package": "electron-vite build && electron-builder",
+    "rebuild": "electron-rebuild -f -w node-pty",
     "postinstall": "echo Setup complete"
   },
   "dependencies": {
@@ -28,12 +29,16 @@
     "@codemirror/theme-one-dark": "^6.1.3",
     "@codemirror/view": "^6.40.0",
     "@lezer/highlight": "^1.2.3",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/xterm": "^6.0.0",
     "chokidar": "^3.6.0",
     "codemirror": "^6.0.2",
     "diff": "^5.2.0",
     "electron-store": "^11.0.2",
     "fuse.js": "^7.0.0",
     "lucide-react": "^1.7.0",
+    "node-pty": "^1.0.0",
     "openai": "^4.47.0"
   },
   "devDependencies": {
@@ -66,6 +71,9 @@
       "out/**/*"
     ],
     "asar": true,
+    "asarUnpack": [
+      "node_modules/node-pty/**/*"
+    ],
     "fileAssociations": [
       {
         "ext": "txt",

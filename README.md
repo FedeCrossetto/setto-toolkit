@@ -21,6 +21,7 @@
 | **API Lab** | Cliente HTTP similar a Postman. Soporta colecciones, entornos con variables, historial con filtro por URL/método, autenticación Bearer / Basic, multipart/form-data y scripts pre/post-request. |
 | **Snippets** | Manager de snippets de código y notas. Soporte de imágenes inline (drag & drop / paste), sintaxis resaltada con CodeMirror, colecciones, pins, búsqueda fuzzy y export/import a JSON. |
 | **Ticket Resolver** | Análisis y resolución de tickets Jira asistido por IA. Fetchea el ticket, genera un plan de análisis, busca código relevante en el repo local y propone causa raíz + fix con diff antes/después. |
+| **Terminal** | Terminal integrada multi-sesión con pestañas, selector de shell (PowerShell / CMD / Git Bash), restauración de sesiones, integración con Claude Code (launch, stop, indicador de uso % real), atajos Ctrl+T e integraciones cross-plugin. |
 | **Settings** | Configuración de API keys, proveedor de IA (OpenAI / Anthropic / Ollama), fuente, tema de color, mascota del dashboard, módulos habilitados y backup/restore de settings. |
 | **About** | Información de versión, stack tecnológico y detalles de seguridad de la app. |
 
@@ -172,6 +173,45 @@ Podés usar `src/plugins/_template/` como punto de partida.
 ---
 
 ## Changelog
+
+### v2.5.0 — 2026-03-27
+
+#### Terminal — nuevo plugin
+
+Plugin de terminal integrada construida sobre **node-pty** + **xterm.js**.
+
+- **Multi-sesión con pestañas**: abrí N terminales simultáneas, cada una con su propia pestaña. Clic en la pestaña activa para renombrarla.
+- **Selector de shell**: botón `+` con dropdown para elegir entre PowerShell, Command Prompt, PowerShell Core y Git Bash.
+- **Restauración de sesiones**: al cerrar y reabrir la app, las sesiones abiertas (shell + nombre personalizado) se restauran automáticamente desde `terminal-startup.json`.
+- **Shortcut Ctrl+T**: abre una nueva sesión de terminal desde cualquier lugar de la app.
+- **Panel de historial**: registro de sesiones anteriores con duración, cwd y shell.
+- **Panel de configuración**: fuente, tamaño, tema de color, cursor, scrollback, shell por defecto.
+- **Fix EPIPE**: las excepciones `EPIPE` de ConPTY al cerrar procesos ya no crashean la app (handler nombrado con `removeListener` + re-throw para errores no-EPIPE).
+
+#### Terminal — integración Claude Code
+
+- **Botón Claude**: lanza `claude --dangerously-skip-permissions` en la sesión activa (o crea una nueva si no hay ninguna).
+- **Botón Stop**: envía `Ctrl+C` a la sesión activa para interrumpir/salir de Claude sin matar la terminal.
+- **Indicador de uso %**: lee directamente los archivos JSONL de `~/.claude/projects/` — sin ejecutar ningún comando en la terminal. Calcula `(input_tokens + cache_creation_input_tokens + cache_read_input_tokens) / 200 000`. Se actualiza automáticamente cada 30 segundos mientras Claude está corriendo y al hacer clic en el botón. Popover con barra de progreso, contexto usado y restante.
+
+#### Terminal — integraciones cross-plugin
+
+- **"Open Terminal Here"** (desde File Editor): clic derecho en el árbol de archivos → abre una nueva sesión de terminal con el `cwd` del directorio seleccionado.
+- **"Run in Terminal"** (desde Snippet Manager): botón en snippets de tipo `bash` que envía el contenido a la terminal activa (o crea una nueva si no hay ninguna).
+- **"Send to Diff"**: botón en la toolbar de la terminal que vuelca el buffer visible al Smart Diff.
+
+#### Terminal — dashboard card
+
+- Nuevo card en el Dashboard con artwork dedicado: `panda-console.png` (panda) y `setto-avatar-console.png` (Setto).
+
+#### File Editor — reordenamiento por drag & drop
+
+- **Tab bar**: arrastrá cualquier pestaña horizontalmente para cambiar su posición. Indicador visual (borde izquierdo azul) en la pestaña destino.
+- **Panel "Open Files"**: arrastrá cualquier ítem verticalmente para reordenarlo. Indicador visual (línea superior azul) en el ítem destino.
+- Ambas zonas comparten el mismo estado de drag: también podés arrastrar entre panel y tab bar.
+- El drag a Smart Diff sigue funcionando igual (drop fuera de la tab bar).
+
+---
 
 ### v2.4.1 — 2026-03-26
 

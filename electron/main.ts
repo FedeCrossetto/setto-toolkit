@@ -10,6 +10,19 @@ import { registerFileAssociations, getFileArgFromArgv } from './core/file-associ
 
 let mainWindow: BrowserWindow | null = null
 
+// Suppress EPIPE errors thrown by node-pty's internal ConPTY pipes when a
+// child process exits while the main process still holds a read handle.
+// These are benign — the PTY exit handler already cleans up the session.
+// IMPORTANT: must not re-throw inside uncaughtException — that causes a fatal
+// double-exception crash. We remove the listener first so Electron's default
+// crash reporter handles all non-EPIPE errors normally.
+function epipeHandler(err: NodeJS.ErrnoException): void {
+  if (err.code === 'EPIPE') return
+  process.removeListener('uncaughtException', epipeHandler)
+  throw err
+}
+process.on('uncaughtException', epipeHandler)
+
 // Single instance lock — second launch passes its argv here and quits
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {

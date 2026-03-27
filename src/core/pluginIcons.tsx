@@ -9,6 +9,7 @@ import {
   Puzzle,
   Rocket,
   SlidersHorizontal,
+  SquareTerminal,
   Ticket,
 } from 'lucide-react'
 
@@ -21,6 +22,7 @@ const PLUGIN_ICON_MAP: Record<string, ComponentType<{ size?: number; className?:
   rocket_launch:            Rocket,
   format_ink_highlighter:   Highlighter,
   confirmation_number:      Ticket,
+  square_terminal:          SquareTerminal,
   tune:                     SlidersHorizontal,
   info:                     Info,
   extension:                Puzzle,

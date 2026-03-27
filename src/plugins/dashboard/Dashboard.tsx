@@ -69,6 +69,13 @@ const PLUGIN_CONFIG: Record<string, PluginConfig> = {
     artwork:      ArtworkPandaTicket,
     settoArtwork: ArtworkSettoTicket,
   },
+  'terminal': {
+    glow:         'rgba(74,222,128,0.30)',
+    accent:       '#4ADE80',
+    badge:        'bg-[#4ADE80]/15 text-[#4ADE80] border-[#4ADE80]/20',
+    artwork:      ArtworkPandaConsole,
+    settoArtwork: ArtworkSettoConsole,
+  },
 }
 
 const DEFAULT_CONFIG: PluginConfig = {
@@ -258,6 +265,7 @@ function ArtworkPandaSearch():   JSX.Element { return <PandaImg src="./panda-ava
 function ArtworkPandaSettings(): JSX.Element { return <PandaImg src="./panda-avatar/panda-settings.png"       scale={1.15} tx={-10} ty={6} /> }
 function ArtworkPandaRequest():  JSX.Element { return <PandaImg src="./panda-avatar/panda-request.png"        scale={1.15} tx={-10} ty={6} /> }
 function ArtworkPandaTicket():   JSX.Element { return <PandaImg src="./panda-avatar/panda-ticket.png"           scale={1.15} tx={-4}  ty={4} /> }
+function ArtworkPandaConsole():  JSX.Element { return <PandaImg src="./panda-avatar/panda-console.png"           scale={1.15} tx={-4}  ty={4} /> }
 
 // ── Setto Avatar artwork ──────────────────────────────────────────────────────
 // Place matching PNGs in public/setto-avatar/ — falls back to panda if file is missing
@@ -280,6 +288,7 @@ function ArtworkSettoEditor():   JSX.Element { return <SettoImg src="./setto-ava
 function ArtworkSettoSnippet():  JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar-snippet.png"    /> }
 function ArtworkSettoSettings(): JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar-settings.png"   /> }
 function ArtworkSettoTicket():   JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar-ticket.png"     scale={1.1} tx={-4} ty={4} /> }
+function ArtworkSettoConsole():  JSX.Element { return <SettoImg src="./setto-avatar/setto-avatar-console.png"    scale={1.1} tx={0}   ty={4} /> }
 
 // ── ToolArtwork — swap real images here later ─────────────────────────────────
 // To replace with a real illustration:

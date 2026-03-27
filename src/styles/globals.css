@@ -164,6 +164,17 @@ html {
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* ─── Select / Option theme-aware styling ───────────────────────────────── */
+select {
+  background-color: rgb(var(--c-surface-container-high));
+  color: rgb(var(--c-on-surface));
+  border-color: rgb(var(--c-outline-variant));
+}
+select option {
+  background-color: rgb(var(--c-surface-container-high));
+  color: rgb(var(--c-on-surface));
+}
+
 /* ─── Electron drag regions ──────────────────────────────────────────────── */
 .drag-region  { -webkit-app-region: drag; }
 .no-drag      { -webkit-app-region: no-drag; }

@@ -122,7 +122,19 @@ export function useEditorTabs() {
     setTabs((prev) => prev.map((t) => t.id === id ? { ...t, ...patch } : t))
   }, [])
 
+  const reorderTabs = useCallback((fromId: string, toId: string) => {
+    setTabs((prev) => {
+      const from = prev.findIndex((t) => t.id === fromId)
+      const to   = prev.findIndex((t) => t.id === toId)
+      if (from === -1 || to === -1 || from === to) return prev
+      const next = [...prev]
+      const [item] = next.splice(from, 1)
+      next.splice(to, 0, item)
+      return next
+    })
+  }, [])
+
   const activeTab = tabs.find((t) => t.id === activeId) ?? null
 
-  return { tabs, activeId, activeTab, setActiveId, openFile, openBuffer, closeTab, updateTab }
+  return { tabs, activeId, activeTab, setActiveId, openFile, openBuffer, closeTab, updateTab, reorderTabs }
 }

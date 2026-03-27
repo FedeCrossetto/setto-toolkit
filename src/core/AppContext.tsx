@@ -113,6 +113,30 @@ function appReducer(state: AppState, action: AppAction): AppState {
     }
     case 'CLEAR_DIFF_TARGET':
       return { ...state, diffTarget: undefined, diffTarget2: undefined }
+    case 'OPEN_TERMINAL_HERE': {
+      const existing = state.openTabs.find((t) => t.pluginId === 'terminal')
+      const tabId    = existing?.tabId ?? 'terminal'
+      const openTabs = existing
+        ? state.openTabs
+        : [...state.openTabs, { tabId: 'terminal', pluginId: 'terminal' }]
+      return { ...state, openTabs, activeTabId: tabId, terminalTarget: { cwd: action.cwd } }
+    }
+    case 'RUN_IN_TERMINAL': {
+      const existing = state.openTabs.find((t) => t.pluginId === 'terminal')
+      const tabId    = existing?.tabId ?? 'terminal'
+      const openTabs = existing
+        ? state.openTabs
+        : [...state.openTabs, { tabId: 'terminal', pluginId: 'terminal' }]
+      return { ...state, openTabs, activeTabId: tabId, terminalCommand: { content: action.content, stamp: Date.now() } }
+    }
+    case 'CLEAR_TERMINAL_TARGET':
+      return { ...state, terminalTarget: undefined, terminalCommand: undefined }
+    case 'INTERRUPT_TERMINAL': {
+      // Just activate the terminal tab — the Terminal component handles the actual signal
+      const existing = state.openTabs.find((t) => t.pluginId === 'terminal')
+      if (!existing) return state
+      return { ...state, activeTabId: existing.tabId, terminalInterrupt: (state.terminalInterrupt ?? 0) + 1 }
+    }
     case 'SET_PLUGIN_DIRTY': {
       if (state.dirtyPlugins[action.pluginId] === action.dirty) return state
       return {
