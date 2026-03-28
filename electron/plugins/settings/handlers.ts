@@ -39,6 +39,7 @@ const ALLOWED_KEYS = new Set([
   'ticket-resolver.jira_token',
   'ticket-resolver.repo_path',
   'ticket-resolver.project_prefix',
+  'ticket-resolver.claude_path',
   'ticket-resolver.ui.font_size',
   'ticket-resolver.ui.density',
   'ticket-resolver.ui.line_height',

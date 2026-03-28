@@ -417,7 +417,13 @@ function ConfigPanel({
   const [tab, setTab]       = useState<ConfigTab>('jira')
 
   const set = (k:keyof ConfigValues) => (e:React.ChangeEvent<HTMLInputElement>) => setLocal(prev=>({...prev,[k]:e.target.value}))
-  const save = async () => { setSaving(true); await onSave(local); setSaving(false); onClose() }
+  const [saveError, setSaveError] = useState<string|null>(null)
+  const save = async () => {
+    setSaving(true); setSaveError(null)
+    try { await onSave(local); onClose() }
+    catch(e) { setSaveError((e as Error).message) }
+    finally { setSaving(false) }
+  }
 
   const inp = 'w-full bg-surface border border-outline-variant/25 rounded-lg px-3 py-2 text-[13px] text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:border-primary/60 transition-colors'
   const lbl = 'block text-[11px] text-on-surface-variant/50 mb-1'
@@ -511,7 +517,10 @@ function ConfigPanel({
       </div>
 
       {tab === 'jira' && (
-        <div className="px-5 py-4 border-t border-outline-variant/15 flex-shrink-0">
+        <div className="px-5 py-4 border-t border-outline-variant/15 flex-shrink-0 flex flex-col gap-2">
+          {saveError && (
+            <div className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{saveError}</div>
+          )}
           <button onClick={()=>void save()} disabled={saving} className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-white disabled:opacity-50" style={{background:'var(--gradient-brand)'}}>
             {saving?'Guardando…':'Guardar configuración'}
           </button>
