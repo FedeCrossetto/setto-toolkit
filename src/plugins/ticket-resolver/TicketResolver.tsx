@@ -565,6 +565,141 @@ function AwaitingPanel({ plan, onExecute, onReset }: { plan:AnalysisPlan; onExec
   )
 }
 
+// ── Apply changes modal ────────────────────────────────────────────────────────
+interface ApplyResult { file:string; status:'applied'|'not_found'|'error'; message?:string }
+
+function ApplyChangesModal({ diff, onClose }: { diff:DiffChunk[]; onClose:()=>void }): JSX.Element {
+  const [selected, setSelected]   = useState<Set<number>>(new Set(diff.map((_,i)=>i)))
+  const [applying, setApplying]   = useState(false)
+  const [results, setResults]     = useState<ApplyResult[]|null>(null)
+
+  const toggle = (i:number) => setSelected(prev => {
+    const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n
+  })
+
+  const handleApply = async () => {
+    setApplying(true)
+    try {
+      const res = await window.api.invoke<ApplyResult[]>(
+        'ticket-resolver:apply-changes',
+        diff.filter((_,i) => selected.has(i)),
+      )
+      setResults(res)
+    } catch(e) {
+      setResults([{file:'',status:'error',message:(e as Error).message}])
+    } finally { setApplying(false) }
+  }
+
+  const allOk = results?.every(r => r.status==='applied')
+
+  return (
+    <div className="absolute inset-0 z-40 flex items-center justify-center p-5 bg-black/55 backdrop-blur-sm">
+      <div className="bg-surface w-full max-w-2xl max-h-[88vh] flex flex-col rounded-2xl border border-outline-variant/20 shadow-2xl">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/12 flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Wrench size={15} className="text-primary" />
+            </div>
+            <div>
+              <div className="text-[13px] font-semibold text-on-surface">Aplicar cambios en repositorio</div>
+              <div className="text-[11px] text-on-surface-variant/40">{diff.length} cambio{diff.length!==1?'s':''} propuesto{diff.length!==1?'s':''}</div>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-on-surface-variant/35 hover:text-on-surface transition-colors p-1"><X size={18}/></button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+          {!results ? (
+            <>
+              <p className="text-[11px] text-on-surface-variant/40 px-1">
+                Seleccioná los cambios a aplicar. Los archivos se modificarán directamente en el repositorio configurado.
+              </p>
+              {diff.map((chunk,i) => (
+                <label key={i} onClick={()=>toggle(i)}
+                  className={['rounded-xl border overflow-hidden cursor-pointer transition-all select-none',
+                    selected.has(i) ? 'border-primary/25 bg-primary/5' : 'border-outline-variant/12 bg-surface-container/40 opacity-60',
+                  ].join(' ')}>
+                  <div className="flex items-center gap-3 px-4 py-2.5">
+                    <div className={['w-4 h-4 rounded flex items-center justify-center border transition-all flex-shrink-0',
+                      selected.has(i) ? 'bg-primary border-primary' : 'border-outline-variant/30'
+                    ].join(' ')}>
+                      {selected.has(i) && <Check size={10} className="text-white" />}
+                    </div>
+                    <FileText size={12} className="text-on-surface-variant/35 flex-shrink-0"/>
+                    <span className="font-mono text-[12px] text-on-surface flex-1 truncate">{chunk.file}</span>
+                    <span className="text-[10px] text-on-surface-variant/30 flex-shrink-0">línea {chunk.lineStart}</span>
+                  </div>
+                  <div className="text-[11px] font-mono leading-relaxed">
+                    {chunk.original.split('\n').map((l,j)=>(
+                      <div key={j} className="flex gap-2 px-4 py-0.5 bg-red-500/8 text-red-300/70 border-t border-red-500/8">
+                        <span className="text-red-400/40 select-none w-3 flex-shrink-0">−</span><span>{l}</span>
+                      </div>
+                    ))}
+                    {chunk.modified.split('\n').map((l,j)=>(
+                      <div key={j} className="flex gap-2 px-4 py-0.5 bg-green-500/8 text-green-300/70">
+                        <span className="text-green-400/40 select-none w-3 flex-shrink-0">+</span><span>{l}</span>
+                      </div>
+                    ))}
+                  </div>
+                </label>
+              ))}
+            </>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {allOk && (
+                <div className="flex items-center gap-2.5 text-green-400 bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3">
+                  <CheckCircle2 size={16} className="flex-shrink-0"/>
+                  <span className="text-[13px] font-medium">Todos los cambios aplicados correctamente</span>
+                </div>
+              )}
+              {results.map((r,i)=>(
+                <div key={i} className={['flex items-start gap-3 rounded-xl px-4 py-3 border',
+                  r.status==='applied'   ? 'bg-green-500/8 border-green-500/15' :
+                  r.status==='not_found' ? 'bg-amber-500/8 border-amber-500/15' :
+                                           'bg-red-500/8 border-red-500/15',
+                ].join(' ')}>
+                  {r.status==='applied'   ? <Check size={14} className="text-green-400 flex-shrink-0 mt-0.5"/> :
+                   r.status==='not_found' ? <TriangleAlert size={14} className="text-amber-400 flex-shrink-0 mt-0.5"/> :
+                                            <CircleAlert size={14} className="text-red-400 flex-shrink-0 mt-0.5"/>}
+                  <div>
+                    {r.file && <div className="text-[11px] font-mono text-on-surface">{r.file}</div>}
+                    {r.message && <div className="text-[11px] text-on-surface-variant/50 mt-0.5">{r.message}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-5 py-4 border-t border-outline-variant/12 flex-shrink-0">
+          {!results ? (
+            <>
+              <span className="text-[11px] text-on-surface-variant/35">{selected.size} de {diff.length} seleccionado{selected.size!==1?'s':''}</span>
+              <div className="flex gap-2">
+                <button onClick={onClose} className="px-4 py-2 rounded-xl text-[12px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.04] transition-colors">Cancelar</button>
+                <button onClick={()=>void handleApply()} disabled={applying||selected.size===0}
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl text-[12px] font-semibold text-white disabled:opacity-35 hover:opacity-90 transition-opacity"
+                  style={{background:'var(--gradient-brand)'}}>
+                  {applying ? <><Spinner size={13}/>Aplicando…</> : <><Wrench size={13}/>Aplicar {selected.size} cambio{selected.size!==1?'s':''}</>}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-end w-full">
+              <button onClick={onClose} className="px-5 py-2 rounded-xl text-[12px] font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors">Cerrar</button>
+            </div>
+          )}
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
 // ── Right panel — results ──────────────────────────────────────────────────────
 function ResultsPanel({
   result, disp, onSaveHistory, onReset, isAlreadySaved, justSaved,
@@ -572,84 +707,114 @@ function ResultsPanel({
   result:AnalysisResult; disp:DisplayCfg; onSaveHistory:()=>void; onReset:()=>void
   isAlreadySaved:boolean; justSaved:boolean
 }): JSX.Element {
-  const [copied, setCopied] = useState<string|null>(null)
+  const [copied, setCopied]     = useState<string|null>(null)
+  const [showApply, setShowApply] = useState(false)
   const copy = (text:string, key:string) => void navigator.clipboard.writeText(text).then(()=>{setCopied(key);setTimeout(()=>setCopied(null),1500)})
-  const pad = PAD_PX[disp.density]
+  const hasDiff = result.diff.length > 0
+
+  const SectionHeader = ({ color, icon: Icon, label, copyKey, copyText }: {
+    color:string; icon:ComponentType<{size?:number;className?:string}>; label:string; copyKey?:string; copyText?:string
+  }) => (
+    <div className={`flex items-center gap-2 px-4 py-2.5 border-b border-outline-variant/10 bg-surface-container/30`}>
+      <span className={`w-1 h-4 rounded-full flex-shrink-0 ${color}`}/>
+      <Icon size={13} className={`flex-shrink-0 ${color.replace('bg-','text-')}`}/>
+      <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">{label}</span>
+      {copyKey && copyText && (
+        <button onClick={()=>copy(copyText,copyKey)} className="ml-auto text-on-surface-variant/20 hover:text-on-surface-variant/60 transition-colors">
+          {copied===copyKey ? <Check size={12}/> : <Copy size={12}/>}
+        </button>
+      )}
+    </div>
+  )
 
   return (
-    <div className="flex flex-col gap-4">
+    <>
+      {showApply && <ApplyChangesModal diff={result.diff} onClose={()=>setShowApply(false)}/>}
 
-      {/* Root cause */}
-      <div className="bg-surface-container rounded-2xl tr-fadein" style={{padding:pad}}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span className="w-1.5 h-5 rounded-full bg-amber-400 flex-shrink-0" />
-            <Search size={16} className="text-amber-400" />
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/45">Causa raíz</span>
+      <div className="flex flex-col gap-3">
+
+        {/* Banner */}
+        <div className="flex items-center gap-3 rounded-2xl border border-outline-variant/12 px-4 py-3 bg-surface-container/50 tr-fadein">
+          <div className="w-8 h-8 rounded-xl bg-green-500/12 flex items-center justify-center flex-shrink-0">
+            <CheckCircle2 size={16} className="text-green-400"/>
           </div>
-          <button onClick={()=>copy(result.rootCause,'root')} className="text-on-surface-variant/30 hover:text-primary transition-colors">
-            {copied==='root' ? <Check size={15} /> : <Copy size={15} />}
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] font-semibold text-on-surface">Análisis completado</div>
+            <div className="text-[11px] text-on-surface-variant/40 truncate">
+              {result.affectedFiles.length > 0 && `${result.affectedFiles.length} archivo${result.affectedFiles.length!==1?'s':''}`}
+              {hasDiff && ` · ${result.diff.length} cambio${result.diff.length!==1?'s':''} listo${result.diff.length!==1?'s':''} para aplicar`}
+            </div>
+          </div>
+          {hasDiff && (
+            <button onClick={()=>setShowApply(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-semibold text-white hover:opacity-90 transition-opacity flex-shrink-0"
+              style={{background:'var(--gradient-brand)'}}>
+              <Wrench size={13}/>Aplicar cambios
+            </button>
+          )}
+        </div>
+
+        {/* Root cause */}
+        <div className="rounded-2xl border border-outline-variant/12 overflow-hidden tr-fadein">
+          <SectionHeader color="bg-amber-400" icon={Search} label="Causa raíz" copyKey="root" copyText={result.rootCause}/>
+          <div className="px-4 py-4">
+            <p className="text-on-surface" style={{fontSize:FONT_PX[disp.fontSize],lineHeight:LINE_MAP[disp.lineHeight]}}>{result.rootCause}</p>
+          </div>
+        </div>
+
+        {/* Fix */}
+        <div className="rounded-2xl border border-outline-variant/12 overflow-hidden tr-fadein" style={{animationDelay:'.05s'}}>
+          <SectionHeader color="bg-green-400" icon={Wrench} label="Solución propuesta" copyKey="fix" copyText={result.fix}/>
+          <div className="px-4 py-4">
+            <p className="text-on-surface" style={{fontSize:FONT_PX[disp.fontSize],lineHeight:LINE_MAP[disp.lineHeight]}}>{result.fix}</p>
+          </div>
+          {hasDiff && (
+            <div className="border-t border-outline-variant/10">
+              <DiffView diff={result.diff}/>
+            </div>
+          )}
+        </div>
+
+        {/* Affected files */}
+        {result.affectedFiles.length > 0 && (
+          <div className="rounded-2xl border border-outline-variant/12 overflow-hidden tr-fadein" style={{animationDelay:'.1s'}}>
+            <SectionHeader color="bg-primary/60" icon={FolderOpen} label={`Archivos modificados · ${result.affectedFiles.length}`}/>
+            <div className="px-3 py-2.5 flex flex-col gap-1">
+              {result.affectedFiles.map(f=>(
+                <div key={f} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-container/60 border border-outline-variant/8">
+                  <FileText size={12} className="text-on-surface-variant/25 flex-shrink-0"/>
+                  <span className="font-mono text-[11px] text-on-surface-variant/60 truncate">{f}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Ticket comment */}
+        {result.ticketComment && (
+          <div className="tr-fadein" style={{animationDelay:'.15s'}}>
+            <CommentCard comment={result.ticketComment} disp={disp}/>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 flex-wrap pb-2 pt-1 tr-fadein" style={{animationDelay:'.2s'}}>
+          <button onClick={onSaveHistory}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-medium transition-all ${justSaved?'bg-green-500/15 text-green-400 border border-green-500/20':isAlreadySaved?'bg-white/[0.05] text-on-surface-variant/60 hover:bg-primary/10 hover:text-primary border border-outline-variant/15':'bg-primary/10 text-primary hover:bg-primary/20 border border-primary/15'}`}>
+            {justSaved?<><CheckCircle2 size={13}/>Guardado</>:isAlreadySaved?<><RotateCcw size={13}/>Actualizar</>:<><Save size={13}/>Guardar</>}
+          </button>
+          <button onClick={()=>copy(`CAUSA RAÍZ:\n${result.rootCause}\n\nSOLUCIÓN:\n${result.fix}`,'all')}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.05] border border-outline-variant/10 hover:border-outline-variant/25 transition-all">
+            {copied==='all'?<Check size={13}/>:<Copy size={13}/>}Copiar
+          </button>
+          <button onClick={onReset}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.05] border border-outline-variant/10 hover:border-outline-variant/25 transition-all ml-auto">
+            <Plus size={13}/>Nuevo
           </button>
         </div>
-        <p className="text-on-surface" style={{fontSize:FONT_PX[disp.fontSize],lineHeight:LINE_MAP[disp.lineHeight]}}>{result.rootCause}</p>
+
       </div>
-
-      {/* Fix */}
-      <div className="bg-surface-container rounded-2xl tr-fadein" style={{padding:pad,animationDelay:'.06s'}}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span className="w-1.5 h-5 rounded-full bg-green-400 flex-shrink-0" />
-            <Wrench size={16} className="text-green-400" />
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/45">Solución propuesta</span>
-          </div>
-          <button onClick={()=>copy(result.fix,'fix')} className="text-on-surface-variant/30 hover:text-primary transition-colors">
-            {copied==='fix' ? <Check size={15} /> : <Copy size={15} />}
-          </button>
-        </div>
-        <p className="text-on-surface" style={{fontSize:FONT_PX[disp.fontSize],lineHeight:LINE_MAP[disp.lineHeight]}}>{result.fix}</p>
-        <DiffView diff={result.diff} />
-      </div>
-
-      {/* Affected files */}
-      {result.affectedFiles.length > 0 && (
-        <div className="bg-surface-container rounded-2xl tr-fadein" style={{padding:pad,animationDelay:'.12s'}}>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="w-1.5 h-5 rounded-full bg-primary/60 flex-shrink-0" />
-            <FolderOpen size={16} className="text-primary/60" />
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/45">Archivos modificados</span>
-            <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold">{result.affectedFiles.length}</span>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {result.affectedFiles.map(f=>(
-              <div key={f} className="flex items-center gap-2 bg-surface rounded-lg px-3 py-2 border border-outline-variant/8">
-                <FileText size={13} className="text-on-surface-variant/25" />
-                <span className="font-mono text-on-surface-variant/65 truncate" style={{fontSize:FONT_PX[disp.fontSize]}}>{f}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Ticket comment */}
-      {result.ticketComment && (
-        <div style={{animationDelay:'.18s'}}>
-          <CommentCard comment={result.ticketComment} disp={disp} />
-        </div>
-      )}
-
-      {/* Actions */}
-      <div className="flex gap-2 flex-wrap pb-2 tr-fadein" style={{animationDelay:'.24s'}}>
-        <button onClick={onSaveHistory} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-medium transition-colors ${justSaved ? 'bg-green-500/15 text-green-400' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}>
-          {justSaved ? <><CheckCircle2 size={14} />Guardado</> : isAlreadySaved ? <><RotateCcw size={14} />Actualizar historial</> : <><Save size={14} />Guardar en historial</>}
-        </button>
-        <button onClick={()=>copy(`CAUSA RAÍZ:\n${result.rootCause}\n\nSOLUCIÓN:\n${result.fix}`,'all')} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] text-on-surface-variant/55 hover:text-on-surface hover:bg-white/[0.04] transition-colors">
-          {copied==='all' ? <Check size={14} /> : <Copy size={14} />}Copiar análisis
-        </button>
-        <button onClick={onReset} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] text-on-surface-variant/55 hover:text-on-surface hover:bg-white/[0.04] transition-colors">
-          <Plus size={14} />Nuevo ticket
-        </button>
-      </div>
-    </div>
+    </>
   )
 }
 

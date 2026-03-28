@@ -291,6 +291,40 @@ Devuelve SOLO este JSON con TODOS los textos en español:
       return { ok: true }
     })
 
+    // Apply AI-suggested code changes directly to repo files
+    ipcMain.handle('ticket-resolver:apply-changes', (_e, chunks: DiffChunk[]) => {
+      const repoPath = (settings.get('ticket-resolver.repo_path') as string | null) ?? ''
+      if (!repoPath) throw new Error('Ruta del repositorio no configurada — configurala en Ajustes')
+      const resolvedRepo = path.resolve(repoPath)
+      if (!fs.existsSync(resolvedRepo)) throw new Error(`Ruta no encontrada: ${repoPath}`)
+
+      return chunks.map(chunk => {
+        const fullPath = path.resolve(resolvedRepo, chunk.file)
+        // Prevent path traversal
+        if (!fullPath.startsWith(resolvedRepo + path.sep) && fullPath !== resolvedRepo) {
+          return { file: chunk.file, status: 'error', message: 'Ruta inválida' }
+        }
+        if (!fs.existsSync(fullPath)) {
+          return { file: chunk.file, status: 'not_found', message: 'Archivo no encontrado en el repositorio' }
+        }
+        try {
+          const raw = fs.readFileSync(fullPath, 'utf-8')
+          const usesCRLF = raw.includes('\r\n')
+          const content  = raw.replace(/\r\n/g, '\n')
+          const original = chunk.original.replace(/\r\n/g, '\n').trim()
+          const modified = chunk.modified.replace(/\r\n/g, '\n')
+          if (!content.includes(original)) {
+            return { file: chunk.file, status: 'not_found', message: 'El código original no se encontró — puede haber cambiado desde el análisis' }
+          }
+          const updated = content.replace(original, modified)
+          fs.writeFileSync(fullPath, usesCRLF ? updated.replace(/\n/g, '\r\n') : updated, 'utf-8')
+          return { file: chunk.file, status: 'applied' }
+        } catch (e) {
+          return { file: chunk.file, status: 'error', message: (e as Error).message.slice(0, 200) }
+        }
+      })
+    })
+
     // History — delete
     ipcMain.handle('ticket-resolver:history-delete', (_e, id: string) => {
       const all = db.readJSON<HistoryEntry[]>(HISTORY_FILE) ?? []
