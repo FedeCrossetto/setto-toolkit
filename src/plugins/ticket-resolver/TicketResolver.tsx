@@ -140,13 +140,13 @@ function TicketDetailCard({ ticket, skeleton, disp }: { ticket?:JiraTicket|null;
 
   if (skeleton || !ticket) {
     return (
-      <div className="bg-surface-container rounded-2xl overflow-hidden">
-        <div className="h-1 w-full bg-white/10 tr-shimmer" />
-        <div className="px-5 py-4 flex flex-col gap-3">
-          <div className="flex gap-2"><Skel h="h-4" w="w-16" /><Skel h="h-4" w="w-12" /></div>
-          <Skel h="h-5" /><Skel h="h-5" w="w-3/4" />
-          <div className="flex flex-col gap-1.5 pt-1">
-            <Skel h="h-3" /><Skel h="h-3" w="w-5/6" /><Skel h="h-3" w="w-4/6" />
+      <div className="bg-surface-container rounded-xl overflow-hidden">
+        <div className="h-0.5 w-full bg-white/10 tr-shimmer" />
+        <div className="px-3 py-3 flex flex-col gap-2">
+          <div className="flex gap-2"><Skel h="h-3" w="w-16"/><Skel h="h-3" w="w-12"/></div>
+          <Skel h="h-4"/><Skel h="h-4" w="w-3/4"/>
+          <div className="flex flex-col gap-1 pt-0.5">
+            <Skel h="h-3"/><Skel h="h-3" w="w-5/6"/><Skel h="h-3" w="w-4/6"/>
           </div>
         </div>
       </div>
@@ -156,7 +156,7 @@ function TicketDetailCard({ ticket, skeleton, disp }: { ticket?:JiraTicket|null;
   const pColor = PRIORITY_COLOR[ticket.priority] ?? 'text-on-surface-variant'
   const pBg    = PRIORITY_BG[ticket.priority]    ?? 'bg-primary/50'
   const desc   = ticket.description ?? ''
-  const limit  = 220
+  const limit  = 180
   const fmtDate = (iso:string) => {
     if (!iso) return ''
     try { return new Date(iso).toLocaleDateString('es-AR', {day:'2-digit',month:'short',year:'numeric'}) }
@@ -164,28 +164,25 @@ function TicketDetailCard({ ticket, skeleton, disp }: { ticket?:JiraTicket|null;
   }
 
   return (
-    <div className="bg-surface-container rounded-2xl overflow-hidden tr-fadein">
-      <div className={`h-1 w-full ${pBg} opacity-75`} />
-      <div style={{padding: PAD_PX[disp.density]}}>
-        <div className="flex items-center gap-2 flex-wrap mb-2">
-          <span className="text-[13px] font-bold text-primary tracking-wide">{ticket.key}</span>
-          {ticket.type && <span className="text-[10px] px-2 py-0.5 rounded-full border border-outline-variant/20 text-on-surface-variant/45">{ticket.type}</span>}
-          {ticket.priority && <span className={`text-[10px] font-bold uppercase tracking-wider ${pColor}`}>{ticket.priority}</span>}
-          {ticket.status && <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">{ticket.status}</span>}
+    <div className="bg-surface-container rounded-xl overflow-hidden tr-fadein">
+      <div className={`h-0.5 w-full ${pBg} opacity-75`}/>
+      <div className="px-3 py-3">
+        <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+          <span className="text-[12px] font-bold text-primary">{ticket.key}</span>
+          {ticket.type && <span className="text-[9px] px-1.5 py-0.5 rounded-full border border-outline-variant/15 text-on-surface-variant/40">{ticket.type}</span>}
+          {ticket.priority && <span className={`text-[9px] font-bold uppercase ${pColor}`}>{ticket.priority}</span>}
+          {ticket.status && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/15">{ticket.status}</span>}
         </div>
 
-        <p className="font-semibold text-on-surface leading-snug mb-3" style={{fontSize: FONT_PX[disp.fontSize]}}>
-          {ticket.summary}
-        </p>
+        <p className="text-[12px] font-semibold text-on-surface leading-snug mb-2">{ticket.summary}</p>
 
         {desc && (
-          <div className="mb-3 bg-surface/50 rounded-xl px-3 py-2.5 border border-outline-variant/10">
-            <div className="text-[9px] font-semibold text-on-surface-variant/35 uppercase tracking-widest mb-1.5">Descripción</div>
-            <p className="text-on-surface-variant/70" style={{fontSize:FONT_PX[disp.fontSize], lineHeight:LINE_MAP[disp.lineHeight]}}>
+          <div className="mb-2 bg-surface/50 rounded-lg px-2.5 py-2 border border-outline-variant/8">
+            <p className="text-[11px] text-on-surface-variant/65" style={{lineHeight:LINE_MAP[disp.lineHeight]}}>
               {expanded ? desc : desc.length > limit ? desc.slice(0,limit)+'…' : desc}
             </p>
             {desc.length > limit && (
-              <button onClick={()=>setExpanded(e=>!e)} className="text-[11px] text-primary mt-1.5 hover:underline">
+              <button onClick={()=>setExpanded(e=>!e)} className="text-[10px] text-primary mt-1 hover:underline">
                 {expanded ? 'Ver menos' : 'Ver más'}
               </button>
             )}
@@ -193,16 +190,15 @@ function TicketDetailCard({ ticket, skeleton, disp }: { ticket?:JiraTicket|null;
         )}
 
         {ticket.components.length > 0 && (
-          <div className="flex gap-1.5 flex-wrap mb-3">
-            {ticket.components.map(c => <span key={c} className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">{c}</span>)}
+          <div className="flex gap-1 flex-wrap mb-2">
+            {ticket.components.map(c=><span key={c} className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">{c}</span>)}
           </div>
         )}
 
-        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px]">
-          {ticket.reporter && <><span className="text-on-surface-variant/30">Reportado por</span><span className="text-on-surface-variant/55 truncate">{ticket.reporter}</span></>}
-          {ticket.assignee && <><span className="text-on-surface-variant/30">Asignado a</span><span className="text-on-surface-variant/55 truncate">{ticket.assignee}</span></>}
-          {ticket.created  && <><span className="text-on-surface-variant/30">Creado</span><span className="text-on-surface-variant/55">{fmtDate(ticket.created)}</span></>}
-          {ticket.updated  && <><span className="text-on-surface-variant/30">Actualizado</span><span className="text-on-surface-variant/55">{fmtDate(ticket.updated)}</span></>}
+        <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[10px]">
+          {ticket.reporter && <><span className="text-on-surface-variant/25">Reporter</span><span className="text-on-surface-variant/50 truncate">{ticket.reporter}</span></>}
+          {ticket.assignee && <><span className="text-on-surface-variant/25">Asignado</span><span className="text-on-surface-variant/50 truncate">{ticket.assignee}</span></>}
+          {ticket.created  && <><span className="text-on-surface-variant/25">Creado</span><span className="text-on-surface-variant/50">{fmtDate(ticket.created)}</span></>}
         </div>
       </div>
     </div>
@@ -213,44 +209,44 @@ function TicketDetailCard({ ticket, skeleton, disp }: { ticket?:JiraTicket|null;
 function PlanCard({ plan, skeleton, disp }: { plan?:AnalysisPlan|null; skeleton?:boolean; disp:DisplayCfg }): JSX.Element {
   if (skeleton || !plan) {
     return (
-      <div className="bg-surface-container rounded-2xl p-5">
-        <div className="flex items-center gap-2 mb-4"><Skel h="h-4" w="w-32" /></div>
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          {[0,1,2,3].map(i=><div key={i} className="bg-surface rounded-xl px-3 py-2"><Skel h="h-3" w="w-14" className="mb-1" /><Skel h="h-4" /></div>)}
+      <div className="bg-surface-container rounded-xl p-3">
+        <div className="flex items-center gap-1.5 mb-3"><Skel h="h-3" w="w-28"/></div>
+        <div className="grid grid-cols-2 gap-1.5 mb-3">
+          {[0,1,2,3].map(i=><div key={i} className="bg-surface rounded-lg px-2 py-1.5"><Skel h="h-2.5" w="w-12" className="mb-1"/><Skel h="h-3"/></div>)}
         </div>
-        <Skel h="h-3" /><Skel h="h-3" w="w-4/5" className="mt-1.5" />
+        <Skel h="h-3"/><Skel h="h-3" w="w-4/5" className="mt-1"/>
       </div>
     )
   }
   return (
-    <div className="bg-surface-container rounded-2xl tr-fadein" style={{padding:PAD_PX[disp.density]}}>
-      <div className="flex items-center gap-2 mb-4">
-        <ClipboardList size={16} className="text-primary" />
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/45">Plan de análisis</span>
+    <div className="bg-surface-container rounded-xl p-3 tr-fadein">
+      <div className="flex items-center gap-1.5 mb-3">
+        <ClipboardList size={13} className="text-primary"/>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/40">Plan de análisis</span>
       </div>
-      <div className="grid grid-cols-2 gap-2 mb-4">
-        {[{l:'Componente',v:plan.component},{l:'Tecnología',v:plan.technology},{l:'Est. tokens',v:String(plan.estimatedTokens)},{l:'Términos',v:plan.searchTerms.slice(0,3).join(', ')}]
+      <div className="grid grid-cols-2 gap-1.5 mb-3">
+        {[{l:'Componente',v:plan.component},{l:'Tecnología',v:plan.technology},{l:'Términos',v:plan.searchTerms.slice(0,3).join(', ')}]
           .map(({l,v})=>(
-            <div key={l} className="bg-surface rounded-xl px-3 py-2">
-              <div className="text-[9px] text-on-surface-variant/35 uppercase tracking-widest mb-0.5">{l}</div>
-              <div className="text-[12px] font-medium text-on-surface truncate">{v||'—'}</div>
+            <div key={l} className="bg-surface rounded-lg px-2 py-1.5">
+              <div className="text-[8px] text-on-surface-variant/30 uppercase tracking-widest mb-0.5">{l}</div>
+              <div className="text-[11px] font-medium text-on-surface truncate">{v||'—'}</div>
             </div>
           ))}
       </div>
-      <div className="mb-3">
-        <div className="text-[9px] text-on-surface-variant/35 uppercase tracking-widest mb-1">Problema</div>
-        <p className="text-on-surface" style={{fontSize:FONT_PX[disp.fontSize],lineHeight:LINE_MAP[disp.lineHeight]}}>{plan.nature}</p>
+      <div className="mb-2">
+        <div className="text-[8px] text-on-surface-variant/30 uppercase tracking-widest mb-1">Problema</div>
+        <p className="text-[11px] text-on-surface leading-snug">{plan.nature}</p>
       </div>
       {plan.steps.length > 0 && (
         <div>
-          <div className="text-[9px] text-on-surface-variant/35 uppercase tracking-widest mb-2">Pasos</div>
-          <div className="flex flex-col gap-1.5">
+          <div className="text-[8px] text-on-surface-variant/30 uppercase tracking-widest mb-1.5">Pasos</div>
+          <div className="flex flex-col gap-1">
             {plan.steps.map(s=>(
-              <div key={s.id} className="flex items-start gap-2">
-                <span className="flex-shrink-0 w-4 h-4 rounded-full bg-primary/10 text-primary text-[9px] font-bold flex items-center justify-center mt-0.5">{s.id}</span>
+              <div key={s.id} className="flex items-start gap-1.5">
+                <span className="flex-shrink-0 w-3.5 h-3.5 rounded-full bg-primary/10 text-primary text-[8px] font-bold flex items-center justify-center mt-0.5">{s.id}</span>
                 <div>
-                  <div className="text-[12px] font-medium text-on-surface">{s.label}</div>
-                  <div className="text-[11px] text-on-surface-variant/40">{s.detail}</div>
+                  <div className="text-[11px] font-medium text-on-surface">{s.label}</div>
+                  <div className="text-[10px] text-on-surface-variant/40">{s.detail}</div>
                 </div>
               </div>
             ))}
@@ -547,32 +543,33 @@ function ConfigPanel({
 // ── Right panel — awaiting ─────────────────────────────────────────────────────
 function AwaitingPanel({ plan, onExecute, onReset }: { plan:AnalysisPlan; onExecute:()=>void; onReset:()=>void }): JSX.Element {
   return (
-    <div className="flex flex-col gap-4 tr-fadein">
-      <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10">
-        <div className="flex items-center gap-2 mb-3">
-          <Sparkles size={20} className="text-primary tr-pulse" />
-          <span className="text-[15px] font-semibold text-on-surface">Plan listo</span>
+    <div className="flex flex-col gap-3 tr-fadein">
+      <div className="bg-surface-container rounded-xl p-4 border border-outline-variant/10">
+        <div className="flex items-center gap-2 mb-2">
+          <Sparkles size={15} className="text-primary tr-pulse"/>
+          <span className="text-[13px] font-semibold text-on-surface">Plan listo</span>
         </div>
-        <p className="text-[13px] text-on-surface-variant/65 leading-relaxed mb-5">
-          El plan de análisis fue generado. Revisá el detalle en el panel izquierdo y ejecutá el análisis completo cuando estés listo.
+        <p className="text-[11px] text-on-surface-variant/55 leading-relaxed mb-3">
+          Revisá el plan en el panel izquierdo y ejecutá el análisis completo.
         </p>
-        <div className="flex flex-col gap-2 mb-5 bg-surface/50 rounded-xl overflow-hidden border border-outline-variant/10">
-          {plan.steps.map((s,i)=>(
-            <div key={s.id} className={`flex items-start gap-3 px-4 py-3 ${i>0?'border-t border-outline-variant/8':''}`}>
-              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-[9px] font-bold flex items-center justify-center mt-0.5">{i+1}</span>
-              <div>
-                <div className="text-[12px] font-medium text-on-surface">{s.label}</div>
-                <div className="text-[11px] text-on-surface-variant/40 mt-0.5">{s.detail}</div>
+        {plan.steps.length > 0 && (
+          <div className="flex flex-col bg-surface/50 rounded-lg overflow-hidden border border-outline-variant/8 mb-3">
+            {plan.steps.map((s,i)=>(
+              <div key={s.id} className={`flex items-start gap-2 px-3 py-2 ${i>0?'border-t border-outline-variant/8':''}`}>
+                <span className="flex-shrink-0 w-4 h-4 rounded-full bg-primary/10 text-primary text-[8px] font-bold flex items-center justify-center mt-0.5">{i+1}</span>
+                <div>
+                  <div className="text-[11px] font-medium text-on-surface">{s.label}</div>
+                  <div className="text-[10px] text-on-surface-variant/35 mt-0.5">{s.detail}</div>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
         <div className="flex gap-2">
-          <button onClick={onExecute} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold text-white hover:opacity-90 transition-opacity" style={{background:'var(--gradient-brand)'}}>
-            <Play size={17} />
-            Ejecutar análisis completo
+          <button onClick={onExecute} className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[12px] font-semibold text-white hover:opacity-90 transition-opacity" style={{background:'var(--gradient-brand)'}}>
+            <Play size={13}/>Ejecutar análisis
           </button>
-          <button onClick={onReset} className="px-4 py-2.5 rounded-xl text-[13px] text-on-surface-variant/55 hover:text-on-surface hover:bg-white/[0.04] transition-colors">Cancelar</button>
+          <button onClick={onReset} className="px-3 py-1.5 rounded-lg text-[11px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.04] transition-colors">Cancelar</button>
         </div>
       </div>
     </div>
@@ -812,18 +809,18 @@ function ResultsPanel({
         )}
 
         {/* Actions */}
-        <div className="flex items-center gap-2 flex-wrap pb-2 pt-1 tr-fadein" style={{animationDelay:'.2s'}}>
+        <div className="flex items-center gap-1.5 flex-wrap pb-1 pt-0.5 tr-fadein" style={{animationDelay:'.2s'}}>
           <button onClick={onSaveHistory}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-medium transition-all ${justSaved?'bg-green-500/15 text-green-400 border border-green-500/20':isAlreadySaved?'bg-white/[0.05] text-on-surface-variant/60 hover:bg-primary/10 hover:text-primary border border-outline-variant/15':'bg-primary/10 text-primary hover:bg-primary/20 border border-primary/15'}`}>
-            {justSaved?<><CheckCircle2 size={13}/>Guardado</>:isAlreadySaved?<><RotateCcw size={13}/>Actualizar</>:<><Save size={13}/>Guardar</>}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${justSaved?'bg-green-500/12 text-green-400 border border-green-500/15':isAlreadySaved?'bg-white/[0.04] text-on-surface-variant/55 hover:bg-primary/10 hover:text-primary border border-outline-variant/12':'bg-primary/10 text-primary hover:bg-primary/18 border border-primary/12'}`}>
+            {justSaved?<><CheckCircle2 size={12}/>Guardado</>:isAlreadySaved?<><RotateCcw size={12}/>Actualizar</>:<><Save size={12}/>Guardar</>}
           </button>
           <button onClick={()=>copy(`CAUSA RAÍZ:\n${result.rootCause}\n\nSOLUCIÓN:\n${result.fix}`,'all')}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.05] border border-outline-variant/10 hover:border-outline-variant/25 transition-all">
-            {copied==='all'?<Check size={13}/>:<Copy size={13}/>}Copiar
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] text-on-surface-variant/45 hover:text-on-surface hover:bg-white/[0.04] border border-outline-variant/8 hover:border-outline-variant/20 transition-all">
+            {copied==='all'?<Check size={12}/>:<Copy size={12}/>}Copiar
           </button>
           <button onClick={onReset}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.05] border border-outline-variant/10 hover:border-outline-variant/25 transition-all ml-auto">
-            <Plus size={13}/>Nuevo
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] text-on-surface-variant/45 hover:text-on-surface hover:bg-white/[0.04] border border-outline-variant/8 hover:border-outline-variant/20 transition-all ml-auto">
+            <Plus size={12}/>Nuevo
           </button>
         </div>
 
@@ -862,18 +859,18 @@ function FlowTimeline({ state }: { state: FlowState }): JSX.Element {
         const done    = current > stepIdx
         const active  = current === stepIdx || (step.state === 'running_analysis' && state === 'analysis_ready')
         return (
-          <div key={step.state} className="flex items-center gap-1">
-            <div className={['flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all',
-              done   ? 'bg-green-500/15 text-green-400 border border-green-500/20' :
-              active ? 'bg-primary/15 text-primary border border-primary/25 tr-pulse' :
-                       'bg-white/[0.04] text-on-surface-variant/30 border border-outline-variant/10',
+          <div key={step.state} className="flex items-center gap-0.5">
+            <div className={['flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium transition-all',
+              done   ? 'bg-green-500/12 text-green-400 border border-green-500/15' :
+              active ? 'bg-primary/12 text-primary border border-primary/20 tr-pulse' :
+                       'bg-white/[0.03] text-on-surface-variant/25 border border-outline-variant/8',
             ].join(' ')}>
-              {done && <Check size={9} />}
-              {active && <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />}
+              {done && <Check size={8}/>}
+              {active && <span className="w-1 h-1 rounded-full bg-primary animate-pulse"/>}
               {step.label}
             </div>
             {i < FLOW_STEPS.length - 1 && (
-              <ChevronRight size={10} className={done ? 'text-green-400/40' : 'text-on-surface-variant/15'} />
+              <ChevronRight size={8} className={done?'text-green-400/30':'text-on-surface-variant/12'}/>
             )}
           </div>
         )
@@ -1006,38 +1003,35 @@ function OrchestratorView({ config, onOpenConfig, onHistorySaved }: Orchestrator
   // IDLE
   if (flowState === 'idle') {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 gap-6">
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-6 gap-4">
         {!isConfigured && (
-          <div className="flex items-center gap-2 text-amber-400 text-[13px] bg-amber-400/10 border border-amber-400/20 px-4 py-3 rounded-xl w-full max-w-sm">
-            <TriangleAlert size={16} className="flex-shrink-0" />
+          <div className="flex items-center gap-2 text-amber-400 text-[11px] bg-amber-400/8 border border-amber-400/15 px-3 py-2 rounded-lg w-full max-w-xs">
+            <TriangleAlert size={13} className="flex-shrink-0"/>
             <span>Configurá las credenciales de Jira primero.</span>
             <button onClick={onOpenConfig} className="underline font-medium ml-auto flex-shrink-0 hover:no-underline">Configurar</button>
           </div>
         )}
-        <div className="w-full max-w-sm text-center">
-          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-3">
-            <Cpu size={32} className="text-primary" />
+        <div className="w-full max-w-xs text-center">
+          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
+            <Cpu size={24} className="text-primary"/>
           </div>
-          <h2 className="text-[18px] font-bold text-on-surface">Claude Orchestrator</h2>
-          <p className="text-[13px] text-on-surface-variant/45 mt-1 mb-6">
-            Análisis con Claude CLI local · sin API key · sin límites de tokens
+          <h2 className="text-[15px] font-bold text-on-surface">Claude Orchestrator</h2>
+          <p className="text-[11px] text-on-surface-variant/40 mt-0.5 mb-4">
+            Claude CLI local · sin API key
           </p>
-          <div className="flex gap-2">
-            <input
-              value={ticketInput}
-              onChange={e => setTicketInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') void handleStart() }}
-              placeholder={`${config.projectPrefix || 'WIN'}-1234`}
+          <div className="flex gap-1.5">
+            <input value={ticketInput} onChange={e=>setTicketInput(e.target.value)}
+              onKeyDown={e=>{if(e.key==='Enter')void handleStart()}}
+              placeholder={`${config.projectPrefix||'WIN'}-1234`}
               autoFocus
-              className="flex-1 bg-surface-container border border-outline-variant/30 rounded-xl px-4 py-3 text-[14px] text-on-surface placeholder-on-surface-variant/25 focus:outline-none focus:border-primary/60 transition-colors"
-            />
-            <button onClick={() => void handleStart()} disabled={!ticketInput.trim() || !isConfigured}
-              className="px-5 py-3 rounded-xl text-[13px] font-semibold text-white disabled:opacity-35 hover:opacity-90 transition-opacity"
-              style={{ background: 'var(--gradient-brand)' }}>
+              className="flex-1 bg-surface-container border border-outline-variant/25 rounded-lg px-3 py-2 text-[12px] text-on-surface placeholder-on-surface-variant/20 focus:outline-none focus:border-primary/50 transition-colors"/>
+            <button onClick={()=>void handleStart()} disabled={!ticketInput.trim()||!isConfigured}
+              className="px-4 py-2 rounded-lg text-[11px] font-semibold text-white disabled:opacity-35 hover:opacity-90 transition-opacity"
+              style={{background:'var(--gradient-brand)'}}>
               Analizar
             </button>
           </div>
-          <p className="text-[11px] text-on-surface-variant/30 text-center mt-2">Solo el número o la clave completa</p>
+          <p className="text-[10px] text-on-surface-variant/25 text-center mt-1.5">Solo el número (1234) o la clave (WIN-1234)</p>
         </div>
       </div>
     )
@@ -1046,19 +1040,19 @@ function OrchestratorView({ config, onOpenConfig, onHistorySaved }: Orchestrator
   // ERROR
   if (flowState === 'error') {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 tr-fadein px-6">
-        <div className="w-14 h-14 rounded-2xl bg-red-500/10 flex items-center justify-center">
-          <AlertCircle size={28} className="text-red-400" />
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 tr-fadein px-6">
+        <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
+          <AlertCircle size={20} className="text-red-400"/>
         </div>
-        <div className="text-center max-w-md">
-          <div className="text-[14px] font-semibold text-on-surface mb-2">Error en el orquestador</div>
-          <div className="text-[12px] text-on-surface-variant/50 leading-relaxed bg-surface-container rounded-xl px-4 py-3 text-left font-mono whitespace-pre-wrap">
+        <div className="text-center max-w-sm">
+          <div className="text-[13px] font-semibold text-on-surface mb-1.5">Error en el orquestador</div>
+          <div className="text-[11px] text-on-surface-variant/45 leading-relaxed bg-surface-container rounded-xl px-3 py-2.5 text-left font-mono whitespace-pre-wrap">
             {error}
           </div>
         </div>
         <button onClick={resetFlow}
-          className="px-4 py-2 rounded-xl text-[13px] text-on-surface-variant/55 hover:text-on-surface hover:bg-white/[0.04] transition-colors">
-          <Plus size={14} className="inline mr-1.5" />Nuevo ticket
+          className="px-3 py-1.5 rounded-lg text-[11px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.04] transition-colors">
+          <Plus size={12} className="inline mr-1"/>Nuevo ticket
         </button>
       </div>
     )
@@ -1069,11 +1063,11 @@ function OrchestratorView({ config, onOpenConfig, onHistorySaved }: Orchestrator
     <div className="flex-1 flex flex-col overflow-hidden">
 
       {/* Flow timeline bar */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-outline-variant/10 flex-shrink-0">
-        <FlowTimeline state={flowState} />
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-outline-variant/10 flex-shrink-0">
+        <FlowTimeline state={flowState}/>
         {isRunning && (
-          <span className="flex items-center gap-1.5 text-[11px] text-primary/60 ml-auto">
-            <Spinner size={11} />Procesando con Claude CLI...
+          <span className="flex items-center gap-1 text-[10px] text-primary/55 ml-auto">
+            <Spinner size={10}/>Claude CLI...
           </span>
         )}
       </div>
@@ -1081,202 +1075,171 @@ function OrchestratorView({ config, onOpenConfig, onHistorySaved }: Orchestrator
       <div className="flex-1 flex overflow-hidden">
 
       {/* Left: context panel */}
-      <div className="w-[320px] flex-shrink-0 overflow-y-auto border-r border-outline-variant/10 flex flex-col gap-3 p-4">
+      <div className="w-[260px] flex-shrink-0 overflow-y-auto border-r border-outline-variant/10 flex flex-col gap-2 p-3">
 
         {/* Ticket info */}
         {ticket ? (
-          <div className="bg-surface-container rounded-2xl p-4 tr-fadein">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[12px] font-bold text-primary">{ticket.key}</span>
-              {ticket.priority && <span className={`text-[10px] font-bold uppercase ${PRIORITY_COLOR[ticket.priority] ?? 'text-on-surface-variant'}`}>{ticket.priority}</span>}
+          <div className="bg-surface-container rounded-xl p-3 tr-fadein">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <span className="text-[11px] font-bold text-primary">{ticket.key}</span>
+              {ticket.priority && <span className={`text-[9px] font-bold uppercase ${PRIORITY_COLOR[ticket.priority]??'text-on-surface-variant'}`}>{ticket.priority}</span>}
             </div>
-            <p className="text-[13px] font-semibold text-on-surface leading-snug mb-2">{ticket.summary}</p>
+            <p className="text-[11px] font-semibold text-on-surface leading-snug mb-1.5">{ticket.summary}</p>
             {ticket.components.length > 0 && (
               <div className="flex gap-1 flex-wrap">
-                {ticket.components.map(c => <span key={c} className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">{c}</span>)}
+                {ticket.components.map(c=><span key={c} className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">{c}</span>)}
               </div>
             )}
             {ticket.description && (
-              <p className="text-[12px] text-on-surface-variant/55 mt-2 leading-relaxed line-clamp-4">{ticket.description.slice(0, 300)}</p>
+              <p className="text-[10px] text-on-surface-variant/50 mt-1.5 leading-relaxed line-clamp-3">{ticket.description.slice(0,200)}</p>
             )}
           </div>
         ) : (
-          <div className="bg-surface-container rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-3"><Skel h="h-4" w="w-24" /></div>
-            <Skel h="h-5" /><Skel h="h-4" w="w-3/4" className="mt-1.5" />
+          <div className="bg-surface-container rounded-xl p-3">
+            <div className="flex items-center gap-2 mb-2"><Skel h="h-3" w="w-20"/></div>
+            <Skel h="h-4"/><Skel h="h-3" w="w-3/4" className="mt-1"/>
           </div>
         )}
 
-        {/* Code snippets */}
-        {snippets.length > 0 ? (
-          <div className="bg-surface-container rounded-2xl p-4 tr-fadein">
-            <div className="flex items-center gap-2 mb-3">
-              <Code2 size={14} className="text-on-surface-variant/35" />
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/35">
-                Código · {snippets.length} fragmento{snippets.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-            <div className="flex flex-col gap-2">
-              {snippets.slice(0, 5).map((s, i) => (
-                <div key={i} className="rounded-xl overflow-hidden border border-outline-variant/10">
-                  <div className="px-3 py-1.5 bg-surface text-[10px] font-mono text-on-surface-variant/35 border-b border-outline-variant/8 truncate">
-                    {s.file} · {s.line}
-                  </div>
-                  <pre className="px-3 py-2 text-[11px] font-mono text-on-surface/55 overflow-x-auto whitespace-pre bg-surface/30 leading-relaxed max-h-24">
-                    {s.context.slice(0, 400)}
-                  </pre>
+        {/* Code snippets — collapsed by default */}
+        {snippets.length > 0 && (
+          <div className="rounded-xl border border-outline-variant/8 overflow-hidden tr-fadein">
+            <button className="flex items-center gap-1.5 w-full px-2.5 py-2 text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/30 hover:bg-white/[0.03] transition-colors"
+              onClick={e=>{const el=e.currentTarget.nextElementSibling as HTMLElement; el.style.display=el.style.display==='none'?'':'none'}}>
+              <Code2 size={10}/>Código · {snippets.length}
+            </button>
+            <div style={{display:'none'}} className="flex flex-col divide-y divide-outline-variant/8">
+              {snippets.slice(0,5).map((s,i)=>(
+                <div key={i} className="px-2.5 py-1.5">
+                  <div className="text-[9px] font-mono text-on-surface-variant/25 truncate mb-0.5">{s.file}:{s.line}</div>
+                  <pre className="text-[9px] font-mono text-on-surface/40 overflow-x-auto whitespace-pre leading-relaxed max-h-14">{s.context.slice(0,200)}</pre>
                 </div>
               ))}
             </div>
           </div>
-        ) : flowState === 'building_context' ? (
-          <div className="bg-surface-container rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-2"><Skel h="h-3" w="w-28" /></div>
-            <Skel h="h-16" className="rounded-xl" />
-          </div>
-        ) : (
-          <div className="bg-surface-container/50 rounded-2xl p-4 text-center">
-            <Code2 size={18} className="text-on-surface-variant/20 mx-auto mb-1.5" />
-            <p className="text-[11px] text-on-surface-variant/35">Sin código encontrado<br/>en el repositorio</p>
-          </div>
         )}
 
         {/* Cancel button */}
-        <button onClick={resetFlow} className="text-[11px] text-on-surface-variant/30 hover:text-on-surface-variant/60 transition-colors text-center py-1">
+        <button onClick={resetFlow} className="text-[10px] text-on-surface-variant/25 hover:text-on-surface-variant/50 transition-colors text-center py-1">
           Cancelar
         </button>
       </div>
 
       {/* Right: stage output */}
-      <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
 
         {/* Building context */}
         {flowState === 'building_context' && (
-          <div className="flex flex-col items-center justify-center h-full gap-4 tr-fadein">
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center"><Spinner size={28} /></div>
+          <div className="flex flex-col items-center justify-center h-full gap-3 tr-fadein">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center"><Spinner size={20}/></div>
             <div className="text-center">
-              <div className="text-[14px] font-semibold text-on-surface mb-1">Obteniendo ticket</div>
-              <div className="text-[12px] text-on-surface-variant/45">Conectando con Jira...</div>
+              <div className="text-[13px] font-semibold text-on-surface mb-0.5">Obteniendo ticket</div>
+              <div className="text-[11px] text-on-surface-variant/40">Conectando con Jira...</div>
             </div>
           </div>
         )}
 
         {/* Extracting terms */}
         {flowState === 'extracting_terms' && (
-          <div className="flex flex-col items-center justify-center h-full gap-4 tr-fadein">
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <Search size={28} className="text-primary tr-pulse" />
+          <div className="flex flex-col items-center justify-center h-full gap-3 tr-fadein">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Search size={20} className="text-primary tr-pulse"/>
             </div>
             <div className="text-center">
-              <div className="text-[14px] font-semibold text-on-surface mb-1">Claude extrayendo términos de búsqueda...</div>
-              <div className="text-[12px] text-on-surface-variant/45">Analizando el ticket para identificar clases, métodos y módulos relevantes.</div>
+              <div className="text-[13px] font-semibold text-on-surface mb-0.5">Extrayendo términos de búsqueda...</div>
+              <div className="text-[11px] text-on-surface-variant/40">Identificando clases, métodos y módulos relevantes.</div>
             </div>
-            <div className="flex gap-1.5">
-              {[0, 200, 400].map(d => <div key={d} className="w-2 h-2 rounded-full bg-primary/45 animate-bounce" style={{ animationDelay: `${d}ms` }} />)}
-            </div>
+            <div className="flex gap-1">{[0,160,320].map(d=><div key={d} className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{animationDelay:`${d}ms`}}/>)}</div>
           </div>
         )}
 
         {/* Running analysis */}
         {(flowState === 'running_analysis' || flowState === 'analysis_ready') && (
-          <div className="flex flex-col items-center justify-center h-full gap-4 tr-fadein">
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+          <div className="flex flex-col items-center justify-center h-full gap-3 tr-fadein">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
               {flowState === 'analysis_ready'
-                ? <CheckCircle2 size={28} className="text-green-400 tr-pop" />
-                : <Brain size={28} className="text-primary tr-pulse" />}
+                ? <CheckCircle2 size={20} className="text-green-400 tr-pop"/>
+                : <Brain size={20} className="text-primary tr-pulse"/>}
             </div>
             <div className="text-center">
-              <div className="text-[14px] font-semibold text-on-surface mb-1">
+              <div className="text-[13px] font-semibold text-on-surface mb-0.5">
                 {flowState === 'analysis_ready' ? 'Análisis completo' : 'Claude analizando...'}
               </div>
-              <div className="text-[12px] text-on-surface-variant/45">
+              <div className="text-[11px] text-on-surface-variant/40">
                 {flowState === 'analysis_ready'
                   ? 'Preparando pantalla de decisión...'
-                  : 'Claude CLI está procesando el contexto. Puede tardar 30–90 segundos.'}
+                  : 'Procesando el contexto. Puede tardar 30–90 segundos.'}
               </div>
             </div>
             {flowState === 'running_analysis' && (
-              <div className="flex gap-1.5">
-                {[0, 200, 400].map(d => <div key={d} className="w-2 h-2 rounded-full bg-primary/45 animate-bounce" style={{ animationDelay: `${d}ms` }} />)}
-              </div>
+              <div className="flex gap-1">{[0,160,320].map(d=><div key={d} className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{animationDelay:`${d}ms`}}/>)}</div>
             )}
           </div>
         )}
 
         {/* Awaiting decision */}
         {flowState === 'awaiting_decision' && analysis && (
-          <div className="flex flex-col gap-4 tr-fadein">
-            {/* Analysis result cards */}
+          <div className="flex flex-col gap-3 tr-fadein">
             {analysis.rootCause && (
-              <div className="bg-surface-container rounded-2xl p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-1.5 h-5 rounded-full bg-amber-400 flex-shrink-0" />
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/45">Causa raíz</span>
-                  <button onClick={() => copy(analysis.rootCause, 'rc')} className="ml-auto text-on-surface-variant/25 hover:text-primary transition-colors">
-                    {copied === 'rc' ? <Check size={13} /> : <Copy size={13} />}
+              <div className="bg-surface-container rounded-xl p-3">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="w-1 h-4 rounded-full bg-amber-400 flex-shrink-0"/>
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/40">Causa raíz</span>
+                  <button onClick={()=>copy(analysis.rootCause,'rc')} className="ml-auto text-on-surface-variant/20 hover:text-primary transition-colors">
+                    {copied==='rc'?<Check size={11}/>:<Copy size={11}/>}
                   </button>
                 </div>
-                <p className="text-[13px] text-on-surface leading-relaxed">{analysis.rootCause}</p>
+                <p className="text-[12px] text-on-surface leading-relaxed">{analysis.rootCause}</p>
               </div>
             )}
-
             {analysis.approach && (
-              <div className="bg-surface-container rounded-2xl p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-1.5 h-5 rounded-full bg-green-400 flex-shrink-0" />
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/45">Enfoque propuesto</span>
+              <div className="bg-surface-container rounded-xl p-3">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="w-1 h-4 rounded-full bg-green-400 flex-shrink-0"/>
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/40">Enfoque propuesto</span>
                 </div>
-                <p className="text-[13px] text-on-surface leading-relaxed">{analysis.approach}</p>
+                <p className="text-[12px] text-on-surface leading-relaxed">{analysis.approach}</p>
               </div>
             )}
-
             {(analysis.complexity || analysis.risks) && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 {analysis.complexity && (
-                  <div className="bg-surface-container rounded-2xl p-4">
-                    <div className="text-[9px] font-semibold uppercase tracking-widest text-on-surface-variant/35 mb-1.5">Complejidad</div>
-                    <p className="text-[12px] text-on-surface">{analysis.complexity}</p>
+                  <div className="bg-surface-container rounded-xl p-3">
+                    <div className="text-[8px] font-bold uppercase tracking-widest text-on-surface-variant/30 mb-1">Complejidad</div>
+                    <p className="text-[11px] text-on-surface">{analysis.complexity}</p>
                   </div>
                 )}
                 {analysis.risks && (
-                  <div className="bg-surface-container rounded-2xl p-4">
-                    <div className="text-[9px] font-semibold uppercase tracking-widest text-on-surface-variant/35 mb-1.5">Riesgos</div>
-                    <p className="text-[12px] text-on-surface">{analysis.risks}</p>
+                  <div className="bg-surface-container rounded-xl p-3">
+                    <div className="text-[8px] font-bold uppercase tracking-widest text-on-surface-variant/30 mb-1">Riesgos</div>
+                    <p className="text-[11px] text-on-surface">{analysis.risks}</p>
                   </div>
                 )}
               </div>
             )}
-
             {!analysis.rootCause && analysis.analysis && (
-              <div className="bg-surface-container rounded-2xl p-4">
-                <div className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/35 mb-2">Análisis</div>
-                <p className="text-[13px] text-on-surface leading-relaxed whitespace-pre-wrap">{analysis.analysis}</p>
+              <div className="bg-surface-container rounded-xl p-3">
+                <div className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/30 mb-1.5">Análisis</div>
+                <p className="text-[12px] text-on-surface leading-relaxed whitespace-pre-wrap">{analysis.analysis}</p>
               </div>
             )}
-
-            {/* Decision / notes */}
-            <div className="bg-surface-container/60 rounded-2xl p-4 border border-primary/15">
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">
-                Notas o ajustes al enfoque (opcional)
+            <div className="bg-surface-container/60 rounded-xl p-3 border border-primary/12">
+              <div className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/35 mb-1.5">
+                Notas o ajustes (opcional)
               </div>
-              <textarea
-                value={userNotes}
-                onChange={e => setUserNotes(e.target.value)}
-                placeholder="Ej: Priorizar performance sobre legibilidad. El archivo principal es X. Ignorar el módulo Y."
-                rows={3}
-                className="w-full bg-surface border border-outline-variant/20 rounded-xl px-3 py-2.5 text-[12px] text-on-surface placeholder-on-surface-variant/25 focus:outline-none focus:border-primary/50 transition-colors resize-none"
-              />
+              <textarea value={userNotes} onChange={e=>setUserNotes(e.target.value)}
+                placeholder="Ej: priorizar performance, el archivo principal es X..."
+                rows={2}
+                className="w-full bg-surface border border-outline-variant/15 rounded-lg px-2.5 py-2 text-[11px] text-on-surface placeholder-on-surface-variant/20 focus:outline-none focus:border-primary/45 transition-colors resize-none"/>
             </div>
-
-            <div className="flex gap-2">
-              <button onClick={() => void handleGeneratePlan()}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold text-white hover:opacity-90 transition-opacity"
-                style={{ background: 'var(--gradient-brand)' }}>
-                <Play size={16} />
-                Generar plan de implementación
+            <div className="flex gap-1.5">
+              <button onClick={()=>void handleGeneratePlan()}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-semibold text-white hover:opacity-90 transition-opacity"
+                style={{background:'var(--gradient-brand)'}}>
+                <Play size={13}/>Generar plan
               </button>
               <button onClick={resetFlow}
-                className="px-4 py-2.5 rounded-xl text-[13px] text-on-surface-variant/55 hover:text-on-surface hover:bg-white/[0.04] transition-colors">
+                className="px-3 py-2 rounded-lg text-[11px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.04] transition-colors">
                 Cancelar
               </button>
             </div>
@@ -1285,101 +1248,88 @@ function OrchestratorView({ config, onOpenConfig, onHistorySaved }: Orchestrator
 
         {/* Running plan */}
         {flowState === 'running_plan' && (
-          <div className="flex flex-col items-center justify-center h-full gap-4 tr-fadein">
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <Brain size={28} className="text-primary tr-pulse" />
+          <div className="flex flex-col items-center justify-center h-full gap-3 tr-fadein">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Brain size={20} className="text-primary tr-pulse"/>
             </div>
             <div className="text-center">
-              <div className="text-[14px] font-semibold text-on-surface mb-1">Generando plan...</div>
-              <div className="text-[12px] text-on-surface-variant/45">Claude está elaborando el plan de implementación y el diff.</div>
+              <div className="text-[13px] font-semibold text-on-surface mb-0.5">Generando plan...</div>
+              <div className="text-[11px] text-on-surface-variant/40">Elaborando el plan de implementación.</div>
             </div>
-            <div className="flex gap-1.5">
-              {[0, 200, 400].map(d => <div key={d} className="w-2 h-2 rounded-full bg-primary/45 animate-bounce" style={{ animationDelay: `${d}ms` }} />)}
-            </div>
+            <div className="flex gap-1">{[0,160,320].map(d=><div key={d} className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{animationDelay:`${d}ms`}}/>)}</div>
           </div>
         )}
 
         {/* Plan ready */}
         {flowState === 'plan_ready' && plan && (
-          <div className="flex flex-col gap-4 tr-fadein">
-            {/* Plan */}
-            <div className="bg-surface-container rounded-2xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-5 rounded-full bg-primary/60 flex-shrink-0" />
-                  <Wrench size={15} className="text-primary/60" />
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/45">Plan de implementación</span>
+          <div className="flex flex-col gap-3 tr-fadein">
+            <div className="bg-surface-container rounded-xl p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1 h-4 rounded-full bg-primary/60 flex-shrink-0"/>
+                  <Wrench size={12} className="text-primary/60"/>
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/40">Plan de implementación</span>
                 </div>
-                <button onClick={() => copy(plan.plan, 'plan')} className="text-on-surface-variant/25 hover:text-primary transition-colors">
-                  {copied === 'plan' ? <Check size={13} /> : <Copy size={13} />}
+                <button onClick={()=>copy(plan.plan,'plan')} className="text-on-surface-variant/20 hover:text-primary transition-colors">
+                  {copied==='plan'?<Check size={12}/>:<Copy size={12}/>}
                 </button>
               </div>
-              <pre className="text-[12px] text-on-surface leading-relaxed whitespace-pre-wrap font-sans">{plan.plan}</pre>
+              <pre className="text-[11px] text-on-surface leading-relaxed whitespace-pre-wrap font-sans">{plan.plan}</pre>
             </div>
-
-            {/* Files */}
             {plan.files && (
-              <div className="bg-surface-container rounded-2xl p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <FolderOpen size={14} className="text-on-surface-variant/35" />
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/35">Archivos afectados</span>
+              <div className="bg-surface-container rounded-xl p-3">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <FolderOpen size={12} className="text-on-surface-variant/30"/>
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/30">Archivos afectados</span>
                 </div>
                 <div className="flex flex-col gap-1">
-                  {plan.files.split('\n').filter(Boolean).map((f, i) => (
-                    <div key={i} className="flex items-center gap-2 bg-surface rounded-lg px-3 py-2 border border-outline-variant/8">
-                      <FileText size={12} className="text-on-surface-variant/25 flex-shrink-0" />
-                      <span className="font-mono text-[11px] text-on-surface-variant/65 truncate">{f.trim()}</span>
+                  {plan.files.split('\n').filter(Boolean).map((f,i)=>(
+                    <div key={i} className="flex items-center gap-1.5 bg-surface rounded-lg px-2.5 py-1.5 border border-outline-variant/8">
+                      <FileText size={10} className="text-on-surface-variant/20 flex-shrink-0"/>
+                      <span className="font-mono text-[10px] text-on-surface-variant/60 truncate">{f.trim()}</span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-
-            {/* Tests */}
             {plan.tests && (
-              <div className="bg-surface-container rounded-2xl p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle2 size={14} className="text-green-400" />
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/45">Cómo verificar el fix</span>
+              <div className="bg-surface-container rounded-xl p-3">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <CheckCircle2 size={12} className="text-green-400"/>
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/35">Cómo verificar el fix</span>
                 </div>
-                <p className="text-[12px] text-on-surface leading-relaxed whitespace-pre-wrap">{plan.tests}</p>
+                <p className="text-[11px] text-on-surface leading-relaxed whitespace-pre-wrap">{plan.tests}</p>
               </div>
             )}
-
-            {/* Jira comment */}
             {plan.jiraComment && (
-              <div className="bg-surface-container rounded-2xl p-4 border border-blue-500/15">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <FileText size={15} className="text-blue-400" />
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/45">Comentario para Jira</span>
+              <div className="bg-surface-container rounded-xl p-3 border border-blue-500/12">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <FileText size={12} className="text-blue-400"/>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/35">Comentario para Jira</span>
                   </div>
-                  <button onClick={() => copy(plan.jiraComment, 'jira')}
-                    className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-primary/10 hover:text-primary text-on-surface-variant/45 transition-all">
-                    {copied === 'jira' ? <><Check size={12} />Copiado</> : <><Copy size={12} />Copiar</>}
+                  <button onClick={()=>copy(plan.jiraComment,'jira')}
+                    className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-white/[0.04] hover:bg-primary/10 hover:text-primary text-on-surface-variant/35 transition-all">
+                    {copied==='jira'?<><Check size={11}/>Copiado</>:<><Copy size={11}/>Copiar</>}
                   </button>
                 </div>
-                <p className="text-[12px] text-on-surface leading-relaxed whitespace-pre-wrap">{plan.jiraComment}</p>
+                <p className="text-[11px] text-on-surface leading-relaxed whitespace-pre-wrap">{plan.jiraComment}</p>
               </div>
             )}
-
-            {/* Actions */}
-            <div className="flex gap-2 flex-wrap pb-2">
-              <button onClick={() => void handleSaveHistory()}
-                className={['flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-medium transition-colors',
-                  justSaved ? 'bg-green-500/15 text-green-400' : 'bg-primary/10 text-primary hover:bg-primary/20',
+            <div className="flex gap-1.5 flex-wrap pb-1">
+              <button onClick={()=>void handleSaveHistory()}
+                className={['flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors',
+                  justSaved?'bg-green-500/12 text-green-400':'bg-primary/10 text-primary hover:bg-primary/18',
                 ].join(' ')}>
-                {justSaved ? <><CheckCircle2 size={13} />Guardado</> : <><Save size={13} />Guardar en historial</>}
+                {justSaved?<><CheckCircle2 size={12}/>Guardado</>:<><Save size={12}/>Guardar</>}
               </button>
-              <button onClick={() => copy(
-                `CAUSA RAÍZ:\n${analysis?.rootCause}\n\nPLAN:\n${plan.plan}\n\nARCHIVOS:\n${plan.files}`,
-                'all',
-              )} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] text-on-surface-variant/55 hover:text-on-surface hover:bg-white/[0.04] transition-colors">
-                {copied === 'all' ? <Check size={13} /> : <Copy size={13} />}Copiar todo
+              <button onClick={()=>copy(`CAUSA RAÍZ:\n${analysis?.rootCause}\n\nPLAN:\n${plan.plan}\n\nARCHIVOS:\n${plan.files}`,'all')}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.04] transition-colors">
+                {copied==='all'?<Check size={12}/>:<Copy size={12}/>}Copiar
               </button>
               <button onClick={resetFlow}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] text-on-surface-variant/55 hover:text-on-surface hover:bg-white/[0.04] transition-colors">
-                <Plus size={13} />Nuevo ticket
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.04] transition-colors">
+                <Plus size={12}/>Nuevo
               </button>
             </div>
           </div>
@@ -1550,8 +1500,9 @@ export function TicketResolver(): JSX.Element {
     setSnippets([]); setError(null); setPhase('done')
   }
 
-  const isConfigured = Boolean(config.jiraUrl && config.jiraUser && config.jiraToken)
-  const showTwoCols  = phase !== 'idle'
+  const isConfigured  = Boolean(config.jiraUrl && config.jiraUser && config.jiraToken)
+  const showTwoCols   = phase !== 'idle'
+  const [histOpen, setHistOpen] = useState(false)
 
   return (
     <div className="flex h-full overflow-hidden relative">
@@ -1563,88 +1514,96 @@ export function TicketResolver(): JSX.Element {
         />
       )}
 
-      {/* History */}
-      <aside className="w-52 flex-shrink-0 flex flex-col border-r border-outline-variant/15 bg-surface overflow-hidden">
-        <div className="flex items-center justify-between px-3 pt-4 pb-2 flex-shrink-0">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Historial</span>
-          <button onClick={resetToIdle} title="Nuevo ticket" className="w-6 h-6 flex items-center justify-center rounded-lg text-on-surface-variant/35 hover:text-primary hover:bg-primary/10 transition-all">
-            <Plus size={14} />
+      {/* History sidebar — collapsible */}
+      <aside className={`flex-shrink-0 flex flex-col border-r border-outline-variant/15 bg-surface overflow-hidden transition-all duration-200 ${histOpen?'w-48':'w-8'}`}>
+        {/* Toggle strip */}
+        <div className={`flex-shrink-0 flex items-center border-b border-outline-variant/10 ${histOpen?'justify-between px-2 py-2':'justify-center py-2'}`}>
+          {histOpen && <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/35 pl-1">Historial</span>}
+          <button onClick={()=>setHistOpen(o=>!o)} title={histOpen?'Colapsar historial':'Ver historial'}
+            className="w-5 h-5 flex items-center justify-center rounded text-on-surface-variant/30 hover:text-primary hover:bg-primary/10 transition-all flex-shrink-0">
+            <ChevronRight size={12} className={`transition-transform duration-200 ${histOpen?'rotate-180':''}`}/>
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto pb-2">
-          {history.length===0 ? (
-            <div className="flex flex-col items-center gap-2 px-3 pt-10">
-              <div className="w-10 h-10 rounded-xl bg-outline-variant/8 flex items-center justify-center">
-                <ClipboardList size={20} className="text-on-surface-variant/20" />
+
+        {/* Collapsed: dot indicators */}
+        {!histOpen && history.length > 0 && (
+          <div className="flex flex-col items-center gap-1 pt-2">
+            {history.slice(0,5).map(entry=>(
+              <button key={entry.id} onClick={()=>{setHistOpen(true);handleSelectHistory(entry)}}
+                title={`${entry.ticketKey} — ${entry.summary}`}
+                className={`w-2 h-2 rounded-full transition-all ${selectedId===entry.id?'bg-primary':'bg-outline-variant/30 hover:bg-primary/50'}`}/>
+            ))}
+            {history.length > 5 && <span className="text-[8px] text-on-surface-variant/20 mt-0.5">+{history.length-5}</span>}
+          </div>
+        )}
+
+        {/* Expanded list */}
+        {histOpen && (
+          <div className="flex-1 overflow-y-auto pb-1">
+            <button onClick={resetToIdle} className="flex items-center gap-1.5 w-full px-2 py-1.5 text-[10px] text-on-surface-variant/40 hover:text-primary hover:bg-primary/5 transition-all">
+              <Plus size={11}/>Nuevo ticket
+            </button>
+            {history.length===0 ? (
+              <p className="text-[10px] text-on-surface-variant/25 text-center px-3 pt-6 leading-relaxed">Sin tickets aún.</p>
+            ) : history.map(entry=>(
+              <div key={entry.id} onClick={()=>handleSelectHistory(entry)}
+                className={['group relative flex flex-col gap-0.5 px-2 py-2 mx-0.5 mt-0.5 rounded-lg cursor-pointer transition-all',
+                  selectedId===entry.id ? 'bg-primary/10 border border-primary/20' : 'hover:bg-white/[0.04] border border-transparent',
+                ].join(' ')}>
+                <div className="flex items-center justify-between gap-1 min-w-0">
+                  <span className={`text-[10px] font-bold truncate ${selectedId===entry.id?'text-primary':'text-on-surface'}`}>{entry.ticketKey}</span>
+                  <span className="text-[8px] text-on-surface-variant/20 flex-shrink-0 tabular-nums">{relativeTime(entry.createdAt)}</span>
+                </div>
+                <span className="text-[10px] text-on-surface-variant/50 truncate leading-snug">{entry.summary}</span>
+                <button onClick={e=>{void handleDeleteHistory(entry.id,e)}}
+                  className="absolute right-1 top-1 opacity-0 group-hover:opacity-100 w-4 h-4 flex items-center justify-center rounded text-on-surface-variant/25 hover:text-red-400 hover:bg-red-500/10 transition-all">
+                  <X size={10}/>
+                </button>
               </div>
-              <p className="text-[11px] text-on-surface-variant/30 text-center leading-relaxed">Sin tickets aún.<br/>Ingresá un número para empezar.</p>
-            </div>
-          ) : history.map(entry=>(
-            <div key={entry.id} onClick={()=>handleSelectHistory(entry)}
-              className={['group relative flex flex-col gap-0.5 px-3 py-2.5 mx-1 mt-0.5 rounded-xl cursor-pointer transition-all',
-                selectedId===entry.id
-                  ? 'bg-primary/10 border border-primary/20'
-                  : 'hover:bg-white/[0.04] border border-transparent',
-              ].join(' ')}>
-              <div className="flex items-center justify-between gap-1 min-w-0">
-                <span className={`text-[11px] font-bold truncate flex-shrink-0 ${selectedId===entry.id?'text-primary':'text-on-surface'}`}>{entry.ticketKey}</span>
-                <span className="text-[9px] text-on-surface-variant/25 flex-shrink-0 tabular-nums">{relativeTime(entry.createdAt)}</span>
-              </div>
-              <span className="text-[11px] text-on-surface-variant/55 truncate leading-snug">{entry.summary}</span>
-              {entry.component && (
-                <span className={`text-[9px] px-1.5 py-0.5 rounded-md w-fit mt-0.5 ${selectedId===entry.id?'bg-primary/15 text-primary/70':'bg-outline-variant/10 text-on-surface-variant/30'}`}>
-                  {entry.component}
-                </span>
-              )}
-              <button onClick={e=>{void handleDeleteHistory(entry.id,e)}}
-                className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded-md text-on-surface-variant/25 hover:text-red-400 hover:bg-red-500/10 transition-all">
-                <X size={11} />
-              </button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </aside>
 
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-outline-variant/15 flex-shrink-0 gap-3">
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Mode tabs */}
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-outline-variant/15 flex-shrink-0 gap-2">
+          <div className="flex items-center gap-1 flex-shrink-0">
             <button onClick={()=>setMode('resolver')}
-              className={['flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all',
+              className={['flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all',
                 mode==='resolver' ? 'bg-primary/10 text-primary' : 'text-on-surface-variant/45 hover:text-on-surface hover:bg-white/[0.04]',
               ].join(' ')}>
-              <Ticket size={14} />Resolver
+              <Ticket size={12}/>Resolver
             </button>
             <button onClick={()=>setMode('orchestrator')}
-              className={['flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all',
+              className={['flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all',
                 mode==='orchestrator' ? 'bg-primary/10 text-primary' : 'text-on-surface-variant/45 hover:text-on-surface hover:bg-white/[0.04]',
               ].join(' ')}>
-              <Cpu size={14} />Orquestador
+              <Cpu size={12}/>Orquestador
             </button>
           </div>
-          <div className="flex-1 min-w-0 hidden lg:block">
-            {mode==='resolver' && ticket && <span className="text-[12px] text-on-surface-variant/40 truncate">· {ticket.key}</span>}
+          <div className="flex-1 min-w-0 flex items-center gap-2">
+            {mode==='resolver' && ticket && <span className="text-[11px] text-on-surface-variant/35 truncate">· {ticket.key}</span>}
             {mode==='resolver' && (phase==='analyzing'||phase==='planning') && (
-              <span className="flex items-center gap-1.5 text-[11px] text-primary/70 bg-primary/8 px-2.5 py-1 rounded-full border border-primary/20 tr-fadein">
-                <Spinner size={11} />{phase==='analyzing'?'Analizando...':'Planificando...'}
+              <span className="flex items-center gap-1 text-[10px] text-primary/70 bg-primary/8 px-2 py-0.5 rounded-full border border-primary/15 tr-fadein">
+                <Spinner size={10}/>{phase==='analyzing'?'Analizando...':'Planificando...'}
               </span>
             )}
             {mode==='resolver' && aiModel && (
-              <span className="hidden xl:inline-flex items-center gap-1 text-[10px] text-on-surface-variant/30 bg-white/[0.04] px-2 py-1 rounded-full border border-outline-variant/10">
-                <Sparkles size={11} />{aiModel}
+              <span className="hidden xl:inline-flex items-center gap-1 text-[9px] text-on-surface-variant/25 bg-white/[0.03] px-1.5 py-0.5 rounded-full border border-outline-variant/8">
+                <Sparkles size={9}/>{aiModel}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {mode==='resolver' && (
               <TokenCounter usage={sessionUsage} onReset={()=>void window.api.invoke('ticket-resolver:ai-usage-reset').then(()=>setSessionUsage(p=>({...p,inputTokens:0,outputTokens:0,calls:0})))} />
             )}
-            <button onClick={()=>setShowConfig(true)} className="flex items-center gap-1.5 text-[12px] text-on-surface-variant/45 hover:text-on-surface transition-colors" title="Configuración">
-              <Settings size={17} />
-              {!isConfigured && <span className="text-amber-400 text-[11px] font-medium">Sin configurar</span>}
+            <button onClick={()=>setShowConfig(true)} className="flex items-center gap-1 text-[11px] text-on-surface-variant/40 hover:text-on-surface transition-colors" title="Configuración">
+              <Settings size={14}/>
+              {!isConfigured && <span className="text-amber-400 text-[10px] font-medium">Sin configurar</span>}
             </button>
           </div>
         </div>
@@ -1660,49 +1619,46 @@ export function TicketResolver(): JSX.Element {
 
         {/* IDLE */}
         {mode==='resolver' && !showTwoCols && (
-          <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-6 py-8 gap-6">
+          <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-6 py-6 gap-4">
             {!isConfigured && (
-              <div className="flex items-center gap-2 text-amber-400 text-[13px] bg-amber-400/10 border border-amber-400/20 px-4 py-3 rounded-xl w-full">
-                <TriangleAlert size={16} className="flex-shrink-0" />
-                <span className="whitespace-nowrap">Configurá las credenciales de Jira primero.</span>
+              <div className="flex items-center gap-2 text-amber-400 text-[11px] bg-amber-400/8 border border-amber-400/15 px-3 py-2 rounded-lg w-full max-w-xs">
+                <TriangleAlert size={13} className="flex-shrink-0"/>
+                <span>Configurá las credenciales de Jira primero.</span>
                 <button onClick={()=>setShowConfig(true)} className="underline font-medium ml-auto flex-shrink-0 hover:no-underline">Configurar</button>
               </div>
             )}
-            <div className="w-full max-w-sm">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-3">
-                  <Ticket size={32} className="text-primary" />
+            <div className="w-full max-w-xs">
+              <div className="text-center mb-4">
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
+                  <Ticket size={24} className="text-primary"/>
                 </div>
-                <h2 className="text-[18px] font-bold text-on-surface">Ticket Resolver</h2>
-                <p className="text-[13px] text-on-surface-variant/45 mt-1">Analizá tickets de Jira con inteligencia artificial</p>
-                {aiModel && <p className="text-[11px] text-primary/50 mt-1">{aiModel}</p>}
+                <h2 className="text-[15px] font-bold text-on-surface">Ticket Resolver</h2>
+                <p className="text-[11px] text-on-surface-variant/40 mt-0.5">Analizá tickets de Jira con IA</p>
+                {aiModel && <p className="text-[10px] text-primary/40 mt-0.5">{aiModel}</p>}
               </div>
-              <div className="flex gap-2">
-                <input
-                  value={ticketInput}
-                  onChange={e=>setTicketInput(e.target.value)}
+              <div className="flex gap-1.5">
+                <input value={ticketInput} onChange={e=>setTicketInput(e.target.value)}
                   onKeyDown={e=>{if(e.key==='Enter')void handleFetch()}}
                   placeholder={`${config.projectPrefix||'WIN'}-1234`}
                   autoFocus
-                  className="flex-1 bg-surface-container border border-outline-variant/30 rounded-xl px-4 py-3 text-[14px] text-on-surface placeholder-on-surface-variant/25 focus:outline-none focus:border-primary/60 transition-colors"
-                />
+                  className="flex-1 bg-surface-container border border-outline-variant/25 rounded-lg px-3 py-2 text-[12px] text-on-surface placeholder-on-surface-variant/20 focus:outline-none focus:border-primary/50 transition-colors"/>
                 <button onClick={()=>void handleFetch()} disabled={!ticketInput.trim()||!isConfigured}
-                  className="px-5 py-3 rounded-xl text-[13px] font-semibold text-white disabled:opacity-35 hover:opacity-90 transition-opacity"
+                  className="px-4 py-2 rounded-lg text-[11px] font-semibold text-white disabled:opacity-35 hover:opacity-90 transition-opacity"
                   style={{background:'var(--gradient-brand)'}}>
-                  Load
+                  Cargar
                 </button>
               </div>
-              <p className="text-[11px] text-on-surface-variant/30 text-center mt-2">Solo el número o la clave (ej. 1234 o WIN-1234)</p>
+              <p className="text-[10px] text-on-surface-variant/25 text-center mt-1.5">Solo el número (1234) o la clave (WIN-1234)</p>
             </div>
             {history.length > 0 && (
-              <div className="w-full max-w-sm">
-                <div className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 mb-2">Recientes</div>
+              <div className="w-full max-w-xs">
+                <div className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/25 mb-1.5">Recientes</div>
                 <div className="flex flex-col gap-1">
-                  {history.slice(0,4).map(e=>(
+                  {history.slice(0,5).map(e=>(
                     <button key={e.id} onClick={()=>handleSelectHistory(e)}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-surface-container/50 hover:bg-surface-container border border-outline-variant/10 hover:border-outline-variant/20 transition-all text-left">
-                      <span className="text-[12px] font-bold text-primary w-24 flex-shrink-0">{e.ticketKey}</span>
-                      <span className="text-[12px] text-on-surface-variant/55 truncate">{e.summary}</span>
+                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-surface-container/50 hover:bg-surface-container border border-outline-variant/8 hover:border-outline-variant/20 transition-all text-left">
+                      <span className="text-[10px] font-bold text-primary w-20 flex-shrink-0">{e.ticketKey}</span>
+                      <span className="text-[10px] text-on-surface-variant/50 truncate">{e.summary}</span>
                     </button>
                   ))}
                 </div>
@@ -1716,26 +1672,20 @@ export function TicketResolver(): JSX.Element {
           <div className="flex-1 flex overflow-hidden">
 
             {/* Left col */}
-            <div className="w-[360px] flex-shrink-0 overflow-y-auto border-r border-outline-variant/10 flex flex-col gap-3 p-4">
+            <div className="w-[280px] flex-shrink-0 overflow-y-auto border-r border-outline-variant/10 flex flex-col gap-2 p-3">
               <TicketDetailCard ticket={ticket} skeleton={phase==='fetching'} disp={disp} />
               {phase !== 'fetching' && <PlanCard plan={plan} skeleton={phase==='planning'} disp={disp} />}
               {snippets.length > 0 && (
-                <div className="bg-surface-container rounded-2xl p-4 tr-fadein">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Code2 size={14} className="text-on-surface-variant/35" />
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/35">
-                      Código · {snippets.length} fragmento{snippets.length!==1?'s':''}
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-2">
+                <div className="rounded-xl border border-outline-variant/8 overflow-hidden tr-fadein">
+                  <button className="flex items-center gap-1.5 w-full px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/30 hover:bg-white/[0.03] transition-colors"
+                    onClick={e=>{const el=e.currentTarget.nextElementSibling as HTMLElement; el.style.display=el.style.display==='none'?'':'none'}}>
+                    <Code2 size={10}/>Código encontrado · {snippets.length}
+                  </button>
+                  <div style={{display:'none'}} className="flex flex-col divide-y divide-outline-variant/8">
                     {snippets.map((s,i)=>(
-                      <div key={i} className="rounded-xl overflow-hidden border border-outline-variant/10">
-                        <div className="px-3 py-1.5 bg-surface text-[10px] font-mono text-on-surface-variant/35 border-b border-outline-variant/8 truncate">
-                          {s.file} · {s.line}
-                        </div>
-                        <pre className="px-3 py-2 text-[11px] font-mono text-on-surface/55 overflow-x-auto whitespace-pre bg-surface/30 leading-relaxed max-h-28">
-                          {s.context}
-                        </pre>
+                      <div key={i} className="px-3 py-1.5">
+                        <div className="text-[9px] font-mono text-on-surface-variant/30 truncate mb-1">{s.file}:{s.line}</div>
+                        <pre className="text-[10px] font-mono text-on-surface/45 overflow-x-auto whitespace-pre leading-relaxed max-h-16">{s.context.slice(0,200)}</pre>
                       </div>
                     ))}
                   </div>
@@ -1744,57 +1694,57 @@ export function TicketResolver(): JSX.Element {
             </div>
 
             {/* Right col */}
-            <div className="flex-1 overflow-y-auto p-5">
+            <div className="flex-1 overflow-y-auto p-4">
               {phase==='fetching' && (
-                <div className="flex flex-col items-center justify-center h-full gap-4 tr-fadein">
-                  <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center"><Spinner size={28}/></div>
+                <div className="flex flex-col items-center justify-center h-full gap-3 tr-fadein">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center"><Spinner size={20}/></div>
                   <div className="text-center">
-                    <div className="text-[14px] font-semibold text-on-surface mb-1">Conectando con Jira</div>
-                    <div className="text-[12px] text-on-surface-variant/45">Obteniendo información del ticket...</div>
+                    <div className="text-[13px] font-semibold text-on-surface mb-0.5">Conectando con Jira</div>
+                    <div className="text-[11px] text-on-surface-variant/40">Obteniendo información del ticket...</div>
                   </div>
                 </div>
               )}
               {phase==='planning' && (
-                <div className="flex flex-col items-center justify-center h-full gap-4 tr-fadein">
-                  <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-                    <Brain size={28} className="text-primary tr-pulse" />
+                <div className="flex flex-col items-center justify-center h-full gap-3 tr-fadein">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Brain size={20} className="text-primary tr-pulse"/>
                   </div>
                   <div className="text-center">
-                    <div className="text-[14px] font-semibold text-on-surface mb-1">Generando plan</div>
-                    <div className="text-[12px] text-on-surface-variant/45">La IA está analizando el contexto...</div>
+                    <div className="text-[13px] font-semibold text-on-surface mb-0.5">Generando plan</div>
+                    <div className="text-[11px] text-on-surface-variant/40">La IA está analizando el contexto...</div>
                   </div>
-                  <div className="flex gap-1.5">{[0,200,400].map(d=><div key={d} className="w-2 h-2 rounded-full bg-primary/45 animate-bounce" style={{animationDelay:`${d}ms`}}/>)}</div>
+                  <div className="flex gap-1">{[0,160,320].map(d=><div key={d} className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{animationDelay:`${d}ms`}}/>)}</div>
                 </div>
               )}
               {phase==='awaiting' && plan && (
-                <AwaitingPanel plan={plan} onExecute={()=>void handleExecute()} onReset={resetToIdle} />
+                <AwaitingPanel plan={plan} onExecute={()=>void handleExecute()} onReset={resetToIdle}/>
               )}
               {phase==='analyzing' && (
-                <AnalyzingPanel steps={steps} />
+                <AnalyzingPanel steps={steps}/>
               )}
               {phase==='done' && result && (
                 <ResultsPanel result={result} disp={disp} onSaveHistory={()=>void handleSaveHistory()} onReset={resetToIdle}
                   isAlreadySaved={history.some(h=>h.ticketKey===ticket?.key)}
-                  justSaved={justSavedKey===ticket?.key} />
+                  justSaved={justSavedKey===ticket?.key}/>
               )}
               {phase==='error' && (
-                <div className="flex flex-col items-center justify-center h-full gap-4 tr-fadein">
-                  <div className="w-14 h-14 rounded-2xl bg-red-500/10 flex items-center justify-center">
-                    <CircleAlert size={28} className="text-red-400" />
+                <div className="flex flex-col items-center justify-center h-full gap-3 tr-fadein">
+                  <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
+                    <CircleAlert size={20} className="text-red-400"/>
                   </div>
-                  <div className="text-center max-w-md">
-                    <div className="text-[14px] font-semibold text-on-surface mb-2">
+                  <div className="text-center max-w-sm">
+                    <div className="text-[13px] font-semibold text-on-surface mb-1.5">
                       {error==='JIRA_NOT_CONFIGURED'?'Jira no configurado':'Ocurrió un error'}
                     </div>
-                    <div className="text-[12px] text-on-surface-variant/50 leading-relaxed bg-surface-container rounded-xl px-4 py-3">{error}</div>
+                    <div className="text-[11px] text-on-surface-variant/45 leading-relaxed bg-surface-container rounded-xl px-3 py-2.5">{error}</div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5">
                     {error==='JIRA_NOT_CONFIGURED' && (
-                      <button onClick={()=>setShowConfig(true)} className="px-4 py-2 rounded-xl text-[12px] font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+                      <button onClick={()=>setShowConfig(true)} className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
                         Configurar Jira
                       </button>
                     )}
-                    <button onClick={resetToIdle} className="px-4 py-2 rounded-xl text-[12px] font-medium text-on-surface-variant/55 hover:text-on-surface hover:bg-white/[0.04] transition-colors">
+                    <button onClick={resetToIdle} className="px-3 py-1.5 rounded-lg text-[11px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.04] transition-colors">
                       Intentar de nuevo
                     </button>
                   </div>
