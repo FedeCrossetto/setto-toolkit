@@ -5,7 +5,7 @@ import type { PluginHandlers, CoreServices } from '../../core/types'
 import type { JiraTicket, AnalysisPlan, AnalysisResult, CodeSnippet, HistoryEntry } from '../../../src/plugins/ticket-resolver/types'
 import { runClaudeCli } from './ClaudeCliExecutor'
 import { parseBlocks, getBlock, hasBlocks } from './ResponseParser'
-import { buildAnalysisPrompt, buildPlanPrompt } from './PromptBuilder'
+import { buildSearchTermsPrompt, buildAnalysisPrompt, buildPlanPrompt } from './PromptBuilder'
 
 const HISTORY_FILE = 'ticket-resolver-history.json'
 
@@ -299,6 +299,31 @@ Devuelve SOLO este JSON con TODOS los textos en español:
     })
 
     // ── Claude CLI Orchestrator ─────────────────────────────────────────────
+
+    // Stage 0 — Extract search terms from ticket via Claude CLI (no API)
+    ipcMain.handle('ticket-resolver:orch-extract-terms', async (
+      _e,
+      ticket: JiraTicket,
+    ) => {
+      const claudePath = (settings.get('ticket-resolver.claude_path') as string | null) || 'claude'
+      const prompt = buildSearchTermsPrompt(ticket)
+      const result = await runClaudeCli(prompt, 60_000, claudePath)
+
+      if (result.timedOut) throw new Error('Claude CLI timed out extracting search terms')
+      if (result.exitCode !== 0 && !result.stdout) {
+        throw new Error(`Claude CLI error: ${(result.stderr || 'no output').slice(0, 300)}`)
+      }
+
+      const blocks = parseBlocks(result.stdout)
+      const raw = getBlock(blocks, 'TERMS', result.stdout)
+      const terms = raw
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length > 1 && !l.startsWith('#') && !l.startsWith('-'))
+        .slice(0, 6)
+
+      return terms.length > 0 ? terms : ticket.summary.split(/\s+/).filter(w => w.length > 4).slice(0, 4)
+    })
 
     // Stage 1 — Analysis: runs claude CLI with ticket + code context
     ipcMain.handle('ticket-resolver:orch-analyze', async (

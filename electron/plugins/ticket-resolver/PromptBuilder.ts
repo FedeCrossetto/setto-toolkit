@@ -9,6 +9,40 @@ IMPORTANTE: Responde usando EXACTAMENTE este formato de bloques. Cada bloque:
 No uses markdown, no uses \`\`\`, no uses # para encabezados. Solo texto plano dentro de los bloques.
 `.trim()
 
+// ── Stage 0: Search term extraction ─────────────────────────────────────────
+
+/**
+ * Builds a short prompt to extract code search terms from the ticket.
+ * Runs before the repo search so we get meaningful terms instead of generic words.
+ * Output block: TERMS (one term per line, max 6)
+ */
+export function buildSearchTermsPrompt(ticket: JiraTicket): string {
+  return `Eres un desarrollador analizando un bug en WinSystems, software financiero.
+Dado el siguiente ticket, extrae los términos de búsqueda más útiles para encontrar el código fuente relacionado en el repositorio.
+
+TICKET: ${ticket.key} — ${ticket.summary}
+TIPO: ${ticket.type} | COMPONENTES: ${ticket.components.join(', ') || 'No especificado'}
+DESCRIPCIÓN:
+${ticket.description.slice(0, 500)}
+
+${BLOCK_FORMAT}
+
+Responde con UN SOLO bloque:
+
+##TERMS##
+NombreDeClaseOModulo
+metodoOFuncionRelevante
+nombreDeTablaOProcedimiento
+OtroTerminoTecnico
+##END##
+
+Reglas:
+- Máximo 6 términos, uno por línea
+- Solo nombres técnicos: clases, métodos, tablas, stored procedures, archivos, módulos
+- Sin palabras genéricas como "error", "sistema", "función"
+- En el idioma en que aparecería en el código (inglés o español según corresponda)`
+}
+
 // ── Stage 1: Analysis ────────────────────────────────────────────────────────
 
 /**

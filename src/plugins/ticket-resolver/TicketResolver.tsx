@@ -656,15 +656,17 @@ function ResultsPanel({
 // ── Claude CLI Orchestrator ─────────────────────────────────────────────────
 
 const FLOW_STEPS: Array<{ state: FlowState; label: string }> = [
-  { state: 'building_context', label: 'Contexto' },
-  { state: 'running_analysis', label: 'Análisis' },
-  { state: 'awaiting_decision', label: 'Decisión' },
-  { state: 'running_plan', label: 'Plan' },
-  { state: 'plan_ready', label: 'Listo' },
+  { state: 'building_context',  label: 'Ticket'    },
+  { state: 'extracting_terms',  label: 'Búsqueda'  },
+  { state: 'running_analysis',  label: 'Análisis'  },
+  { state: 'awaiting_decision', label: 'Decisión'  },
+  { state: 'running_plan',      label: 'Plan'      },
+  { state: 'plan_ready',        label: 'Listo'     },
 ]
 
 const FLOW_ORDER: FlowState[] = [
-  'idle', 'building_context', 'running_analysis', 'analysis_ready',
+  'idle', 'building_context', 'extracting_terms',
+  'running_analysis', 'analysis_ready',
   'awaiting_decision', 'running_plan', 'plan_ready',
 ]
 
@@ -762,26 +764,28 @@ function OrchestratorView({ config, onOpenConfig, onHistorySaved }: Orchestrator
     onHistorySaved(entry)
   }
 
-  // Stage 1: fetch ticket + search repo, then run Claude analysis
+  // Full CLI flow: fetch ticket → Claude extracts terms → search repo → Claude analysis
   const handleStart = async () => {
     if (!ticketInput.trim() || !isConfigured) return
     abortRef.current = false
     setError(null); setFlowState('building_context')
     try {
-      // Fetch ticket from Jira
+      // Step 1: fetch ticket from Jira
       const t = await window.api.invoke<JiraTicket>('ticket-resolver:fetch', normalizeKey(ticketInput))
       if (abortRef.current) return
       setTicket(t)
 
-      // Search repo for relevant code
-      const found = await window.api.invoke<CodeSnippet[]>('ticket-resolver:search',
-        // Use summary words as search terms (best-effort without an AI plan step)
-        t.summary.split(/\s+/).filter(w => w.length > 4).slice(0, 4),
-      )
+      // Step 2: Claude CLI extracts relevant search terms from the ticket
+      setFlowState('extracting_terms')
+      const terms = await window.api.invoke<string[]>('ticket-resolver:orch-extract-terms', t)
+      if (abortRef.current) return
+
+      // Step 3: search repo with the AI-generated terms
+      const found = await window.api.invoke<CodeSnippet[]>('ticket-resolver:search', terms)
       if (abortRef.current) return
       setSnippets(found)
 
-      // Run Claude CLI analysis
+      // Step 4: Claude CLI full analysis with ticket + code context
       setFlowState('running_analysis')
       const result = await window.api.invoke<OrchestratorAnalysis>(
         'ticket-resolver:orch-analyze', t, found,
@@ -789,7 +793,6 @@ function OrchestratorView({ config, onOpenConfig, onHistorySaved }: Orchestrator
       if (abortRef.current) return
       setAnalysis(result)
       setFlowState('analysis_ready')
-      // Brief pause so the user sees "analysis ready" before moving to decision
       setTimeout(() => {
         if (!abortRef.current) setFlowState('awaiting_decision')
       }, 600)
@@ -817,7 +820,7 @@ function OrchestratorView({ config, onOpenConfig, onHistorySaved }: Orchestrator
     }
   }
 
-  const isRunning = flowState === 'building_context' || flowState === 'running_analysis' || flowState === 'running_plan'
+  const isRunning = flowState === 'building_context' || flowState === 'extracting_terms' || flowState === 'running_analysis' || flowState === 'running_plan'
 
   // ── Render ──────────────────────────────────────────────────────────────
 
@@ -973,8 +976,24 @@ function OrchestratorView({ config, onOpenConfig, onHistorySaved }: Orchestrator
           <div className="flex flex-col items-center justify-center h-full gap-4 tr-fadein">
             <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center"><Spinner size={28} /></div>
             <div className="text-center">
-              <div className="text-[14px] font-semibold text-on-surface mb-1">Construyendo contexto</div>
-              <div className="text-[12px] text-on-surface-variant/45">Obteniendo ticket de Jira y buscando código relevante...</div>
+              <div className="text-[14px] font-semibold text-on-surface mb-1">Obteniendo ticket</div>
+              <div className="text-[12px] text-on-surface-variant/45">Conectando con Jira...</div>
+            </div>
+          </div>
+        )}
+
+        {/* Extracting terms */}
+        {flowState === 'extracting_terms' && (
+          <div className="flex flex-col items-center justify-center h-full gap-4 tr-fadein">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <Search size={28} className="text-primary tr-pulse" />
+            </div>
+            <div className="text-center">
+              <div className="text-[14px] font-semibold text-on-surface mb-1">Claude extrayendo términos de búsqueda...</div>
+              <div className="text-[12px] text-on-surface-variant/45">Analizando el ticket para identificar clases, métodos y módulos relevantes.</div>
+            </div>
+            <div className="flex gap-1.5">
+              {[0, 200, 400].map(d => <div key={d} className="w-2 h-2 rounded-full bg-primary/45 animate-bounce" style={{ animationDelay: `${d}ms` }} />)}
             </div>
           </div>
         )}

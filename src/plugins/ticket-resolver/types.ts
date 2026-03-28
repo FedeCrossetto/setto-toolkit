@@ -82,6 +82,7 @@ export interface AnalysisStepUI {
 export type FlowState =
   | 'idle'
   | 'building_context'
+  | 'extracting_terms'
   | 'running_analysis'
   | 'analysis_ready'
   | 'awaiting_decision'
