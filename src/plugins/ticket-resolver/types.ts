@@ -76,3 +76,32 @@ export interface AnalysisStepUI {
   status: 'pending' | 'running' | 'done' | 'error'
   detail?: string
 }
+
+// ── Claude CLI Orchestrator types ────────────────────────────────────────────
+
+export type FlowState =
+  | 'idle'
+  | 'building_context'
+  | 'running_analysis'
+  | 'analysis_ready'
+  | 'awaiting_decision'
+  | 'running_plan'
+  | 'plan_ready'
+  | 'error'
+
+export interface OrchestratorAnalysis {
+  analysis: string
+  rootCause: string
+  approach: string
+  complexity: string
+  risks: string
+  raw: string
+}
+
+export interface OrchestratorPlan {
+  plan: string
+  files: string
+  tests: string
+  jiraComment: string
+  raw: string
+}

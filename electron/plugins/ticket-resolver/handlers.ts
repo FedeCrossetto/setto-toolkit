@@ -3,6 +3,9 @@ import fs from 'fs'
 import path from 'path'
 import type { PluginHandlers, CoreServices } from '../../core/types'
 import type { JiraTicket, AnalysisPlan, AnalysisResult, CodeSnippet, HistoryEntry } from '../../../src/plugins/ticket-resolver/types'
+import { runClaudeCli } from './ClaudeCliExecutor'
+import { parseBlocks, getBlock, hasBlocks } from './ResponseParser'
+import { buildAnalysisPrompt, buildPlanPrompt } from './PromptBuilder'
 
 const HISTORY_FILE = 'ticket-resolver-history.json'
 
@@ -293,6 +296,79 @@ Devuelve SOLO este JSON con TODOS los textos en español:
       const all = db.readJSON<HistoryEntry[]>(HISTORY_FILE) ?? []
       db.writeJSON(HISTORY_FILE, all.filter(h => h.id !== id))
       return { ok: true }
+    })
+
+    // ── Claude CLI Orchestrator ─────────────────────────────────────────────
+
+    // Stage 1 — Analysis: runs claude CLI with ticket + code context
+    ipcMain.handle('ticket-resolver:orch-analyze', async (
+      _e,
+      ticket: JiraTicket,
+      snippets: CodeSnippet[],
+    ) => {
+      const claudePath = (settings.get('ticket-resolver.claude_path') as string | null) || 'claude'
+      const prompt = buildAnalysisPrompt(ticket, snippets)
+      const result = await runClaudeCli(prompt, 120_000, claudePath)
+
+      if (result.timedOut) {
+        throw new Error('Claude CLI timed out after 2 minutes — the model may be overloaded')
+      }
+      if (result.exitCode !== 0 && !result.stdout) {
+        const msg = result.stderr || 'Claude CLI returned no output'
+        throw new Error(msg.includes('not found') || msg.includes('ENOENT')
+          ? `"${claudePath}" not found — install Claude Code and set its path in Configuración`
+          : `Claude CLI error: ${msg.slice(0, 300)}`)
+      }
+
+      const blocks = parseBlocks(result.stdout)
+      if (!hasBlocks(result.stdout)) {
+        return {
+          analysis:   result.stdout.slice(0, 1200),
+          rootCause:  '',
+          approach:   '',
+          complexity: '',
+          risks:      '',
+          raw:        result.stdout,
+        }
+      }
+
+      return {
+        analysis:   getBlock(blocks, 'ANALYSIS'),
+        rootCause:  getBlock(blocks, 'ROOTCAUSE'),
+        approach:   getBlock(blocks, 'APPROACH'),
+        complexity: getBlock(blocks, 'COMPLEXITY'),
+        risks:      getBlock(blocks, 'RISKS'),
+        raw:        result.stdout,
+      }
+    })
+
+    // Stage 2 — Implementation plan: runs claude CLI with analysis + user notes
+    ipcMain.handle('ticket-resolver:orch-plan', async (
+      _e,
+      ticket: JiraTicket,
+      snippets: CodeSnippet[],
+      analysis: { rootCause: string; approach: string },
+      userNotes: string,
+    ) => {
+      const claudePath = (settings.get('ticket-resolver.claude_path') as string | null) || 'claude'
+      const prompt = buildPlanPrompt(ticket, snippets, analysis, userNotes)
+      const result = await runClaudeCli(prompt, 180_000, claudePath)
+
+      if (result.timedOut) {
+        throw new Error('Claude CLI timed out after 3 minutes — the model may be overloaded')
+      }
+      if (result.exitCode !== 0 && !result.stdout) {
+        throw new Error(`Claude CLI error: ${(result.stderr || 'no output').slice(0, 300)}`)
+      }
+
+      const blocks = parseBlocks(result.stdout)
+      return {
+        plan:        getBlock(blocks, 'PLAN',        result.stdout.slice(0, 1500)),
+        files:       getBlock(blocks, 'FILES'),
+        tests:       getBlock(blocks, 'TESTS'),
+        jiraComment: getBlock(blocks, 'JIRACOMMENT'),
+        raw:         result.stdout,
+      }
     })
   },
 }
