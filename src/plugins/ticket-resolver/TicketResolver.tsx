@@ -11,6 +11,19 @@ import type {
   FlowState, OrchestratorAnalysis, OrchestratorPlan,
 } from './types'
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60_000)
+  if (m < 1)  return 'ahora'
+  if (m < 60) return `hace ${m}m`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `hace ${h}h`
+  const d = Math.floor(h / 24)
+  if (d < 7)  return `hace ${d}d`
+  return new Date(iso).toLocaleDateString('es', { day: '2-digit', month: 'short' })
+}
+
 // ── CSS animations (injected once) ────────────────────────────────────────────
 const TR_STYLES = `
 @keyframes tr-fadein  { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:translateY(0) } }
@@ -250,64 +263,65 @@ function PlanCard({ plan, skeleton, disp }: { plan?:AnalysisPlan|null; skeleton?
 
 // ── Analyzing panel ────────────────────────────────────────────────────────────
 function AnalyzingPanel({ steps }: { steps:AnalysisStepUI[] }): JSX.Element {
-  const done  = steps.filter(s=>s.status==='done').length
-  const total = steps.length
-  const pct   = total > 0 ? Math.round((done/total)*100) : 0
+  const doneCount = steps.filter(s=>s.status==='done').length
+  const total     = steps.length
+  const pct       = total > 0 ? Math.round((doneCount/total)*100) : 0
   const ICONS: Record<string,ComponentType<{size?:number;className?:string}>> = { search:Search, analyze:Brain }
   const TITLES: Record<string,string> = { search:'Búsqueda en repositorio', analyze:'Análisis con inteligencia artificial' }
 
   return (
     <div className="flex flex-col gap-5 tr-fadein">
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[14px] font-semibold text-on-surface">Analizando ticket...</span>
-          <span className="text-[12px] text-on-surface-variant/50 tabular-nums">{pct}%</span>
+      {/* Progress header */}
+      <div className="bg-surface-container rounded-2xl p-4 border border-outline-variant/10">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Spinner size={16} />
+            <span className="text-[13px] font-semibold text-on-surface">Analizando ticket...</span>
+          </div>
+          <span className="text-[12px] font-bold text-primary tabular-nums">{pct}%</span>
         </div>
-        <div className="h-2 bg-outline-variant/15 rounded-full overflow-hidden">
+        <div className="h-1.5 bg-outline-variant/10 rounded-full overflow-hidden">
           <div className="h-full rounded-full transition-all duration-700"
-            style={{width:`${pct}%`, background:'linear-gradient(90deg,rgb(var(--c-primary)),rgb(var(--c-secondary,var(--c-primary))))'}} />
+            style={{width:`${Math.max(pct,pct>0?4:0)}%`, background:'linear-gradient(90deg,rgb(var(--c-primary)),rgb(var(--c-secondary,var(--c-primary))))'}} />
+        </div>
+        <div className="flex gap-1 mt-3">
+          {[0,160,320].map(d=><div key={d} className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{animationDelay:`${d}ms`}} />)}
         </div>
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2.5">
         {steps.map(step => {
           const run  = step.status==='running'
           const done = step.status==='done'
           const pend = step.status==='pending'
+          const Icon = ICONS[step.id] ?? Pencil
           return (
-            <div key={step.id} className={['rounded-2xl p-4 border transition-all duration-400',
-              run  ? 'bg-primary/7 border-primary/20 shadow-sm shadow-primary/5' : '',
-              done ? 'bg-surface-container border-outline-variant/15' : '',
-              pend ? 'bg-surface-container/35 border-outline-variant/8 opacity-45' : '',
+            <div key={step.id} className={['rounded-2xl p-4 border transition-all duration-500',
+              run  ? 'bg-primary/5 border-primary/20' : '',
+              done ? 'bg-green-500/[0.04] border-green-500/15' : '',
+              pend ? 'bg-surface-container/30 border-outline-variant/8 opacity-40' : '',
             ].join(' ')}>
               <div className="flex items-center gap-3">
-                <div className={['w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all',
-                  run?'bg-primary/15':done?'bg-green-500/12':'bg-white/[0.04]',
+                <div className={['w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all',
+                  run?'bg-primary/12':done?'bg-green-500/10':'bg-outline-variant/8',
                 ].join(' ')}>
-                  {run  && <Spinner size={20} />}
-                  {done && <CheckCircle2 size={20} className="text-green-400 tr-pop" />}
-                  {pend && (() => { const Icon = ICONS[step.id] ?? Pencil; return <Icon size={20} className="text-on-surface-variant/20" /> })()}
+                  {run  && <Spinner size={18} />}
+                  {done && <CheckCircle2 size={18} className="text-green-400 tr-pop" />}
+                  {pend && <Icon size={18} className="text-on-surface-variant/20" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className={`text-[13px] font-semibold ${pend?'text-on-surface-variant/30':'text-on-surface'}`}>
+                  <div className={`text-[12px] font-semibold ${pend?'text-on-surface-variant/30':done?'text-on-surface/70':'text-on-surface'}`}>
                     {TITLES[step.id]??step.label}
                   </div>
                   {step.detail && (
-                    <div className={`text-[12px] mt-0.5 ${run?'text-primary/60':'text-on-surface-variant/45'}`}>
+                    <div className={`text-[11px] mt-0.5 truncate ${run?'text-primary/55':'text-on-surface-variant/40'}`}>
                       {step.detail}
                     </div>
                   )}
                 </div>
-                {done && <span className="text-[10px] text-green-400/60 font-medium flex-shrink-0 tr-fadein">Completado</span>}
+                {done && <span className="text-[9px] text-green-400/60 font-semibold uppercase tracking-wider flex-shrink-0 tr-fadein">Listo</span>}
+                {run  && <span className="text-[9px] text-primary/50 font-semibold uppercase tracking-wider flex-shrink-0 tr-pulse">En progreso</span>}
               </div>
-              {run && (
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-primary/12">
-                  <div className="flex gap-1">
-                    {[0,160,320].map(d=><div key={d} className="w-1.5 h-1.5 rounded-full bg-primary/50 animate-bounce" style={{animationDelay:`${d}ms`}} />)}
-                  </div>
-                  <span className="text-[11px] text-primary/50">Procesando, esto puede tardar con modelos locales...</span>
-                </div>
-              )}
             </div>
           )
         })}
@@ -1550,27 +1564,41 @@ export function TicketResolver(): JSX.Element {
       )}
 
       {/* History */}
-      <aside className="w-48 flex-shrink-0 flex flex-col border-r border-outline-variant/15 bg-surface overflow-hidden">
+      <aside className="w-52 flex-shrink-0 flex flex-col border-r border-outline-variant/15 bg-surface overflow-hidden">
         <div className="flex items-center justify-between px-3 pt-4 pb-2 flex-shrink-0">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Historial</span>
-          <button onClick={resetToIdle} title="Nuevo ticket" className="text-on-surface-variant/35 hover:text-primary transition-colors">
-            <Plus size={16} />
+          <button onClick={resetToIdle} title="Nuevo ticket" className="w-6 h-6 flex items-center justify-center rounded-lg text-on-surface-variant/35 hover:text-primary hover:bg-primary/10 transition-all">
+            <Plus size={14} />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto py-1">
+        <div className="flex-1 overflow-y-auto pb-2">
           {history.length===0 ? (
-            <p className="text-[11px] text-on-surface-variant/28 text-center px-3 pt-8 leading-relaxed">Sin tickets aún.<br/>Ingresá un número para empezar.</p>
+            <div className="flex flex-col items-center gap-2 px-3 pt-10">
+              <div className="w-10 h-10 rounded-xl bg-outline-variant/8 flex items-center justify-center">
+                <ClipboardList size={20} className="text-on-surface-variant/20" />
+              </div>
+              <p className="text-[11px] text-on-surface-variant/30 text-center leading-relaxed">Sin tickets aún.<br/>Ingresá un número para empezar.</p>
+            </div>
           ) : history.map(entry=>(
             <div key={entry.id} onClick={()=>handleSelectHistory(entry)}
-              className={['group relative flex flex-col px-3 py-2.5 mx-1 mb-0.5 rounded-xl cursor-pointer transition-colors',
-                selectedId===entry.id?'bg-primary/10 text-primary':'hover:bg-white/[0.04] text-on-surface',
+              className={['group relative flex flex-col gap-0.5 px-3 py-2.5 mx-1 mt-0.5 rounded-xl cursor-pointer transition-all',
+                selectedId===entry.id
+                  ? 'bg-primary/10 border border-primary/20'
+                  : 'hover:bg-white/[0.04] border border-transparent',
               ].join(' ')}>
-              <span className="text-[12px] font-bold truncate">{entry.ticketKey}</span>
-              <span className="text-[11px] text-on-surface-variant/50 truncate mt-0.5">{entry.summary}</span>
-              <span className="text-[10px] text-on-surface-variant/30 mt-0.5 truncate">{entry.component}</span>
+              <div className="flex items-center justify-between gap-1 min-w-0">
+                <span className={`text-[11px] font-bold truncate flex-shrink-0 ${selectedId===entry.id?'text-primary':'text-on-surface'}`}>{entry.ticketKey}</span>
+                <span className="text-[9px] text-on-surface-variant/25 flex-shrink-0 tabular-nums">{relativeTime(entry.createdAt)}</span>
+              </div>
+              <span className="text-[11px] text-on-surface-variant/55 truncate leading-snug">{entry.summary}</span>
+              {entry.component && (
+                <span className={`text-[9px] px-1.5 py-0.5 rounded-md w-fit mt-0.5 ${selectedId===entry.id?'bg-primary/15 text-primary/70':'bg-outline-variant/10 text-on-surface-variant/30'}`}>
+                  {entry.component}
+                </span>
+              )}
               <button onClick={e=>{void handleDeleteHistory(entry.id,e)}}
-                className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 text-on-surface-variant/30 hover:text-red-400 transition-all">
-                <X size={14} />
+                className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded-md text-on-surface-variant/25 hover:text-red-400 hover:bg-red-500/10 transition-all">
+                <X size={11} />
               </button>
             </div>
           ))}
