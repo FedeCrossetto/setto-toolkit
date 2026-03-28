@@ -29,26 +29,19 @@
 
 ## Requisitos
 
-- [Node.js](https://nodejs.org/) v18 o superior
+- [Node.js](https://nodejs.org/) v22 o superior
 - npm v9 o superior
 
-### Requisitos adicionales en Windows (dependencias nativas)
+### Requisitos adicionales en Windows (Terminal plugin)
 
-La app incluye `better-sqlite3`, un addon nativo de C++ que se compila localmente al instalar. En Windows esto requiere:
+El Terminal plugin usa `node-pty`, un addon nativo de C++ que se compila localmente. En Windows esto requiere:
 
 - **Python 3** → [python.org](https://python.org) — marcar **"Add to PATH"** durante la instalación
-- **Visual Studio Build Tools 2022** → [visualstudio.microsoft.com/downloads](https://visualstudio.microsoft.com/downloads/) → descargar **"Build Tools for Visual Studio 2022"** → seleccionar workload **"Desktop development with C++"**
+- **Visual Studio Build Tools 2019 o 2022** → [visualstudio.microsoft.com/downloads](https://visualstudio.microsoft.com/downloads/) → descargar **"Build Tools for Visual Studio 2022"** → seleccionar workload **"Desktop development with C++"**
 
-> No necesitás Visual Studio completo, solo las Build Tools (gratuitas, ~4 GB).
+> No necesitás Visual Studio completo, solo las Build Tools (gratuitas, ~4 GB). Visual Studio 2017 y versiones preview (2026 Insiders) **no son compatibles** con Node.js 22.
 
-Una vez instalados ambos, configurá npm para usarlos:
-
-```bash
-npm config set python python3
-npm config set msvs_version 2022
-```
-
-Luego `npm install` compilará el addon sin problemas.
+> **¿No necesitás el Terminal plugin?** El `npm install` funciona igual sin estas herramientas — `node-pty` es una dependencia opcional. La app levanta normalmente y solo el Terminal plugin queda deshabilitado.
 
 ---
 
@@ -80,6 +73,8 @@ npm run package
 ```
 
 El instalador queda en la carpeta `release/`. Las credenciales OAuth del `.env` quedan embebidas en el binario en tiempo de compilación — nunca aparecen en el repositorio.
+
+> **Windows:** El build requiere permisos para crear symlinks. Antes de correr `npm run package`, activá el **Modo de desarrollador** (Configuración → Sistema → Para desarrolladores → Modo de desarrollador) o ejecutá la terminal como **Administrador**.
 
 ---
 
