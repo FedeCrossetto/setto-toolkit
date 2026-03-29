@@ -42,6 +42,7 @@ const ALLOWED_KEYS = new Set([
   'ticket-resolver.ui.font_size',
   'ticket-resolver.ui.density',
   'ticket-resolver.ui.line_height',
+  'ticket-resolver.ui.font_family',
 ])
 
 /**

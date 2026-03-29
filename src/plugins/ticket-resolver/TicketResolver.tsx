@@ -35,17 +35,25 @@ const TR_STYLES = `
 `
 
 // ── Display config ─────────────────────────────────────────────────────────────
-type FontSize  = 'small' | 'normal' | 'large'
-type Density   = 'compact' | 'comfortable'
+type FontSize   = 'small' | 'normal' | 'large'
+type Density    = 'compact' | 'comfortable'
 type LineHeight = 'tight' | 'normal' | 'relaxed'
+type FontFamily = 'system' | 'sans' | 'mono' | 'serif'
 
-interface DisplayCfg { fontSize: FontSize; density: Density; lineHeight: LineHeight }
+interface DisplayCfg { fontSize: FontSize; density: Density; lineHeight: LineHeight; fontFamily: FontFamily }
 
-const FONT_PX:   Record<FontSize,  string> = { small: '12px',   normal: '13px',  large: '15px'  }
-const PAD_PX:    Record<Density,   string> = { compact: '12px', comfortable: '20px' }
-const LINE_MAP:  Record<LineHeight, string> = { tight: '1.4',   normal: '1.6',   relaxed: '1.85' }
+const FONT_PX:        Record<FontSize,   string> = { small: '12px',  normal: '13px',  large: '15px'  }
+const PAD_PX:         Record<Density,    string> = { compact: '12px', comfortable: '20px' }
+const LINE_MAP:       Record<LineHeight, string> = { tight: '1.4',   normal: '1.6',   relaxed: '1.85' }
+const FONT_FAMILY_MAP: Record<FontFamily, string> = {
+  system: 'inherit',
+  sans:   "'Inter', 'Segoe UI', ui-sans-serif, sans-serif",
+  mono:   "'Consolas', 'JetBrains Mono', 'Courier New', monospace",
+  serif:  "'Georgia', 'Times New Roman', serif",
+}
+const FONT_SIZE_ORDER: FontSize[] = ['small', 'normal', 'large']
 
-const DEFAULT_DISPLAY: DisplayCfg = { fontSize: 'normal', density: 'comfortable', lineHeight: 'normal' }
+const DEFAULT_DISPLAY: DisplayCfg = { fontSize: 'normal', density: 'comfortable', lineHeight: 'normal', fontFamily: 'system' }
 
 // ── Session usage ──────────────────────────────────────────────────────────────
 interface SessionUsage { inputTokens:number; outputTokens:number; calls:number; contextWindowSize:number }
@@ -365,6 +373,10 @@ function DisplaySettings({ disp, onChange }: { disp:DisplayCfg; onChange:(k:keyo
       ? 'bg-primary text-on-primary border-primary'
       : 'bg-surface border-outline-variant/25 text-on-surface-variant/60 hover:border-primary/40'}`
 
+  const FONT_FAMILY_LABELS: Record<FontFamily, string> = {
+    system: 'Sistema', sans: 'Sans', mono: 'Mono', serif: 'Serif',
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* Font size */}
@@ -378,9 +390,22 @@ function DisplaySettings({ disp, onChange }: { disp:DisplayCfg; onChange:(k:keyo
           ))}
         </div>
         <div className="mt-2 px-3 py-2 bg-surface/60 rounded-lg border border-outline-variant/10">
-          <span className="text-on-surface-variant/60" style={{fontSize:FONT_PX[disp.fontSize]}}>
-            Vista previa del tamaño de texto seleccionado.
+          <span className="text-on-surface-variant/60" style={{fontSize:FONT_PX[disp.fontSize],fontFamily:FONT_FAMILY_MAP[disp.fontFamily]}}>
+            Vista previa: el texto del módulo tendrá este tamaño y fuente.
           </span>
+        </div>
+      </div>
+
+      {/* Font family */}
+      <div>
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/45 mb-2">Tipografía</div>
+        <div className="flex gap-1.5">
+          {(['system','sans','mono','serif'] as FontFamily[]).map(ff=>(
+            <button key={ff} className={btnCls(disp.fontFamily===ff)} onClick={()=>onChange('fontFamily',ff)}
+              style={{fontFamily:FONT_FAMILY_MAP[ff]}}>
+              {FONT_FAMILY_LABELS[ff]}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -843,7 +868,7 @@ export function TicketResolver(): JSX.Element {
       const s = document.createElement('style'); s.id='tr-styles'; s.textContent=TR_STYLES; document.head.appendChild(s)
     }
     void (async () => {
-      const [url,user,token,repo,prefix,fs,dn,lh,provider,openModel,anthropicModel,ollamaModel] = await Promise.all([
+      const [url,user,token,repo,prefix,fs,dn,lh,ff,provider,openModel,anthropicModel,ollamaModel] = await Promise.all([
         window.api.invoke<string|null>('settings:get','ticket-resolver.jira_url'),
         window.api.invoke<string|null>('settings:get','ticket-resolver.jira_user'),
         window.api.invoke<string|null>('settings:get','ticket-resolver.jira_token'),
@@ -852,6 +877,7 @@ export function TicketResolver(): JSX.Element {
         window.api.invoke<string|null>('settings:get','ticket-resolver.ui.font_size'),
         window.api.invoke<string|null>('settings:get','ticket-resolver.ui.density'),
         window.api.invoke<string|null>('settings:get','ticket-resolver.ui.line_height'),
+        window.api.invoke<string|null>('settings:get','ticket-resolver.ui.font_family'),
         window.api.invoke<string|null>('settings:get','ai.provider'),
         window.api.invoke<string|null>('settings:get','ai.model'),
         window.api.invoke<string|null>('settings:get','ai.anthropic_model'),
@@ -862,6 +888,7 @@ export function TicketResolver(): JSX.Element {
         fontSize:   (fs  as FontSize)   ?? 'normal',
         density:    (dn  as Density)    ?? 'comfortable',
         lineHeight: (lh  as LineHeight) ?? 'normal',
+        fontFamily: (ff  as FontFamily) ?? 'system',
       })
       const p = provider ?? 'openai'
       const m = p==='anthropic' ? (anthropicModel??'claude-sonnet') : p==='ollama' ? (ollamaModel??'llama3') : (openModel??'gpt-4o-mini')
@@ -891,7 +918,8 @@ export function TicketResolver(): JSX.Element {
 
   const handleDisplayChange = useCallback(async (k:keyof DisplayCfg, v:string) => {
     setDisp(prev=>({...prev,[k]:v}))
-    await window.api.invoke('settings:set',`ticket-resolver.ui.${k === 'lineHeight' ? 'line_height' : k}`,v)
+    const keyMap: Partial<Record<keyof DisplayCfg,string>> = { lineHeight:'line_height', fontFamily:'font_family', fontSize:'font_size' }
+    await window.api.invoke('settings:set',`ticket-resolver.ui.${keyMap[k]??k}`,v)
   }, [])
 
   const refreshUsage = useCallback(async () => {
@@ -1041,7 +1069,7 @@ export function TicketResolver(): JSX.Element {
       </aside>
 
       {/* Main */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0" style={{fontFamily:FONT_FAMILY_MAP[disp.fontFamily]}}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-1.5 border-b border-outline-variant/15 flex-shrink-0 gap-2">
@@ -1061,6 +1089,24 @@ export function TicketResolver(): JSX.Element {
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <TokenCounter usage={sessionUsage} onReset={()=>void window.api.invoke('ticket-resolver:ai-usage-reset').then(()=>setSessionUsage(p=>({...p,inputTokens:0,outputTokens:0,calls:0})))} />
+            {/* Font size quick controls */}
+            <div className="flex items-center gap-0.5 border border-outline-variant/15 rounded-lg overflow-hidden">
+              <button
+                onClick={()=>{ const i=FONT_SIZE_ORDER.indexOf(disp.fontSize); if(i>0) void handleDisplayChange('fontSize',FONT_SIZE_ORDER[i-1]) }}
+                disabled={disp.fontSize==='small'}
+                title="Reducir fuente"
+                className="px-2 py-1 text-[10px] font-bold text-on-surface-variant/40 hover:text-primary hover:bg-primary/8 disabled:opacity-20 disabled:cursor-not-allowed transition-all leading-none">
+                A−
+              </button>
+              <span className="text-[9px] text-on-surface-variant/20 px-0.5 select-none">{disp.fontSize==='small'?'S':disp.fontSize==='normal'?'M':'L'}</span>
+              <button
+                onClick={()=>{ const i=FONT_SIZE_ORDER.indexOf(disp.fontSize); if(i<2) void handleDisplayChange('fontSize',FONT_SIZE_ORDER[i+1]) }}
+                disabled={disp.fontSize==='large'}
+                title="Aumentar fuente"
+                className="px-2 py-1 text-[10px] font-bold text-on-surface-variant/40 hover:text-primary hover:bg-primary/8 disabled:opacity-20 disabled:cursor-not-allowed transition-all leading-none">
+                A+
+              </button>
+            </div>
             <button onClick={()=>setShowConfig(true)} className="flex items-center gap-1 text-[11px] text-on-surface-variant/40 hover:text-on-surface transition-colors" title="Configuración">
               <Settings size={14}/>
               {!isConfigured && <span className="text-amber-400 text-[10px] font-medium">Sin configurar</span>}
