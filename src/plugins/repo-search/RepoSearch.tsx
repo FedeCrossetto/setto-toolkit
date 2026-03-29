@@ -333,6 +333,7 @@ function LoginForm({ provider, onLogin }: { provider: Provider; onLogin: (auth: 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showToken, setShowToken] = useState(false)
+  const [showTokenHelp, setShowTokenHelp] = useState(false)
 
   const isValid = provider === 'bitbucket'
     ? !!username.trim() && !!token.trim() && !!workspace.trim()
@@ -408,12 +409,46 @@ function LoginForm({ provider, onLogin }: { provider: Provider; onLogin: (auth: 
                 <label className="text-[10px] uppercase font-bold text-primary tracking-wider">
                   {provider === 'bitbucket' ? 'App Password' : 'Personal Access Token'}
                 </label>
-                <span className="text-[10px] text-on-surface-variant/50">
-                  {provider === 'github' && 'Settings → Developer settings → PAT'}
-                  {provider === 'gitlab' && 'Preferences → Access Tokens'}
-                  {provider === 'bitbucket' && 'Personal settings → App passwords'}
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowTokenHelp((s) => !s)}
+                  className="text-[10px] text-primary/60 hover:text-primary transition-colors underline underline-offset-2"
+                >
+                  {showTokenHelp ? 'Ocultar ayuda' : '¿Cómo obtenerlo?'}
+                </button>
               </div>
+
+              {showTokenHelp && (
+                <div className="mb-3 bg-surface-container-highest rounded-lg border border-outline-variant/15 px-3 py-2.5 text-[11px] text-on-surface-variant/70 leading-relaxed">
+                  {provider === 'github' && (
+                    <ol className="flex flex-col gap-1 list-none">
+                      <li><span className="text-primary font-semibold">1.</span> github.com → tu avatar → <strong>Settings</strong></li>
+                      <li><span className="text-primary font-semibold">2.</span> Scroll abajo → <strong>Developer settings</strong></li>
+                      <li><span className="text-primary font-semibold">3.</span> <strong>Personal access tokens</strong> → Tokens (classic)</li>
+                      <li><span className="text-primary font-semibold">4.</span> <strong>Generate new token (classic)</strong></li>
+                      <li><span className="text-primary font-semibold">5.</span> Scopes: marcá <code className="bg-white/10 px-1 rounded">repo</code> (+ <code className="bg-white/10 px-1 rounded">read:org</code> si filtrás por org)</li>
+                      <li><span className="text-primary font-semibold">6.</span> Copiá el token — no se vuelve a mostrar</li>
+                    </ol>
+                  )}
+                  {provider === 'gitlab' && (
+                    <ol className="flex flex-col gap-1 list-none">
+                      <li><span className="text-primary font-semibold">1.</span> gitlab.com → tu avatar → <strong>Preferences</strong></li>
+                      <li><span className="text-primary font-semibold">2.</span> <strong>Access Tokens</strong> → Add new token</li>
+                      <li><span className="text-primary font-semibold">3.</span> Scopes: <code className="bg-white/10 px-1 rounded">read_api</code>, <code className="bg-white/10 px-1 rounded">read_repository</code></li>
+                      <li><span className="text-primary font-semibold">4.</span> Copiá el token — no se vuelve a mostrar</li>
+                    </ol>
+                  )}
+                  {provider === 'bitbucket' && (
+                    <ol className="flex flex-col gap-1 list-none">
+                      <li><span className="text-primary font-semibold">1.</span> bitbucket.org → tu avatar → <strong>Personal settings</strong></li>
+                      <li><span className="text-primary font-semibold">2.</span> <strong>App passwords</strong> → Create app password</li>
+                      <li><span className="text-primary font-semibold">3.</span> Permissions: <code className="bg-white/10 px-1 rounded">Repositories — Read</code></li>
+                      <li><span className="text-primary font-semibold">4.</span> Copiá la contraseña generada</li>
+                    </ol>
+                  )}
+                </div>
+              )}
+
               <div className="relative">
                 <input
                   type={showToken ? 'text' : 'password'} value={token}
