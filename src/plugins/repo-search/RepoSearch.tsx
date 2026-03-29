@@ -5,7 +5,6 @@ import {
   History, KeyRound, LayoutGrid, Lock, Loader2, Search, SearchX,
   User, Wrench, X,
 } from 'lucide-react'
-import { GoogleAuthWidget } from '../../core/components/GoogleAuthWidget'
 
 export type Provider = 'bitbucket' | 'github' | 'gitlab'
 
@@ -476,17 +475,6 @@ function LoginForm({ provider, onLogin }: { provider: Provider; onLogin: (auth: 
               style={{ background: 'var(--gradient-brand)' }}>
               {loading ? 'Connecting…' : 'Connect'}
             </button>
-          </div>
-
-          {/* ── Google as alternative ── */}
-          <div className="mt-6 pt-5 border-t border-white/[0.06] flex flex-col items-center gap-4">
-            <span className="text-[10px] uppercase font-bold text-on-surface-variant/40 tracking-widest">or</span>
-            <div className="w-full">
-              <GoogleAuthWidget
-                collapsed={false}
-                onSignIn={(u) => onLogin({ authenticated: true, username: u.email, workspace: null, org: null, picture: u.picture })}
-              />
-            </div>
           </div>
 
         </div>
