@@ -22,6 +22,8 @@ export interface OpenFile {
   frozen: boolean
   /** File was updated on disk since last read */
   hasUpdate: boolean
+  /** File no longer exists on disk */
+  isDeleted: boolean
   /** File size in bytes at last read */
   size: number
   /** Whether line wrapping is enabled */
@@ -56,6 +58,7 @@ export interface RecentFile {
 /** Payload emitted from main → renderer when a watched file changes */
 export interface FileChangedEvent {
   path: string
+  kind: 'changed' | 'deleted'
   content: string
   mtime: number
   size: number
@@ -82,4 +85,11 @@ export interface ReadFileResponse {
   mtime: number
   size: number
   truncated: boolean
+}
+
+export interface WriteFileResponse {
+  ok: true
+  path: string
+  mtime: number
+  size: number
 }

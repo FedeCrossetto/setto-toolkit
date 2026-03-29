@@ -17,7 +17,7 @@ import { Breadcrumb } from './components/Breadcrumb'
 import { ContextMenu } from './components/ContextMenu'
 import { QuickOpen } from './components/QuickOpen'
 import { FindInFiles } from './components/FindInFiles'
-import type { FileChangedEvent, OpenFile, RecentFile, FileLanguage, FileTreeNode, EditorHandle } from './types'
+import type { FileChangedEvent, OpenFile, RecentFile, FileLanguage, FileTreeNode, EditorHandle, WriteFileResponse } from './types'
 import type { MenuItem } from './components/ContextMenu'
 
 let newFileCount = 0
@@ -86,6 +86,7 @@ export function FileEditor(): JSX.Element {
   const settingsRef  = useRef<HTMLDivElement>(null)
   const restoredRef  = useRef(false)
   const dragTabRef   = useRef<string | null>(null)
+  const recentWritesRef = useRef(new Map<string, { at: number; content: string }>())
   const [dragOverTab, setDragOverTab] = useState<string | null>(null)
 
   const appDark    = state.theme === 'dark'
@@ -101,8 +102,9 @@ export function FileEditor(): JSX.Element {
   // ── Auto-save ─────────────────────────────────────────────────────────────
   useAutoSave(activeTab, prefs, async () => {
     if (!activeTab?.path || !activeTab.isDirty) return
-    await window.api.invoke('editor:write-file', activeTab.path, activeTab.content)
-    updateTab(activeTab.id, { isDirty: false })
+    const result = await window.api.invoke<WriteFileResponse>('editor:write-file', activeTab.path, activeTab.content)
+    recentWritesRef.current.set(result.path, { at: Date.now(), content: activeTab.content })
+    updateTab(activeTab.id, { isDirty: false, lastModified: result.mtime, size: result.size })
   })
 
   // ── Report dirty state to global AppContext (drives TabBar dot indicator) ─
@@ -174,45 +176,35 @@ export function FileEditor(): JSX.Element {
     const onKey = async (e: KeyboardEvent): Promise<void> => {
       // Ctrl+P — quick open
       if (e.ctrlKey && !e.shiftKey && e.key === 'p') { e.preventDefault(); setQuickOpen(true); return }
+      if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 't') { e.preventDefault(); createNewFile(); return }
       // Ctrl+Shift+F — find in files
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'f') { e.preventDefault(); setShowFind((v) => !v); return }
-      // Ctrl+S — save
+      if (!e.ctrlKey && !e.shiftKey && e.key === 'F2') {
+        const target = e.target as HTMLElement | null
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+        if (!activeTab) return
+        e.preventDefault()
+        setRenamingTabId(activeTab.id)
+        return
+      }
+      // Ctrl+S — save. Skip when CodeMirror has focus because it handles Mod-s
+      // via its own keymap (onSaveShortcut). Handling both causes a double save.
       if (e.ctrlKey && !e.shiftKey && e.key === 's') {
         e.preventDefault()
         if (!activeTab) return
-        if (activeTab.path === null) {
-          const name = activeTab.name.endsWith('.txt') ? activeTab.name : `${activeTab.name}.txt`
-          const fp = await window.api.invoke<string | null>('editor:save-dialog', name)
-          if (!fp) return
-          await window.api.invoke('editor:write-file', fp, activeTab.content)
-          const n = fp.split(/[\\/]/).pop() ?? fp
-          updateTab(activeTab.id, { path: fp, name: n, isDirty: false })
-          setRecents((prev) => [{ path: fp, name: n, openedAt: new Date().toISOString() }, ...prev.filter((r) => r.path !== fp)])
-          notifySaved()
-        } else {
-          await window.api.invoke('editor:write-file', activeTab.path, activeTab.content)
-          updateTab(activeTab.id, { isDirty: false })
-          notifySaved()
+        if (!(e.target as HTMLElement)?.closest?.('.cm-editor')) {
+          await saveTab(activeTab)
         }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [activeTab, updateTab, notifySaved])
+  }, [activeTab, saveTab])
 
   // ── Filter → CodeEditor ───────────────────────────────────────────────────
   useEffect(() => { editorRef.current?.setFilter(logFilter) }, [logFilter])
 
   // ── File watcher ──────────────────────────────────────────────────────────
-  const onFileChanged = useCallback((event: FileChangedEvent) => {
-    const tab = tabs.find((t) => t.path === event.path)
-    if (!tab) return
-    tab.frozen
-      ? updateTab(tab.id, { hasUpdate: true })
-      : updateTab(tab.id, { content: event.content, lastModified: event.mtime, hasUpdate: false })
-  }, [tabs, updateTab])
-  useFileWatcher({ tab: activeTab, onFileChanged })
-
   // Tail mode
   useEffect(() => {
     if (activeTab?.tailMode && !activeTab.frozen) editorRef.current?.scrollToBottom()
@@ -239,6 +231,77 @@ export function FileEditor(): JSX.Element {
 
   const removeFolder  = (fp: string): void => setFolders((prev) => prev.filter((f) => f.path !== fp))
 
+  const markDeletedTabs = useCallback((targetPath: string, isDir: boolean): void => {
+    tabs.forEach((tab) => {
+      if (!isSameOrChildPath(tab.path, targetPath, isDir)) return
+      closeTab(tab.id)
+    })
+  }, [tabs, closeTab])
+
+  const onFileChanged = useCallback((event: FileChangedEvent) => {
+    const tab = tabs.find((t) => t.path === event.path)
+    if (!tab) return
+    const recentWrite = recentWritesRef.current.get(event.path)
+    if (event.kind === 'changed' && recentWrite && Date.now() - recentWrite.at < 1500 && recentWrite.content === event.content) {
+      recentWritesRef.current.delete(event.path)
+      updateTab(tab.id, { hasUpdate: false, isDeleted: false, lastModified: event.mtime, size: event.size })
+      return
+    }
+    if (event.kind === 'deleted') {
+      const rootPath = findRootPath(event.path)
+      if (rootPath) void refreshFolder(rootPath)
+      showToast(`"${tab.name}" was deleted on disk`, 'error')
+      closeTab(tab.id)
+      return
+    }
+    // File was modified externally — reload content automatically and notify
+    updateTab(tab.id, {
+      content: event.content,
+      lastModified: event.mtime,
+      hasUpdate: false,
+      isDeleted: false,
+      isDirty: false,
+      size: event.size,
+    })
+    showToast(`"${tab.name}" updated from disk`, 'info')
+  }, [tabs, updateTab, closeTab, findRootPath, refreshFolder, showToast])
+  useFileWatcher({ tab: activeTab, onFileChanged })
+
+  async function saveTab(tab: OpenFile): Promise<boolean> {
+    let targetPath = tab.path
+
+    if (targetPath === null) {
+      const suggestedName = tab.name.endsWith('.txt') ? tab.name : `${tab.name}.txt`
+      targetPath = await window.api.invoke<string | null>('editor:save-dialog', suggestedName)
+      if (!targetPath) return false
+    }
+
+    const result = await window.api.invoke<WriteFileResponse>('editor:write-file', targetPath, tab.content)
+    recentWritesRef.current.set(result.path, { at: Date.now(), content: tab.content })
+    const savedName = result.path.split(/[\\/]/).pop() ?? result.path
+
+    updateTab(tab.id, {
+      path: result.path,
+      name: savedName,
+      language: detectLanguage(savedName),
+      isDirty: false,
+      hasUpdate: false,
+      isDeleted: false,
+      lastModified: result.mtime,
+      size: result.size,
+    })
+    setRecents((prev) => [
+      { path: result.path, name: savedName, openedAt: new Date().toISOString() },
+      ...prev.filter((r) => r.path !== result.path),
+    ])
+
+    const rootPath = findRootPath(result.path)
+    if (rootPath) void refreshFolder(rootPath)
+
+    notifySaved()
+    return true
+  }
+
   const handleCloseTab = useCallback(async (tabId: string): Promise<void> => {
     const tab = tabs.find((t) => t.id === tabId)
     if (!tab) return
@@ -249,18 +312,12 @@ export function FileEditor(): JSX.Element {
       setCloseConfirm(null)
       if (result === 'cancel') return
       if (result === 'save') {
-        if (tab.path) {
-          await window.api.invoke('editor:write-file', tab.path, tab.content)
-          updateTab(tabId, { isDirty: false })
-        } else {
-          const fp = await window.api.invoke<string | null>('editor:save-dialog', tab.name)
-          if (!fp) return
-          await window.api.invoke('editor:write-file', fp, tab.content)
-        }
+        const saved = await saveTab(tab)
+        if (!saved) return
       }
     }
     closeTab(tabId)
-  }, [tabs, closeTab, updateTab])
+  }, [tabs, closeTab, saveTab])
   const toggleSelection = useCallback((id: string): void => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
@@ -330,6 +387,7 @@ export function FileEditor(): JSX.Element {
           setDeleteConfirm(null)
           if (!confirmed) return
           await window.api.invoke('editor:delete', node.path)
+          markDeletedTabs(node.path, node.isDir)
           refreshFolder(rootPath)
         },
       }] : []),
@@ -442,32 +500,14 @@ export function FileEditor(): JSX.Element {
   const createNewFile = (): void => { newFileCount++; openBuffer(newFileCount === 1 ? 'Untitled.txt' : `Untitled-${newFileCount}.txt`, '', 'text') }
 
   // ── Tab actions ───────────────────────────────────────────────────────────
-  const toggleWatch  = (): void => { if (activeTab) updateTab(activeTab.id, { watchActive: !activeTab.watchActive, hasUpdate: false }) }
+  const toggleWatch  = (): void => { if (activeTab) updateTab(activeTab.id, { watchActive: !activeTab.watchActive }) }
   const toggleTail   = (): void => { if (activeTab) updateTab(activeTab.id, { tailMode: !activeTab.tailMode }) }
   const toggleFreeze = (): void => { if (activeTab) updateTab(activeTab.id, { frozen: !activeTab.frozen }) }
   const toggleWrap   = (): void => { if (activeTab) updateTab(activeTab.id, { wordWrap: !activeTab.wordWrap }) }
 
-  const applyUpdate = (): void => {
-    if (!activeTab?.path || !activeTab.hasUpdate) return
-    window.api.invoke<{ content: string; mtime: number; size: number }>('editor:read-file', { path: activeTab.path })
-      .then((r) => updateTab(activeTab.id, { content: r.content, lastModified: r.mtime, hasUpdate: false }))
-  }
-
   const saveActive = async (): Promise<void> => {
     if (!activeTab) return
-    if (activeTab.path === null) {
-      const name = activeTab.name.endsWith('.txt') ? activeTab.name : `${activeTab.name}.txt`
-      const fp = await window.api.invoke<string | null>('editor:save-dialog', name)
-      if (!fp) return
-      await window.api.invoke('editor:write-file', fp, activeTab.content)
-      const n = fp.split(/[\\/]/).pop() ?? fp
-      updateTab(activeTab.id, { path: fp, name: n, isDirty: false })
-      notifySaved()
-    } else if (activeTab.isDirty) {
-      await window.api.invoke('editor:write-file', activeTab.path, activeTab.content)
-      updateTab(activeTab.id, { isDirty: false })
-      notifySaved()
-    }
+    if (activeTab.path === null || activeTab.isDirty) await saveTab(activeTab)
   }
 
   const openFileAtLine = async (path: string, line: number): Promise<void> => {
@@ -688,7 +728,6 @@ export function FileEditor(): JSX.Element {
                 {(() => { const Icon = languageIcon(tab.language); return <Icon size={13} /> })()}
                 <span className={`max-w-[120px] truncate ${tab.path === null ? 'italic' : ''}`}>{tab.name}</span>
                 {tab.isDirty && <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />}
-                {tab.hasUpdate && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" />}
                 <button onClick={(e) => { e.stopPropagation(); void handleCloseTab(tab.id) }}
                   className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error transition-all ml-0.5">
                   <X size={11} />
@@ -778,9 +817,6 @@ export function FileEditor(): JSX.Element {
                   <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${activeTab.frozen ? 'bg-on-surface-variant/50' : 'bg-accent animate-pulse'}`} />
                   <span className={`font-medium ${activeTab.frozen ? 'text-on-surface-variant' : 'text-accent'}`}>{activeTab.frozen ? 'Frozen' : 'Live'}</span>
                 </div>
-                {activeTab.hasUpdate && !activeTab.frozen && (
-                  <button onClick={applyUpdate} className="text-accent underline hover:no-underline">File changed — refresh</button>
-                )}
                 {/* Log filter */}
                 <div className="flex items-center gap-1.5 bg-surface-container border border-outline-variant/20 rounded-lg px-2 py-0.5">
                   <Filter size={12} className="text-on-surface-variant/40" />
@@ -823,8 +859,11 @@ export function FileEditor(): JSX.Element {
                 wordWrap={activeTab.wordWrap}
                 fontSize={prefs.fontSize}
                 fontFamily={prefs.fontFamily}
-                onChange={(val) => updateTab(activeTab.id, { content: val, isDirty: true })}
+                onChange={(val) => { updateTab(activeTab.id, { content: val, isDirty: true }) }}
                 onCursorChange={(ln, col) => setCursor({ ln, col })}
+                onSaveShortcut={() => { void saveActive() }}
+                onNewFileShortcut={createNewFile}
+                onRenameShortcut={() => setRenamingTabId(activeTab.id)}
                 editorRef={editorRef}
               />
             ) : (
@@ -978,6 +1017,13 @@ function InlineInput({ defaultValue, onCommit, onCancel }: {
       onBlur={() => val.trim() ? onCommit(val.trim()) : onCancel()}
       className="flex-1 bg-primary/10 text-primary text-[11px] px-1.5 py-0.5 rounded outline-none border border-primary/40 min-w-0" />
   )
+}
+
+function isSameOrChildPath(candidate: string | null, targetPath: string, isDir: boolean): boolean {
+  if (!candidate) return false
+  if (candidate === targetPath) return true
+  if (!isDir) return false
+  return candidate.startsWith(`${targetPath}\\`) || candidate.startsWith(`${targetPath}/`)
 }
 
 function FolderRoot({ folder, expanded, onToggle, onClose, cb }: {

@@ -417,17 +417,27 @@ interface CodeEditorProps {
   fontFamily?: string
   onChange?: (value: string) => void
   onCursorChange?: (line: number, col: number) => void
+  onSaveShortcut?: () => void
+  onNewFileShortcut?: () => void
+  onRenameShortcut?: () => void
   editorRef?: React.MutableRefObject<EditorHandle | null>
 }
 
 export function CodeEditor({
   content, language, isDark, readOnly = false, wordWrap = true,
   initialLine, fontSize = 11, fontFamily = 'JetBrains Mono',
-  onChange, onCursorChange, editorRef,
+  onChange, onCursorChange, onSaveShortcut, onNewFileShortcut, onRenameShortcut, editorRef,
 }: CodeEditorProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef      = useRef<EditorView | null>(null)
   const filterCompartment = useRef(new Compartment())
+  const saveShortcutRef = useRef(onSaveShortcut)
+  const newFileShortcutRef = useRef(onNewFileShortcut)
+  const renameShortcutRef = useRef(onRenameShortcut)
+
+  saveShortcutRef.current = onSaveShortcut
+  newFileShortcutRef.current = onNewFileShortcut
+  renameShortcutRef.current = onRenameShortcut
 
   const scrollToBottom = useCallback(() => {
     viewRef.current?.dispatch({ effects: EditorView.scrollIntoView(viewRef.current.state.doc.length, { y: 'end' }) })
@@ -468,7 +478,12 @@ export function CodeEditor({
     })
 
     const extensions = [
-      keymap.of([{ key: 'Ctrl-g', run: gotoLine }]),   // must be before basicSetup to override findNext
+      keymap.of([
+        { key: 'Ctrl-g', run: gotoLine },
+        { key: 'Mod-s', run: () => { saveShortcutRef.current?.(); return true } },
+        { key: 'Mod-t', run: () => { newFileShortcutRef.current?.(); return true } },
+        { key: 'F2', run: () => { renameShortcutRef.current?.(); return true } },
+      ]),   // must be before basicSetup to override defaults
       basicSetup,
       getLanguageExt(language),
       ...themeExts,

@@ -175,7 +175,18 @@ export const handlers: PluginHandlers = {
       const safe = validatePath(filePath)
       assertInAuthorizedRoot(safe)
       fs.writeFileSync(safe, content, 'utf-8')
-      return { ok: true }
+      const stat = fs.statSync(safe)
+      addRecentFile(settings, {
+        path: safe,
+        name: path.basename(safe),
+        openedAt: new Date().toISOString(),
+      })
+      return {
+        ok: true as const,
+        path: safe,
+        mtime: stat.mtimeMs,
+        size: stat.size,
+      }
     })
 
     // ── Save As dialog ─────────────────────────────────────────────────────
@@ -217,6 +228,7 @@ export const handlers: PluginHandlers = {
 
           const payload: FileChangedEvent = {
             path: safe,
+            kind: 'changed',
             content,
             mtime: stat.mtimeMs,
             size: stat.size,
@@ -228,6 +240,22 @@ export const handlers: PluginHandlers = {
         } catch {
           // File may have been deleted — ignore
         }
+      })
+
+      watcher.on('unlink', () => {
+        const payload: FileChangedEvent = {
+          path: safe,
+          kind: 'deleted',
+          content: '',
+          mtime: Date.now(),
+          size: 0,
+        }
+
+        const win = BrowserWindow.fromWebContents(event.sender)
+        win?.webContents.send('editor:file-changed', payload)
+
+        watcher.close()
+        watchers.delete(safe)
       })
 
       watchers.set(safe, watcher)

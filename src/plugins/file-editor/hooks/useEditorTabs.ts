@@ -84,6 +84,7 @@ export function useEditorTabs() {
         tailMode: false,
         frozen: false,
         hasUpdate: false,
+        isDeleted: false,
         size: result.size,
         wordWrap: true,
       }
@@ -101,7 +102,7 @@ export function useEditorTabs() {
     const file: OpenFile = {
       id: newId(), path: null, name, language, content,
       isDirty: false, lastModified: Date.now(),
-      watchActive: false, tailMode: false, frozen: false, hasUpdate: false,
+      watchActive: false, tailMode: false, frozen: false, hasUpdate: false, isDeleted: false,
       size: new TextEncoder().encode(content).length,
       wordWrap: true,
     }
