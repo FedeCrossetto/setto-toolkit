@@ -437,7 +437,7 @@ function LoginForm({ provider, onLogin }: { provider: Provider; onLogin: (auth: 
             )}
 
             <button onClick={handleLogin} disabled={loading || !isValid}
-              className="w-full py-2.5 rounded-full text-sm font-bold text-on-primary-fixed shadow-neon-btn hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-2.5 rounded-lg text-sm font-bold text-on-primary-fixed shadow-neon-btn hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: 'var(--gradient-brand)' }}>
               {loading ? 'Connecting…' : 'Connect'}
             </button>
@@ -969,7 +969,7 @@ export function RepoSearch(): JSX.Element {
                     {SUGGESTIONS.map((s) => (
                       <button key={s}
                         onClick={() => { setQuery(s); void handleSearch(s) }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs bg-surface-container border border-outline-variant/15 text-on-surface-variant hover:text-primary hover:border-primary/30 transition-colors font-mono"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-surface-container border border-outline-variant/15 text-on-surface-variant hover:text-primary hover:border-primary/30 transition-colors font-mono"
                       >
                         <Search size={12} />
                         {s}
