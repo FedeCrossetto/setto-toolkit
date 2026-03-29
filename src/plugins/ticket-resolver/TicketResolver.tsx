@@ -1,14 +1,12 @@
-import { useState, useEffect, useCallback, useRef, type ComponentType } from 'react'
+import { useState, useEffect, useCallback, type ComponentType } from 'react'
 import {
   Brain, Check, CheckCircle2, CircleAlert, ClipboardList, Code2, Copy,
   FileText, FolderOpen, Network, Pencil, Play, Plus, RotateCcw, Save, Search,
-  Settings, Sparkles, Ticket, TriangleAlert, Wrench, X, Cpu, ChevronRight,
-  AlertCircle,
+  Settings, Sparkles, Ticket, TriangleAlert, Wrench, X, ChevronRight,
 } from 'lucide-react'
 import type {
   JiraTicket, AnalysisPlan, AnalysisResult, CodeSnippet,
   HistoryEntry, Phase, AnalysisStepUI, DiffChunk, TicketComment,
-  FlowState, OrchestratorAnalysis, OrchestratorPlan,
 } from './types'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -82,7 +80,7 @@ function TokenCounter({ usage, onReset }: { usage:SessionUsage; onReset:()=>void
 }
 
 // ── Config shape ───────────────────────────────────────────────────────────────
-interface ConfigValues { jiraUrl:string; jiraUser:string; jiraToken:string; repoPath:string; projectPrefix:string; claudePath:string }
+interface ConfigValues { jiraUrl:string; jiraUser:string; jiraToken:string; repoPath:string; projectPrefix:string }
 
 // ── Priority ───────────────────────────────────────────────────────────────────
 const PRIORITY_COLOR: Record<string,string> = {
@@ -500,15 +498,6 @@ function ConfigPanel({
                 <div><label className={lbl}>Ruta del repositorio Wigos</label><input className={inp} placeholder="D:\repos\wigos" value={local.repoPath} onChange={set('repoPath')} /></div>
               </div>
             </div>
-            {/* Claude CLI */}
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-3">Claude CLI (Orquestador)</div>
-              <div>
-                <label className={lbl}>Ruta o comando</label>
-                <input className={inp} placeholder="claude" value={local.claudePath} onChange={set('claudePath')} />
-                <p className="text-[11px] text-on-surface-variant/30 mt-1">Dejá en blanco para usar <code className="bg-white/[0.06] px-1 rounded">claude</code> del PATH. Ej: <code className="bg-white/[0.06] px-1 rounded">C:\tools\claude.exe</code></p>
-              </div>
-            </div>
             {/* AI info */}
             <div className="px-4 py-3 bg-surface-container/60 rounded-xl border border-outline-variant/10">
               <div className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-1">Modelo IA activo</div>
@@ -829,521 +818,9 @@ function ResultsPanel({
   )
 }
 
-// ── Claude CLI Orchestrator ─────────────────────────────────────────────────
-
-const FLOW_STEPS: Array<{ state: FlowState; label: string }> = [
-  { state: 'building_context',  label: 'Ticket'    },
-  { state: 'extracting_terms',  label: 'Búsqueda'  },
-  { state: 'running_analysis',  label: 'Análisis'  },
-  { state: 'awaiting_decision', label: 'Decisión'  },
-  { state: 'running_plan',      label: 'Plan'      },
-  { state: 'plan_ready',        label: 'Listo'     },
-]
-
-const FLOW_ORDER: FlowState[] = [
-  'idle', 'building_context', 'extracting_terms',
-  'running_analysis', 'analysis_ready',
-  'awaiting_decision', 'running_plan', 'plan_ready',
-]
-
-function flowIndex(s: FlowState): number {
-  return FLOW_ORDER.indexOf(s)
-}
-
-function FlowTimeline({ state }: { state: FlowState }): JSX.Element {
-  const current = flowIndex(state)
-  return (
-    <div className="flex items-center gap-1">
-      {FLOW_STEPS.map((step, i) => {
-        const stepIdx = flowIndex(step.state)
-        const done    = current > stepIdx
-        const active  = current === stepIdx || (step.state === 'running_analysis' && state === 'analysis_ready')
-        return (
-          <div key={step.state} className="flex items-center gap-0.5">
-            <div className={['flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium transition-all',
-              done   ? 'bg-green-500/12 text-green-400 border border-green-500/15' :
-              active ? 'bg-primary/12 text-primary border border-primary/20 tr-pulse' :
-                       'bg-white/[0.03] text-on-surface-variant/25 border border-outline-variant/8',
-            ].join(' ')}>
-              {done && <Check size={8}/>}
-              {active && <span className="w-1 h-1 rounded-full bg-primary animate-pulse"/>}
-              {step.label}
-            </div>
-            {i < FLOW_STEPS.length - 1 && (
-              <ChevronRight size={8} className={done?'text-green-400/30':'text-on-surface-variant/12'}/>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-interface OrchestratorViewProps {
-  config: ConfigValues
-  onOpenConfig: () => void
-  onHistorySaved: (entry: HistoryEntry) => void
-}
-
-function OrchestratorView({ config, onOpenConfig, onHistorySaved }: OrchestratorViewProps): JSX.Element {
-  const [flowState, setFlowState]   = useState<FlowState>('idle')
-  const [ticketInput, setTicketInput] = useState('')
-  const [ticket, setTicket]         = useState<JiraTicket | null>(null)
-  const [snippets, setSnippets]     = useState<CodeSnippet[]>([])
-  const [analysis, setAnalysis]     = useState<OrchestratorAnalysis | null>(null)
-  const [plan, setPlan]             = useState<OrchestratorPlan | null>(null)
-  const [userNotes, setUserNotes]   = useState('')
-  const [error, setError]           = useState<string | null>(null)
-  const [copied, setCopied]         = useState<string | null>(null)
-  const [justSaved, setJustSaved]   = useState(false)
-  const abortRef = useRef(false)
-
-  const isConfigured = Boolean(config.jiraUrl && config.jiraUser && config.jiraToken)
-
-  const normalizeKey = (input: string) => {
-    const t = input.trim().toUpperCase()
-    if (/^[A-Z]+-\d+$/.test(t)) return t
-    if (/^\d+$/.test(t)) return `${config.projectPrefix || 'WIN'}-${t}`
-    return t
-  }
-
-  const resetFlow = () => {
-    abortRef.current = true
-    setTimeout(() => { abortRef.current = false }, 100)
-    setFlowState('idle'); setTicketInput(''); setTicket(null); setSnippets([])
-    setAnalysis(null); setPlan(null); setUserNotes(''); setError(null)
-  }
-
-  const copy = (text: string, key: string) =>
-    void navigator.clipboard.writeText(text).then(() => {
-      setCopied(key); setTimeout(() => setCopied(null), 1500)
-    })
-
-  const handleSaveHistory = async () => {
-    if (!ticket || !plan) return
-    const entry: HistoryEntry = {
-      id:           ticket.key,
-      ticketKey:    ticket.key,
-      summary:      ticket.summary,
-      component:    ticket.components[0] ?? 'Orquestador',
-      technology:   'Claude CLI',
-      nature:       analysis?.rootCause?.slice(0, 120) ?? '',
-      rootCause:    analysis?.rootCause ?? '',
-      fix:          plan.plan.slice(0, 600),
-      affectedFiles: plan.files.split('\n').map(l => l.trim()).filter(Boolean),
-      diff:         [],
-      createdAt:    new Date().toISOString(),
-    }
-    await window.api.invoke('ticket-resolver:history-save', entry)
-    setJustSaved(true)
-    setTimeout(() => setJustSaved(false), 2000)
-    onHistorySaved(entry)
-  }
-
-  // Full CLI flow: fetch ticket → Claude extracts terms → search repo → Claude analysis
-  const handleStart = async () => {
-    if (!ticketInput.trim() || !isConfigured) return
-    abortRef.current = false
-    setError(null); setFlowState('building_context')
-    try {
-      // Step 1: fetch ticket from Jira
-      const t = await window.api.invoke<JiraTicket>('ticket-resolver:fetch', normalizeKey(ticketInput))
-      if (abortRef.current) return
-      setTicket(t)
-
-      // Step 2: Claude CLI extracts relevant search terms from the ticket
-      setFlowState('extracting_terms')
-      const terms = await window.api.invoke<string[]>('ticket-resolver:orch-extract-terms', t)
-      if (abortRef.current) return
-
-      // Step 3: search repo with the AI-generated terms
-      const found = await window.api.invoke<CodeSnippet[]>('ticket-resolver:search', terms)
-      if (abortRef.current) return
-      setSnippets(found)
-
-      // Step 4: Claude CLI full analysis with ticket + code context
-      setFlowState('running_analysis')
-      const result = await window.api.invoke<OrchestratorAnalysis>(
-        'ticket-resolver:orch-analyze', t, found,
-      )
-      if (abortRef.current) return
-      setAnalysis(result)
-      setFlowState('analysis_ready')
-      setTimeout(() => {
-        if (!abortRef.current) setFlowState('awaiting_decision')
-      }, 600)
-    } catch (e) {
-      if (!abortRef.current) { setError((e as Error).message); setFlowState('error') }
-    }
-  }
-
-  // Stage 2: run Claude CLI plan generation
-  const handleGeneratePlan = async () => {
-    if (!ticket || !analysis) return
-    setFlowState('running_plan')
-    try {
-      const result = await window.api.invoke<OrchestratorPlan>(
-        'ticket-resolver:orch-plan',
-        ticket,
-        snippets,
-        { rootCause: analysis.rootCause, approach: analysis.approach },
-        userNotes,
-      )
-      setPlan(result)
-      setFlowState('plan_ready')
-    } catch (e) {
-      setError((e as Error).message); setFlowState('error')
-    }
-  }
-
-  const isRunning = flowState === 'building_context' || flowState === 'extracting_terms' || flowState === 'running_analysis' || flowState === 'running_plan'
-
-  // ── Render ──────────────────────────────────────────────────────────────
-
-  // IDLE
-  if (flowState === 'idle') {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-6 gap-4">
-        {!isConfigured && (
-          <div className="flex items-center gap-2 text-amber-400 text-[11px] bg-amber-400/8 border border-amber-400/15 px-3 py-2 rounded-lg w-full max-w-xs">
-            <TriangleAlert size={13} className="flex-shrink-0"/>
-            <span>Configurá las credenciales de Jira primero.</span>
-            <button onClick={onOpenConfig} className="underline font-medium ml-auto flex-shrink-0 hover:no-underline">Configurar</button>
-          </div>
-        )}
-        <div className="w-full max-w-xs text-center">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
-            <Cpu size={24} className="text-primary"/>
-          </div>
-          <h2 className="text-[15px] font-bold text-on-surface">Claude Orchestrator</h2>
-          <p className="text-[11px] text-on-surface-variant/40 mt-0.5 mb-4">
-            Claude CLI local · sin API key
-          </p>
-          <div className="flex gap-1.5">
-            <input value={ticketInput} onChange={e=>setTicketInput(e.target.value)}
-              onKeyDown={e=>{if(e.key==='Enter')void handleStart()}}
-              placeholder={`${config.projectPrefix||'WIN'}-1234`}
-              autoFocus
-              className="flex-1 bg-surface-container border border-outline-variant/25 rounded-lg px-3 py-2 text-[12px] text-on-surface placeholder-on-surface-variant/20 focus:outline-none focus:border-primary/50 transition-colors"/>
-            <button onClick={()=>void handleStart()} disabled={!ticketInput.trim()||!isConfigured}
-              className="px-4 py-2 rounded-lg text-[11px] font-semibold text-white disabled:opacity-35 hover:opacity-90 transition-opacity"
-              style={{background:'var(--gradient-brand)'}}>
-              Analizar
-            </button>
-          </div>
-          <p className="text-[10px] text-on-surface-variant/25 text-center mt-1.5">Solo el número (1234) o la clave (WIN-1234)</p>
-        </div>
-      </div>
-    )
-  }
-
-  // ERROR
-  if (flowState === 'error') {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3 tr-fadein px-6">
-        <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
-          <AlertCircle size={20} className="text-red-400"/>
-        </div>
-        <div className="text-center max-w-sm">
-          <div className="text-[13px] font-semibold text-on-surface mb-1.5">Error en el orquestador</div>
-          <div className="text-[11px] text-on-surface-variant/45 leading-relaxed bg-surface-container rounded-xl px-3 py-2.5 text-left font-mono whitespace-pre-wrap">
-            {error}
-          </div>
-        </div>
-        <button onClick={resetFlow}
-          className="px-3 py-1.5 rounded-lg text-[11px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.04] transition-colors">
-          <Plus size={12} className="inline mr-1"/>Nuevo ticket
-        </button>
-      </div>
-    )
-  }
-
-  // ACTIVE FLOW (building_context through plan_ready)
-  return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-
-      {/* Flow timeline bar */}
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-outline-variant/10 flex-shrink-0">
-        <FlowTimeline state={flowState}/>
-        {isRunning && (
-          <span className="flex items-center gap-1 text-[10px] text-primary/55 ml-auto">
-            <Spinner size={10}/>Claude CLI...
-          </span>
-        )}
-      </div>
-
-      <div className="flex-1 flex overflow-hidden">
-
-      {/* Left: context panel */}
-      <div className="w-[260px] flex-shrink-0 overflow-y-auto border-r border-outline-variant/10 flex flex-col gap-2 p-3">
-
-        {/* Ticket info */}
-        {ticket ? (
-          <div className="bg-surface-container rounded-xl p-3 tr-fadein">
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <span className="text-[11px] font-bold text-primary">{ticket.key}</span>
-              {ticket.priority && <span className={`text-[9px] font-bold uppercase ${PRIORITY_COLOR[ticket.priority]??'text-on-surface-variant'}`}>{ticket.priority}</span>}
-            </div>
-            <p className="text-[11px] font-semibold text-on-surface leading-snug mb-1.5">{ticket.summary}</p>
-            {ticket.components.length > 0 && (
-              <div className="flex gap-1 flex-wrap">
-                {ticket.components.map(c=><span key={c} className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">{c}</span>)}
-              </div>
-            )}
-            {ticket.description && (
-              <p className="text-[10px] text-on-surface-variant/50 mt-1.5 leading-relaxed line-clamp-3">{ticket.description.slice(0,200)}</p>
-            )}
-          </div>
-        ) : (
-          <div className="bg-surface-container rounded-xl p-3">
-            <div className="flex items-center gap-2 mb-2"><Skel h="h-3" w="w-20"/></div>
-            <Skel h="h-4"/><Skel h="h-3" w="w-3/4" className="mt-1"/>
-          </div>
-        )}
-
-        {/* Code snippets — collapsed by default */}
-        {snippets.length > 0 && (
-          <div className="rounded-xl border border-outline-variant/8 overflow-hidden tr-fadein">
-            <button className="flex items-center gap-1.5 w-full px-2.5 py-2 text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/30 hover:bg-white/[0.03] transition-colors"
-              onClick={e=>{const el=e.currentTarget.nextElementSibling as HTMLElement; el.style.display=el.style.display==='none'?'':'none'}}>
-              <Code2 size={10}/>Código · {snippets.length}
-            </button>
-            <div style={{display:'none'}} className="flex flex-col divide-y divide-outline-variant/8">
-              {snippets.slice(0,5).map((s,i)=>(
-                <div key={i} className="px-2.5 py-1.5">
-                  <div className="text-[9px] font-mono text-on-surface-variant/25 truncate mb-0.5">{s.file}:{s.line}</div>
-                  <pre className="text-[9px] font-mono text-on-surface/40 overflow-x-auto whitespace-pre leading-relaxed max-h-14">{s.context.slice(0,200)}</pre>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Cancel button */}
-        <button onClick={resetFlow} className="text-[10px] text-on-surface-variant/25 hover:text-on-surface-variant/50 transition-colors text-center py-1">
-          Cancelar
-        </button>
-      </div>
-
-      {/* Right: stage output */}
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
-
-        {/* Building context */}
-        {flowState === 'building_context' && (
-          <div className="flex flex-col items-center justify-center h-full gap-3 tr-fadein">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center"><Spinner size={20}/></div>
-            <div className="text-center">
-              <div className="text-[13px] font-semibold text-on-surface mb-0.5">Obteniendo ticket</div>
-              <div className="text-[11px] text-on-surface-variant/40">Conectando con Jira...</div>
-            </div>
-          </div>
-        )}
-
-        {/* Extracting terms */}
-        {flowState === 'extracting_terms' && (
-          <div className="flex flex-col items-center justify-center h-full gap-3 tr-fadein">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Search size={20} className="text-primary tr-pulse"/>
-            </div>
-            <div className="text-center">
-              <div className="text-[13px] font-semibold text-on-surface mb-0.5">Extrayendo términos de búsqueda...</div>
-              <div className="text-[11px] text-on-surface-variant/40">Identificando clases, métodos y módulos relevantes.</div>
-            </div>
-            <div className="flex gap-1">{[0,160,320].map(d=><div key={d} className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{animationDelay:`${d}ms`}}/>)}</div>
-          </div>
-        )}
-
-        {/* Running analysis */}
-        {(flowState === 'running_analysis' || flowState === 'analysis_ready') && (
-          <div className="flex flex-col items-center justify-center h-full gap-3 tr-fadein">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              {flowState === 'analysis_ready'
-                ? <CheckCircle2 size={20} className="text-green-400 tr-pop"/>
-                : <Brain size={20} className="text-primary tr-pulse"/>}
-            </div>
-            <div className="text-center">
-              <div className="text-[13px] font-semibold text-on-surface mb-0.5">
-                {flowState === 'analysis_ready' ? 'Análisis completo' : 'Claude analizando...'}
-              </div>
-              <div className="text-[11px] text-on-surface-variant/40">
-                {flowState === 'analysis_ready'
-                  ? 'Preparando pantalla de decisión...'
-                  : 'Procesando el contexto. Puede tardar 30–90 segundos.'}
-              </div>
-            </div>
-            {flowState === 'running_analysis' && (
-              <div className="flex gap-1">{[0,160,320].map(d=><div key={d} className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{animationDelay:`${d}ms`}}/>)}</div>
-            )}
-          </div>
-        )}
-
-        {/* Awaiting decision */}
-        {flowState === 'awaiting_decision' && analysis && (
-          <div className="flex flex-col gap-3 tr-fadein">
-            {analysis.rootCause && (
-              <div className="bg-surface-container rounded-xl p-3">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="w-1 h-4 rounded-full bg-amber-400 flex-shrink-0"/>
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/40">Causa raíz</span>
-                  <button onClick={()=>copy(analysis.rootCause,'rc')} className="ml-auto text-on-surface-variant/20 hover:text-primary transition-colors">
-                    {copied==='rc'?<Check size={11}/>:<Copy size={11}/>}
-                  </button>
-                </div>
-                <p className="text-[12px] text-on-surface leading-relaxed">{analysis.rootCause}</p>
-              </div>
-            )}
-            {analysis.approach && (
-              <div className="bg-surface-container rounded-xl p-3">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="w-1 h-4 rounded-full bg-green-400 flex-shrink-0"/>
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/40">Enfoque propuesto</span>
-                </div>
-                <p className="text-[12px] text-on-surface leading-relaxed">{analysis.approach}</p>
-              </div>
-            )}
-            {(analysis.complexity || analysis.risks) && (
-              <div className="grid grid-cols-2 gap-2">
-                {analysis.complexity && (
-                  <div className="bg-surface-container rounded-xl p-3">
-                    <div className="text-[8px] font-bold uppercase tracking-widest text-on-surface-variant/30 mb-1">Complejidad</div>
-                    <p className="text-[11px] text-on-surface">{analysis.complexity}</p>
-                  </div>
-                )}
-                {analysis.risks && (
-                  <div className="bg-surface-container rounded-xl p-3">
-                    <div className="text-[8px] font-bold uppercase tracking-widest text-on-surface-variant/30 mb-1">Riesgos</div>
-                    <p className="text-[11px] text-on-surface">{analysis.risks}</p>
-                  </div>
-                )}
-              </div>
-            )}
-            {!analysis.rootCause && analysis.analysis && (
-              <div className="bg-surface-container rounded-xl p-3">
-                <div className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/30 mb-1.5">Análisis</div>
-                <p className="text-[12px] text-on-surface leading-relaxed whitespace-pre-wrap">{analysis.analysis}</p>
-              </div>
-            )}
-            <div className="bg-surface-container/60 rounded-xl p-3 border border-primary/12">
-              <div className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/35 mb-1.5">
-                Notas o ajustes (opcional)
-              </div>
-              <textarea value={userNotes} onChange={e=>setUserNotes(e.target.value)}
-                placeholder="Ej: priorizar performance, el archivo principal es X..."
-                rows={2}
-                className="w-full bg-surface border border-outline-variant/15 rounded-lg px-2.5 py-2 text-[11px] text-on-surface placeholder-on-surface-variant/20 focus:outline-none focus:border-primary/45 transition-colors resize-none"/>
-            </div>
-            <div className="flex gap-1.5">
-              <button onClick={()=>void handleGeneratePlan()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-semibold text-white hover:opacity-90 transition-opacity"
-                style={{background:'var(--gradient-brand)'}}>
-                <Play size={13}/>Generar plan
-              </button>
-              <button onClick={resetFlow}
-                className="px-3 py-2 rounded-lg text-[11px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.04] transition-colors">
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Running plan */}
-        {flowState === 'running_plan' && (
-          <div className="flex flex-col items-center justify-center h-full gap-3 tr-fadein">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Brain size={20} className="text-primary tr-pulse"/>
-            </div>
-            <div className="text-center">
-              <div className="text-[13px] font-semibold text-on-surface mb-0.5">Generando plan...</div>
-              <div className="text-[11px] text-on-surface-variant/40">Elaborando el plan de implementación.</div>
-            </div>
-            <div className="flex gap-1">{[0,160,320].map(d=><div key={d} className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{animationDelay:`${d}ms`}}/>)}</div>
-          </div>
-        )}
-
-        {/* Plan ready */}
-        {flowState === 'plan_ready' && plan && (
-          <div className="flex flex-col gap-3 tr-fadein">
-            <div className="bg-surface-container rounded-xl p-3">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-1 h-4 rounded-full bg-primary/60 flex-shrink-0"/>
-                  <Wrench size={12} className="text-primary/60"/>
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/40">Plan de implementación</span>
-                </div>
-                <button onClick={()=>copy(plan.plan,'plan')} className="text-on-surface-variant/20 hover:text-primary transition-colors">
-                  {copied==='plan'?<Check size={12}/>:<Copy size={12}/>}
-                </button>
-              </div>
-              <pre className="text-[11px] text-on-surface leading-relaxed whitespace-pre-wrap font-sans">{plan.plan}</pre>
-            </div>
-            {plan.files && (
-              <div className="bg-surface-container rounded-xl p-3">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <FolderOpen size={12} className="text-on-surface-variant/30"/>
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/30">Archivos afectados</span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  {plan.files.split('\n').filter(Boolean).map((f,i)=>(
-                    <div key={i} className="flex items-center gap-1.5 bg-surface rounded-lg px-2.5 py-1.5 border border-outline-variant/8">
-                      <FileText size={10} className="text-on-surface-variant/20 flex-shrink-0"/>
-                      <span className="font-mono text-[10px] text-on-surface-variant/60 truncate">{f.trim()}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {plan.tests && (
-              <div className="bg-surface-container rounded-xl p-3">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <CheckCircle2 size={12} className="text-green-400"/>
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/35">Cómo verificar el fix</span>
-                </div>
-                <p className="text-[11px] text-on-surface leading-relaxed whitespace-pre-wrap">{plan.tests}</p>
-              </div>
-            )}
-            {plan.jiraComment && (
-              <div className="bg-surface-container rounded-xl p-3 border border-blue-500/12">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1.5">
-                    <FileText size={12} className="text-blue-400"/>
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/35">Comentario para Jira</span>
-                  </div>
-                  <button onClick={()=>copy(plan.jiraComment,'jira')}
-                    className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-white/[0.04] hover:bg-primary/10 hover:text-primary text-on-surface-variant/35 transition-all">
-                    {copied==='jira'?<><Check size={11}/>Copiado</>:<><Copy size={11}/>Copiar</>}
-                  </button>
-                </div>
-                <p className="text-[11px] text-on-surface leading-relaxed whitespace-pre-wrap">{plan.jiraComment}</p>
-              </div>
-            )}
-            <div className="flex gap-1.5 flex-wrap pb-1">
-              <button onClick={()=>void handleSaveHistory()}
-                className={['flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors',
-                  justSaved?'bg-green-500/12 text-green-400':'bg-primary/10 text-primary hover:bg-primary/18',
-                ].join(' ')}>
-                {justSaved?<><CheckCircle2 size={12}/>Guardado</>:<><Save size={12}/>Guardar</>}
-              </button>
-              <button onClick={()=>copy(`CAUSA RAÍZ:\n${analysis?.rootCause}\n\nPLAN:\n${plan.plan}\n\nARCHIVOS:\n${plan.files}`,'all')}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.04] transition-colors">
-                {copied==='all'?<Check size={12}/>:<Copy size={12}/>}Copiar
-              </button>
-              <button onClick={resetFlow}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.04] transition-colors">
-                <Plus size={12}/>Nuevo
-              </button>
-            </div>
-          </div>
-        )}
-
-      </div>
-      </div>
-    </div>
-  )
-}
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 export function TicketResolver(): JSX.Element {
-  const [mode, setMode]               = useState<'resolver' | 'orchestrator'>('resolver')
   const [phase, setPhase]             = useState<Phase>('idle')
   const [ticketInput, setTicketInput] = useState('')
   const [ticket, setTicket]           = useState<JiraTicket|null>(null)
@@ -1358,7 +835,7 @@ export function TicketResolver(): JSX.Element {
   const [justSavedKey, setJustSavedKey] = useState<string|null>(null)
   const [aiModel, setAiModel]         = useState('')
   const [sessionUsage, setSessionUsage] = useState<SessionUsage>({inputTokens:0,outputTokens:0,calls:0,contextWindowSize:200000})
-  const [config, setConfig]           = useState<ConfigValues>({jiraUrl:'',jiraUser:'',jiraToken:'',repoPath:'',projectPrefix:'WIN',claudePath:''})
+  const [config, setConfig]           = useState<ConfigValues>({jiraUrl:'',jiraUser:'',jiraToken:'',repoPath:'',projectPrefix:'WIN'})
   const [disp, setDisp]               = useState<DisplayCfg>(DEFAULT_DISPLAY)
 
   useEffect(() => {
@@ -1366,13 +843,12 @@ export function TicketResolver(): JSX.Element {
       const s = document.createElement('style'); s.id='tr-styles'; s.textContent=TR_STYLES; document.head.appendChild(s)
     }
     void (async () => {
-      const [url,user,token,repo,prefix,claudePath,fs,dn,lh,provider,openModel,anthropicModel,ollamaModel] = await Promise.all([
+      const [url,user,token,repo,prefix,fs,dn,lh,provider,openModel,anthropicModel,ollamaModel] = await Promise.all([
         window.api.invoke<string|null>('settings:get','ticket-resolver.jira_url'),
         window.api.invoke<string|null>('settings:get','ticket-resolver.jira_user'),
         window.api.invoke<string|null>('settings:get','ticket-resolver.jira_token'),
         window.api.invoke<string|null>('settings:get','ticket-resolver.repo_path'),
         window.api.invoke<string|null>('settings:get','ticket-resolver.project_prefix'),
-        window.api.invoke<string|null>('settings:get','ticket-resolver.claude_path'),
         window.api.invoke<string|null>('settings:get','ticket-resolver.ui.font_size'),
         window.api.invoke<string|null>('settings:get','ticket-resolver.ui.density'),
         window.api.invoke<string|null>('settings:get','ticket-resolver.ui.line_height'),
@@ -1381,7 +857,7 @@ export function TicketResolver(): JSX.Element {
         window.api.invoke<string|null>('settings:get','ai.anthropic_model'),
         window.api.invoke<string|null>('settings:get','ai.ollama_model'),
       ])
-      setConfig({jiraUrl:url??'',jiraUser:user??'',jiraToken:token??'',repoPath:repo??'',projectPrefix:prefix??'WIN',claudePath:claudePath??''})
+      setConfig({jiraUrl:url??'',jiraUser:user??'',jiraToken:token??'',repoPath:repo??'',projectPrefix:prefix??'WIN'})
       setDisp({
         fontSize:   (fs  as FontSize)   ?? 'normal',
         density:    (dn  as Density)    ?? 'comfortable',
@@ -1401,7 +877,6 @@ export function TicketResolver(): JSX.Element {
       window.api.invoke('settings:set','ticket-resolver.jira_user',c.jiraUser),
       window.api.invoke('settings:set','ticket-resolver.repo_path',c.repoPath),
       window.api.invoke('settings:set','ticket-resolver.project_prefix',c.projectPrefix),
-      window.api.invoke('settings:set','ticket-resolver.claude_path',c.claudePath),
     ])
     if (c.jiraToken && c.jiraToken!=='__CONFIGURED__')
       await window.api.invoke('settings:set','ticket-resolver.jira_token',c.jiraToken)
@@ -1570,37 +1045,22 @@ export function TicketResolver(): JSX.Element {
 
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-1.5 border-b border-outline-variant/15 flex-shrink-0 gap-2">
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <button onClick={()=>setMode('resolver')}
-              className={['flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all',
-                mode==='resolver' ? 'bg-primary/10 text-primary' : 'text-on-surface-variant/45 hover:text-on-surface hover:bg-white/[0.04]',
-              ].join(' ')}>
-              <Ticket size={12}/>Resolver
-            </button>
-            <button onClick={()=>setMode('orchestrator')}
-              className={['flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all',
-                mode==='orchestrator' ? 'bg-primary/10 text-primary' : 'text-on-surface-variant/45 hover:text-on-surface hover:bg-white/[0.04]',
-              ].join(' ')}>
-              <Cpu size={12}/>Orquestador
-            </button>
-          </div>
-          <div className="flex-1 min-w-0 flex items-center gap-2">
-            {mode==='resolver' && ticket && <span className="text-[11px] text-on-surface-variant/35 truncate">· {ticket.key}</span>}
-            {mode==='resolver' && (phase==='analyzing'||phase==='planning') && (
+          <div className="flex items-center gap-2 min-w-0">
+            <Ticket size={13} className="text-primary flex-shrink-0"/>
+            {ticket && <span className="text-[11px] text-on-surface-variant/35 truncate">· {ticket.key}</span>}
+            {(phase==='analyzing'||phase==='planning') && (
               <span className="flex items-center gap-1 text-[10px] text-primary/70 bg-primary/8 px-2 py-0.5 rounded-full border border-primary/15 tr-fadein">
                 <Spinner size={10}/>{phase==='analyzing'?'Analizando...':'Planificando...'}
               </span>
             )}
-            {mode==='resolver' && aiModel && (
+            {aiModel && (
               <span className="hidden xl:inline-flex items-center gap-1 text-[9px] text-on-surface-variant/25 bg-white/[0.03] px-1.5 py-0.5 rounded-full border border-outline-variant/8">
                 <Sparkles size={9}/>{aiModel}
               </span>
             )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            {mode==='resolver' && (
-              <TokenCounter usage={sessionUsage} onReset={()=>void window.api.invoke('ticket-resolver:ai-usage-reset').then(()=>setSessionUsage(p=>({...p,inputTokens:0,outputTokens:0,calls:0})))} />
-            )}
+            <TokenCounter usage={sessionUsage} onReset={()=>void window.api.invoke('ticket-resolver:ai-usage-reset').then(()=>setSessionUsage(p=>({...p,inputTokens:0,outputTokens:0,calls:0})))} />
             <button onClick={()=>setShowConfig(true)} className="flex items-center gap-1 text-[11px] text-on-surface-variant/40 hover:text-on-surface transition-colors" title="Configuración">
               <Settings size={14}/>
               {!isConfigured && <span className="text-amber-400 text-[10px] font-medium">Sin configurar</span>}
@@ -1608,17 +1068,8 @@ export function TicketResolver(): JSX.Element {
           </div>
         </div>
 
-        {/* ORCHESTRATOR MODE */}
-        {mode==='orchestrator' && (
-          <OrchestratorView
-            config={config}
-            onOpenConfig={()=>setShowConfig(true)}
-            onHistorySaved={(entry) => setHistory(prev=>[entry,...prev.filter(h=>h.ticketKey!==entry.ticketKey)])}
-          />
-        )}
-
         {/* IDLE */}
-        {mode==='resolver' && !showTwoCols && (
+        {!showTwoCols && (
           <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-6 py-6 gap-4">
             {!isConfigured && (
               <div className="flex items-center gap-2 text-amber-400 text-[11px] bg-amber-400/8 border border-amber-400/15 px-3 py-2 rounded-lg w-full max-w-xs">
@@ -1668,7 +1119,7 @@ export function TicketResolver(): JSX.Element {
         )}
 
         {/* TWO COLUMNS */}
-        {mode==='resolver' && showTwoCols && (
+        {showTwoCols && (
           <div className="flex-1 flex overflow-hidden">
 
             {/* Left col */}

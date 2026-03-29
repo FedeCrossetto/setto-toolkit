@@ -2,10 +2,7 @@ import type { IpcMain } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import type { PluginHandlers, CoreServices } from '../../core/types'
-import type { JiraTicket, AnalysisPlan, AnalysisResult, CodeSnippet, HistoryEntry } from '../../../src/plugins/ticket-resolver/types'
-import { runClaudeCli } from './ClaudeCliExecutor'
-import { parseBlocks, getBlock, hasBlocks } from './ResponseParser'
-import { buildSearchTermsPrompt, buildAnalysisPrompt, buildPlanPrompt } from './PromptBuilder'
+import type { JiraTicket, AnalysisPlan, AnalysisResult, CodeSnippet, HistoryEntry, DiffChunk } from '../../../src/plugins/ticket-resolver/types'
 
 const HISTORY_FILE = 'ticket-resolver-history.json'
 
@@ -51,7 +48,7 @@ function searchRepo(repoPath: string, terms: string[], maxResults = 8): CodeSnip
               line: i + 1,
               context: lines.slice(from, to + 1).join('\n'),
             })
-            i += 6 // skip ahead to avoid duplicate hits in same block
+            i += 6
           }
         }
       }
@@ -75,7 +72,6 @@ export const handlers: PluginHandlers = {
       const jiraToken = settings.get('ticket-resolver.jira_token') ?? ''
       if (!jiraUrl || !jiraUser || !jiraToken) throw new Error('JIRA_NOT_CONFIGURED')
 
-      // Validate that jiraUrl is a safe http/https URL before concatenating to prevent SSRF.
       try {
         const parsed = new URL(jiraUrl)
         if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error()
@@ -83,7 +79,6 @@ export const handlers: PluginHandlers = {
         throw new Error('JIRA_NOT_CONFIGURED')
       }
 
-      // Validate ticket key format to prevent URL path injection
       const normalizedKey = ticketKey.trim().toUpperCase()
       if (!/^[A-Z]+-\d+$/.test(normalizedKey)) {
         throw new Error(`Invalid ticket key format: "${ticketKey}"`)
@@ -197,7 +192,7 @@ Devuelve SOLO este JSON con todos los textos en español:
       }
     })
 
-    // Search code in wigos local repo
+    // Search code in local repo
     ipcMain.handle('ticket-resolver:search', (_e, searchTerms: string[]) => {
       const repoPath = settings.get('ticket-resolver.repo_path') ?? ''
       if (!repoPath || !fs.existsSync(repoPath)) return [] as CodeSnippet[]
@@ -282,10 +277,15 @@ Devuelve SOLO este JSON con TODOS los textos en español:
       return { ok: true }
     })
 
-    // AI usage — get session stats
-    ipcMain.handle('ticket-resolver:ai-usage-get', () => ai.getSessionUsage())
+    // History — delete
+    ipcMain.handle('ticket-resolver:history-delete', (_e, id: string) => {
+      const all = db.readJSON<HistoryEntry[]>(HISTORY_FILE) ?? []
+      db.writeJSON(HISTORY_FILE, all.filter(h => h.id !== id))
+      return { ok: true }
+    })
 
-    // AI usage — reset session stats
+    // AI usage — get / reset session stats
+    ipcMain.handle('ticket-resolver:ai-usage-get', () => ai.getSessionUsage())
     ipcMain.handle('ticket-resolver:ai-usage-reset', () => {
       ai.resetSessionUsage()
       return { ok: true }
@@ -300,7 +300,6 @@ Devuelve SOLO este JSON con TODOS los textos en español:
 
       return chunks.map(chunk => {
         const fullPath = path.resolve(resolvedRepo, chunk.file)
-        // Prevent path traversal
         if (!fullPath.startsWith(resolvedRepo + path.sep) && fullPath !== resolvedRepo) {
           return { file: chunk.file, status: 'error', message: 'Ruta inválida' }
         }
@@ -308,7 +307,7 @@ Devuelve SOLO este JSON con TODOS los textos en español:
           return { file: chunk.file, status: 'not_found', message: 'Archivo no encontrado en el repositorio' }
         }
         try {
-          const raw = fs.readFileSync(fullPath, 'utf-8')
+          const raw      = fs.readFileSync(fullPath, 'utf-8')
           const usesCRLF = raw.includes('\r\n')
           const content  = raw.replace(/\r\n/g, '\n')
           const original = chunk.original.replace(/\r\n/g, '\n').trim()
@@ -323,111 +322,6 @@ Devuelve SOLO este JSON con TODOS los textos en español:
           return { file: chunk.file, status: 'error', message: (e as Error).message.slice(0, 200) }
         }
       })
-    })
-
-    // History — delete
-    ipcMain.handle('ticket-resolver:history-delete', (_e, id: string) => {
-      const all = db.readJSON<HistoryEntry[]>(HISTORY_FILE) ?? []
-      db.writeJSON(HISTORY_FILE, all.filter(h => h.id !== id))
-      return { ok: true }
-    })
-
-    // ── Claude CLI Orchestrator ─────────────────────────────────────────────
-
-    // Stage 0 — Extract search terms from ticket via Claude CLI (no API)
-    ipcMain.handle('ticket-resolver:orch-extract-terms', async (
-      _e,
-      ticket: JiraTicket,
-    ) => {
-      const claudePath = (settings.get('ticket-resolver.claude_path') as string | null) || 'claude'
-      const prompt = buildSearchTermsPrompt(ticket)
-      const result = await runClaudeCli(prompt, 60_000, claudePath)
-
-      if (result.timedOut) throw new Error('Claude CLI timed out extracting search terms')
-      if (result.exitCode !== 0 && !result.stdout) {
-        throw new Error(`Claude CLI error: ${(result.stderr || 'no output').slice(0, 300)}`)
-      }
-
-      const blocks = parseBlocks(result.stdout)
-      const raw = getBlock(blocks, 'TERMS', result.stdout)
-      const terms = raw
-        .split('\n')
-        .map(l => l.trim())
-        .filter(l => l.length > 1 && !l.startsWith('#') && !l.startsWith('-'))
-        .slice(0, 6)
-
-      return terms.length > 0 ? terms : ticket.summary.split(/\s+/).filter(w => w.length > 4).slice(0, 4)
-    })
-
-    // Stage 1 — Analysis: runs claude CLI with ticket + code context
-    ipcMain.handle('ticket-resolver:orch-analyze', async (
-      _e,
-      ticket: JiraTicket,
-      snippets: CodeSnippet[],
-    ) => {
-      const claudePath = (settings.get('ticket-resolver.claude_path') as string | null) || 'claude'
-      const prompt = buildAnalysisPrompt(ticket, snippets)
-      const result = await runClaudeCli(prompt, 120_000, claudePath)
-
-      if (result.timedOut) {
-        throw new Error('Claude CLI timed out after 2 minutes — the model may be overloaded')
-      }
-      if (result.exitCode !== 0 && !result.stdout) {
-        const msg = result.stderr || 'Claude CLI returned no output'
-        throw new Error(msg.includes('not found') || msg.includes('ENOENT')
-          ? `"${claudePath}" not found — install Claude Code and set its path in Configuración`
-          : `Claude CLI error: ${msg.slice(0, 300)}`)
-      }
-
-      const blocks = parseBlocks(result.stdout)
-      if (!hasBlocks(result.stdout)) {
-        return {
-          analysis:   result.stdout.slice(0, 1200),
-          rootCause:  '',
-          approach:   '',
-          complexity: '',
-          risks:      '',
-          raw:        result.stdout,
-        }
-      }
-
-      return {
-        analysis:   getBlock(blocks, 'ANALYSIS'),
-        rootCause:  getBlock(blocks, 'ROOTCAUSE'),
-        approach:   getBlock(blocks, 'APPROACH'),
-        complexity: getBlock(blocks, 'COMPLEXITY'),
-        risks:      getBlock(blocks, 'RISKS'),
-        raw:        result.stdout,
-      }
-    })
-
-    // Stage 2 — Implementation plan: runs claude CLI with analysis + user notes
-    ipcMain.handle('ticket-resolver:orch-plan', async (
-      _e,
-      ticket: JiraTicket,
-      snippets: CodeSnippet[],
-      analysis: { rootCause: string; approach: string },
-      userNotes: string,
-    ) => {
-      const claudePath = (settings.get('ticket-resolver.claude_path') as string | null) || 'claude'
-      const prompt = buildPlanPrompt(ticket, snippets, analysis, userNotes)
-      const result = await runClaudeCli(prompt, 180_000, claudePath)
-
-      if (result.timedOut) {
-        throw new Error('Claude CLI timed out after 3 minutes — the model may be overloaded')
-      }
-      if (result.exitCode !== 0 && !result.stdout) {
-        throw new Error(`Claude CLI error: ${(result.stderr || 'no output').slice(0, 300)}`)
-      }
-
-      const blocks = parseBlocks(result.stdout)
-      return {
-        plan:        getBlock(blocks, 'PLAN',        result.stdout.slice(0, 1500)),
-        files:       getBlock(blocks, 'FILES'),
-        tests:       getBlock(blocks, 'TESTS'),
-        jiraComment: getBlock(blocks, 'JIRACOMMENT'),
-        raw:         result.stdout,
-      }
     })
   },
 }
