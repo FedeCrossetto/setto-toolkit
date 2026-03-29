@@ -17,10 +17,10 @@
 |---|---|
 | **File Editor** | Abrí, editá y guardás archivos. Soporte para logs grandes con modo tail, file watcher y búsqueda en archivos. Menú contextual en tabs (Rename, Save, Copy Path, Reveal in Explorer). |
 | **Smart Diff** | Comparación semántica de dos fragmentos de código con análisis de IA (OpenAI / Anthropic / Ollama). Detecta cambios de lógica, efectos secundarios y sugiere mejoras. Vista side-by-side con word-level diff. |
-| **Repo Search** | Buscá código en todos los repositorios de tu workspace. Soporta **Bitbucket**, **GitHub** y **GitLab**. Autenticación por PAT o por Google. Las credenciales se guardan encriptadas localmente con `safeStorage`. |
+| **Repo Search** | Buscá código en todos los repositorios de tu workspace. Soporta **Bitbucket**, **GitHub** y **GitLab**. Autenticación por PAT (Personal Access Token). Las credenciales se guardan encriptadas localmente con `safeStorage`. |
 | **API Lab** | Cliente HTTP similar a Postman. Soporta colecciones, entornos con variables, historial con filtro por URL/método, autenticación Bearer / Basic, multipart/form-data y scripts pre/post-request. |
 | **Snippets** | Manager de snippets de código y notas. Soporte de imágenes inline (drag & drop / paste), sintaxis resaltada con CodeMirror, colecciones, pins, búsqueda fuzzy y export/import a JSON. |
-| **Ticket Resolver** | Análisis y resolución de tickets Jira asistido por IA. Fetchea el ticket, genera un plan de análisis, busca código relevante en el repo local y propone causa raíz + fix con diff antes/después. |
+| **Ticket Resolver** | Análisis y resolución de tickets Jira asistido por IA (solo API, sin CLI). Fetchea el ticket, genera un plan de análisis, busca código relevante en el repo local y propone causa raíz + fix con diff antes/después. Tipografía y tamaño de fuente configurables por el usuario. |
 | **Terminal** | Terminal integrada multi-sesión con pestañas, selector de shell (PowerShell / CMD / Git Bash), restauración de sesiones, integración con Claude Code (launch, stop, indicador de uso % real), atajos Ctrl+T e integraciones cross-plugin. |
 | **Settings** | Configuración de API keys, proveedor de IA (OpenAI / Anthropic / Ollama), fuente, tema de color, mascota del dashboard, módulos habilitados y backup/restore de settings. |
 | **About** | Información de versión, stack tecnológico y detalles de seguridad de la app. |
@@ -107,10 +107,11 @@ Todas las credenciales de usuario se configuran **desde dentro de la app**. Se a
 ### Repo Search — GitHub
 
 1. Seleccioná la pestaña **GitHub**.
-2. Ingresá un **Personal Access Token** (classic o fine-grained) con scope `repo` o `read:org`.
-   - Para crear uno: GitHub → Settings → Developer settings → Personal access tokens.
+2. Ingresá un **Personal Access Token** (classic) con scope `repo` (+ `read:org` si filtrás por organización).
+   - Para crear uno: GitHub → avatar → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token.
 3. Opcionalmente especificá una organización para acotar la búsqueda.
-4. Alternativa: usá **Sign in with Google** para abrir la interfaz de búsqueda sin PAT (limitado — sin acceso a la API de GitHub).
+
+> El formulario de login incluye el botón **¿Cómo obtenerlo?** con los pasos detallados para cada provider.
 
 ### Repo Search — GitLab
 
@@ -186,6 +187,33 @@ Podés usar `src/plugins/_template/` como punto de partida.
 ---
 
 ## Changelog
+
+### v2.5.2 — 2026-03-28
+
+#### Ticket Resolver — modo API puro
+
+- Eliminado el orquestador CLI (Claude CLI + `ClaudeCliExecutor`, `ContextCompressor`, `PromptBuilder`, `ResponseParser`, ~1000 líneas). El módulo funciona exclusivamente via API (OpenAI / Anthropic / Ollama).
+- Eliminados los 3 canales IPC del orquestador (`orch-extract-terms`, `orch-analyze`, `orch-plan`) y los tipos `FlowState`, `OrchestratorAnalysis`, `OrchestratorPlan`.
+- Eliminada la pestaña "Orchestrator" y el componente `OrchestratorView`.
+
+#### Ticket Resolver — fuente configurable
+
+- **Botones `A−` / `A+`** en el header para cambiar el tamaño de texto al instante (Pequeño / Normal / Grande) sin abrir configuración. Indicador `S/M/L` entre los botones.
+- **Selector de tipografía** en Config → Visualización: Sistema, Sans, Mono, Serif. Cada botón se renderiza en su propia fuente para previsualizar.
+- Ambas preferencias persisten en settings (`ticket-resolver.ui.font_size`, `ticket-resolver.ui.font_family`).
+
+#### Repo Search — mejoras de login
+
+- **Ayuda contextual de token**: link "¿Cómo obtenerlo?" junto al campo de token que expande pasos numerados específicos para cada provider (GitHub / GitLab / Bitbucket).
+- **Eliminado el login con Google** del formulario de Repo Search. La autenticación es únicamente por PAT.
+- **Botones redondeados corregidos**: `rounded-full` → `rounded-lg` en el botón "Connect" y en los chips de sugerencias.
+
+#### Correcciones de bugs
+
+- **Bug crítico**: el botón "Clear" del historial de búsqueda en Repo Search llamaba a `saveHistory()` (función inexistente) — corregido a `window.api.invoke('repo-search:history-save', [])`.
+- **Dead code**: eliminado el fallback a sesión Google en el `useEffect` de inicialización de Repo Search.
+
+---
 
 ### v2.5.1 — 2026-03-27
 

@@ -676,22 +676,8 @@ export function RepoSearch(): JSX.Element {
       setResults([]); setCount(0); setQuery(''); setError(null); setFilterRepo('All'); setSelectedRepo(null)
     }
 
-    window.api.invoke<AuthInfo>('repo-search:me', { provider }).then(async (meAuth) => {
-      if (!meAuth.authenticated && !manuallyLoggedOut.current.has(provider)) {
-        // Fall back to Google session if the user signed in with Google but has no PAT for this provider.
-        // Skipped if the user explicitly signed out for this provider.
-        const googleUser = await window.api
-          .invoke<{ email: string; name: string; picture: string } | null>('auth:google-user')
-          .catch(() => null)
-        if (googleUser) {
-          setAuth({ authenticated: true, username: googleUser.email, workspace: null, org: null, picture: googleUser.picture })
-          // Proactively signal that a provider token is still needed so the banner appears immediately
-          setError('NOT_AUTHENTICATED')
-          return
-        }
-      }
+    window.api.invoke<AuthInfo>('repo-search:me', { provider }).then((meAuth) => {
       setAuth(meAuth)
-      // Clear any stale NOT_AUTHENTICATED banner when a real provider token exists
       if (meAuth.authenticated) setError(null)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -912,7 +898,7 @@ export function RepoSearch(): JSX.Element {
                     <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 border-b border-outline-variant/10 flex items-center justify-between">
                       <span>History</span>
                       <button
-                        onClick={() => { setHistory([]); saveHistory([]); setShowHistory(false) }}
+                        onClick={() => { setHistory([]); window.api.invoke('repo-search:history-save', []).catch(() => {}); setShowHistory(false) }}
                         className="text-[10px] text-on-surface-variant hover:text-error transition-colors normal-case font-normal"
                       >
                         Clear
