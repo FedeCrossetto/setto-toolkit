@@ -82,10 +82,14 @@ export function FileEditor(): JSX.Element {
   const [savedFlash, setSavedFlash] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
-  const editorRef    = useRef<EditorHandle | null>(null)
-  const settingsRef  = useRef<HTMLDivElement>(null)
-  const restoredRef  = useRef(false)
-  const dragTabRef   = useRef<string | null>(null)
+  const editorRef      = useRef<EditorHandle | null>(null)
+  const settingsRef    = useRef<HTMLDivElement>(null)
+  const restoredRef    = useRef(false)
+  const dragTabRef     = useRef<string | null>(null)
+  // Stable refs used by the keydown listener so the effect registers once and
+  // never needs to re-register (saveTab is a plain function that recreates each render).
+  const saveActiveRef  = useRef<() => Promise<void>>(() => Promise.resolve())
+  const activeTabRef   = useRef<typeof activeTab>(null)
   const recentWritesRef = useRef(new Map<string, { at: number; content: string }>())
   const [dragOverTab, setDragOverTab] = useState<string | null>(null)
 
@@ -118,7 +122,10 @@ export function FileEditor(): JSX.Element {
 
   // Consume OPEN_IN_EDITOR from global state
   useEffect(() => {
-    if (state.editorTarget) openFile(state.editorTarget.path)
+    if (!state.editorTarget) return
+    openFile(state.editorTarget.path).catch(() => {
+      showToast(`Could not open "${state.editorTarget!.path}"`, 'error')
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.editorTarget])
 
@@ -172,8 +179,14 @@ export function FileEditor(): JSX.Element {
   }, [settingsOpen])
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
+  // Keep refs current so the keydown effect (mounted once) always has fresh values.
   useEffect(() => {
-    const onKey = async (e: KeyboardEvent): Promise<void> => {
+    saveActiveRef.current = saveActive
+    activeTabRef.current  = activeTab
+  })
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
       // Ctrl+P — quick open
       if (e.ctrlKey && !e.shiftKey && e.key === 'p') { e.preventDefault(); setQuickOpen(true); return }
       if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 't') { e.preventDefault(); createNewFile(); return }
@@ -182,24 +195,22 @@ export function FileEditor(): JSX.Element {
       if (!e.ctrlKey && !e.shiftKey && e.key === 'F2') {
         const target = e.target as HTMLElement | null
         if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
-        if (!activeTab) return
+        if (!activeTabRef.current) return
         e.preventDefault()
-        setRenamingTabId(activeTab.id)
+        setRenamingTabId(activeTabRef.current.id)
         return
       }
-      // Ctrl+S — save. Skip when CodeMirror has focus because it handles Mod-s
-      // via its own keymap (onSaveShortcut). Handling both causes a double save.
+      // Ctrl+S — skip when CodeMirror has focus (handled by its own Mod-s keymap)
       if (e.ctrlKey && !e.shiftKey && e.key === 's') {
         e.preventDefault()
-        if (!activeTab) return
         if (!(e.target as HTMLElement)?.closest?.('.cm-editor')) {
-          await saveTab(activeTab)
+          void saveActiveRef.current()
         }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [activeTab, saveTab])
+  }, [])  // stable — all mutable values accessed via refs
 
   // ── Filter → CodeEditor ───────────────────────────────────────────────────
   useEffect(() => { editorRef.current?.setFilter(logFilter) }, [logFilter])
@@ -277,7 +288,10 @@ export function FileEditor(): JSX.Element {
     }
 
     const result = await window.api.invoke<WriteFileResponse>('editor:write-file', targetPath, tab.content)
-    recentWritesRef.current.set(result.path, { at: Date.now(), content: tab.content })
+    const now = Date.now()
+    recentWritesRef.current.set(result.path, { at: now, content: tab.content })
+    // Evict entries older than 10 s to prevent unbounded growth in long sessions
+    recentWritesRef.current.forEach((v, k) => { if (now - v.at > 10_000) recentWritesRef.current.delete(k) })
     const savedName = result.path.split(/[\\/]/).pop() ?? result.path
 
     updateTab(tab.id, {
@@ -409,7 +423,10 @@ export function FileEditor(): JSX.Element {
       tabs.forEach((t) => { if (t.path === oldPath) updateTab(t.id, { path: newPath, name: newName }) })
       const root = findRootPath(oldPath)
       if (root) await refreshFolder(root)
-    } catch (err) { console.error('Rename failed', err) }
+    } catch (err) {
+      console.error('Rename failed', err)
+      showToast(`Rename failed: ${err instanceof Error ? err.message : 'unknown error'}`, 'error')
+    }
   }
 
   const handleRenameTab = async (tabId: string, newName: string): Promise<void> => {
@@ -454,7 +471,7 @@ export function FileEditor(): JSX.Element {
       x: e.clientX, y: e.clientY,
       items: [
         { label: 'New file',   icon: FilePlus,   action: createNewFile },
-        { label: 'Open file...', icon: FolderOpen, action: openDialog },
+        { label: 'Open file...', icon: FileInput, action: openDialog },
       ],
     })
   }
@@ -539,7 +556,7 @@ export function FileEditor(): JSX.Element {
             <div className="flex items-center justify-between px-3 pt-3 pb-1.5 flex-shrink-0">
               <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">Explorer</span>
               <button onClick={openFolderDialog} title="Open folder" className="text-on-surface-variant hover:text-primary transition-colors">
-                <FolderPlus size={15} />
+                <FolderOpen size={15} />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto min-h-0 pb-1">
@@ -571,17 +588,17 @@ export function FileEditor(): JSX.Element {
           <div className="flex items-center justify-between px-3 pt-3 pb-1.5 flex-shrink-0">
             <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">Open files</span>
             <div className="flex items-center gap-1">
-              {folders.length === 0 && (
-                <button onClick={openFolderDialog} title="Open folder" className="text-on-surface-variant hover:text-primary transition-colors">
-                  <FolderPlus size={15} />
-                </button>
-              )}
-              <button onClick={createNewFile} title="New file (Untitled)" className="text-on-surface-variant hover:text-primary transition-colors">
+              <button onClick={createNewFile} title="New file (Ctrl+T)" className="text-on-surface-variant hover:text-primary transition-colors">
                 <FilePlus size={15} />
               </button>
               <button onClick={openDialog} title="Open file" className="text-on-surface-variant hover:text-primary transition-colors">
-                <FolderOpen size={15} />
+                <FileInput size={15} />
               </button>
+              {folders.length === 0 && (
+                <button onClick={openFolderDialog} title="Open folder" className="text-on-surface-variant hover:text-primary transition-colors">
+                  <FolderOpen size={15} />
+                </button>
+              )}
               <button onClick={() => setSidebarCollapsed(true)} title="Collapse sidebar"
                 className="text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-surface-container rounded-lg p-0.5 transition-colors">
                 <ChevronLeft size={14} />
@@ -1175,7 +1192,7 @@ function EmptyState({ onOpen }: { onOpen: () => void }): JSX.Element {
       <button onClick={onOpen}
         className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-on-primary hover:opacity-90 transition-opacity"
         style={{ background: 'var(--gradient-brand)' }}>
-        <FolderOpen size={16} />Open file
+        <FileInput size={16} />Open file
       </button>
     </div>
   )

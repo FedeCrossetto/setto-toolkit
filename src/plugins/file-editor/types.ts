@@ -76,8 +76,6 @@ export interface FileTreeNode {
 /** Request payload for editor:read-file */
 export interface ReadFileRequest {
   path: string
-  /** If set, only return content from this line onward (for large files) */
-  fromLine?: number
 }
 
 export interface ReadFileResponse {

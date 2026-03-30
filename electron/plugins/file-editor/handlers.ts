@@ -29,21 +29,25 @@ function addAuthorizedRoot(rootPath: string): void {
 
 /**
  * Verify that `targetPath` is located inside at least one authorized root.
- * Throws if the path is not covered — prevents operations on arbitrary FS locations.
+ * Resolves symlinks via realpathSync so a symlink pointing outside the workspace
+ * cannot bypass the guard. Throws if the path is not covered.
  */
 function assertInAuthorizedRoot(targetPath: string): void {
   if (authorizedRoots.size === 0) {
-    // No roots registered yet — only allow if the path was explicitly opened as a file
-    // (single-file open dialog). Guard below handles that via the read-only exemption.
     throw new Error('No workspace is open. Open a folder first before performing write operations.')
   }
-  const resolved = path.resolve(targetPath)
+  // Resolve the logical path first, then attempt symlink resolution.
+  // realpathSync may throw if the path doesn't exist yet (e.g. new file being
+  // created) — fall back to the logical resolved path in that case.
+  const logical = path.resolve(targetPath)
+  let real = logical
+  try { real = fs.realpathSync(logical) } catch { /* file not yet created — use logical path */ }
+
   for (const root of authorizedRoots) {
-    // Use path.relative to check containment without string hacks.
-    const rel = path.relative(root, resolved)
+    const rel = path.relative(root, real)
     if (!rel.startsWith('..') && !path.isAbsolute(rel)) return
   }
-  throw new Error(`Operation denied: path is outside any open workspace — "${resolved}"`)
+  throw new Error(`Operation denied: path is outside any open workspace — "${real}"`)
 }
 
 function getRecentFiles(settings: CoreServices['settings']): RecentFile[] {
