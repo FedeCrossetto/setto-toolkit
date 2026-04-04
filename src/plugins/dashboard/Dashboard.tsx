@@ -308,7 +308,7 @@ function ToolArtwork({ pluginId, artwork }: { pluginId: string; artwork: () => J
   return <Scene />
 }
 
-// ── TiltCard — mismo lenguaje claro/oscuro: sombra suave + hover con acento ──
+// ── TiltCard ──────────────────────────────────────────────────────────────────
 function TiltCard({ children, onClick, glow, isDark }: {
   children: React.ReactNode
   onClick: () => void
@@ -327,12 +327,8 @@ function TiltCard({ children, onClick, glow, isDark }: {
 
   const handleMouseLeave = (): void => setTilt({ x: 0, y: 0, hover: false })
 
-  const shadowIdle = isDark
-    ? '0 2px 10px rgba(0,0,0,0.35)'
-    : '0 2px 10px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04)'
-  const shadowHover = isDark
-    ? `0 8px 24px rgba(0,0,0,0.45), 0 0 18px ${glow}`
-    : `0 8px 24px rgba(0,0,0,0.1), 0 0 22px ${glow}`
+  const shadowIdle  = isDark ? '0 2px 10px rgba(0,0,0,0.35)' : '0 2px 10px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04)'
+  const shadowHover = isDark ? `0 8px 24px rgba(0,0,0,0.45), 0 0 18px ${glow}` : `0 8px 24px rgba(0,0,0,0.1), 0 0 22px ${glow}`
 
   return (
     <button
@@ -345,9 +341,7 @@ function TiltCard({ children, onClick, glow, isDark }: {
         transform: tilt.hover
           ? `perspective(800px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) translateY(-4px) scale(1.02)`
           : 'perspective(800px) rotateX(0deg) rotateY(0deg) translateY(0px) scale(1)',
-        transition: tilt.hover
-          ? 'transform 0.12s ease-out'
-          : 'transform 0.35s cubic-bezier(0.34,1.56,0.64,1)',
+        transition: tilt.hover ? 'transform 0.12s ease-out' : 'transform 0.35s cubic-bezier(0.34,1.56,0.64,1)',
         boxShadow: tilt.hover ? shadowHover : shadowIdle,
       }}
       className={[
@@ -377,7 +371,7 @@ function ToolCard({ plugin, onOpen, mascot }: { plugin: PluginManifest; onOpen: 
           style={{ background: `linear-gradient(180deg, ${cfg.accent}cc, ${cfg.accent}66)` }}
         />
 
-        {/* ── Left: text content ─────────────────────────────────── */}
+        {/* Left: text */}
         <div className="flex flex-col justify-between flex-1 min-w-0 p-5 pr-3">
           <div>
             <div className="flex items-center gap-2.5 mb-2.5">
@@ -391,23 +385,20 @@ function ToolCard({ plugin, onOpen, mascot }: { plugin: PluginManifest; onOpen: 
                 {plugin.name}
               </h3>
             </div>
-
             <p className="text-[12px] text-on-surface-variant/70 leading-relaxed line-clamp-3">
               {plugin.description}
             </p>
           </div>
-
           <div className="flex items-center gap-1 mt-4 text-[11px] font-bold" style={{ color: cfg.accent }}>
             <span>Open</span>
             <ArrowRight size={13} />
           </div>
         </div>
 
-        {/* ── Right: mascot ──────────────────────────────────────── */}
+        {/* Right: mascot */}
         <div className="flex-shrink-0 relative self-stretch" style={{ width: cfg.artworkWidth ?? '38%' }}>
           <ToolArtwork pluginId={plugin.id} artwork={ArtworkComponent} />
         </div>
-
       </div>
     </TiltCard>
   )

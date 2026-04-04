@@ -51,28 +51,28 @@
 
 /* ─── Dark mode tokens ───────────────────────────────────────────────────── */
 .dark {
-  --c-background:                12  14  23;   /* #0C0E17 */
-  --c-surface:                   12  14  23;   /* #0C0E17 */
-  --c-surface-container-low:     17  19  29;   /* #11131D */
-  --c-surface-container:         23  25  36;   /* #171924 */
-  --c-surface-container-high:    28  31  43;   /* #1C1F2B */
-  --c-surface-container-highest: 34  37  50;   /* #222532 */
-  --c-on-surface:               240 240 253;   /* #F0F0FD */
-  --c-on-surface-variant:       170 170 183;   /* #AAAAB7 */
-  --c-primary:                  136 124 253;   /* #887CFD */
-  --c-primary-light:            175 167 255;   /* #AFA7FF */
-  --c-on-primary:                28  30  44;   /* #1C1E2C */
-  --c-secondary:                 72 150 254;   /* #4896FE */
-  --c-on-secondary:              28  30  44;   /* #1C1E2C */
-  --c-accent:                    22 200 199;   /* #16C8C7 */
-  --c-outline-variant:           70  71  82;   /* #464752 */
-  --c-outline:                  115 117 128;   /* #737580 */
+  --c-background:                17  17  17;   /* #111111 */
+  --c-surface:                   17  17  17;   /* #111111 */
+  --c-surface-container-low:     21  21  21;   /* #151515 */
+  --c-surface-container:         26  26  26;   /* #1A1A1A */
+  --c-surface-container-high:    32  32  32;   /* #202020 */
+  --c-surface-container-highest: 40  40  40;   /* #282828 */
+  --c-on-surface:               238 238 238;   /* #EEEEEE */
+  --c-on-surface-variant:       160 160 160;   /* #A0A0A0 */
+  --c-primary:                  140 140 145;   /* #8C8C91 */
+  --c-primary-light:            185 185 190;   /* #B9B9BE */
+  --c-on-primary:                18  18  18;   /* #121212 */
+  --c-secondary:                110 110 115;   /* #6E6E73 */
+  --c-on-secondary:              18  18  18;   /* #121212 */
+  --c-accent:                   160 160 165;   /* #A0A0A5 */
+  --c-outline-variant:           60  60  60;   /* #3C3C3C */
+  --c-outline:                  110 110 110;   /* #6E6E6E */
   --c-error:                    255 110 132;   /* #FF6E84 */
 
-  --gradient-brand: linear-gradient(135deg, #887CFD, #4896FE);
+  --gradient-brand: linear-gradient(135deg, #8C8C91, #B9B9BE);
 
   /* Sidebar panel — lighter than background for contrast */
-  --c-sidebar:                   30  32  48;   /* #1E2030 */
+  --c-sidebar:                   22  22  22;   /* #161616 */
 
   /* Sidebar active item — neons pop on dark surfaces even at low opacity */
   --sidebar-item-active-bg: linear-gradient(135deg, rgb(var(--c-primary) / 0.22) 0%, rgb(var(--c-primary-light) / 0.12) 100%);
