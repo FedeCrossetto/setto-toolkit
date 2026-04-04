@@ -9,9 +9,9 @@ import { apiLabPlugin } from '../plugins/api-tester'
 import { fileEditorPlugin } from '../plugins/file-editor'
 import { settingsPlugin } from '../plugins/settings'
 import { aboutPlugin } from '../plugins/about'
-import { snippetsPlugin } from '../plugins/snippets'
 import { ticketResolverPlugin } from '../plugins/ticket-resolver'
 import { terminalPlugin } from '../plugins/terminal'
+import { gastosPlugin } from '../plugins/gastos'
 
 export const allPlugins: PluginManifest[] = [
   dashboardPlugin,
@@ -19,9 +19,9 @@ export const allPlugins: PluginManifest[] = [
   smartDiffPlugin,
   repoSearchPlugin,
   apiLabPlugin,
-  snippetsPlugin,
   ticketResolverPlugin,
   terminalPlugin,
+  gastosPlugin,
   settingsPlugin,
   aboutPlugin,
 ]

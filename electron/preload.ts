@@ -35,6 +35,12 @@ const INVOKE_CHANNELS = new Set([
   'terminal:prefs-get', 'terminal:prefs-set',
   'terminal:startup-get', 'terminal:startup-set',
   'terminal:claude-usage',
+  'gastos:load',
+  'gastos:save-servicio', 'gastos:delete-servicio',
+  'gastos:save-pago', 'gastos:delete-pago', 'gastos:save-pagos-bulk',
+  'gastos:credencial-save', 'gastos:credencial-delete',
+  'gastos:notion-sync', 'gastos:notion-sync-credenciales',
+  'queries:load', 'queries:save', 'queries:delete', 'queries:notion-sync',
 ])
 
 /** Channels the renderer may send (fire-and-forget → main) */

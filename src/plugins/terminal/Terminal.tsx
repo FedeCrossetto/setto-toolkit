@@ -30,6 +30,51 @@ const SHELL_OPTIONS = [
   { label: 'Git Bash',        cmd: 'C:\\Program Files\\Git\\bin\\bash.exe', icon: '$' },
 ]
 
+function isNodePtySetupError(msg: string | null): boolean {
+  if (!msg) return false
+  const m = msg.toLowerCase()
+  return m.includes('node-pty') || m.includes('npm run rebuild') || m.includes('native')
+}
+
+/** Pasos para compilar node-pty (Windows + rebuild). */
+function TerminalPtySetupSteps(): JSX.Element {
+  return (
+    <div
+      className="mt-1 max-w-md space-y-3 rounded-lg px-3 py-3 text-left"
+      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+    >
+      <p className="text-[12px] font-semibold" style={{ color: 'rgb(var(--c-on-surface))' }}>
+        Cómo hacer que funcione
+      </p>
+      <ol className="list-decimal space-y-2 pl-4 text-[11px] leading-snug" style={{ color: 'rgba(255,255,255,0.75)' }}>
+        <li>
+          <strong className="text-white/90">Windows:</strong> instalá{' '}
+          <strong>Python 3</strong> (en el instalador marcá <em>Add to PATH</em>) y las{' '}
+          <strong>Visual Studio Build Tools</strong> con la carga{' '}
+          <strong>«Desktop development with C++»</strong> (no hace falta Visual Studio completo).
+        </li>
+        <li>
+          Abrí una terminal en la <strong>carpeta raíz del repo</strong> y ejecutá:{' '}
+          <code
+            className="rounded px-1.5 py-0.5 font-mono text-[10px]"
+            style={{ background: 'rgba(255,255,255,0.1)' }}
+          >
+            npm run rebuild
+          </code>
+          {' '}
+          (recompila <code className="font-mono text-[10px]">node-pty</code> para tu Node/Electron).
+        </li>
+        <li>
+          Cerrá la app y volvé a ejecutar <code className="rounded px-1 font-mono text-[10px]" style={{ background: 'rgba(255,255,255,0.1)' }}>npm run dev</code> o abrí el ejecutable de nuevo.
+        </li>
+      </ol>
+      <p className="text-[10px] leading-snug" style={{ color: 'rgba(255,255,255,0.4)' }}>
+        Si no usás el Terminal integrado, podés ignorar esto: el resto de la app funciona sin <code className="font-mono">node-pty</code>.
+      </p>
+    </div>
+  )
+}
+
 function Row({ label, value, color }: { label: string; value: string; color?: string }): JSX.Element {
   return (
     <div className="flex items-center justify-between gap-4">
@@ -703,19 +748,34 @@ export function Terminal(): JSX.Element {
           }}
         >
           {sessionIds.length === 0 && !starting && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 overflow-y-auto px-4 py-6">
               {errorMsg ? (
                 <>
                   <AlertTriangle size={28} style={{ color: '#f87171' }} />
-                  <div className="text-[13px] text-center max-w-xs" style={{ color: '#f87171' }}>{errorMsg}</div>
-                  <div className="text-[11px] text-center mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                    node-pty not compiled? Run: <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: 3 }}>npm run rebuild</code>
+                  <div className="flex w-full max-w-lg flex-col items-center gap-2">
+                    <div className="text-[13px] text-center font-medium" style={{ color: '#f87171' }}>
+                      {isNodePtySetupError(errorMsg)
+                        ? 'No se pudo iniciar la consola (falta el módulo nativo)'
+                        : 'No se pudo iniciar la sesión'}
+                    </div>
+                    <div className="text-[11px] text-center leading-relaxed" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                      {errorMsg}
+                    </div>
+                    {isNodePtySetupError(errorMsg) && <TerminalPtySetupSteps />}
+                    {!isNodePtySetupError(errorMsg) && (
+                      <p className="text-[10px] text-center" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                        Revisá la ruta del shell y el directorio de trabajo en el panel de ajustes del Terminal (ícono engranaje).
+                      </p>
+                    )}
                   </div>
                   <button
+                    type="button"
                     onClick={() => { void createSession() }}
-                    className="mt-1 px-4 py-1.5 rounded-lg text-[12px] font-medium"
+                    className="mt-2 px-4 py-1.5 rounded-lg text-[12px] font-medium"
                     style={{ background: 'rgb(var(--c-primary))', color: '#fff' }}
-                  >Retry</button>
+                  >
+                    Reintentar
+                  </button>
                 </>
               ) : (
                 <>

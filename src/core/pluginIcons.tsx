@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import {
   ALargeSmall,
+  ChartNoAxesColumnIncreasing,
   FolderSearch,
   GitCompare,
   Highlighter,
@@ -10,6 +11,7 @@ import {
   Rocket,
   SlidersHorizontal,
   SquareTerminal,
+  Table2,
   Ticket,
 } from 'lucide-react'
 
@@ -26,6 +28,8 @@ const PLUGIN_ICON_MAP: Record<string, ComponentType<{ size?: number; className?:
   tune:                     SlidersHorizontal,
   info:                     Info,
   extension:                Puzzle,
+  table_chart_view:         Table2,
+  chart_no_axes_column_increasing: ChartNoAxesColumnIncreasing,
 }
 
 interface PluginIconProps {

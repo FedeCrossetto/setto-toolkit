@@ -76,6 +76,13 @@ const PLUGIN_CONFIG: Record<string, PluginConfig> = {
     artwork:      ArtworkPandaConsole,
     settoArtwork: ArtworkSettoConsole,
   },
+  'gastos': {
+    glow:         'rgba(16,185,129,0.30)',
+    accent:       '#10B981',
+    badge:        'bg-[#10B981]/15 text-[#10B981] border-[#10B981]/20',
+    artwork:      ArtworkPandaSnippet,
+    settoArtwork: ArtworkSettoSnippet,
+  },
 }
 
 const DEFAULT_CONFIG: PluginConfig = {
@@ -438,6 +445,86 @@ function OnboardingBanner({ onDismiss, onGoToSettings }: {
   )
 }
 
+// ── Section labels ────────────────────────────────────────────────────────────
+const SECTION_LABELS: Record<string, string> = {
+  __default__: 'Developer Tools',
+  personal:    'Personal',
+}
+
+// ── ToolGrid — groups plugins by section ─────────────────────────────────────
+function ToolGrid({ tools, openTool, mascot }: {
+  tools: PluginManifest[]
+  openTool: (id: string) => void
+  mascot: 'panda' | 'setto-avatar'
+}): JSX.Element {
+  // Group by section key, preserving registry order within each group
+  const groups = new Map<string, PluginManifest[]>()
+  for (const p of tools) {
+    const key = p.section ?? '__default__'
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(p)
+  }
+
+  // Render __default__ first, then named sections in insertion order
+  const orderedKeys = [
+    '__default__',
+    ...Array.from(groups.keys()).filter((k) => k !== '__default__'),
+  ].filter((k) => groups.has(k))
+
+  let cardIndex = 0
+
+  return (
+    <div className="space-y-10">
+      {orderedKeys.map((sectionKey) => {
+        const label   = SECTION_LABELS[sectionKey] ?? sectionKey
+        const plugins = groups.get(sectionKey)!
+        const isPersonal = sectionKey !== '__default__'
+
+        return (
+          <div key={sectionKey}>
+            <div className="flex items-center gap-3 mb-5">
+              <h2 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">
+                {label}
+              </h2>
+              {isPersonal && (
+                <div className="flex-1 h-px bg-outline-variant/20" />
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {plugins.map((plugin) => {
+                const delay = cardIndex++ * 60
+                return (
+                  <div key={plugin.id} style={{ animation: 'fadeSlideUp 0.35s ease both', animationDelay: `${delay}ms` }}>
+                    <ToolCard plugin={plugin} onOpen={() => openTool(plugin.id)} mascot={mascot} />
+                  </div>
+                )
+              })}
+
+              {/* Add plugin placeholder — only in the last section */}
+              {sectionKey === orderedKeys[orderedKeys.length - 1] && (
+                <div className="rounded-3xl border border-dashed border-outline-variant/25 bg-surface-container-high/50
+                  flex flex-col items-center justify-center gap-3 p-8 min-h-[168px] text-center">
+                  <div className="w-10 h-10 rounded-2xl bg-surface-container flex items-center justify-center border border-outline-variant/20">
+                    <Plus size={20} className="text-on-surface-variant/40" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-on-surface-variant/50">Add Plugin</p>
+                    <p className="text-xs text-on-surface-variant/35 mt-1 leading-relaxed">
+                      Drop a folder in{' '}
+                      <code className="bg-surface-container px-1 py-0.5 rounded text-primary/70 text-[10px]">src/plugins/</code>
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export function Dashboard(): JSX.Element {
   const { dispatch, state } = useApp()
@@ -537,38 +624,8 @@ export function Dashboard(): JSX.Element {
         />
       )}
 
-      {/* Tool cards grid */}
-      <div>
-        <h2 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-5">
-          Available Tools
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {tools.map((plugin, i) => (
-            <div key={plugin.id}
-              style={{
-                animation: `fadeSlideUp 0.35s ease both`,
-                animationDelay: `${i * 60}ms`,
-              }}>
-              <ToolCard plugin={plugin} onOpen={() => openTool(plugin.id)} mascot={mascot} />
-            </div>
-          ))}
-
-          {/* Add plugin placeholder */}
-          <div className="rounded-3xl border border-dashed border-outline-variant/25 bg-surface-container-high/50
-            flex flex-col items-center justify-center gap-3 p-8 min-h-[168px] text-center">
-            <div className="w-10 h-10 rounded-2xl bg-surface-container flex items-center justify-center border border-outline-variant/20">
-              <Plus size={20} className="text-on-surface-variant/40" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-on-surface-variant/50">Add Plugin</p>
-              <p className="text-xs text-on-surface-variant/35 mt-1 leading-relaxed">
-                Drop a folder in{' '}
-                <code className="bg-surface-container px-1 py-0.5 rounded text-primary/70 text-[10px]">src/plugins/</code>
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Tool cards — grouped by section */}
+      <ToolGrid tools={tools} openTool={openTool} mascot={mascot} />
     </div>
   )
 }

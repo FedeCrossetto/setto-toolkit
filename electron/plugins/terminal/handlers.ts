@@ -54,7 +54,14 @@ export const handlers: PluginHandlers = {
 
     // ── terminal:create ──────────────────────────────────────────────────────
     ipcMain.handle('terminal:create', (event, opts: { shell?: string; cwd?: string; cols?: number; rows?: number }) => {
-      if (!pty) return { ok: false, error: 'node-pty not available. Run: npm run rebuild' }
+      if (!pty) {
+        return {
+          ok: false,
+          error:
+            'node-pty no está disponible (módulo nativo sin compilar). '
+            + 'En la UI del Terminal verás los pasos: herramientas de build en Windows y `npm run rebuild`.',
+        }
+      }
 
       const prefs = db.readJSON<TerminalPrefs>(PREFS_FILE) ?? DEFAULT_PREFS
       const shell  = opts.shell || prefs.shell || getDefaultShell()

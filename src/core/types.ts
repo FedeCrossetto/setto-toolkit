@@ -10,6 +10,8 @@ export interface PluginManifest {
   keywords?: string[]
   /** If true, the plugin icon appears pinned at the bottom of the sidebar */
   pinned?: boolean
+  /** Dashboard section grouping. Omit for default developer-tools section. */
+  section?: string
 }
 
 export interface Tab {

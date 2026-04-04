@@ -12,6 +12,7 @@ import { handlers as authHandlers } from '../plugins/auth/handlers'
 import { handlers as snippetsHandlers } from '../plugins/snippets/handlers'
 import { handlers as ticketResolverHandlers } from '../plugins/ticket-resolver/handlers'
 import { handlers as terminalHandlers } from '../plugins/terminal/handlers'
+import { handlers as gastosHandlers } from '../plugins/gastos/handlers'
 
 const allHandlers: PluginHandlers[] = [
   repoSearchHandlers,
@@ -23,6 +24,7 @@ const allHandlers: PluginHandlers[] = [
   snippetsHandlers,
   ticketResolverHandlers,
   terminalHandlers,
+  gastosHandlers,
 ]
 
 export function loadPlugins(ipcMain: IpcMain, services: CoreServices): void {
