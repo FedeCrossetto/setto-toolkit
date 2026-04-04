@@ -12,6 +12,8 @@ const SECURE_KEYS = new Set([
   'repo-search.github.token',
   'repo-search.gitlab.token',
   'ticket-resolver.jira_token',
+  'gastos.notion_token',
+  'gastos.queries_notion_token',
 ])
 
 const ENC_PREFIX = 'enc:'

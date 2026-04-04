@@ -57,6 +57,28 @@ function buildFormDataBody(
 }
 
 
+// ── SSRF guard ────────────────────────────────────────────────────────────────
+
+const PRIVATE_IP_PATTERNS = [
+  /^127\./,                          // loopback
+  /^0\.0\.0\.0$/,                    // unspecified
+  /^10\./,                           // RFC 1918
+  /^172\.(1[6-9]|2\d|3[01])\./,     // RFC 1918
+  /^192\.168\./,                     // RFC 1918
+  /^169\.254\./,                     // link-local / AWS metadata
+  /^::1$/,                           // IPv6 loopback
+  /^fc00:/i,                         // IPv6 ULA
+  /^fe80:/i,                         // IPv6 link-local
+]
+
+function assertNotPrivateHost(urlObj: URL): void {
+  const host = urlObj.hostname.toLowerCase()
+  if (host === 'localhost') throw new Error('SSRF: requests to localhost are not allowed')
+  if (PRIVATE_IP_PATTERNS.some((re) => re.test(host))) {
+    throw new Error(`SSRF: requests to private/internal addresses are not allowed (${host})`)
+  }
+}
+
 // ── HTTP executor (Node http/https — works on all Electron versions, ──────────
 //    gives real error codes like ECONNREFUSED instead of "fetch failed") ───────
 
@@ -288,6 +310,7 @@ export const handlers: PluginHandlers = {
 
       // Build full URL with query params
       const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`)
+      assertNotPrivateHost(urlObj)
       for (const p of request.params.filter((p) => p.enabled && p.key)) {
         urlObj.searchParams.set(interpolate(p.key, vars), interpolate(p.value, vars))
       }

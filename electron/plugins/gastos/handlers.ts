@@ -45,16 +45,31 @@ function mergeNotionConfig(db: CoreServices['db']): NotionConfig {
 // ── Notion API helpers ─────────────────────────────────────────────────────────
 
 async function notionFetch(token: string, path: string, method = 'GET', body?: object): Promise<any> {
-  const res = await fetch(`https://api.notion.com/v1${path}`, {
-    method,
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Notion-Version': '2022-06-28',
-      'Content-Type': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  return res.json()
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 15_000)
+  try {
+    const res = await fetch(`https://api.notion.com/v1${path}`, {
+      method,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json',
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    })
+    if (res.status === 429) {
+      const retryAfter = parseInt(res.headers.get('Retry-After') ?? '60', 10)
+      throw new Error(`Notion rate limit alcanzado. Reintentar en ${retryAfter}s`)
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`Notion API error ${res.status}: ${text.slice(0, 200)}`)
+    }
+    return res.json()
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 async function queryAllNotionPages(token: string, databaseId: string): Promise<any[]> {
@@ -228,20 +243,7 @@ const DEFAULT_SERVICIOS: Servicio[] = [
   { id: 'personal',       nombre: 'Personal',   emoji: 'smartphone', numeroCuenta: '11590591e54',    categoria: 'Depto',     activo: true, orden: 11 },
 ]
 
-const DEFAULT_CREDENCIALES: Credencial[] = [
-  { id: 'email-work',     nombre: 'Mi email',              usuario: 'f.vazquez@winsysgroup.com',  password: '***REMOVED***',                        url: '', notas: '',                                              categoria: 'Trabajo', orden: 1  },
-  { id: 'sonicwall-vpn',  nombre: 'SonicWall Global VPN',  usuario: 'f.vazquez@winsysgroup.com',  password: '***REMOVED***',                        url: '', notas: '',                                              categoria: 'Trabajo', orden: 2  },
-  { id: 'bamboohr',       nombre: 'BambooHR',              usuario: 'f.vazquez@winsysgroup.com',  password: '***REMOVED***',                           url: '', notas: '',                                              categoria: 'Trabajo', orden: 3  },
-  { id: 'tfs',            nombre: 'TFS',                   usuario: 'dpidc\\f.vazquez',           password: '***REMOVED***',                          url: '', notas: 'Alt: ***REMOVED***',                           categoria: 'Trabajo', orden: 4  },
-  { id: 'workresources',  nombre: 'WorkResources / Nuggets',usuario: 'RDSYSTEMS\\f.vazquez',      password: '***REMOVED***',                      url: '', notas: '',                                              categoria: 'Trabajo', orden: 5  },
-  { id: 'bitbucket',      nombre: 'BitBucket',             usuario: 'fcrossetto',                password: '***REMOVED***', url: '', notas: '',                                              categoria: 'Trabajo', orden: 6  },
-  { id: 'aws-iam',        nombre: 'AWS IAM User',          usuario: 'f.vazquez',                 password: '***REMOVED***',                              url: '', notas: 'AccountID: ***REMOVED***',                       categoria: 'Trabajo', orden: 7  },
-  { id: 'aws',            nombre: 'AWS',                   usuario: 'f.vazquez',                 password: '***REMOVED***',                              url: '', notas: '',                                              categoria: 'Trabajo', orden: 8  },
-  { id: 'deskpro',        nombre: 'DeskPro',               usuario: 'WinDeskpro@winsysgroup.com', password: '***REMOVED***',               url: '', notas: '',                                              categoria: 'Trabajo', orden: 9  },
-  { id: 'atlassian',      nombre: 'Atlassian',             usuario: 'f.vazquez@winsysgroup.com',  password: '***REMOVED***',                          url: '', notas: '',                                              categoria: 'Trabajo', orden: 10 },
-  { id: 'vm-vpn',         nombre: 'Virtual Machine VPN',   usuario: 'CORP\\f.vazquez',            password: '***REMOVED***',                        url: '', notas: '',                                              categoria: 'Trabajo', orden: 11 },
-  { id: 'bamboo-secsign', nombre: 'Bamboo (SecSign ID)',   usuario: 'f.vazquez',                 password: '***REMOVED***',               url: '', notas: 'SecSign ID login - Winsystems Bamboo',          categoria: 'Trabajo', orden: 12 },
-]
+const DEFAULT_CREDENCIALES: Credencial[] = []
 
 export const handlers: PluginHandlers = {
   pluginId: 'gastos',
@@ -302,6 +304,11 @@ export const handlers: PluginHandlers = {
     })
 
     ipcMain.handle('gastos:credencial-save', (_e, cred: Credencial) => {
+      if (!cred || typeof cred !== 'object') throw new Error('Payload inválido')
+      if (!cred.nombre?.trim()) throw new Error('El nombre es requerido')
+      if (cred.nombre.length > 200) throw new Error('Nombre demasiado largo')
+      if (typeof cred.usuario !== 'string' || cred.usuario.length > 500) throw new Error('Usuario inválido')
+      if (typeof cred.password !== 'string' || cred.password.length > 500) throw new Error('Contraseña inválida')
       const all = db.readJSON<Credencial[]>(CREDENCIALES_FILE) ?? DEFAULT_CREDENCIALES
       const idx = all.findIndex((c) => c.id === cred.id)
       if (idx >= 0) all[idx] = cred
@@ -450,6 +457,13 @@ export const handlers: PluginHandlers = {
     ipcMain.handle('queries:load', () => db.readJSON<QueryItem[]>(QUERIES_FILE) ?? [])
 
     ipcMain.handle('queries:save', (_e, item: QueryItem) => {
+      if (!item || typeof item !== 'object') throw new Error('Payload inválido')
+      if (!item.descripcion?.trim()) throw new Error('La descripción es requerida')
+      if (item.descripcion.length > 500) throw new Error('Descripción demasiado larga (máx 500 caracteres)')
+      if (typeof item.query !== 'string' || item.query.length > 50_000) throw new Error('Query demasiado largo (máx 50.000 caracteres)')
+      if (item.tags && (!Array.isArray(item.tags) || item.tags.some((t) => typeof t !== 'string' || t.length > 100))) {
+        throw new Error('Tags inválidos')
+      }
       const all = db.readJSON<QueryItem[]>(QUERIES_FILE) ?? []
       const idx = all.findIndex((q) => q.id === item.id)
       if (idx >= 0) all[idx] = item; else all.push(item)

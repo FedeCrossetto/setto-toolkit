@@ -12,6 +12,8 @@ import {
 } from 'lucide-react'
 import type { Servicio, PagoMensual, Credencial, QueryItem } from './types'
 import { buildHistoricoPagos, mergeHistoricoFaltante, mergePagosImport } from './historico-import'
+import { useToast } from '../../core/components/Toast'
+import { EmptyState } from '../../core/components/EmptyState'
 
 // ── Icon registry ─────────────────────────────────────────────────────────────
 
@@ -1276,10 +1278,11 @@ function CredencialRow({ c, isRevealed, copied, onReveal, onCopy, onEdit, onDele
   )
 }
 
-function CredencialesView({ credenciales, onEdit, onDelete }: {
+function CredencialesView({ credenciales, onEdit, onDelete, onAdd }: {
   credenciales: Credencial[]
   onEdit: (c: Credencial) => void
   onDelete: (id: string) => void
+  onAdd: () => void
 }) {
   const [search,   setSearch]   = useState('')
   const [revealed, setRevealed] = useState<Set<string>>(new Set())
@@ -1319,10 +1322,25 @@ function CredencialesView({ credenciales, onEdit, onDelete }: {
       {/* Tabla ancha: filas bajas, celdas a lo largo */}
       <div className="min-h-0 flex-1 overflow-auto px-2 py-2 sm:px-4">
         {filtered.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 py-16 text-xs text-on-surface-variant/40">
-            <KeyRound size={28} />
-            <span>Sin credenciales</span>
-          </div>
+          credenciales.length === 0 ? (
+            <div className="flex h-full items-center justify-center">
+              <EmptyState
+                icon={KeyRound}
+                title="Sin credenciales guardadas"
+                description={'Guardá tus contraseñas y datos de acceso\nde forma segura y accesible desde la app.'}
+                action={
+                  <button onClick={onAdd} className={btnPrimary}>
+                    <Plus size={14} /> Nueva credencial
+                  </button>
+                }
+              />
+            </div>
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-2 py-16 text-xs text-on-surface-variant/40">
+              <Search size={22} />
+              <span>Sin resultados para la búsqueda</span>
+            </div>
+          )
         ) : (
           <div className="mx-auto w-full max-w-[1600px] space-y-5 pb-4">
             {cats.map((cat) => {
@@ -1782,6 +1800,7 @@ const BOARDS = [
 type ActiveBoard = typeof BOARDS[number]['id']
 
 export function GastosPlugin() {
+  const toast = useToast()
   const [servicios,    setServicios]    = useState<Servicio[]>([])
   const [pagos,        setPagos]        = useState<PagoMensual[]>([])
   const [credenciales, setCredenciales] = useState<Credencial[]>([])
@@ -1830,47 +1849,47 @@ export function GastosPlugin() {
     try {
       await window.api.invoke('gastos:save-servicio', s)
       await load(); setPanel({ type: 'closed' })
-    } catch (e) { setError(`Error al guardar servicio: ${e}`) }
+    } catch (e) { toast.show(`Error al guardar servicio: ${e}`, 'error') }
   }
 
   async function deleteServicio(id: string) {
     if (!confirm('¿Eliminar servicio y todos sus pagos?')) return
     try {
       await window.api.invoke('gastos:delete-servicio', id); await load()
-    } catch (e) { setError(`Error al eliminar: ${e}`) }
+    } catch (e) { toast.show(`Error al eliminar: ${e}`, 'error') }
   }
 
   async function toggleActivo(svc: Servicio) {
     try {
       await window.api.invoke('gastos:save-servicio', { ...svc, activo: !svc.activo }); await load()
-    } catch (e) { setError(`Error: ${e}`) }
+    } catch (e) { toast.show(`Error: ${e}`, 'error') }
   }
 
   async function savePago(p: PagoMensual) {
     try {
       await window.api.invoke('gastos:save-pago', p)
       await load(); setPanel({ type: 'closed' })
-    } catch (e) { setError(`Error al guardar pago: ${e}`) }
+    } catch (e) { toast.show(`Error al guardar pago: ${e}`, 'error') }
   }
 
   async function deletePago(id: string) {
     try {
       await window.api.invoke('gastos:delete-pago', id); await load()
-    } catch (e) { setError(`Error al eliminar pago: ${e}`) }
+    } catch (e) { toast.show(`Error al eliminar pago: ${e}`, 'error') }
   }
 
   async function saveCredencial(c: Credencial) {
     try {
       await window.api.invoke('gastos:credencial-save', c)
       await load(); setPanel({ type: 'closed' })
-    } catch (e) { setError(`Error al guardar credencial: ${e}`) }
+    } catch (e) { toast.show(`Error al guardar credencial: ${e}`, 'error') }
   }
 
   async function deleteCredencial(id: string) {
     if (!confirm('¿Eliminar esta credencial?')) return
     try {
       await window.api.invoke('gastos:credencial-delete', id); await load()
-    } catch (e) { setError(`Error al eliminar credencial: ${e}`) }
+    } catch (e) { toast.show(`Error al eliminar credencial: ${e}`, 'error') }
   }
 
   async function importarHistoricoListado() {
@@ -1884,7 +1903,7 @@ export function GastosPlugin() {
       await window.api.invoke('gastos:save-pagos-bulk', merged)
       await load()
     } catch (e) {
-      setError(`Error al importar histórico: ${e}`)
+      toast.show(`Error al importar histórico: ${e}`, 'error')
     }
   }
 
@@ -1894,7 +1913,8 @@ export function GastosPlugin() {
       const result = await window.api.invoke<{ ok: boolean; created: number; updated: number; pulled: number }>('gastos:notion-sync')
       await load()
       setLastSync({ at: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), ...result })
-    } catch (e) { setError(`Error al sincronizar con Notion: ${e}`) }
+      toast.show(`Sync completado — ${result.created} creados, ${result.updated} actualizados, ${result.pulled} importados`, 'success', 5000)
+    } catch (e) { toast.show(`Error al sincronizar con Notion: ${e}`, 'error', 7000) }
     finally { setSyncing(false) }
   }
 
@@ -1902,13 +1922,13 @@ export function GastosPlugin() {
     try {
       await window.api.invoke('queries:save', q)
       await load(); setPanel({ type: 'closed' })
-    } catch (e) { setError(`Error al guardar query: ${e}`) }
+    } catch (e) { toast.show(`Error al guardar query: ${e}`, 'error') }
   }
 
   async function deleteQuery(id: string) {
     if (!confirm('¿Eliminar esta query?')) return
     try { await window.api.invoke('queries:delete', id); await load() }
-    catch (e) { setError(`Error al eliminar query: ${e}`) }
+    catch (e) { toast.show(`Error al eliminar query: ${e}`, 'error') }
   }
 
   async function syncQueriesWithNotion() {
@@ -1917,7 +1937,8 @@ export function GastosPlugin() {
       const result = await window.api.invoke<{ ok: boolean; created: number; updated: number; pulled: number }>('queries:notion-sync')
       await load()
       setLastSyncQueries({ at: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), ...result })
-    } catch (e) { setError(`Error al sincronizar queries con Notion: ${e}`) }
+      toast.show(`Queries sync — ${result.created} creadas, ${result.updated} actualizadas, ${result.pulled} importadas`, 'success', 5000)
+    } catch (e) { toast.show(`Error al sincronizar queries con Notion: ${e}`, 'error', 7000) }
     finally { setSyncingQueries(false) }
   }
 
@@ -1927,7 +1948,8 @@ export function GastosPlugin() {
       const result = await window.api.invoke<{ ok: boolean; created: number; updated: number; pulled: number }>('gastos:notion-sync-credenciales')
       await load()
       setLastSyncCred({ at: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), ...result })
-    } catch (e) { setError(`Error al sincronizar credenciales con Notion: ${e}`) }
+      toast.show(`Credenciales sync — ${result.created} creadas, ${result.updated} actualizadas, ${result.pulled} importadas`, 'success', 5000)
+    } catch (e) { toast.show(`Error al sincronizar credenciales con Notion: ${e}`, 'error', 7000) }
     finally { setSyncingCred(false) }
   }
 
@@ -2142,6 +2164,7 @@ export function GastosPlugin() {
             credenciales={credenciales}
             onEdit={(c) => setPanel({ type: 'edit-credencial', credencial: c })}
             onDelete={deleteCredencial}
+            onAdd={() => setPanel({ type: 'add-credencial' })}
           />
         )}
       </div>
