@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { IpcMain } from 'electron'
 import type { PluginHandlers, CoreServices } from '../../core/types'
 import type { Servicio, PagoMensual, Credencial, QueryItem } from '../../../src/plugins/gastos/types'
@@ -14,11 +16,30 @@ interface NotionConfig {
   credencialesLastSyncAt?: string
 }
 
-/** Valores por defecto vacíos; el token y los IDs reales vienen de `gastos-notion.json` en userData. */
+/** Valores por defecto vacíos. Orden de merge: esto → `gastos-notion.local.json` (raíz del repo, gitignored) → `gastos-notion.json` en userData. */
 const DEFAULT_NOTION_CONFIG: NotionConfig = {
   token: '',
   databaseId: '',
   credencialesDatabaseId: '',
+}
+
+function readOptionalCwdJson<T extends object>(filename: string): Partial<T> {
+  try {
+    const p = join(process.cwd(), filename)
+    if (!existsSync(p)) return {}
+    const data = JSON.parse(readFileSync(p, 'utf8')) as unknown
+    return data && typeof data === 'object' ? (data as Partial<T>) : {}
+  } catch {
+    return {}
+  }
+}
+
+function mergeNotionConfig(db: CoreServices['db']): NotionConfig {
+  return {
+    ...DEFAULT_NOTION_CONFIG,
+    ...readOptionalCwdJson<NotionConfig>('gastos-notion.local.json'),
+    ...(db.readJSON<NotionConfig>(NOTION_CONFIG_FILE) ?? {}),
+  }
 }
 
 // ── Notion API helpers ─────────────────────────────────────────────────────────
@@ -142,10 +163,18 @@ interface QueriesNotionConfig {
   databaseId: string
   lastSyncAt?: string
 }
-/** Token e ID de base desde `queries-notion.json` en userData. */
+/** Valores por defecto vacíos. Merge: esto → `queries-notion.local.json` (raíz, gitignored) → `queries-notion.json` en userData. */
 const DEFAULT_QUERIES_CONFIG: QueriesNotionConfig = {
   token: '',
   databaseId: '',
+}
+
+function mergeQueriesNotionConfig(db: CoreServices['db']): QueriesNotionConfig {
+  return {
+    ...DEFAULT_QUERIES_CONFIG,
+    ...readOptionalCwdJson<QueriesNotionConfig>('queries-notion.local.json'),
+    ...(db.readJSON<QueriesNotionConfig>(QUERIES_NOTION_FILE) ?? {}),
+  }
 }
 
 // ── Query ↔ Notion ─────────────────────────────────────────────────────────────
@@ -288,7 +317,7 @@ export const handlers: PluginHandlers = {
     })
 
     ipcMain.handle('gastos:notion-sync', async () => {
-      const config = { ...DEFAULT_NOTION_CONFIG, ...(db.readJSON<NotionConfig>(NOTION_CONFIG_FILE) ?? {}) }
+      const config = mergeNotionConfig(db)
       const { token, databaseId } = config
       const lastSyncAt = config.lastSyncAt ?? '1970-01-01T00:00:00.000Z'
 
@@ -357,7 +386,7 @@ export const handlers: PluginHandlers = {
     })
 
     ipcMain.handle('gastos:notion-sync-credenciales', async () => {
-      const config = { ...DEFAULT_NOTION_CONFIG, ...(db.readJSON<NotionConfig>(NOTION_CONFIG_FILE) ?? {}) }
+      const config = mergeNotionConfig(db)
       const { token } = config
       const databaseId = config.credencialesDatabaseId!
       const lastSyncAt = config.credencialesLastSyncAt ?? '1970-01-01T00:00:00.000Z'
@@ -435,7 +464,7 @@ export const handlers: PluginHandlers = {
     })
 
     ipcMain.handle('queries:notion-sync', async () => {
-      const config     = { ...DEFAULT_QUERIES_CONFIG, ...(db.readJSON<QueriesNotionConfig>(QUERIES_NOTION_FILE) ?? {}) }
+      const config     = mergeQueriesNotionConfig(db)
       const { token, databaseId } = config
       const lastSyncAt = config.lastSyncAt ?? '1970-01-01T00:00:00.000Z'
 
