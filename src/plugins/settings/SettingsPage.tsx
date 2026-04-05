@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Check, CheckCircle2, ChevronDown, CircleAlert, Download,
   Eye, EyeOff, Lock, Moon, Sun, Upload,
@@ -100,6 +100,8 @@ export function SettingsPage(): JSX.Element {
   const [openAIKeyConfigured, setOpenAIKeyConfigured] = useState(false)
   const [anthropicKeyConfigured, setAnthropicKeyConfigured] = useState(false)
   const [encryptionAvailable, setEncryptionAvailable] = useState(true)
+  const [keyTest, setKeyTest] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; message?: string }>({ status: 'idle' })
+  const keyTestTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     void window.api.invoke<boolean>('settings:encryption-available').then(setEncryptionAvailable).catch(() => {})
@@ -161,6 +163,21 @@ export function SettingsPage(): JSX.Element {
 
   const update = (key: keyof SettingsState, value: string): void => {
     setSettings((prev) => ({ ...prev, [key]: value }))
+    if (key === 'ai.openai_key') setKeyTest({ status: 'idle' })
+  }
+
+  const testApiKey = async (): Promise<void> => {
+    const key = settings['ai.openai_key'].trim()
+    if (!key) return
+    setKeyTest({ status: 'loading' })
+    const result = await window.api.invoke<{ valid: boolean; error?: string }>('settings:validate-openai-key', key)
+    if (result.valid) {
+      setKeyTest({ status: 'ok' })
+    } else {
+      setKeyTest({ status: 'error', message: result.error })
+    }
+    if (keyTestTimer.current) clearTimeout(keyTestTimer.current)
+    keyTestTimer.current = setTimeout(() => setKeyTest({ status: 'idle' }), 6000)
   }
 
   const provider = (settings['ai.provider'] || 'openai') as AIProvider

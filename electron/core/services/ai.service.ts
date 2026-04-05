@@ -33,6 +33,10 @@ const CACHE_FILE = 'ai-cache.json'
 
 const CONTEXT_WINDOW = 200_000 // Claude Sonnet context window
 
+/** Allow at most RATE_LIMIT calls within RATE_WINDOW_MS to avoid unexpected API spend. */
+const RATE_LIMIT     = 10 // max calls
+const RATE_WINDOW_MS = 60_000 // per 60 seconds
+
 export interface AISessionUsage {
   inputTokens: number
   outputTokens: number
@@ -43,6 +47,7 @@ export interface AISessionUsage {
 export class AIService {
   private cache: CacheStore
   private session: AISessionUsage = { inputTokens: 0, outputTokens: 0, calls: 0, contextWindowSize: CONTEXT_WINDOW }
+  private callTimestamps: number[] = []
 
   constructor(
     private db: DatabaseService,
@@ -57,6 +62,16 @@ export class AIService {
 
   resetSessionUsage(): void {
     this.session = { inputTokens: 0, outputTokens: 0, calls: 0, contextWindowSize: CONTEXT_WINDOW }
+  }
+
+  private enforceRateLimit(): void {
+    const now = Date.now()
+    this.callTimestamps = this.callTimestamps.filter((t) => now - t < RATE_WINDOW_MS)
+    if (this.callTimestamps.length >= RATE_LIMIT) {
+      const waitSec = Math.ceil((RATE_WINDOW_MS - (now - this.callTimestamps[0]!)) / 1000)
+      throw new Error(`RATE_LIMITED:${waitSec}`)
+    }
+    this.callTimestamps.push(now)
   }
 
   private hash(input: string): string {
@@ -213,10 +228,13 @@ export class AIService {
     const provider = this.settings.get('ai.provider') ?? 'openai'
     const cacheKey = this.hash(JSON.stringify({ messages, provider }))
 
+    // Check cache before consuming a rate-limit slot
     if (!options?.skipCache) {
       const cached = this.getCached(cacheKey)
       if (cached) return { text: cached, cached: true }
     }
+
+    this.enforceRateLimit()
 
     let text: string
     if (provider === 'anthropic') {

@@ -813,6 +813,22 @@ export function FileEditor(): JSX.Element {
                       <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${prefs.autoSave ? 'left-4.5' : 'left-0.5'}`} />
                     </button>
                   </div>
+                  {/* Tail lines */}
+                  <div className="flex flex-col gap-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Tail lines (large files)</p>
+                    <input
+                      type="number"
+                      min={100}
+                      max={50000}
+                      step={500}
+                      value={prefs.tailLinesCount}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10)
+                        if (!isNaN(v) && v >= 100) updatePrefs({ tailLinesCount: v })
+                      }}
+                      className="w-full bg-surface border border-outline-variant/30 rounded-lg px-2 py-1 text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/40"
+                    />
+                  </div>
                 </div>
               )}
             </div>

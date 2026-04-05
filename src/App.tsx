@@ -1,4 +1,4 @@
-import { Suspense, useEffect } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { LayoutGrid } from 'lucide-react'
 import { AppProvider, useApp } from './core/AppContext'
 import { useAppFont } from './core/hooks/useAppFont'
@@ -13,10 +13,18 @@ import { StatusBar } from './core/components/StatusBar'
 import { TitleBar } from './core/components/TitleBar'
 import { ErrorBoundary } from './core/components/ErrorBoundary'
 import { ToastProvider } from './core/components/Toast'
+import { KeyboardShortcuts, useKeyboardShortcutsModal } from './core/components/KeyboardShortcuts'
 import { getPlugin } from './core/plugin-registry'
+
+type UpdaterStatus =
+  | { type: 'available'; version: string }
+  | { type: 'ready'; version: string }
+  | null
 
 function AppShell(): JSX.Element {
   const { state, dispatch } = useApp()
+  const shortcuts = useKeyboardShortcutsModal()
+  const [updateStatus, setUpdateStatus] = useState<UpdaterStatus>(null)
   useAppFont()        // applies persisted font prefs to DOM on mount
   useThemePalette()   // applies persisted color palette on mount
 
@@ -32,6 +40,17 @@ function AppShell(): JSX.Element {
     })
     return off
   }, [dispatch])
+
+  // ── Auto-updater notifications ────────────────────────────────────────────
+  useEffect(() => {
+    const off = window.api.on('updater:status', (status: unknown) => {
+      const s = status as { type: string; version?: string }
+      if (s.type === 'available' || s.type === 'ready') {
+        setUpdateStatus({ type: s.type as 'available' | 'ready', version: s.version ?? '' })
+      }
+    })
+    return off
+  }, [])
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-on-surface font-sans">
@@ -97,6 +116,38 @@ function AppShell(): JSX.Element {
       </main>
 
       <StatusBar />
+      <KeyboardShortcuts open={shortcuts.open} onClose={shortcuts.close} />
+
+      {/* Update banner */}
+      {updateStatus && (
+        <div className="fixed bottom-8 right-4 z-[500] flex items-center gap-3 bg-surface-container-high border border-outline-variant/30 rounded-xl shadow-2xl px-4 py-3 text-sm">
+          <span className="material-symbols-outlined text-accent" style={{ fontSize: '18px' }}>system_update</span>
+          {updateStatus.type === 'available' ? (
+            <>
+              <span className="text-on-surface">Update <span className="font-semibold">{updateStatus.version}</span> available</span>
+              <button
+                onClick={() => { void window.api.invoke('updater:download') }}
+                className="px-3 py-1 rounded-lg bg-primary text-on-primary text-xs font-semibold hover:opacity-90 transition-opacity"
+              >
+                Download
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="text-on-surface">Ready to install <span className="font-semibold">{updateStatus.version}</span></span>
+              <button
+                onClick={() => window.api.send('updater:install')}
+                className="px-3 py-1 rounded-lg bg-primary text-on-primary text-xs font-semibold hover:opacity-90 transition-opacity"
+              >
+                Restart & Install
+              </button>
+            </>
+          )}
+          <button onClick={() => setUpdateStatus(null)} className="text-on-surface-variant hover:text-on-surface transition-colors ml-1">
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+          </button>
+        </div>
+      )}
     </div>
   )
 }

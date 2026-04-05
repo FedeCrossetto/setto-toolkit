@@ -61,7 +61,7 @@ export function useEditorTabs() {
   const [tabs, setTabs] = useState<OpenFile[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
 
-  const openFile = useCallback(async (filePath: string, _line?: number): Promise<OpenFile | null> => {
+  const openFile = useCallback(async (filePath: string, _line?: number, tailLinesCount?: number): Promise<OpenFile | null> => {
     // If already open, just activate it
     const existing = tabs.find((t) => t.path === filePath)
     if (existing) {
@@ -70,7 +70,7 @@ export function useEditorTabs() {
     }
 
     try {
-      const result = await window.api.invoke<ReadFileResponse>('editor:read-file', { path: filePath })
+      const result = await window.api.invoke<ReadFileResponse>('editor:read-file', { path: filePath, tailLinesCount })
       const name = filePath.split(/[\\/]/).pop() ?? filePath
       const file: OpenFile = {
         id: newId(),

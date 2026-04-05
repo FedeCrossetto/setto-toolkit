@@ -76,6 +76,10 @@ export interface FileTreeNode {
 /** Request payload for editor:read-file */
 export interface ReadFileRequest {
   path: string
+  /** If set, only return content from this line onward (for large files) */
+  fromLine?: number
+  /** Override the default tail-lines count for large files (default: 2000) */
+  tailLinesCount?: number
 }
 
 export interface ReadFileResponse {

@@ -394,23 +394,13 @@ async function gitlabSearch(token: string, query: string, group?: string | null)
 
 // ── IPC handlers ───────────────────────────────────────────────────────────
 
-const REPO_SEARCH_HISTORY_FILE = 'repo-search-history.json'
-const MAX_REPO_SEARCH_HISTORY = 10
+const HISTORY_FILE = 'repo-search-history.json'
+const MAX_HISTORY  = 10
 
 export const handlers: PluginHandlers = {
   pluginId: 'repo-search',
 
   register(ipcMain: IpcMain, { settings, db }: CoreServices): void {
-
-    ipcMain.handle('repo-search:history-get', () => {
-      return db.readJSON<string[]>(REPO_SEARCH_HISTORY_FILE) ?? []
-    })
-
-    ipcMain.handle('repo-search:history-save', (_event, queries: string[]) => {
-      if (!Array.isArray(queries)) throw new Error('Expected array')
-      db.writeJSON(REPO_SEARCH_HISTORY_FILE, queries.slice(0, MAX_REPO_SEARCH_HISTORY))
-      return { ok: true }
-    })
 
     // ── GitHub OAuth Device Flow ───────────────────────────────────────────
     // Starts the flow: returns the user_code to display and the device_code
@@ -487,6 +477,7 @@ export const handlers: PluginHandlers = {
       if (data.error === 'access_denied')         return { status: 'denied' as const }
       return { status: 'error' as const, message: data.error_description ?? data.error ?? 'Unknown error' }
     })
+
 
     ipcMain.handle('repo-search:login', async (_event, payload: {
       provider: Provider
@@ -684,6 +675,25 @@ export const handlers: PluginHandlers = {
       }
 
       return { results, count: results.length }
+    })
+
+    // ── Search history (persisted in userData, not localStorage) ───────────
+
+    ipcMain.handle('repo-search:history-get', () => {
+      return db.readJSON<string[]>(HISTORY_FILE) ?? []
+    })
+
+    ipcMain.handle('repo-search:history-save', (_event, query: string) => {
+      if (typeof query !== 'string' || !query.trim()) return { ok: true }
+      const history = db.readJSON<string[]>(HISTORY_FILE) ?? []
+      const deduped = [query, ...history.filter((q) => q !== query)].slice(0, MAX_HISTORY)
+      db.writeJSON(HISTORY_FILE, deduped)
+      return { ok: true }
+    })
+
+    ipcMain.handle('repo-search:history-clear', () => {
+      db.writeJSON(HISTORY_FILE, [])
+      return { ok: true }
     })
   },
 }

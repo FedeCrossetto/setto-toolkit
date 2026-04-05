@@ -147,7 +147,7 @@ export const handlers: PluginHandlers = {
 
     // ── Read file ──────────────────────────────────────────────────────────
 
-    ipcMain.handle('editor:read-file', (_e, { path: filePath }: ReadFileRequest): ReadFileResponse => {
+    ipcMain.handle('editor:read-file', (_e, { path: filePath, tailLinesCount }: ReadFileRequest): ReadFileResponse => {
       const safe = validatePath(filePath)
       // Authorize the file's parent so the user can save changes via Ctrl+S
       // (mirrors what open-dialog does for each selected file).
@@ -159,8 +159,9 @@ export const handlers: PluginHandlers = {
       let truncated = false
 
       if (size > MAX_FULL_SIZE) {
-        // Large file — return only last TAIL_LINES lines
-        content = tailLines(content, TAIL_LINES)
+        // Large file — return only last N lines (user-configurable, default TAIL_LINES)
+        const n = (typeof tailLinesCount === 'number' && tailLinesCount > 0) ? tailLinesCount : TAIL_LINES
+        content = tailLines(content, n)
         truncated = true
       }
 

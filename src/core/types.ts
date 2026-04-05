@@ -67,6 +67,9 @@ export type AppAction =
   | { type: 'CLEAR_DIFF_TARGET' }
   /** Plugins report their unsaved-changes status */
   | { type: 'SET_PLUGIN_DIRTY'; pluginId: string; dirty: boolean }
+  /** Convenience aliases for SET_PLUGIN_DIRTY */
+  | { type: 'MARK_PLUGIN_DIRTY'; pluginId: string }
+  | { type: 'MARK_PLUGIN_CLEAN'; pluginId: string }
   /** Enable or disable a plugin (hides from sidebar, closes open tab) */
   | { type: 'TOGGLE_PLUGIN'; pluginId: string }
   /** Cross-plugin: open terminal tab in a specific working directory */

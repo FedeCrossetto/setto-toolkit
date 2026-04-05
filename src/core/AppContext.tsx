@@ -144,6 +144,14 @@ function appReducer(state: AppState, action: AppAction): AppState {
         dirtyPlugins: { ...state.dirtyPlugins, [action.pluginId]: action.dirty },
       }
     }
+    case 'MARK_PLUGIN_DIRTY': {
+      if (state.dirtyPlugins[action.pluginId]) return state
+      return { ...state, dirtyPlugins: { ...state.dirtyPlugins, [action.pluginId]: true } }
+    }
+    case 'MARK_PLUGIN_CLEAN': {
+      if (!state.dirtyPlugins[action.pluginId]) return state
+      return { ...state, dirtyPlugins: { ...state.dirtyPlugins, [action.pluginId]: false } }
+    }
     case 'TOGGLE_PLUGIN': {
       const isDisabled = state.disabledPlugins.includes(action.pluginId)
       const disabledPlugins = isDisabled

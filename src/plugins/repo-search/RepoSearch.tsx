@@ -718,6 +718,11 @@ export function RepoSearch(): JSX.Element {
     return () => document.removeEventListener('keydown', handler)
   }, [])
 
+  // Load search history from backend on mount
+  useEffect(() => {
+    window.api.invoke<string[]>('repo-search:history-get').then(setHistory).catch(() => {})
+  }, [])
+
   // Close history dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent): void => {
@@ -730,7 +735,7 @@ export function RepoSearch(): JSX.Element {
   const addToHistory = (q: string): void => {
     const updated = [q, ...history.filter((h) => h !== q)].slice(0, MAX_HISTORY)
     setHistory(updated)
-    window.api.invoke('repo-search:history-save', updated).catch(() => { /* ignore */ })
+    void window.api.invoke('repo-search:history-save', q)
   }
 
   const handleSearch = async (q?: string): Promise<void> => {
@@ -898,7 +903,7 @@ export function RepoSearch(): JSX.Element {
                     <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 border-b border-outline-variant/10 flex items-center justify-between">
                       <span>History</span>
                       <button
-                        onClick={() => { setHistory([]); window.api.invoke('repo-search:history-save', []).catch(() => {}); setShowHistory(false) }}
+                        onClick={() => { setHistory([]); void window.api.invoke('repo-search:history-clear'); setShowHistory(false) }}
                         className="text-[10px] text-on-surface-variant hover:text-error transition-colors normal-case font-normal"
                       >
                         Clear

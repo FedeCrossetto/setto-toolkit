@@ -3,9 +3,9 @@ import { contextBridge, ipcRenderer } from 'electron'
 /** Channels the renderer may invoke (request → main) */
 const INVOKE_CHANNELS = new Set([
   'settings:get', 'settings:set', 'settings:delete', 'settings:getAll',
-  'settings:export', 'settings:import', 'settings:encryption-available',
+  'settings:export', 'settings:import', 'settings:encryption-available', 'settings:validate-openai-key',
   'repo-search:login', 'repo-search:logout', 'repo-search:me', 'repo-search:search',
-  'repo-search:history-get', 'repo-search:history-save',
+  'repo-search:history-get', 'repo-search:history-save', 'repo-search:history-clear',
   'repo-search:github-oauth-start', 'repo-search:github-oauth-poll',
   'repo-search:github-repos',
   'repo-search:gitlab-oauth-start', 'repo-search:gitlab-oauth-poll',
@@ -41,6 +41,7 @@ const INVOKE_CHANNELS = new Set([
   'gastos:credencial-save', 'gastos:credencial-delete',
   'gastos:notion-sync', 'gastos:notion-sync-credenciales',
   'queries:load', 'queries:save', 'queries:delete', 'queries:notion-sync',
+  'updater:download',
 ])
 
 /** Channels the renderer may send (fire-and-forget → main) */
@@ -49,12 +50,14 @@ const SEND_CHANNELS = new Set([
   'page:find', 'page:find-stop',
   'editor:authorize-root',
   'terminal:input', 'terminal:resize',
+  'updater:install',
 ])
 
 /** Channels the renderer may subscribe to (main → renderer) */
 const ON_CHANNELS = new Set([
   'open-file', 'page:found', 'editor:file-changed',
   'terminal:data', 'terminal:exit',
+  'updater:status',
 ])
 
 const api = {
