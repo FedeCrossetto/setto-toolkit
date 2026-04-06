@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useId, useRef } from 'react'
+import { useState, useEffect, useCallback, useId, useRef, Fragment } from 'react'
 import {
   Plus, Pencil, Trash2, Check, X, ChevronLeft, ChevronRight, Copy,
   ToggleLeft, ToggleRight, TrendingUp, TrendingDown, Minus,
@@ -7,7 +7,7 @@ import {
   BookOpen, CreditCard, Wrench, Utensils, Music,
   Eye, EyeOff, Search, KeyRound, History, BarChart3, Wallet,
   RefreshCw, Loader2, Braces, FileCode2, Server, DatabaseZap, Table2, Cylinder, Package, Leaf,
-  Layers, CodeXml, Sparkles,
+  Layers, CodeXml, Sparkles, Settings2,
   type LucideIcon,
 } from 'lucide-react'
 import type { Servicio, PagoMensual, Credencial, QueryItem } from './types'
@@ -1055,8 +1055,8 @@ function TablaGastos({ servicios, pagos, year, onEditPago, onDeletePago }: {
           </thead>
           <tbody>
             {cats.map((cat) => (
-              <>
-                <tr key={`hdr-${cat}`}>
+              <Fragment key={`cat-${cat}`}>
+                <tr>
                   <td colSpan={months.length + 2}
                     className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 bg-surface-container/30 sticky left-0">
                     {cat}
@@ -1117,7 +1117,7 @@ function TablaGastos({ servicios, pagos, year, onEditPago, onDeletePago }: {
                     </tr>
                   )
                 })}
-              </>
+              </Fragment>
             ))}
             <tr className="border-t-2 border-outline-variant/30">
               <td className="px-3 py-2.5 text-xs font-bold text-on-surface uppercase tracking-wide sticky left-0 bg-surface">Total</td>
@@ -1701,6 +1701,127 @@ function QuerySnippet({ item, copied, onCopy, onEdit, onDelete }: {
   )
 }
 
+function NotionSettingsForm({ gastos, queries, onSave, onCancel }: {
+  gastos: { token: string; databaseId: string; credencialesDatabaseId: string }
+  queries: { token: string; databaseId: string }
+  onSave: (gastos: { token: string; databaseId: string; credencialesDatabaseId: string }, queries: { token: string; databaseId: string }) => void
+  onCancel: () => void
+}) {
+  const [gToken,    setGToken]    = useState(gastos.token)
+  const [gDbId,     setGDbId]     = useState(gastos.databaseId)
+  const [gCredDbId, setGCredDbId] = useState(gastos.credencialesDatabaseId)
+  const [qToken,    setQToken]    = useState(queries.token)
+  const [qDbId,     setQDbId]     = useState(queries.databaseId)
+  const [showToken, setShowToken] = useState(false)
+
+  // Extrae el ID de 32 chars de una URL de Notion o devuelve el valor limpio
+  function previewCleanId(raw: string): string {
+    const s = raw.trim()
+    if (!s) return ''
+    try {
+      const pathname = s.startsWith('http') ? new URL(s).pathname : s
+      const segment = pathname.split('/').pop()?.split('?')[0] ?? ''
+      const hex = segment.replace(/-/g, '').replace(/[^0-9a-fA-F]/g, '')
+      return hex.length >= 32 ? hex.slice(-32) : ''
+    } catch { return '' }
+  }
+
+  const field = 'w-full rounded-lg border border-outline-variant/30 bg-surface-container/40 px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/40 outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/30 font-mono'
+  const label = 'block text-[11px] font-medium text-on-surface-variant mb-1'
+  const section = 'text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-3 mt-5 first:mt-0'
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault()
+    onSave(
+      { token: gToken.trim(), databaseId: gDbId.trim(), credencialesDatabaseId: gCredDbId.trim() },
+      { token: qToken.trim(), databaseId: qDbId.trim() },
+    )
+  }
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-4 p-4">
+      <p className="text-[11px] text-on-surface-variant/70 leading-relaxed">
+        Obtené tu token en{' '}
+        <span className="font-mono text-primary">notion.so/my-integrations</span>
+        {' '}y el ID de cada base de datos desde la URL de Notion.
+      </p>
+
+      <p className={section}>Gastos y Credenciales</p>
+
+      <div>
+        <label className={label}>Token de integración</label>
+        <div className="relative">
+          <input
+            type={showToken ? 'text' : 'password'}
+            value={gToken}
+            onChange={(e) => setGToken(e.target.value)}
+            placeholder="secret_..."
+            className={field + ' pr-9'}
+          />
+          <button type="button" onClick={() => setShowToken((v) => !v)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-on-surface-variant">
+            {showToken ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label className={label}>Database ID — Pagos</label>
+        <input type="text" value={gDbId} onChange={(e) => setGDbId(e.target.value)}
+          placeholder="URL de Notion o ID de 32 caracteres" className={field} />
+        {previewCleanId(gDbId) && gDbId !== previewCleanId(gDbId) && (
+          <p className="mt-1 text-[10px] text-accent font-mono">ID extraído: {previewCleanId(gDbId)}</p>
+        )}
+      </div>
+
+      <div>
+        <label className={label}>Database ID — Credenciales</label>
+        <input type="text" value={gCredDbId} onChange={(e) => setGCredDbId(e.target.value)}
+          placeholder="URL de Notion o ID de 32 caracteres" className={field} />
+        {previewCleanId(gCredDbId) && gCredDbId !== previewCleanId(gCredDbId) && (
+          <p className="mt-1 text-[10px] text-accent font-mono">ID extraído: {previewCleanId(gCredDbId)}</p>
+        )}
+      </div>
+
+      <p className={section}>Queries</p>
+
+      <div>
+        <label className={label}>Token de integración (Queries)</label>
+        <div className="relative">
+          <input
+            type={showToken ? 'text' : 'password'}
+            value={qToken}
+            onChange={(e) => setQToken(e.target.value)}
+            placeholder="secret_... (puede ser el mismo)"
+            className={field + ' pr-9'}
+          />
+        </div>
+        <p className="mt-1 text-[10px] text-on-surface-variant/50">Puede ser el mismo token que Gastos.</p>
+      </div>
+
+      <div>
+        <label className={label}>Database ID — Queries</label>
+        <input type="text" value={qDbId} onChange={(e) => setQDbId(e.target.value)}
+          placeholder="URL de Notion o ID de 32 caracteres" className={field} />
+        {previewCleanId(qDbId) && qDbId !== previewCleanId(qDbId) && (
+          <p className="mt-1 text-[10px] text-accent font-mono">ID extraído: {previewCleanId(qDbId)}</p>
+        )}
+      </div>
+
+      <div className="flex gap-2 pt-2">
+        <button type="submit"
+          className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary/90 transition-colors">
+          Guardar
+        </button>
+        <button type="button" onClick={onCancel}
+          className="flex-1 rounded-lg border border-outline-variant/30 px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container/50 transition-colors">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  )
+}
+
 function QueriesView({ queries, onEdit, onDelete }: {
   queries: QueryItem[]; onEdit: (q: QueryItem) => void; onDelete: (id: string) => void
 }) {
@@ -1800,6 +1921,7 @@ type PanelMode =
   | { type: 'edit-credencial'; credencial: Credencial }
   | { type: 'add-query' }
   | { type: 'edit-query'; query: QueryItem }
+  | { type: 'notion-settings' }
 
 type BoardView = 'dashboard' | 'tabla' | 'servicios'
 
@@ -1828,6 +1950,19 @@ export function GastosPlugin() {
   const [lastSyncCred,   setLastSyncCred]   = useState<{ at: string; created: number; updated: number; pulled: number } | null>(null)
   const [syncingQueries, setSyncingQueries] = useState(false)
   const [lastSyncQueries,setLastSyncQueries]= useState<{ at: string; created: number; updated: number; pulled: number } | null>(null)
+  const [notionCfg, setNotionCfg] = useState({ token: '', databaseId: '', credencialesDatabaseId: '' })
+  const [queriesCfg, setQueriesCfg] = useState({ token: '', databaseId: '' })
+
+  const loadNotionCfg = useCallback(async () => {
+    try {
+      const [g, q] = await Promise.all([
+        window.api.invoke<{ token: string; databaseId: string; credencialesDatabaseId: string }>('gastos:notion-config-get'),
+        window.api.invoke<{ token: string; databaseId: string }>('queries:notion-config-get'),
+      ])
+      setNotionCfg(g)
+      setQueriesCfg(q)
+    } catch { /* silencioso */ }
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1854,7 +1989,7 @@ export function GastosPlugin() {
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(); loadNotionCfg() }, [load, loadNotionCfg])
 
   async function saveServicio(s: Servicio) {
     try {
@@ -1925,7 +2060,11 @@ export function GastosPlugin() {
       await load()
       setLastSync({ at: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), ...result })
       toast.show(`Sync completado — ${result.created} creados, ${result.updated} actualizados, ${result.pulled} importados`, 'success', 5000)
-    } catch (e) { toast.show(`Error al sincronizar con Notion: ${e}`, 'error', 7000) }
+    } catch (e) {
+      if (String(e).includes('NOTION_NOT_CONFIGURED'))
+        toast.show('Notion no está configurado. Hacé clic en el ícono de ajustes para configurarlo.', 'error', 8000)
+      else toast.show(`Error al sincronizar con Notion: ${e}`, 'error', 7000)
+    }
     finally { setSyncing(false) }
   }
 
@@ -1949,7 +2088,11 @@ export function GastosPlugin() {
       await load()
       setLastSyncQueries({ at: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), ...result })
       toast.show(`Queries sync — ${result.created} creadas, ${result.updated} actualizadas, ${result.pulled} importadas`, 'success', 5000)
-    } catch (e) { toast.show(`Error al sincronizar queries con Notion: ${e}`, 'error', 7000) }
+    } catch (e) {
+      if (String(e).includes('NOTION_NOT_CONFIGURED'))
+        toast.show('Notion no está configurado. Hacé clic en el ícono de ajustes para configurarlo.', 'error', 8000)
+      else toast.show(`Error al sincronizar queries con Notion: ${e}`, 'error', 7000)
+    }
     finally { setSyncingQueries(false) }
   }
 
@@ -1960,8 +2103,27 @@ export function GastosPlugin() {
       await load()
       setLastSyncCred({ at: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), ...result })
       toast.show(`Credenciales sync — ${result.created} creadas, ${result.updated} actualizadas, ${result.pulled} importadas`, 'success', 5000)
-    } catch (e) { toast.show(`Error al sincronizar credenciales con Notion: ${e}`, 'error', 7000) }
+    } catch (e) {
+      if (String(e).includes('NOTION_NOT_CONFIGURED'))
+        toast.show('Notion no está configurado. Hacé clic en el ícono de ajustes para configurarlo.', 'error', 8000)
+      else toast.show(`Error al sincronizar credenciales con Notion: ${e}`, 'error', 7000)
+    }
     finally { setSyncingCred(false) }
+  }
+
+  async function saveNotionSettings(gastos: typeof notionCfg, queries: typeof queriesCfg) {
+    try {
+      await Promise.all([
+        window.api.invoke('gastos:notion-config-save', gastos),
+        window.api.invoke('queries:notion-config-save', queries),
+      ])
+      setNotionCfg(gastos)
+      setQueriesCfg(queries)
+      setPanel({ type: 'closed' })
+      toast.show('Configuración de Notion guardada', 'success')
+    } catch (e) {
+      toast.show(`Error al guardar config de Notion: ${e}`, 'error')
+    }
   }
 
   const years      = availableYears(pagos)
@@ -1975,7 +2137,8 @@ export function GastosPlugin() {
     panel.type === 'add-credencial'  ? 'Nueva credencial'  :
     panel.type === 'edit-credencial' ? 'Editar credencial' :
     panel.type === 'add-query'       ? 'Nueva query'       :
-    panel.type === 'edit-query'      ? 'Editar query'      : ''
+    panel.type === 'edit-query'      ? 'Editar query'      :
+    panel.type === 'notion-settings' ? 'Configurar Notion' : ''
 
   if (loading) {
     return (
@@ -2009,6 +2172,14 @@ export function GastosPlugin() {
             {b.label}
           </button>
         ))}
+        <div className="ml-auto pb-1">
+          <button
+            onClick={() => setPanel({ type: 'notion-settings' })}
+            className="p-1.5 rounded hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors"
+            title="Configurar Notion">
+            <Settings2 size={15} />
+          </button>
+        </div>
       </div>
 
       {/* ── Board header: view switcher + year + action ──────────────── */}
@@ -2207,6 +2378,14 @@ export function GastosPlugin() {
         )}
         {panel.type === 'edit-credencial' && (
           <CredencialForm initial={panel.credencial} onSave={saveCredencial} onCancel={() => setPanel({ type: 'closed' })} />
+        )}
+        {panel.type === 'notion-settings' && (
+          <NotionSettingsForm
+            gastos={notionCfg}
+            queries={queriesCfg}
+            onSave={saveNotionSettings}
+            onCancel={() => setPanel({ type: 'closed' })}
+          />
         )}
       </SlidePanel>
     </div>

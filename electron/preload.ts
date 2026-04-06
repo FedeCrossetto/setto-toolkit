@@ -40,7 +40,9 @@ const INVOKE_CHANNELS = new Set([
   'gastos:save-pago', 'gastos:delete-pago', 'gastos:save-pagos-bulk',
   'gastos:credencial-save', 'gastos:credencial-delete',
   'gastos:notion-sync', 'gastos:notion-sync-credenciales',
+  'gastos:notion-config-get', 'gastos:notion-config-save',
   'queries:load', 'queries:save', 'queries:delete', 'queries:notion-sync',
+  'queries:notion-config-get', 'queries:notion-config-save',
   'updater:download',
 ])
 

@@ -42,6 +42,21 @@ function mergeNotionConfig(db: CoreServices['db']): NotionConfig {
   }
 }
 
+/**
+ * Extrae el Database ID de Notion desde una URL completa o lo devuelve limpio.
+ * Notion URLs: https://www.notion.so/workspace/Title-<32hexchars>?v=...
+ * El ID son los últimos 32 caracteres hex (con o sin guiones).
+ */
+function cleanNotionDatabaseId(raw: string): string {
+  const s = raw.trim()
+  // Extraer el último segmento de path sin query string
+  const pathname = s.startsWith('http') ? (() => { try { return new URL(s).pathname } catch { return s } })() : s
+  const segment = pathname.split('/').pop()?.split('?')[0] ?? ''
+  // Quitar guiones y tomar los últimos 32 hex chars
+  const hex = segment.replace(/-/g, '').replace(/[^0-9a-fA-F]/g, '')
+  return hex.length >= 32 ? hex.slice(-32) : s.replace(/-/g, '')
+}
+
 // ── Notion API helpers ─────────────────────────────────────────────────────────
 
 async function notionFetch(token: string, path: string, method = 'GET', body?: object): Promise<any> {
@@ -326,6 +341,7 @@ export const handlers: PluginHandlers = {
     ipcMain.handle('gastos:notion-sync', async () => {
       const config = mergeNotionConfig(db)
       const { token, databaseId } = config
+      if (!token || !databaseId) throw new Error('NOTION_NOT_CONFIGURED')
       const lastSyncAt = config.lastSyncAt ?? '1970-01-01T00:00:00.000Z'
 
       const localPagos    = db.readJSON<PagoMensual[]>(PAGOS_FILE)    ?? []
@@ -395,7 +411,8 @@ export const handlers: PluginHandlers = {
     ipcMain.handle('gastos:notion-sync-credenciales', async () => {
       const config = mergeNotionConfig(db)
       const { token } = config
-      const databaseId = config.credencialesDatabaseId!
+      const databaseId = config.credencialesDatabaseId ?? ''
+      if (!token || !databaseId) throw new Error('NOTION_NOT_CONFIGURED')
       const lastSyncAt = config.credencialesLastSyncAt ?? '1970-01-01T00:00:00.000Z'
 
       const localCreds = db.readJSON<Credencial[]>(CREDENCIALES_FILE) ?? DEFAULT_CREDENCIALES
@@ -452,6 +469,43 @@ export const handlers: PluginHandlers = {
       return { ok: true, created, updated, pulled }
     })
 
+    // ── Notion config handlers ──────────────────────────────────────────────────
+
+    ipcMain.handle('gastos:notion-config-get', () => {
+      const config = mergeNotionConfig(db)
+      return {
+        token: config.token,
+        databaseId: config.databaseId,
+        credencialesDatabaseId: config.credencialesDatabaseId ?? '',
+      }
+    })
+
+    ipcMain.handle('gastos:notion-config-save', (_e, payload: { token: string; databaseId: string; credencialesDatabaseId: string }) => {
+      if (!payload || typeof payload.token !== 'string') throw new Error('Payload inválido')
+      const existing = mergeNotionConfig(db)
+      db.writeJSON(NOTION_CONFIG_FILE, {
+        ...existing,
+        token: payload.token.trim(),
+        databaseId: cleanNotionDatabaseId(payload.databaseId),
+        credencialesDatabaseId: cleanNotionDatabaseId(payload.credencialesDatabaseId),
+      })
+    })
+
+    ipcMain.handle('queries:notion-config-get', () => {
+      const config = mergeQueriesNotionConfig(db)
+      return { token: config.token, databaseId: config.databaseId }
+    })
+
+    ipcMain.handle('queries:notion-config-save', (_e, payload: { token: string; databaseId: string }) => {
+      if (!payload || typeof payload.token !== 'string') throw new Error('Payload inválido')
+      const existing = mergeQueriesNotionConfig(db)
+      db.writeJSON(QUERIES_NOTION_FILE, {
+        ...existing,
+        token: payload.token.trim(),
+        databaseId: cleanNotionDatabaseId(payload.databaseId),
+      })
+    })
+
     // ── Queries handlers ────────────────────────────────────────────────────────
 
     ipcMain.handle('queries:load', () => db.readJSON<QueryItem[]>(QUERIES_FILE) ?? [])
@@ -480,6 +534,7 @@ export const handlers: PluginHandlers = {
     ipcMain.handle('queries:notion-sync', async () => {
       const config     = mergeQueriesNotionConfig(db)
       const { token, databaseId } = config
+      if (!token || !databaseId) throw new Error('NOTION_NOT_CONFIGURED')
       const lastSyncAt = config.lastSyncAt ?? '1970-01-01T00:00:00.000Z'
 
       const localItems = db.readJSON<QueryItem[]>(QUERIES_FILE) ?? []
