@@ -139,17 +139,20 @@ export function FileEditor(): JSX.Element {
     try { session = JSON.parse(raw) } catch { return }
     if (!session.tabs?.length) return
     ;(async () => {
-      let activeTabId: string | null = null
-      for (const saved of session.tabs) {
-        if (saved.path === null) {
-          const tab = openBuffer(saved.name, saved.content, saved.language)
-          if (session.activePath === null && saved.name === session.activeName) activeTabId = tab.id
-        } else {
+      // Open all file-backed tabs in parallel; unsaved buffers are synchronous
+      const results = await Promise.all(
+        session.tabs.map(async (saved) => {
+          if (saved.path === null) {
+            return { tab: openBuffer(saved.name, saved.content, saved.language), path: null as null, name: saved.name }
+          }
           const tab = await openFile(saved.path)
-          if (tab && saved.path === session.activePath) activeTabId = tab.id
-        }
-      }
-      if (activeTabId) setActiveId(activeTabId)
+          return { tab, path: saved.path, name: null }
+        })
+      )
+      const active = results.find((r) =>
+        r.path !== null ? r.path === session.activePath : r.name === session.activeName
+      )
+      if (active?.tab) setActiveId(active.tab.id)
     })()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -879,6 +882,25 @@ export function FileEditor(): JSX.Element {
 
         {/* Breadcrumb */}
         {activeTab?.path && <Breadcrumb filePath={activeTab.path} />}
+
+        {/* Large-file truncation notice */}
+        {activeTab?.truncated && (
+          <div className="flex items-center gap-2 px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/25 text-xs text-amber-400 flex-shrink-0">
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>warning</span>
+            Archivo grande — mostrando las últimas 2 000 líneas.
+            <button
+              className="ml-auto underline hover:no-underline opacity-80 hover:opacity-100 transition-opacity"
+              onClick={() => {
+                if (!activeTab.path) return
+                // Close the current tab and re-open with tailLinesCount = -1 (load all)
+                closeTab(activeTab.id)
+                void openFile(activeTab.path, undefined, -1)
+              }}
+            >
+              Cargar completo
+            </button>
+          </div>
+        )}
 
         {/* Editor */}
         <div className="flex-1 overflow-hidden flex flex-col min-h-0">

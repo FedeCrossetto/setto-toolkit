@@ -819,6 +819,18 @@ function DashboardView({ servicios, pagos, year, onEditPago, onDeletePago }: {
     setMesDetalle((prev) => (prev === mes ? null : mes))
   }, [])
 
+  if (servicios.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <EmptyState
+          icon={Receipt}
+          title="No tenés servicios cargados"
+          description="Agregá tu primer servicio desde la pestaña Servicios para empezar a registrar gastos."
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden p-4">
 
@@ -869,32 +881,31 @@ function DashboardView({ servicios, pagos, year, onEditPago, onDeletePago }: {
         <TopServicesTrafficCard servicios={servicios} pagos={pagos} year={year} />
       </div>
 
-      {/* Resumen mensual (izq.) | Historial (der.) — chart fijo 200px */}
-      <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row lg:items-stretch">
+      {/* Resumen mensual (izq.) | Historial (der.) */}
+      <div className="flex min-h-[13rem] flex-col gap-3 lg:flex-row lg:items-stretch">
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3 lg:min-w-0">
-          <div className="flex h-[200px] shrink-0 flex-col overflow-hidden rounded-xl border border-outline-variant/15 bg-surface-container">
-            <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant/10">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-on-surface">Resumen mensual</span>
-                <PendingBadge pagos={pagos} servicios={servicios} />
-              </div>
-              <span className="text-[10px] font-medium tabular-nums text-on-surface-variant/40 border border-outline-variant/15 rounded-full px-2 py-0.5">
-                {year}
-              </span>
+        {/* Chart card — direct flex child so items-stretch aligns it with history panel */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-outline-variant/15 bg-surface-container">
+          <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant/10">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-on-surface">Resumen mensual</span>
+              <PendingBadge pagos={pagos} servicios={servicios} />
             </div>
-            <div className="relative flex min-h-0 flex-1 flex-col px-3 pb-3 pt-2">
-              <MonthlyAreaChart
-                months={months} totals={totalesMes}
-                highlightMes={highlightMes} selectedMes={mesDetalle}
-                onSelectMes={handleSelectMes}
-              />
-            </div>
+            <span className="text-[10px] font-medium tabular-nums text-on-surface-variant/40 border border-outline-variant/15 rounded-full px-2 py-0.5">
+              {year}
+            </span>
+          </div>
+          <div className="relative flex min-h-0 flex-1 flex-col px-3 pb-3 pt-2">
+            <MonthlyAreaChart
+              months={months} totals={totalesMes}
+              highlightMes={highlightMes} selectedMes={mesDetalle}
+              onSelectMes={handleSelectMes}
+            />
           </div>
         </div>
 
         {/* Panel historial — lista scrolleable */}
-        <div className="flex min-h-[180px] min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-outline-variant/15 bg-surface-container lg:h-auto lg:max-h-none lg:w-[260px] lg:shrink-0 lg:flex-none">
+        <div className="flex min-h-[13rem] min-w-0 flex-col overflow-hidden rounded-xl border border-outline-variant/15 bg-surface-container lg:h-auto lg:max-h-none lg:w-[260px] lg:shrink-0 lg:flex-none">
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-outline-variant/10 px-4 py-3">
             <span className="text-sm font-semibold text-on-surface">
               {mesDetalle ? mesLabel(mesDetalle) : 'Últimos pagos'}

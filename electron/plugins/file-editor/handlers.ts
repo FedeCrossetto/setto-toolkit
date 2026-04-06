@@ -36,12 +36,18 @@ function assertInAuthorizedRoot(targetPath: string): void {
   if (authorizedRoots.size === 0) {
     throw new Error('No workspace is open. Open a folder first before performing write operations.')
   }
-  // Resolve the logical path first, then attempt symlink resolution.
-  // realpathSync may throw if the path doesn't exist yet (e.g. new file being
-  // created) — fall back to the logical resolved path in that case.
+  // Resolve symlinks so a symlink inside the workspace pointing outside cannot bypass the guard.
   const logical = path.resolve(targetPath)
   let real = logical
-  try { real = fs.realpathSync(logical) } catch { /* file not yet created — use logical path */ }
+  try {
+    real = fs.realpathSync(logical)
+  } catch {
+    // File doesn't exist yet (e.g. new file being created) — resolve the parent
+    // directory instead so symlinks in the parent are still caught.
+    try {
+      real = path.join(fs.realpathSync(path.dirname(logical)), path.basename(logical))
+    } catch { /* parent also doesn't exist — use logical path */ }
+  }
 
   for (const root of authorizedRoots) {
     const rel = path.relative(root, real)
@@ -158,7 +164,9 @@ export const handlers: PluginHandlers = {
       let content = fs.readFileSync(safe, 'utf-8')
       let truncated = false
 
-      if (size > MAX_FULL_SIZE) {
+      // tailLinesCount = -1 → load full file regardless of size
+      const forceAll = tailLinesCount === -1
+      if (!forceAll && size > MAX_FULL_SIZE) {
         // Large file — return only last N lines (user-configurable, default TAIL_LINES)
         const n = (typeof tailLinesCount === 'number' && tailLinesCount > 0) ? tailLinesCount : TAIL_LINES
         content = tailLines(content, n)
@@ -338,9 +346,11 @@ export const handlers: PluginHandlers = {
         // Heuristic: nested quantifiers like (a+)+ or (.*)* are the main culprit.
         const dangerousPattern = /(\(.*[+*]\).*[+*]|\[[^\]]*\][+*][+*]|\{.*[+*]\}.*[+*])/
         if (dangerousPattern.test(query)) {
-          return []
+          throw new Error('Regex peligroso: los cuantificadores anidados como (a+)+ pueden causar cuelgues')
         }
-        try { re = new RegExp(query, 'i') } catch { return [] }
+        try { re = new RegExp(query, 'i') } catch (e) {
+          throw new Error(`Regex inválida: ${(e as Error).message}`)
+        }
       }
 
       const searchFile = (filePath: string): void => {

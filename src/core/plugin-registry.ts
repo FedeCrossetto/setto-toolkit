@@ -12,6 +12,7 @@ import { aboutPlugin } from '../plugins/about'
 import { ticketResolverPlugin } from '../plugins/ticket-resolver'
 import { terminalPlugin } from '../plugins/terminal'
 import { gastosPlugin } from '../plugins/gastos'
+import { snippetsPlugin } from '../plugins/snippets'
 
 export const allPlugins: PluginManifest[] = [
   dashboardPlugin,
@@ -22,6 +23,7 @@ export const allPlugins: PluginManifest[] = [
   ticketResolverPlugin,
   terminalPlugin,
   gastosPlugin,
+  snippetsPlugin,
   settingsPlugin,
   aboutPlugin,
 ]

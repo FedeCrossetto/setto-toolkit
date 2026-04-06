@@ -64,7 +64,14 @@ export const handlers: PluginHandlers = {
       }
 
       const prefs = db.readJSON<TerminalPrefs>(PREFS_FILE) ?? DEFAULT_PREFS
-      const shell  = opts.shell || prefs.shell || getDefaultShell()
+      const rawShell = opts.shell || prefs.shell || getDefaultShell()
+      // Whitelist: only allow known shell executables — block shell injection via opts.shell
+      const ALLOWED_SHELLS = /^(bash|zsh|fish|sh|dash|cmd\.exe|powershell\.exe|pwsh\.exe|powershell|pwsh|nu)$/i
+      const shellBasename = path.basename(rawShell)
+      if (!ALLOWED_SHELLS.test(shellBasename)) {
+        return { ok: false, error: `Shell not allowed: ${shellBasename}` }
+      }
+      const shell = rawShell
       const cwd    = opts.cwd   || os.homedir()
       const cols   = opts.cols  ?? 120
       const rows   = opts.rows  ?? 30

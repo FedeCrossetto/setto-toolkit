@@ -80,6 +80,7 @@ export function TabBar(): JSX.Element {
               )}
               {state.openTabs.length > 1 && (
                 <button
+                  aria-label={`Close ${plugin.name}`}
                   className="ml-1 opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error transition-all"
                   onClick={(e) => {
                     e.stopPropagation()

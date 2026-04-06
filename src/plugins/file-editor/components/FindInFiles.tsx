@@ -37,9 +37,10 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose }: FindInFile
 
   const [query, setQuery]     = useState('')
   const [useRegex, setRegex]  = useState(false)
-  const [results, setResults] = useState<FindResult[]>([])
+  const [results, setResults]     = useState<FindResult[]>([])
   const [searching, setSearching] = useState(false)
   const [searched, setSearched]   = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
   const [scope, setScope]         = useState<Scope>(() => (hasFolders ? 0 : 'tabs'))
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -56,8 +57,15 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose }: FindInFile
     setSearching(true)
     setSearched(false)
     setResults([])
+    setSearchError(null)
     try {
       if (scope === 'tabs') {
+        if (useRegex) {
+          try { new RegExp(query, 'i') } catch (e) {
+            setSearchError(`Regex inválida: ${(e as Error).message}`)
+            return
+          }
+        }
         setResults(searchInTabs(openTabs, query, useRegex))
       } else {
         const res = await window.api.invoke<FindResult[]>('editor:find-in-files', {
@@ -65,6 +73,8 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose }: FindInFile
         })
         setResults(res)
       }
+    } catch (e) {
+      setSearchError((e as Error).message ?? 'Error al buscar')
     } finally {
       setSearching(false)
       setSearched(true)
@@ -144,7 +154,10 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose }: FindInFile
         {!searched && !searching && (hasTabs || hasFolders) && (
           <p className="text-center text-on-surface-variant/30 pt-6">Enter a query and press Enter or Search</p>
         )}
-        {searched && results.length === 0 && (
+        {searchError && (
+          <p className="mx-3 mt-3 px-3 py-2 rounded-lg bg-error/10 border border-error/25 text-error text-[11px]">{searchError}</p>
+        )}
+        {searched && !searchError && results.length === 0 && (
           <p className="text-center text-on-surface-variant/40 pt-6">No matches found</p>
         )}
         {Object.entries(grouped).map(([filePath, matches]) => (

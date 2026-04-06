@@ -128,12 +128,12 @@ function pagoToNotionProps(pago: PagoMensual, svc?: Servicio) {
 
 // ── Credencial ↔ Notion ───────────────────────────────────────────────────────
 
+// NOTE: passwords are intentionally excluded from Notion sync — they stay local only.
 function credencialToNotionProps(c: Credencial) {
   return {
     Nombre:       titleProp(c.nombre),
     credencialId: txtProp(c.id),
     Usuario:      txtProp(c.usuario),
-    'Contraseña': txtProp(c.password),
     URL:          txtProp(c.url ?? ''),
     Notas:        txtProp(c.notas ?? ''),
     'Categoría':  selProp(c.categoria),
@@ -146,7 +146,7 @@ function notionPageToCredencial(page: any): Credencial {
     id:        getTxt(page, 'credencialId') || Math.random().toString(36).slice(2, 10),
     nombre:    page.properties?.Nombre?.title?.[0]?.text?.content ?? '',
     usuario:   getTxt(page, 'Usuario'),
-    password:  getTxt(page, 'Contraseña'),
+    password:  '',   // never synced to/from Notion — local only
     url:       getTxt(page, 'URL') || undefined,
     notas:     getTxt(page, 'Notas') || undefined,
     categoria: getSel(page, 'Categoría') || undefined,

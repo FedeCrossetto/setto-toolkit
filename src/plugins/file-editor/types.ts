@@ -30,6 +30,8 @@ export interface OpenFile {
   wordWrap: boolean
   /** Scroll to this line on first render, then clear */
   jumpToLine?: number
+  /** True when file exceeded MAX_FULL_SIZE and only the last N lines were loaded */
+  truncated?: boolean
 }
 
 /** Handle exposed by CodeEditor via ref */

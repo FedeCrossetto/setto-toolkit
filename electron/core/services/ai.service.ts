@@ -48,6 +48,7 @@ export class AIService {
   private cache: CacheStore
   private session: AISessionUsage = { inputTokens: 0, outputTokens: 0, calls: 0, contextWindowSize: CONTEXT_WINDOW }
   private callTimestamps: number[] = []
+  private rateLimitLock = false
 
   constructor(
     private db: DatabaseService,
@@ -65,13 +66,20 @@ export class AIService {
   }
 
   private enforceRateLimit(): void {
-    const now = Date.now()
-    this.callTimestamps = this.callTimestamps.filter((t) => now - t < RATE_WINDOW_MS)
-    if (this.callTimestamps.length >= RATE_LIMIT) {
-      const waitSec = Math.ceil((RATE_WINDOW_MS - (now - this.callTimestamps[0]!)) / 1000)
-      throw new Error(`RATE_LIMITED:${waitSec}`)
+    // Lock prevents two concurrent calls from both passing the check before either is recorded
+    if (this.rateLimitLock) throw new Error('RATE_LIMITED:0')
+    this.rateLimitLock = true
+    try {
+      const now = Date.now()
+      this.callTimestamps = this.callTimestamps.filter((t) => now - t < RATE_WINDOW_MS)
+      if (this.callTimestamps.length >= RATE_LIMIT) {
+        const waitSec = Math.ceil((RATE_WINDOW_MS - (now - this.callTimestamps[0]!)) / 1000)
+        throw new Error(`RATE_LIMITED:${waitSec}`)
+      }
+      this.callTimestamps.push(now)
+    } finally {
+      this.rateLimitLock = false
     }
-    this.callTimestamps.push(now)
   }
 
   private hash(input: string): string {

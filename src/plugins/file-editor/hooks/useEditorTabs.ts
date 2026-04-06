@@ -87,6 +87,7 @@ export function useEditorTabs() {
         isDeleted: false,
         size: result.size,
         wordWrap: true,
+        truncated: result.truncated,
       }
       setTabs((prev) => [...prev, file])
       setActiveId(file.id)

@@ -391,6 +391,17 @@ export function SettingsPage(): JSX.Element {
                       {showOpenAIKey ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => void testApiKey()}
+                      disabled={keyTest.status === 'loading' || (!settings['ai.openai_key'].trim() && !openAIKeyConfigured)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-outline-variant/30 text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {keyTest.status === 'loading' ? <><span className="inline-block w-3 h-3 border-2 border-primary/40 border-t-primary rounded-full animate-spin" /> Validating…</> : 'Test key'}
+                    </button>
+                    {keyTest.status === 'ok' && <span className="flex items-center gap-1 text-xs text-accent"><Check size={12} /> Valid</span>}
+                    {keyTest.status === 'error' && <span className="text-xs text-error">{keyTest.message ?? 'Invalid key'}</span>}
+                  </div>
                 </div>
               </SettingRow>
               <SettingRow label="Model" description="OpenAI model for completions.">

@@ -84,6 +84,23 @@ function createWindow(): void {
     mainWindow?.show()
   })
 
+  // Fallback: show the window after 3 s even if ready-to-show hasn't fired yet.
+  // Prevents an invisible window when the renderer has a startup error.
+  setTimeout(() => { if (mainWindow && !mainWindow.isVisible()) mainWindow.show() }, 3000)
+
+  if (process.env['ELECTRON_RENDERER_URL']) {
+    // Auto-open DevTools in dev mode to see renderer errors
+    mainWindow.webContents.openDevTools({ mode: 'detach' })
+
+    // Log renderer crashes so we can diagnose startup failures
+    mainWindow.webContents.on('render-process-gone', (_e, details) => {
+      console.error('[main] Renderer process gone:', details.reason, details.exitCode)
+    })
+    mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
+      console.error('[main] Failed to load renderer:', code, desc, url)
+    })
+  }
+
   // Forward found-in-page results back to renderer
   mainWindow.webContents.on('found-in-page', (_e, result) => {
     mainWindow?.webContents.send('page:found', result)
@@ -129,7 +146,7 @@ app.whenReady().then(() => {
   // In dev mode we also allow the Vite HMR websocket origin.
   const isDev = !!process.env['ELECTRON_RENDERER_URL']
   const cspConnectExtra = isDev ? ' ws://localhost:* http://localhost:*' : ''
-  const cspScriptExtra  = isDev ? " 'unsafe-eval' http://localhost:*" : ''  // Vite HMR needs eval
+  const cspScriptExtra  = isDev ? " 'unsafe-inline' 'unsafe-eval' http://localhost:*" : ''  // Vite HMR preamble needs inline + eval
   const csp = [
     "default-src 'self'",
     `script-src 'self'${cspScriptExtra}`,

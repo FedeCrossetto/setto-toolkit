@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   BookmarkPlus, Check, ChevronDown, ChevronRight, CircleAlert, CircleStop,
-  Copy, Download, Eye, FileUp, FolderOpen, Network, Paperclip, Pencil, Plus,
+  Copy, Download, Eye, FileUp, FolderOpen, LoaderCircle, Network, Paperclip, Pencil, Plus,
   RotateCcw, Save, Search, SendHorizontal, Sparkles, Terminal, Trash2, Upload, X,
 } from 'lucide-react'
 import { useCollections } from './hooks/useCollections'
@@ -661,7 +661,13 @@ export function ApiLab(): JSX.Element {
         {/* Response panel */}
         <div className="relative flex-shrink-0 border-t border-outline-variant/20 flex flex-col bg-surface overflow-hidden" style={{ height: responseHeight }}>
           <div className="flex items-center gap-4 px-4 py-2 border-b border-outline-variant/15 flex-shrink-0">
-            {response && (
+            {status === 'loading' && (
+              <span className="inline-flex items-center gap-2 text-xs text-on-surface-variant">
+                <LoaderCircle size={13} className="animate-spin text-primary" />
+                Waiting for response…
+              </span>
+            )}
+            {status !== 'loading' && response && (
               <>
                 <span className={`inline-flex items-center gap-1.5 text-sm font-bold px-2 py-0.5 rounded-md ${isOk ? 'bg-accent/10 text-accent' : 'bg-error/10 text-error'}`}>
                   <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: 'currentColor' }} />
@@ -1417,50 +1423,6 @@ function EnvironmentPanel({ environments, onChange }: {
                   </div>
                 )
               })}
-=======
-              {varPairs.map((p) => {
-                const isSecret  = secretKeys.has(p.key)
-                const isRevealed = revealedKeys.has(p.key)
-                return (
-                  <div key={p.id} className="flex items-center gap-1.5">
-                    <input value={p.key} onChange={(e) => setVarPairs((ps) => ps.map((x) => x.id === p.id ? { ...x, key: e.target.value } : x))}
-                      placeholder="Variable"
-                      className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                    <div className="relative flex-1">
-                      <input
-                        type={isSecret && !isRevealed ? 'password' : 'text'}
-                        value={p.value}
-                        onChange={(e) => setVarPairs((ps) => ps.map((x) => x.id === p.id ? { ...x, value: e.target.value } : x))}
-                        placeholder="Value"
-                        className="w-full text-xs bg-surface border border-outline-variant/20 rounded-lg px-2 py-1.5 pr-6 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50"
-                      />
-                      {isSecret && (
-                        <button
-                          type="button"
-                          onClick={() => setRevealedKeys((prev) => { const n = new Set(prev); n.has(p.key) ? n.delete(p.key) : n.add(p.key); return n })}
-                          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-primary transition-colors"
-                          title={isRevealed ? 'Hide value' : 'Reveal value'}
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>{isRevealed ? 'visibility_off' : 'visibility'}</span>
-                        </button>
-                      )}
-                    </div>
-                    {/* Secret toggle */}
-                    <button
-                      type="button"
-                      onClick={() => toggleSecret(p.key)}
-                      title={isSecret ? 'Unmark as secret' : 'Mark as secret'}
-                      className={`flex-shrink-0 transition-colors ${isSecret ? 'text-warning' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}`}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>{isSecret ? 'lock' : 'lock_open'}</span>
-                    </button>
-                    <button onClick={() => setVarPairs((ps) => ps.filter((x) => x.id !== p.id))} className="text-on-surface-variant hover:text-error transition-colors">
-                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>close</span>
-                    </button>
-                  </div>
-                )
-              })}
->>>>>>> claude/intelligent-murdock:src/plugins/api-tester/ApiTester.tsx
             </div>
             <button onClick={() => setVarPairs((ps) => [...ps, { id: randomUUID(), key: '', value: '', enabled: true }])}
               className="flex items-center gap-1 text-xs text-on-surface-variant hover:text-primary transition-colors mt-2">

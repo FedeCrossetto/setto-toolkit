@@ -1,5 +1,6 @@
 import * as http  from 'http'
 import * as https from 'https'
+import * as dns   from 'dns'
 import vm from 'vm'
 import type { IpcMain } from 'electron'
 import type { PluginHandlers, CoreServices } from '../../core/types'
@@ -76,6 +77,30 @@ function assertNotPrivateHost(urlObj: URL): void {
   if (host === 'localhost') throw new Error('SSRF: requests to localhost are not allowed')
   if (PRIVATE_IP_PATTERNS.some((re) => re.test(host))) {
     throw new Error(`SSRF: requests to private/internal addresses are not allowed (${host})`)
+  }
+}
+
+/**
+ * DNS rebinding guard: resolves the hostname to its actual IP and re-checks.
+ * Prevents attacks where a public DNS name resolves to a private IP.
+ */
+async function assertNotPrivateDns(urlObj: URL): Promise<void> {
+  assertNotPrivateHost(urlObj) // fast pre-check on the raw hostname
+  const host = urlObj.hostname
+  // Skip DNS lookup for bare IPs — already validated above
+  if (/^[\d.:]+$/.test(host)) return
+  try {
+    const { address } = await new Promise<{ address: string; family: number }>((resolve, reject) =>
+      dns.lookup(host, { family: 0 }, (err, address, family) =>
+        err ? reject(err) : resolve({ address, family })
+      )
+    )
+    if (PRIVATE_IP_PATTERNS.some((re) => re.test(address))) {
+      throw new Error(`SSRF: hostname "${host}" resolves to a private address (${address})`)
+    }
+  } catch (err) {
+    if ((err as Error).message.startsWith('SSRF:')) throw err
+    // DNS resolution failure — let the request proceed and fail naturally
   }
 }
 
@@ -318,7 +343,7 @@ export const handlers: PluginHandlers = {
 
       // Build full URL with query params
       const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`)
-      assertNotPrivateHost(urlObj)
+      await assertNotPrivateDns(urlObj)
       for (const p of request.params.filter((p) => p.enabled && p.key)) {
         urlObj.searchParams.set(interpolate(p.key, vars), interpolate(p.value, vars))
       }
