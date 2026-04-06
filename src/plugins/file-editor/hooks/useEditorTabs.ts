@@ -24,7 +24,7 @@ export function detectLanguage(filename: string): FileLanguage {
     sql: 'sql',
     md: 'markdown', markdown: 'markdown', mdx: 'markdown',
     toml: 'ini', ini: 'ini', conf: 'ini', env: 'ini', properties: 'ini',
-    cfg: 'xml',
+    cfg: 'text',
     // Systems
     cs: 'csharp',
     cpp: 'cpp', cc: 'cpp', cxx: 'cpp', c: 'cpp', h: 'cpp', hpp: 'cpp',

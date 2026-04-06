@@ -24,9 +24,12 @@ const C = {
   primary:   '#5347CE', secondary: '#887CFD',
   accent:    '#16C8C7', blue:      '#4896FE',
   text:      '#c4c5d6', muted:     '#5a5a80',
-  bg:        '#0d0d18', surface:   '#11111e',
   border:    'rgb(83 71 206 / 0.2)',
 }
+
+/** Plain-text (.txt, .cfg) accents — lime instead of blue */
+const TXT_LIME_DARK  = '#BEF264'
+const TXT_LIME_LIGHT = '#4D7C0F'
 
 // ── Syntax highlights ─────────────────────────────────────────────────────────
 const nexusDarkHighlight = HighlightStyle.define([
@@ -271,25 +274,45 @@ function monoStack(family: string): string {
 }
 
 function buildNexusDarkTheme(fontSize: number, fontFamily: string) {
+  const line = 'rgb(var(--c-primary-light) / 0.08)'
+  const sel = 'rgb(var(--c-primary) / 0.28)'
+  const selFocus = 'rgb(var(--c-primary) / 0.34)'
+  const border = 'rgb(var(--c-outline-variant) / 0.45)'
   return EditorView.theme({
-    '&': { height: '100%', backgroundColor: C.bg },
-    '.cm-scroller': { fontFamily: monoStack(fontFamily), fontSize: `${fontSize}px`, lineHeight: '1.7', color: C.text },
-    '.cm-content': { caretColor: C.secondary },
-    '.cm-gutters': { backgroundColor: C.bg, borderRight: `1px solid ${C.border}`, color: C.muted, minWidth: '44px' },
-    '.cm-activeLineGutter': { backgroundColor: 'rgb(136 124 253 / 0.07)', color: '#7878b0' },
-    '.cm-activeLine': { backgroundColor: 'rgb(136 124 253 / 0.06)' },
-    '.cm-selectionBackground': { backgroundColor: 'rgb(83 71 206 / 0.3) !important' },
-    '.cm-focused .cm-selectionBackground': { backgroundColor: 'rgb(83 71 206 / 0.35) !important' },
-    '.cm-cursor': { borderLeftColor: C.secondary },
-    '.cm-searchMatch': { backgroundColor: 'rgb(72 150 254 / 0.25)', outline: `1px solid ${C.blue}60` },
-    '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgb(83 71 206 / 0.45)' },
-    '.cm-foldPlaceholder': { backgroundColor: 'rgb(83 71 206 / 0.2)', border: `1px solid ${C.primary}60`, color: C.secondary },
-    '.cm-tooltip': { backgroundColor: C.surface, border: `1px solid ${C.border}`, color: C.text },
-    // ── Plain-text token colors ──────────────────────────────────────────────
+    '&': { height: '100%', backgroundColor: 'rgb(var(--c-surface))' },
+    '.cm-scroller': {
+      fontFamily: monoStack(fontFamily), fontSize: `${fontSize}px`, lineHeight: '1.7',
+      color: 'rgb(var(--c-on-surface))',
+    },
+    '.cm-content': { caretColor: 'rgb(var(--c-primary-light))' },
+    '.cm-gutters': {
+      backgroundColor: 'rgb(var(--c-surface))',
+      borderRight: `1px solid ${border}`,
+      color: 'rgb(var(--c-on-surface-variant))',
+      minWidth: '44px',
+    },
+    '.cm-activeLineGutter': { backgroundColor: line, color: 'rgb(var(--c-on-surface-variant))' },
+    '.cm-activeLine': { backgroundColor: line },
+    '.cm-selectionBackground': { backgroundColor: `${sel} !important` },
+    '.cm-focused .cm-selectionBackground': { backgroundColor: `${selFocus} !important` },
+    '.cm-cursor': { borderLeftColor: 'rgb(var(--c-primary-light))' },
+    '.cm-searchMatch': { backgroundColor: 'rgb(var(--c-secondary) / 0.22)', outline: '1px solid rgb(var(--c-secondary) / 0.45)' },
+    '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgb(var(--c-primary) / 0.38)' },
+    '.cm-foldPlaceholder': {
+      backgroundColor: 'rgb(var(--c-surface-container-high))',
+      border: `1px solid ${border}`,
+      color: 'rgb(var(--c-on-surface-variant))',
+    },
+    '.cm-tooltip': {
+      backgroundColor: 'rgb(var(--c-surface-container-high))',
+      border: `1px solid ${border}`,
+      color: 'rgb(var(--c-on-surface))',
+    },
+    // ── Plain-text (.txt, .cfg) — lime accents ──────────────────────────────
     '.cm-txt-string': { color: C.accent },
-    '.cm-txt-number': { color: C.blue },
+    '.cm-txt-number': { color: TXT_LIME_DARK },
     '.cm-txt-bool':   { color: C.secondary },
-    '.cm-txt-url':    { color: C.blue, textDecoration: 'underline' },
+    '.cm-txt-url':    { color: TXT_LIME_DARK, textDecoration: 'underline' },
     // ── INI / .env / .properties colors ─────────────────────────────────────
     '.cm-ini-section': { color: C.secondary, fontWeight: 'bold' },
     '.cm-ini-key':     { color: C.blue },
@@ -297,25 +320,39 @@ function buildNexusDarkTheme(fontSize: number, fontFamily: string) {
     '.cm-ini-string':  { color: C.accent },
     '.cm-ini-comment': { color: C.muted, fontStyle: 'italic' },
     // ── Search / goto panel ──────────────────────────────────────────────────
-    '.cm-panels': { backgroundColor: C.surface, borderTop: `1px solid ${C.border}`, color: C.text },
-    '.cm-panels.cm-panels-bottom': { borderTop: `1px solid ${C.border}`, borderBottom: 'none' },
+    '.cm-panels': {
+      backgroundColor: 'rgb(var(--c-surface-container-high))',
+      borderTop: `1px solid ${border}`,
+      color: 'rgb(var(--c-on-surface))',
+    },
+    '.cm-panels.cm-panels-bottom': { borderTop: `1px solid ${border}`, borderBottom: 'none' },
     '.cm-search': { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', padding: '8px 12px' },
-    '.cm-search label': { fontSize: '11px', color: C.muted, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' },
+    '.cm-search label': {
+      fontSize: '11px',
+      color: 'rgb(var(--c-on-surface-variant))',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px',
+      cursor: 'pointer',
+    },
     '.cm-textfield': {
-      backgroundColor: C.bg,
-      color: C.text,
-      border: `1px solid ${C.border}`,
+      backgroundColor: 'rgb(var(--c-surface-container-low))',
+      color: 'rgb(var(--c-on-surface))',
+      border: `1px solid ${border}`,
       borderRadius: '7px',
       padding: '3px 8px',
       fontSize: '12px',
       outline: 'none',
       fontFamily: monoStack(fontFamily),
     },
-    '.cm-textfield:focus': { borderColor: `${C.primary}80`, boxShadow: `0 0 0 2px ${C.primary}20` },
+    '.cm-textfield:focus': {
+      borderColor: 'rgb(var(--c-primary) / 0.55)',
+      boxShadow: '0 0 0 2px rgb(var(--c-primary) / 0.12)',
+    },
     '.cm-button': {
-      backgroundColor: `rgb(83 71 206 / 0.12)`,
-      color: C.secondary,
-      border: `1px solid ${C.border}`,
+      backgroundColor: 'rgb(var(--c-primary) / 0.14)',
+      color: 'rgb(var(--c-on-surface))',
+      border: `1px solid ${border}`,
       borderRadius: '7px',
       padding: '3px 10px',
       fontSize: '11px',
@@ -323,8 +360,8 @@ function buildNexusDarkTheme(fontSize: number, fontFamily: string) {
       cursor: 'pointer',
       backgroundImage: 'none',
     },
-    '.cm-button:hover': { backgroundColor: 'rgb(83 71 206 / 0.25)', borderColor: `${C.primary}60` },
-    '.cm-button:active': { backgroundColor: 'rgb(83 71 206 / 0.35)' },
+    '.cm-button:hover': { backgroundColor: 'rgb(var(--c-primary) / 0.24)' },
+    '.cm-button:active': { backgroundColor: 'rgb(var(--c-primary) / 0.32)' },
   }, { dark: true })
 }
 
@@ -341,11 +378,11 @@ function buildNexusLightTheme(fontSize: number, fontFamily: string) {
     '.cm-searchMatch': { backgroundColor: 'rgb(72 150 254 / 0.2)', outline: '1px solid rgb(72 150 254 / 0.5)' },
     '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgb(83 71 206 / 0.3)' },
     '.cm-foldPlaceholder': { backgroundColor: 'rgb(236 238 244)', border: '1px solid rgb(200 202 216)', color: 'rgb(91 94 114)' },
-    // ── Plain-text token colors ──────────────────────────────────────────────
+    // ── Plain-text (.txt, .cfg) — lime accents ──────────────────────────────
     '.cm-txt-string': { color: '#0a9e9e' },
-    '.cm-txt-number': { color: '#2b7adf' },
+    '.cm-txt-number': { color: TXT_LIME_LIGHT },
     '.cm-txt-bool':   { color: '#5347CE' },
-    '.cm-txt-url':    { color: '#2b7adf', textDecoration: 'underline' },
+    '.cm-txt-url':    { color: TXT_LIME_LIGHT, textDecoration: 'underline' },
     // ── INI / .env / .properties colors ─────────────────────────────────────
     '.cm-ini-section': { color: '#5347CE', fontWeight: 'bold' },
     '.cm-ini-key':     { color: '#2b7adf' },

@@ -1,13 +1,6 @@
 # Setto Toolkit
 
-**Setto Toolkit** es una aplicación de escritorio modular para desarrolladores, construida con Electron + React + TypeScript. Reúne en un solo lugar las utilidades del día a día: edición de archivos, comparación de código con IA, búsqueda en repositorios y prueba de APIs.
-
-<table>
-  <tr>
-    <td><img src="public/portada-light.png" alt="Tema claro" /></td>
-    <td><img src="public/portada-black.png" alt="Tema oscuro" /></td>
-  </tr>
-</table>
+**Setto Toolkit** es una aplicación de escritorio modular para desarrolladores, construida con Electron + React + TypeScript. Reúne en un solo lugar las utilidades del día a día: edición de archivos, comparación de código (Smart Diff), búsqueda en repositorios, prueba de APIs y otras herramientas asistidas por IA donde aplica.
 
 ---
 
@@ -16,7 +9,7 @@
 | Plugin | Descripción |
 |---|---|
 | **File Editor** | Abrí, editá y guardás archivos. Soporte para logs grandes con modo tail, file watcher y búsqueda en archivos. Menú contextual en tabs (Rename, Save, Copy Path, Reveal in Explorer). |
-| **Smart Diff** | Comparación semántica de dos fragmentos de código con análisis de IA (OpenAI / Anthropic / Ollama). Detecta cambios de lógica, efectos secundarios y sugiere mejoras. Vista side-by-side con word-level diff. |
+| **Smart Diff** | Comparación side-by-side de dos archivos o fragmentos con diff por líneas y resaltado a nivel palabra. Arrastrá archivos desde el File Editor o abrí el plugin desde el dashboard. (El análisis con IA integrado en este plugin fue retirado en v2.6; la IA sigue disponible en Settings para otros módulos.) |
 | **Repo Search** | Buscá código en todos los repositorios de tu workspace. Soporta **Bitbucket**, **GitHub** y **GitLab**. Autenticación por PAT (Personal Access Token). Las credenciales se guardan encriptadas localmente con `safeStorage`. |
 | **API Lab** | Cliente HTTP similar a Postman. Soporta colecciones, entornos con variables, historial con filtro por URL/método, autenticación Bearer / Basic, multipart/form-data y scripts pre/post-request. |
 | **Snippets** | Manager de snippets de código y notas. Soporte de imágenes inline (drag & drop / paste), sintaxis resaltada con CodeMirror, colecciones, pins, búsqueda fuzzy y export/import a JSON. |
@@ -120,9 +113,9 @@ Todas las credenciales de usuario se configuran **desde dentro de la app**. Se a
    - Para crear uno: GitLab → Preferences → Access Tokens.
 3. Opcionalmente especificá un grupo para acotar la búsqueda a sus proyectos.
 
-### Smart Diff — Proveedor de IA
+### IA en Settings (OpenAI / Anthropic / Ollama)
 
-Abrí **Settings → AI Service** y elegí el proveedor:
+Abrí **Settings → AI Service** y elegí el proveedor. Las credenciales las usan los plugins que llaman al servicio de IA (por ejemplo **Ticket Resolver**). El plugin **Smart Diff** solo compara texto en el cliente desde v2.6.0 — no envía el diff a la API.
 
 - **OpenAI**: pegá tu API Key y seleccioná el modelo (`gpt-4o-mini` por defecto).
 - **Anthropic**: pegá tu API Key y seleccioná el modelo Claude (`claude-haiku-4-5` por defecto).
@@ -164,7 +157,7 @@ Podés usar `src/plugins/_template/` como punto de partida.
 - **CodeMirror 6** — editor de código
 - **Tailwind CSS** — estilos
 - **CodeMirror 6** — viewer de snippets con highlighting por lenguaje (también usado en File Editor)
-- **OpenAI / Anthropic / Ollama** — análisis semántico en Smart Diff (multi-proveedor)
+- **OpenAI / Anthropic / Ollama** — IA multi-proveedor (p. ej. Ticket Resolver; Smart Diff es comparación local)
 - **Fuse.js** — búsqueda fuzzy de snippets
 - **chokidar** — file watching en el editor
 - **Google OAuth 2.0 PKCE** — autenticación de cuenta Google
@@ -187,6 +180,29 @@ Podés usar `src/plugins/_template/` como punto de partida.
 ---
 
 ## Changelog
+
+### v2.6.0 — 2026-04-06
+
+#### File Editor — apariencia y tipografía
+
+- **Tema oscuro**: el fondo del editor (CodeMirror) usa los mismos tokens CSS que el resto de la app (`--c-surface`, `--c-on-surface`, bordes y selección con `--c-primary`), en lugar de un gris/azul fijo independiente. El tema claro no cambia.
+- **`.txt` y `.cfg`**: acentos en **verde lima** para números y URLs en el resaltado de texto plano (antes azul). Los `.cfg` se tratan como **texto plano** (mismo modo que `.txt`), no como XML.
+- **Fuente del editor**: se cargan **JetBrains Mono** y **Fira Code** desde Google Fonts en `index.html`, de modo que el selector de *font family* en ajustes del editor se note al cambiar entre opciones (antes podían verse igual si la fuente no estaba instalada en el sistema).
+
+#### Smart Diff
+
+- **Sidebar colapsable**: el panel "Compare files" usa el mismo patrón que el File Editor (tira estrecha con etiqueta vertical + chevron para expandir).
+- **IA en el plugin**: eliminados el botón "Analyze with AI", el panel "AI Insights" y el canal IPC `smart-diff:analyze` del proceso principal. La comparación visual (Compare, word-level diff, opciones) se mantiene.
+
+#### Barra de pestañas global
+
+- Eliminado el chip **Smart Diff** de la cabecera (acceso rápido + drop). La comparación sigue disponible desde el **File Editor** (menú contextual en tabs, dos archivos seleccionados, o arrastrando una pestaña al plugin Smart Diff).
+
+#### Documentación
+
+- Este changelog y la descripción de la tabla de herramientas actualizadas para reflejar lo anterior.
+
+---
 
 ### v2.5.2 — 2026-03-28
 

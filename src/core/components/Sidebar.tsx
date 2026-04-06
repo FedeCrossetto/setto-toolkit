@@ -13,10 +13,18 @@ const CORNER_R  = 16
 function AppLogo({ size = 34 }: { size?: number }): JSX.Element {
   return (
     <img
-      src="./setto_icon.png"
+      src="./app-icon-512.png"
       width={size}
       height={size}
-      style={{ flexShrink: 0, objectFit: 'contain', filter: 'drop-shadow(0 0 6px rgba(255,255,255,0.15))' }}
+      alt=""
+      style={{
+        flexShrink: 0,
+        objectFit: 'contain',
+        // Preflight `img { max-width:100% }` otherwise shrinks the logo; lock intrinsic size.
+        width: size,
+        height: size,
+        maxWidth: 'none',
+      }}
     />
   )
 }
@@ -172,15 +180,15 @@ export function Sidebar(): JSX.Element {
       >
 
         {/* ── Logo ──────────────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-center mt-2 mb-3 flex-shrink-0">
+        <div className="flex items-center justify-center mt-0.5 mb-1 flex-shrink-0 px-0">
           {collapsed ? (
-            <AppLogo size={48} />
+            <AppLogo size={54} />
           ) : (
-            <div className="flex flex-col items-center gap-1">
-              <AppLogo size={64} />
-              <div className="leading-none text-center">
+            <div className="flex flex-col items-center gap-0">
+              <AppLogo size={120} />
+              <div className="leading-none text-center mt-0.5">
                 <div className="font-bold text-[14px] tracking-tight" style={{ color: '#ffffff' }}>SETTO</div>
-                <div className="text-[9px] tracking-widest uppercase font-medium mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>Toolkit</div>
+                <div className="text-[9px] tracking-widest uppercase font-medium mt-px" style={{ color: 'rgba(255,255,255,0.3)' }}>Toolkit</div>
               </div>
             </div>
           )}

@@ -1,13 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Diff, Search, X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { useApp } from '../AppContext'
 import { getPlugin } from '../plugin-registry'
 import { PluginIcon } from '../pluginIcons'
-import { dragState } from '../dragState'
 
 export function TabBar(): JSX.Element {
   const { state, dispatch } = useApp()
-  const [isDiffDropOver, setDiffDropOver] = useState(false)
   const [confirmClose, setConfirmClose] = useState<{ tabId: string; pluginName: string } | null>(null)
   const [canScrollLeft,  setCanScrollLeft]  = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
@@ -104,41 +102,6 @@ export function TabBar(): JSX.Element {
           <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>chevron_right</span>
         </button>
       )}
-
-      {/* ── Smart Diff drop zone ─────────────────────────────────────────────────
-          Always in the DOM and always interactive — no show/hide logic that would
-          create timing or hit-area issues. When a setto-file drag is active it
-          highlights on hover; clicking it also opens Smart Diff directly. */}
-      <div
-        onClick={() => dispatch({ type: 'OPEN_TAB', pluginId: 'smart-diff' })}
-        onDragOver={(e) => {
-          e.preventDefault()
-          if (dragState.get() !== null) {
-            e.dataTransfer.dropEffect = 'copy'
-            setDiffDropOver(true)
-          }
-        }}
-        onDragLeave={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node)) setDiffDropOver(false)
-        }}
-        onDrop={(e) => {
-          e.preventDefault()
-          setDiffDropOver(false)
-          const fileData = dragState.get()
-          dragState.set(null)
-          if (!fileData) return
-          dispatch({ type: 'SEND_TO_DIFF', ...fileData })
-        }}
-        title="Drag a file here to compare in Smart Diff"
-        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold whitespace-nowrap flex-shrink-0 cursor-pointer select-none transition-all duration-100 ${
-          isDiffDropOver
-            ? 'bg-[#887CFD]/20 border-[#887CFD]/60 text-[#887CFD] scale-105'
-            : 'bg-surface-container/60 border-outline-variant/20 text-on-surface-variant/40 hover:text-on-surface-variant hover:border-outline-variant/50 hover:bg-surface-container'
-        }`}
-      >
-        <Diff size={14} />
-        <span className="hidden lg:inline">{isDiffDropOver ? 'Drop to compare' : 'Smart Diff'}</span>
-      </div>
 
       {/* Command palette trigger */}
       <div className="flex items-center gap-3 flex-shrink-0">

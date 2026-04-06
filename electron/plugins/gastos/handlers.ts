@@ -341,7 +341,8 @@ export const handlers: PluginHandlers = {
     ipcMain.handle('gastos:notion-sync', async () => {
       const config = mergeNotionConfig(db)
       const { token, databaseId } = config
-      if (!token || !databaseId) throw new Error('NOTION_NOT_CONFIGURED')
+      if (!token) throw new Error('NOTION_NOT_CONFIGURED: falta el Token de integración')
+      if (!databaseId) throw new Error('NOTION_NOT_CONFIGURED: falta el Database ID de Pagos')
       const lastSyncAt = config.lastSyncAt ?? '1970-01-01T00:00:00.000Z'
 
       const localPagos    = db.readJSON<PagoMensual[]>(PAGOS_FILE)    ?? []
@@ -412,7 +413,8 @@ export const handlers: PluginHandlers = {
       const config = mergeNotionConfig(db)
       const { token } = config
       const databaseId = config.credencialesDatabaseId ?? ''
-      if (!token || !databaseId) throw new Error('NOTION_NOT_CONFIGURED')
+      if (!token) throw new Error('NOTION_NOT_CONFIGURED: falta el Token de integración')
+      if (!databaseId) throw new Error('NOTION_NOT_CONFIGURED: falta el Database ID de Credenciales')
       const lastSyncAt = config.credencialesLastSyncAt ?? '1970-01-01T00:00:00.000Z'
 
       const localCreds = db.readJSON<Credencial[]>(CREDENCIALES_FILE) ?? DEFAULT_CREDENCIALES
@@ -534,7 +536,8 @@ export const handlers: PluginHandlers = {
     ipcMain.handle('queries:notion-sync', async () => {
       const config     = mergeQueriesNotionConfig(db)
       const { token, databaseId } = config
-      if (!token || !databaseId) throw new Error('NOTION_NOT_CONFIGURED')
+      if (!token) throw new Error('NOTION_NOT_CONFIGURED: falta el Token de integración')
+      if (!databaseId) throw new Error('NOTION_NOT_CONFIGURED: falta el Database ID de Queries')
       const lastSyncAt = config.lastSyncAt ?? '1970-01-01T00:00:00.000Z'
 
       const localItems = db.readJSON<QueryItem[]>(QUERIES_FILE) ?? []

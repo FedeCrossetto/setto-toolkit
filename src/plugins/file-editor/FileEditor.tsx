@@ -335,6 +335,7 @@ export function FileEditor(): JSX.Element {
     }
     closeTab(tabId)
   }, [tabs, closeTab, saveTab])
+
   const toggleSelection = useCallback((id: string): void => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
@@ -342,7 +343,6 @@ export function FileEditor(): JSX.Element {
         next.delete(id)
       } else {
         if (next.size >= 2) {
-          // Drop the oldest selection when a 3rd is added
           const [first] = next
           next.delete(first)
         }
@@ -609,7 +609,6 @@ export function FileEditor(): JSX.Element {
             </div>
           </div>
 
-          {/* Multi-select banner — shown when ≥1 file is Ctrl+clicked */}
           {selectedIds.size > 0 && (
             <div className="mx-2 mb-1 px-2.5 py-1.5 rounded-lg flex items-center gap-2 flex-shrink-0"
               style={{ background: 'rgb(136 124 253 / 0.12)', border: '1px solid rgb(136 124 253 / 0.25)' }}>
@@ -737,7 +736,7 @@ export function FileEditor(): JSX.Element {
                   else { setSelectedIds(new Set()); setActiveId(tab.id) }
                 }}
                 onContextMenu={(e) => handleTabContextMenu(e, tab)}
-                title={`${tab.name}${tab.path ? `\n${tab.path}` : ''}\nCtrl+click to select · Drag to reorder · Drag to Compare in Smart Diff`}
+                title={`${tab.name}${tab.path ? `\n${tab.path}` : ''}\nCtrl+click to select · Drag to reorder · Drag onto Smart Diff to compare`}
                 style={dragOverTab === tab.id ? { borderLeft: '2px solid rgb(var(--c-primary))' } : undefined}
                 className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium cursor-grab active:cursor-grabbing border-b-2 whitespace-nowrap group transition-colors flex-shrink-0 ${
                   selectedIds.has(tab.id)
@@ -1185,7 +1184,7 @@ function FileListItem({ tab, isActive, isSelected = false, savedFlash = false, o
       onDragEnd={() => { onDragEndProp?.(); dragState.set(null) }}
       onClick={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); onCtrlClick?.() } else { onClick() } }}
       onContextMenu={onContextMenu}
-      title={`${tab.name}${tab.path ? `\n${tab.path}` : ''}\nCtrl+click to select · Drag to Compare in Smart Diff`}
+      title={`${tab.name}${tab.path ? `\n${tab.path}` : ''}\nCtrl+click to select · Drag to reorder · Compare via context menu or Smart Diff tab`}
       className={`flex items-center gap-2 w-full max-w-full px-3 py-2 rounded-md mb-0.5 cursor-grab active:cursor-grabbing group overflow-hidden transition-[background-color,box-shadow,color] ${
         isSelected
           ? 'bg-[#887CFD]/12 text-[#887CFD] [box-shadow:inset_0_0_0_1px_rgba(136,124,253,0.35)]'

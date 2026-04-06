@@ -7,7 +7,7 @@ import {
   BookOpen, CreditCard, Wrench, Utensils, Music,
   Eye, EyeOff, Search, KeyRound, History, BarChart3, Wallet,
   RefreshCw, Loader2, Braces, FileCode2, Server, DatabaseZap, Table2, Cylinder, Package, Leaf,
-  Layers, CodeXml, Sparkles, Settings2,
+  Layers, CodeXml, Sparkles, Settings2, ExternalLink, CircleCheck, CircleAlert,
   type LucideIcon,
 } from 'lucide-react'
 import type { Servicio, PagoMensual, Credencial, QueryItem } from './types'
@@ -579,77 +579,100 @@ function MonthlyAreaChart({ months, totals, highlightMes, selectedMes, onSelectM
   selectedMes: string | null
   onSelectMes: (mes: string) => void
 }) {
-  const gid  = useId().replace(/:/g, '')
+  const gid = useId().replace(/:/g, '')
   const [hovered, setHovered] = useState<string | null>(null)
 
   const values = months.map((m) => totals[m] ?? 0)
   const maxVal = Math.max(...values, 1)
-
-  // SVG coordinate space — preserveAspectRatio="none" fills container exactly
-  const W = 1000, H = 100, padTop = 10, padBot = 2
+  const W = 1000, H = 240, padTop = 20, padBot = 0
   const chartH = H - padTop - padBot
 
-  const pts = months.map((m, i) => ({
-    m,
-    x: (i / (months.length - 1)) * W,
-    y: padTop + chartH - ((totals[m] ?? 0) / maxVal) * chartH,
-  }))
+  // Slot-centered positions: each month occupies W/n width, point is at slot center.
+  // This makes dots align exactly with the flex-1 month labels below.
+  const slotW = W / months.length
+  const pts = months.map((m, i) => {
+    const x = slotW * 0.5 + i * slotW
+    const pct = (i + 0.5) / months.length
+    return {
+      m,
+      x,
+      y: padTop + chartH - ((totals[m] ?? 0) / maxVal) * chartH,
+      pct,
+      val: totals[m] ?? 0,
+    }
+  })
 
-  // Smooth cubic bezier through points
-  function linePath(pts: { x: number; y: number }[]) {
-    if (pts.length < 2) return ''
-    let d = `M ${pts[0].x} ${pts[0].y}`
-    for (let i = 1; i < pts.length; i++) {
-      const cp = (pts[i - 1].x + pts[i].x) / 2
-      d += ` C ${cp} ${pts[i - 1].y} ${cp} ${pts[i].y} ${pts[i].x} ${pts[i].y}`
+  function smoothPath(points: { x: number; y: number }[]) {
+    if (points.length < 2) return ''
+    let d = `M ${points[0].x} ${points[0].y}`
+    for (let i = 1; i < points.length; i++) {
+      const cp = (points[i - 1].x + points[i].x) / 2
+      d += ` C ${cp} ${points[i - 1].y} ${cp} ${points[i].y} ${points[i].x} ${points[i].y}`
     }
     return d
   }
 
-  const line  = linePath(pts)
-  const area  = `${line} L ${pts[pts.length - 1].x} ${H} L ${pts[0].x} ${H} Z`
-  const active = hovered ?? selectedMes
+  const line = smoothPath(pts)
+  // Extend line horizontally to both edges at the same Y as first/last point → no blank space
+  const first = pts[0], last = pts[pts.length - 1]
+  const lineFull = `M 0 ${first.y} L ${first.x} ${first.y} ${line.slice(line.indexOf(' '))} L ${W} ${last.y}`
+  const area = `${lineFull} L ${W} ${H} L 0 ${H} Z`
+  const active   = hovered ?? selectedMes
   const activePt = pts.find((p) => p.m === active)
+
+  // Helper: convert SVG y → CSS top %
+  const svgYtoCss = (svgY: number) =>
+    `${((svgY - padTop) / chartH) * (chartH / H) * 100 + (padTop / H) * 100}%`
 
   return (
     <div className="flex h-full w-full flex-col">
-      {/* SVG fills remaining height — no aspect-ratio constraint */}
       <div className="relative min-h-0 flex-1">
+        {/* SVG */}
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"
           className="absolute inset-0 h-full w-full">
           <defs>
-            <linearGradient id={`ag-${gid}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"   stopColor="rgb(var(--c-primary))" stopOpacity={0.22} />
-              <stop offset="100%" stopColor="rgb(var(--c-primary))" stopOpacity={0.02} />
+            {/* Horizontal gradient for the stroke line */}
+            <linearGradient id={`stroke-${gid}`} x1="0" y1="0" x2="1" y2="0"
+              gradientUnits="objectBoundingBox">
+              <stop offset="0%"   stopColor="#FF7A00" />
+              <stop offset="40%"  stopColor="#FF00D6" />
+              <stop offset="100%" stopColor="#5C00FF" />
+            </linearGradient>
+            {/* Vertical gradient for area fill */}
+            <linearGradient id={`area-${gid}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor="#FF00D6" stopOpacity={0.45} />
+              <stop offset="70%"  stopColor="#5C00FF" stopOpacity={0.12} />
+              <stop offset="100%" stopColor="#5C00FF" stopOpacity={0}    />
             </linearGradient>
           </defs>
 
-          {/* Vertical highlight for active month */}
-          {activePt && (
-            <rect x={activePt.x - W / months.length / 2} y={0}
-              width={W / months.length} height={H}
-              fill="rgb(var(--c-primary))" fillOpacity={0.06} />
-          )}
-
-          {/* Area fill */}
-          <path d={area} fill={`url(#ag-${gid})`} />
-
-          {/* Line */}
-          <path d={line} fill="none" stroke="rgb(var(--c-primary))"
-            strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-
-          {/* Dots — only active/highlight or all non-zero */}
-          {pts.map((pt) => {
-            const isActive = pt.m === active || pt.m === highlightMes
-            if (!isActive && (totals[pt.m] ?? 0) === 0) return null
+          {/* Subtle grid lines */}
+          {[0.33, 0.66].map((t) => {
+            const y = padTop + chartH * (1 - t)
             return (
-              <circle key={pt.m} cx={pt.x} cy={pt.y} r={isActive ? 6 : 3.5}
-                fill={isActive ? 'rgb(var(--c-primary))' : 'rgb(var(--c-surface-container))'}
-                stroke="rgb(var(--c-primary))" strokeWidth="2.2" />
+              <line key={t} x1={0} y1={y} x2={W} y2={y}
+                stroke="white" strokeOpacity={0.04}
+                strokeWidth={1} strokeDasharray="8 6"
+                vectorEffect="non-scaling-stroke" />
             )
           })}
 
-          {/* Click zones (transparent slots per month) */}
+          {/* Active vertical band */}
+          {activePt && (
+            <rect x={activePt.x - W / months.length / 2} y={0}
+              width={W / months.length} height={H}
+              fill="white" fillOpacity={0.03} />
+          )}
+
+          {/* Area fill */}
+          <path d={area} fill={`url(#area-${gid})`} />
+
+          {/* Stroke line — gradient, extended to edges */}
+          <path d={lineFull} fill="none" stroke={`url(#stroke-${gid})`}
+            strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke" />
+
+          {/* Click zones */}
           {months.map((m, i) => {
             const slotW = W / months.length
             return (
@@ -662,33 +685,59 @@ function MonthlyAreaChart({ months, totals, highlightMes, selectedMes, onSelectM
           })}
         </svg>
 
-        {/* Tooltip — HTML positioned by percentage to avoid SVG text distortion */}
-        {activePt && (totals[active!] ?? 0) > 0 && (
-          <div className="pointer-events-none absolute top-1.5 z-10 -translate-x-1/2
-            rounded-lg bg-surface-container-highest px-2 py-1 text-[11px] font-semibold
-            text-on-surface shadow-sm whitespace-nowrap"
-            style={{ left: `${(pts.indexOf(activePt) / (months.length - 1)) * 100}%` }}>
-            ${fmt(totals[active!] ?? 0)}
+        {/* Active/hover dot */}
+        {activePt && activePt.val > 0 && (
+          <div className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-150"
+            style={{ left: `${activePt.pct * 100}%`, top: svgYtoCss(activePt.y) }}>
+            <div className="absolute -inset-2 rounded-full border border-[#FF00D6]/30" />
+            <div className="h-2.5 w-2.5 rounded-full bg-[#FF00D6] shadow shadow-[#FF00D6]/60" />
+          </div>
+        )}
+
+        {/* Highlight dot — current month only when nothing is hovered/selected */}
+        {highlightMes && !active && (
+          (() => {
+            const hlPt = pts.find((p) => p.m === highlightMes)
+            if (!hlPt || hlPt.val === 0) return null
+            return (
+              <div className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
+                style={{ left: `${hlPt.pct * 100}%`, top: svgYtoCss(hlPt.y) }}>
+                <div className="h-2 w-2 rounded-full bg-primary/80 border border-primary" />
+              </div>
+            )
+          })()
+        )}
+
+        {/* Tooltip */}
+        {activePt && activePt.val > 0 && (
+          <div className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full"
+            style={{
+              left: `${Math.max(6, Math.min(94, activePt.pct * 100))}%`,
+              top: svgYtoCss(activePt.y),
+            }}>
+            <div className="mb-2 rounded-lg border border-white/10 bg-[#22262f] px-3 py-1.5 text-[12px] font-bold text-white shadow-xl whitespace-nowrap">
+              ${fmt(activePt.val)}
+              <span className="ml-2 text-[9px] font-normal text-white/50">{mesShort(activePt.m)}</span>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Month labels — HTML row, no SVG text distortion */}
-      <div className="flex shrink-0 pt-1">
+      {/* Month labels — always all 12 visible, centered per slot to align with dots */}
+      <div className="flex shrink-0 pb-3 pt-1">
         {months.map((m) => {
           const isActive = m === active || m === highlightMes
           return (
-            <span key={m}
+            <button key={m} type="button"
               className={[
-                'cursor-pointer select-none text-center text-[10px] transition-colors',
-                isActive ? 'font-semibold text-primary' : 'text-on-surface-variant/45',
+                'flex-1 text-center text-[9px] font-bold uppercase tracking-widest transition-all duration-150 py-1',
+                isActive ? 'text-primary' : 'text-on-surface-variant/35 hover:text-on-surface-variant/70',
               ].join(' ')}
-              style={{ width: `${100 / months.length}%` }}
               onMouseEnter={() => setHovered(m)}
               onMouseLeave={() => setHovered(null)}
               onClick={() => onSelectMes(m)}>
               {mesShort(m)}
-            </span>
+            </button>
           )
         })}
       </div>
@@ -784,21 +833,12 @@ function DashboardView({ servicios, pagos, year, onEditPago, onDeletePago }: {
     months.map((mes) => [mes, pagosReales.filter((p) => p.mes === mes).reduce((s, p) => s + p.monto, 0)]),
   )
   const totalAnual = Object.values(totalesMes).reduce((a, b) => a + b, 0)
-  const sparkAnual = months.map((m) => totalesMes[m] ?? 0)
-
   const now = new Date()
   const curMes = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const prev = prevMesStr(curMes)
   const curTotal  = pagosReales.filter((p) => p.mes === curMes).reduce((s, p) => s + p.monto, 0)
   const prevTotal = pagosReales.filter((p) => p.mes === prev).reduce((s, p) => s + p.monto, 0)
   const delta = prevTotal > 0 ? ((curTotal - prevTotal) / prevTotal) * 100 : null
-
-  // Spark for current month: last 6 months
-  const last6 = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1)
-    const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    return pagosReales.filter((p) => p.mes === m).reduce((s, p) => s + p.monto, 0)
-  })
 
   const svcTotals = servicios
     .filter((s) => s.activo)
@@ -808,8 +848,6 @@ function DashboardView({ servicios, pagos, year, onEditPago, onDeletePago }: {
       monthly: months.map((m) => pagosReales.filter((p) => p.mes === m && p.servicioId === s.id).reduce((sum, p) => sum + p.monto, 0)),
     }))
     .sort((a, b) => b.total - a.total)
-  const topSvc = svcTotals[0]
-
   const mismoAnioQueCalendario = year === now.getFullYear()
   const highlightMes = mismoAnioQueCalendario ? curMes : null
 
@@ -834,93 +872,143 @@ function DashboardView({ servicios, pagos, year, onEditPago, onDeletePago }: {
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden p-4">
 
-      {/* KPI row — 5 cards */}
+      {/* KPI strip — 4 compact cards, colored values */}
       {(() => {
         const mesesConDatos = months.filter((m) => (totalesMes[m] ?? 0) > 0).length
         const promedio = mesesConDatos > 0 ? totalAnual / mesesConDatos : 0
         const pendientes = pagosReales.filter((p) => !p.pagado && p.mes.startsWith(`${year}-`))
         const totalPendiente = pendientes.reduce((s, p) => s + p.monto, 0)
         return (
-          <div className="grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <KpiCard
-              label="Total anual"
-              value={`$${fmt(totalAnual)}`}
-              sub={`${year} · activos`}
-              sparkData={sparkAnual}
-            />
-            <KpiCard
-              label="Mes actual"
-              value={`$${fmt(curTotal)}`}
-              sub="vs mes anterior"
-              delta={delta}
-              sparkData={last6}
-            />
-            <KpiCard
-              label="Promedio mensual"
-              value={`$${fmt(promedio)}`}
-              sub={`${mesesConDatos} meses con datos`}
-            />
-            <KpiCard
-              label="Servicio top"
-              value={topSvc && topSvc.total > 0 ? `$${fmt(topSvc.total)}` : '—'}
-              sub={topSvc?.svc.nombre ?? 'Sin datos'}
-              sparkData={topSvc?.monthly}
-            />
-            <KpiCard
-              label="Pendientes"
-              value={pendientes.length > 0 ? `$${fmt(totalPendiente)}` : '—'}
-              sub={pendientes.length > 0 ? `${pendientes.length} pago${pendientes.length > 1 ? 's' : ''}` : 'Todo pagado'}
-            />
+          <div className="flex shrink-0 gap-3 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
+            {/* Total anual — primary blue */}
+            <div className="min-w-[148px] flex-1 rounded-xl bg-surface-container p-4">
+              <div className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60">Total Anual</div>
+              <div className="mt-1.5 text-xl font-bold tabular-nums text-on-surface">${fmt(totalAnual)}</div>
+              <div className="mt-2 text-[9px] text-on-surface-variant/40">{year} · activos</div>
+            </div>
+            {/* Mes actual */}
+            <div className="min-w-[148px] flex-1 rounded-xl bg-surface-container p-4">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60">Mes Actual</span>
+                {mesDetalle && (
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-[#a3e635]">{mesShort(mesDetalle)}</span>
+                )}
+              </div>
+              <div className="mt-1.5 flex items-baseline gap-1.5">
+                <span className="text-xl font-bold tabular-nums text-on-surface">${fmt(curTotal)}</span>
+                {delta !== null && (
+                  <span className={`text-[9px] font-bold ${delta > 0 ? 'text-[#f87171]' : 'text-[#a3e635]'}`}>
+                    {delta > 0 ? '+' : ''}{delta.toFixed(0)}%
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 text-[9px] text-on-surface-variant/40">vs anterior ${fmt(prevTotal)}</div>
+            </div>
+            {/* Promedio */}
+            <div className="min-w-[148px] flex-1 rounded-xl bg-surface-container p-4">
+              <div className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60">Promedio</div>
+              <div className="mt-1.5 text-xl font-bold tabular-nums text-on-surface">${fmt(promedio)}</div>
+              <div className="mt-2 text-[9px] text-on-surface-variant/40">{mesesConDatos} meses con datos</div>
+            </div>
+            {/* Pendientes */}
+            <div className="min-w-[148px] flex-1 rounded-xl bg-surface-container p-4">
+              <div className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60">Pendientes</div>
+              <div className="mt-1.5 text-xl font-bold tabular-nums text-on-surface">
+                {pendientes.length > 0 ? `$${fmt(totalPendiente)}` : '—'}
+              </div>
+              <div className="mt-2 text-[9px] text-on-surface-variant/40">
+                {pendientes.length > 0 ? `${pendientes.length} sin confirmar` : 'Todo al día'}
+              </div>
+            </div>
           </div>
         )
       })()}
 
-      {/* Donut por categoría | Top servicios (mismo ancho que fila KPI) */}
-      <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-2">
-        <CategoryDonutCard servicios={servicios} pagos={pagos} year={year} />
-        <TopServicesTrafficCard servicios={servicios} pagos={pagos} year={year} />
-      </div>
+      {/* Hero card: chart + detail */}
+      <div className="flex min-h-0 flex-1 flex-col rounded-2xl bg-surface-container overflow-hidden">
 
-      {/* Resumen mensual (izq.) | Historial (der.) */}
-      <div className="flex min-h-[13rem] flex-col gap-3 lg:flex-row lg:items-stretch">
-
-        {/* Chart card — direct flex child so items-stretch aligns it with history panel */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-outline-variant/15 bg-surface-container">
-          <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant/10">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-on-surface">Resumen mensual</span>
-              <PendingBadge pagos={pagos} servicios={servicios} />
-            </div>
-            <span className="text-[10px] font-medium tabular-nums text-on-surface-variant/40 border border-outline-variant/15 rounded-full px-2 py-0.5">
-              {year}
-            </span>
+        {/* Chart header */}
+        <div className="flex shrink-0 items-center justify-between px-5 pt-5 pb-2">
+          <div>
+            <div className="text-sm font-semibold text-on-surface">Resumen mensual</div>
+            <div className="text-[10px] text-on-surface-variant/50">Gastos operativos vs proyectados</div>
           </div>
-          <div className="relative flex min-h-0 flex-1 flex-col px-3 pb-3 pt-2">
-            <MonthlyAreaChart
-              months={months} totals={totalesMes}
-              highlightMes={highlightMes} selectedMes={mesDetalle}
-              onSelectMes={handleSelectMes}
-            />
-          </div>
-        </div>
-
-        {/* Panel historial — lista scrolleable */}
-        <div className="flex min-h-[13rem] min-w-0 flex-col overflow-hidden rounded-xl border border-outline-variant/15 bg-surface-container lg:h-auto lg:max-h-none lg:w-[260px] lg:shrink-0 lg:flex-none">
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-outline-variant/10 px-4 py-3">
-            <span className="text-sm font-semibold text-on-surface">
-              {mesDetalle ? mesLabel(mesDetalle) : 'Últimos pagos'}
-            </span>
+          <div className="flex items-center gap-2">
+            <PendingBadge pagos={pagos} servicios={servicios} />
             {mesDetalle && (
               <button type="button" onClick={() => setMesDetalle(null)}
                 className="text-[10px] text-on-surface-variant/50 hover:text-on-surface transition-colors">
-                ← Recientes
+                ← Ver todo
               </button>
             )}
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <RecentPayments servicios={servicios} pagos={pagos} onEdit={onEditPago} mesDetalle={mesDetalle} />
+            <span className="text-[9px] font-bold tabular-nums text-on-surface-variant/40 border border-outline-variant/20 rounded-full px-2 py-0.5">
+              {year}
+            </span>
           </div>
         </div>
+
+        {/* Chart — flex-1 + min-h-0 so it yields space to the bottom panel */}
+        <div className="relative min-h-0 flex-1" style={{ minHeight: '120px' }}>
+          <MonthlyAreaChart
+            key={year}
+            months={months} totals={totalesMes}
+            highlightMes={highlightMes} selectedMes={mesDetalle}
+            onSelectMes={handleSelectMes}
+          />
+        </div>
+
+        {/* Bottom detail panel — fixed height so chart never resizes */}
+        <div className="shrink-0 border-t border-outline-variant/10 h-[310px] overflow-y-auto">
+          {mesDetalle ? (
+            /* Selected month: payment list */
+            <div>
+              <div className="px-5 py-2.5 flex items-center justify-between">
+                <span className="text-xs font-semibold text-on-surface">{mesLabel(mesDetalle)}</span>
+                <span className="text-[10px] text-on-surface-variant/50">
+                  ${fmt(pagosReales.filter((p) => p.mes === mesDetalle).reduce((s, p) => s + p.monto, 0))} total
+                </span>
+              </div>
+              <RecentPayments servicios={servicios} pagos={pagos} onEdit={onEditPago} mesDetalle={mesDetalle} />
+            </div>
+          ) : (
+            /* No selection: Top servicios */
+            (() => {
+              const topItems = svcTotals.slice(0, 5).filter((s) => s.total > 0)
+              if (topItems.length === 0) return null
+              return (
+                <div className="px-5 py-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-semibold text-on-surface">Top Servicios</span>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/40">{year}</span>
+                  </div>
+                  <div className="flex flex-col gap-3.5">
+                    {topItems.map((item) => {
+                      const pct = svcTotals[0]?.total > 0 ? (item.total / svcTotals[0].total) * 100 : 0
+                      return (
+                        <div key={item.svc.id} className="space-y-1.5">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <div className="flex items-center gap-2.5">
+                              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface-container-high text-on-surface-variant text-sm">
+                                <ServiceIcon icon={item.svc.emoji} size={14} />
+                              </div>
+                              <span className="font-medium text-on-surface">{item.svc.nombre}</span>
+                            </div>
+                            <span className="font-bold tabular-nums text-on-surface">${fmt(item.total)}</span>
+                          </div>
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-outline-variant/20">
+                            <div className="h-full rounded-full bg-on-surface/20 transition-all duration-500"
+                              style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })()
+          )}
+        </div>
+
       </div>
     </div>
   )
@@ -1707,15 +1795,18 @@ function NotionSettingsForm({ gastos, queries, onSave, onCancel }: {
   onSave: (gastos: { token: string; databaseId: string; credencialesDatabaseId: string }, queries: { token: string; databaseId: string }) => void
   onCancel: () => void
 }) {
-  const [gToken,    setGToken]    = useState(gastos.token)
+  const [token,     setToken]     = useState(gastos.token || queries.token)
   const [gDbId,     setGDbId]     = useState(gastos.databaseId)
   const [gCredDbId, setGCredDbId] = useState(gastos.credencialesDatabaseId)
-  const [qToken,    setQToken]    = useState(queries.token)
   const [qDbId,     setQDbId]     = useState(queries.databaseId)
   const [showToken, setShowToken] = useState(false)
 
-  // Extrae el ID de 32 chars de una URL de Notion o devuelve el valor limpio
-  function previewCleanId(raw: string): string {
+  useEffect(() => { setToken(gastos.token || queries.token) }, [gastos.token, queries.token])
+  useEffect(() => { setGDbId(gastos.databaseId) },             [gastos.databaseId])
+  useEffect(() => { setGCredDbId(gastos.credencialesDatabaseId) }, [gastos.credencialesDatabaseId])
+  useEffect(() => { setQDbId(queries.databaseId) },            [queries.databaseId])
+
+  function extractId(raw: string): string {
     const s = raw.trim()
     if (!s) return ''
     try {
@@ -1726,95 +1817,165 @@ function NotionSettingsForm({ gastos, queries, onSave, onCancel }: {
     } catch { return '' }
   }
 
-  const field = 'w-full rounded-lg border border-outline-variant/30 bg-surface-container/40 px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/40 outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/30 font-mono'
-  const label = 'block text-[11px] font-medium text-on-surface-variant mb-1'
-  const section = 'text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-3 mt-5 first:mt-0'
+  function isConfigured(v: string) { return v.trim().length > 0 }
+  function idPreview(v: string) {
+    const clean = extractId(v)
+    return clean && v.trim() !== clean ? clean : null
+  }
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
+    const t = token.trim()
     onSave(
-      { token: gToken.trim(), databaseId: gDbId.trim(), credencialesDatabaseId: gCredDbId.trim() },
-      { token: qToken.trim(), databaseId: qDbId.trim() },
+      { token: t, databaseId: gDbId.trim(), credencialesDatabaseId: gCredDbId.trim() },
+      { token: t, databaseId: qDbId.trim() },
+    )
+  }
+
+  const inputCls = 'w-full rounded-lg border border-outline-variant/30 bg-surface-container/50 px-3 py-2 text-[13px] text-on-surface placeholder:text-on-surface-variant/30 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 font-mono transition-colors'
+  const labelCls = 'flex items-center justify-between text-[11px] font-semibold text-on-surface-variant mb-1.5'
+  const hintCls  = 'text-[10px] text-on-surface-variant/50 leading-relaxed mt-1'
+
+  function StatusDot({ value }: { value: string }) {
+    return isConfigured(value)
+      ? <CircleCheck size={12} className="text-green-400 shrink-0" />
+      : <CircleAlert size={12} className="text-on-surface-variant/30 shrink-0" />
+  }
+
+  function DbField({ label, value, onChange, hint, placeholder }: {
+    label: string; value: string; onChange: (v: string) => void
+    hint: string; placeholder?: string
+  }) {
+    const preview = idPreview(value)
+    return (
+      <div className="rounded-xl border border-outline-variant/20 bg-surface-container/30 p-3 flex flex-col gap-2">
+        <div className={labelCls}>
+          <span>{label}</span>
+          <StatusDot value={value} />
+        </div>
+        <input
+          type="text" value={value} onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder ?? 'URL de Notion o ID de 32 chars'}
+          className={inputCls}
+        />
+        {preview && (
+          <p className="text-[10px] text-primary/80 font-mono bg-primary/5 rounded px-2 py-1">
+            ID extraído: {preview}
+          </p>
+        )}
+        <p className={hintCls}>{hint}</p>
+      </div>
     )
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-4 p-4">
-      <p className="text-[11px] text-on-surface-variant/70 leading-relaxed">
-        Obtené tu token en{' '}
-        <span className="font-mono text-primary">notion.so/my-integrations</span>
-        {' '}y el ID de cada base de datos desde la URL de Notion.
-      </p>
+    <form onSubmit={submit} className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-5">
 
-      <p className={section}>Gastos y Credenciales</p>
+        {/* Paso 1 — Token */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/15 text-primary text-[10px] font-bold shrink-0">1</span>
+            <span className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60">Token de integración</span>
+          </div>
 
-      <div>
-        <label className={label}>Token de integración</label>
-        <div className="relative">
-          <input
-            type={showToken ? 'text' : 'password'}
-            value={gToken}
-            onChange={(e) => setGToken(e.target.value)}
-            placeholder="secret_..."
-            className={field + ' pr-9'}
-          />
-          <button type="button" onClick={() => setShowToken((v) => !v)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-on-surface-variant">
-            {showToken ? <EyeOff size={14} /> : <Eye size={14} />}
-          </button>
+          <div className="rounded-xl border border-outline-variant/20 bg-surface-container/30 p-3 flex flex-col gap-2">
+            <div className="rounded-lg bg-surface-container/60 border border-outline-variant/15 px-3 py-2.5 text-[11px] text-on-surface-variant/70 leading-relaxed space-y-1">
+              <p className="font-medium text-on-surface-variant">¿Cómo obtener el token?</p>
+              <p>1. Ir a <span className="font-mono text-primary">notion.so/my-integrations</span></p>
+              <p>2. Crear nueva integración → tipo <strong>Interno</strong></p>
+              <p>3. Copiar el <strong>Internal Integration Token</strong> (empieza con <span className="font-mono">secret_</span>)</p>
+              <p>4. En cada base de datos de Notion: <strong>··· → Connections → agregar tu integración</strong></p>
+            </div>
+
+            <div className={labelCls}>
+              <span>Token</span>
+              <StatusDot value={token} />
+            </div>
+            <div className="relative">
+              <input
+                type={showToken ? 'text' : 'password'}
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="secret_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                className={inputCls + ' pr-9'}
+              />
+              <button type="button" onClick={() => setShowToken(v => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/40 hover:text-on-surface-variant transition-colors">
+                {showToken ? <EyeOff size={13} /> : <Eye size={13} />}
+              </button>
+            </div>
+            <p className={hintCls}>Un mismo token puede usarse para todas las bases de datos de tu workspace.</p>
+          </div>
         </div>
-      </div>
 
-      <div>
-        <label className={label}>Database ID — Pagos</label>
-        <input type="text" value={gDbId} onChange={(e) => setGDbId(e.target.value)}
-          placeholder="URL de Notion o ID de 32 caracteres" className={field} />
-        {previewCleanId(gDbId) && gDbId !== previewCleanId(gDbId) && (
-          <p className="mt-1 text-[10px] text-accent font-mono">ID extraído: {previewCleanId(gDbId)}</p>
-        )}
-      </div>
+        {/* Paso 2 — Databases */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/15 text-primary text-[10px] font-bold shrink-0">2</span>
+            <span className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60">Bases de datos</span>
+          </div>
 
-      <div>
-        <label className={label}>Database ID — Credenciales</label>
-        <input type="text" value={gCredDbId} onChange={(e) => setGCredDbId(e.target.value)}
-          placeholder="URL de Notion o ID de 32 caracteres" className={field} />
-        {previewCleanId(gCredDbId) && gCredDbId !== previewCleanId(gCredDbId) && (
-          <p className="mt-1 text-[10px] text-accent font-mono">ID extraído: {previewCleanId(gCredDbId)}</p>
-        )}
-      </div>
+          <div className="rounded-xl border border-outline-variant/20 bg-surface-container/30 px-3 py-2.5 text-[11px] text-on-surface-variant/70 leading-relaxed space-y-1">
+            <p className="font-medium text-on-surface-variant">¿Cómo obtener el Database ID?</p>
+            <p>Abrí la base de datos en Notion en el navegador. El ID está en la URL:</p>
+            <p className="font-mono text-[10px] bg-surface-container/80 rounded px-2 py-1 mt-1 break-all">
+              notion.so/Mi-DB-<span className="text-primary">{'<32 caracteres hex>'}</span>?v=...
+            </p>
+            <p className="mt-1">También podés pegar la URL completa y se extrae automáticamente.</p>
+          </div>
 
-      <p className={section}>Queries</p>
-
-      <div>
-        <label className={label}>Token de integración (Queries)</label>
-        <div className="relative">
-          <input
-            type={showToken ? 'text' : 'password'}
-            value={qToken}
-            onChange={(e) => setQToken(e.target.value)}
-            placeholder="secret_... (puede ser el mismo)"
-            className={field + ' pr-9'}
+          <DbField
+            label="📊 Pagos (Gastos)"
+            value={gDbId}
+            onChange={setGDbId}
+            hint="Base de datos donde se sincronizan los pagos mensuales."
+          />
+          <DbField
+            label="🔐 Credenciales"
+            value={gCredDbId}
+            onChange={setGCredDbId}
+            hint="Base de datos para credenciales. Las contraseñas NO se sincronizan, solo se guardan localmente."
+          />
+          <DbField
+            label="💻 Queries"
+            value={qDbId}
+            onChange={setQDbId}
+            hint="Base de datos donde se almacenan las queries SQL guardadas."
           />
         </div>
-        <p className="mt-1 text-[10px] text-on-surface-variant/50">Puede ser el mismo token que Gastos.</p>
+
+        {/* Estado general */}
+        <div className="rounded-xl border border-outline-variant/20 bg-surface-container/20 px-3 py-2.5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-2">Estado actual</p>
+          <div className="flex flex-col gap-1.5">
+            {[
+              { label: 'Token', value: token },
+              { label: 'DB Pagos', value: gDbId },
+              { label: 'DB Credenciales', value: gCredDbId },
+              { label: 'DB Queries', value: qDbId },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between text-[11px]">
+                <span className="text-on-surface-variant/60">{label}</span>
+                {isConfigured(value)
+                  ? <span className="flex items-center gap-1 text-green-400"><CircleCheck size={11} /> Configurado</span>
+                  : <span className="flex items-center gap-1 text-on-surface-variant/30"><CircleAlert size={11} /> Sin configurar</span>
+                }
+              </div>
+            ))}
+          </div>
+        </div>
+
       </div>
 
-      <div>
-        <label className={label}>Database ID — Queries</label>
-        <input type="text" value={qDbId} onChange={(e) => setQDbId(e.target.value)}
-          placeholder="URL de Notion o ID de 32 caracteres" className={field} />
-        {previewCleanId(qDbId) && qDbId !== previewCleanId(qDbId) && (
-          <p className="mt-1 text-[10px] text-accent font-mono">ID extraído: {previewCleanId(qDbId)}</p>
-        )}
-      </div>
-
-      <div className="flex gap-2 pt-2">
+      {/* Footer fijo */}
+      <div className="shrink-0 border-t border-outline-variant/20 px-4 py-3 flex gap-2">
         <button type="submit"
-          className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary/90 transition-colors">
-          Guardar
+          className="flex-1 rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-on-primary hover:bg-primary/90 transition-colors">
+          Guardar configuración
         </button>
         <button type="button" onClick={onCancel}
-          className="flex-1 rounded-lg border border-outline-variant/30 px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container/50 transition-colors">
+          className="rounded-lg border border-outline-variant/30 px-4 py-2 text-[13px] text-on-surface-variant hover:bg-surface-container/50 transition-colors">
           Cancelar
         </button>
       </div>
@@ -1959,9 +2120,11 @@ export function GastosPlugin() {
         window.api.invoke<{ token: string; databaseId: string; credencialesDatabaseId: string }>('gastos:notion-config-get'),
         window.api.invoke<{ token: string; databaseId: string }>('queries:notion-config-get'),
       ])
-      setNotionCfg(g)
-      setQueriesCfg(q)
-    } catch { /* silencioso */ }
+      if (g) setNotionCfg(g)
+      if (q) setQueriesCfg(q)
+    } catch (e) {
+      console.error('Error cargando config de Notion:', e)
+    }
   }, [])
 
   const load = useCallback(async () => {
@@ -2061,9 +2224,12 @@ export function GastosPlugin() {
       setLastSync({ at: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), ...result })
       toast.show(`Sync completado — ${result.created} creados, ${result.updated} actualizados, ${result.pulled} importados`, 'success', 5000)
     } catch (e) {
-      if (String(e).includes('NOTION_NOT_CONFIGURED'))
-        toast.show('Notion no está configurado. Hacé clic en el ícono de ajustes para configurarlo.', 'error', 8000)
-      else toast.show(`Error al sincronizar con Notion: ${e}`, 'error', 7000)
+      const msg = String(e)
+      if (msg.includes('NOTION_NOT_CONFIGURED')) {
+        const detail = msg.split('NOTION_NOT_CONFIGURED:')[1]?.trim() ?? 'configurá Notion desde el ícono de ajustes'
+        toast.show(`Notion: ${detail}`, 'error', 8000)
+        setPanel({ type: 'notion-settings' })
+      } else toast.show(`Error al sincronizar con Notion: ${e}`, 'error', 7000)
     }
     finally { setSyncing(false) }
   }
@@ -2089,9 +2255,12 @@ export function GastosPlugin() {
       setLastSyncQueries({ at: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), ...result })
       toast.show(`Queries sync — ${result.created} creadas, ${result.updated} actualizadas, ${result.pulled} importadas`, 'success', 5000)
     } catch (e) {
-      if (String(e).includes('NOTION_NOT_CONFIGURED'))
-        toast.show('Notion no está configurado. Hacé clic en el ícono de ajustes para configurarlo.', 'error', 8000)
-      else toast.show(`Error al sincronizar queries con Notion: ${e}`, 'error', 7000)
+      const msg = String(e)
+      if (msg.includes('NOTION_NOT_CONFIGURED')) {
+        const detail = msg.split('NOTION_NOT_CONFIGURED:')[1]?.trim() ?? 'configurá Notion desde el ícono de ajustes'
+        toast.show(`Notion: ${detail}`, 'error', 8000)
+        setPanel({ type: 'notion-settings' })
+      } else toast.show(`Error al sincronizar queries con Notion: ${e}`, 'error', 7000)
     }
     finally { setSyncingQueries(false) }
   }
@@ -2104,9 +2273,12 @@ export function GastosPlugin() {
       setLastSyncCred({ at: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), ...result })
       toast.show(`Credenciales sync — ${result.created} creadas, ${result.updated} actualizadas, ${result.pulled} importadas`, 'success', 5000)
     } catch (e) {
-      if (String(e).includes('NOTION_NOT_CONFIGURED'))
-        toast.show('Notion no está configurado. Hacé clic en el ícono de ajustes para configurarlo.', 'error', 8000)
-      else toast.show(`Error al sincronizar credenciales con Notion: ${e}`, 'error', 7000)
+      const msg = String(e)
+      if (msg.includes('NOTION_NOT_CONFIGURED')) {
+        const detail = msg.split('NOTION_NOT_CONFIGURED:')[1]?.trim() ?? 'configurá Notion desde el ícono de ajustes'
+        toast.show(`Notion: ${detail}`, 'error', 8000)
+        setPanel({ type: 'notion-settings' })
+      } else toast.show(`Error al sincronizar credenciales con Notion: ${e}`, 'error', 7000)
     }
     finally { setSyncingCred(false) }
   }

@@ -78,12 +78,8 @@
   --sidebar-item-active-bg: linear-gradient(135deg, rgb(var(--c-primary) / 0.22) 0%, rgb(var(--c-primary-light) / 0.12) 100%);
 }
 
-
-/* ─── Pastel (light): slightly stronger body text for contrast on pale cards ─ */
-:root[data-palette="pastel"]:not(.dark) {
-  --c-on-surface:         18 18 34;
-  --c-on-surface-variant: 58 58 82;
-}
+/* Superficies (--c-background, paneles, texto base): se fijan en useThemePalette (applyNeutralSurfaces)
+   para que no dependan de la paleta; :root / .dark aquí son fallback antes de hidratar. */
 
 /* ─── Focus visibility (keyboard / a11y) ───────────────────────────────────── */
 :focus-visible {

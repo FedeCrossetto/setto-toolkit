@@ -10,7 +10,6 @@ const INVOKE_CHANNELS = new Set([
   'repo-search:github-repos',
   'repo-search:gitlab-oauth-start', 'repo-search:gitlab-oauth-poll',
   'repo-search:oauth-configured',
-  'smart-diff:analyze',
   'editor:read-dir', 'editor:open-folder-dialog', 'editor:open-dialog',
   'editor:read-file', 'editor:write-file', 'editor:save-dialog',
   'editor:watch-start', 'editor:watch-stop', 'editor:reveal',

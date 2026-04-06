@@ -1,20 +1,13 @@
 import { useState, useCallback, useRef, useEffect, type ComponentType } from 'react'
 import { diffLines, diffWords, type Change } from 'diff'
 import {
-  ArrowLeftRight, Brain, CheckCircle2, CircleAlert, Code2, Diff,
-  FileCode2, FileText, FolderOpen, Loader2, Palette,
-  Settings, Sparkles, Terminal, Trash2, X,
+  ArrowLeftRight, CheckCircle2, ChevronLeft, ChevronRight, Code2, Diff,
+  FileCode2, FileText, FolderOpen, Palette,
+  Settings, Terminal, Trash2, X,
 } from 'lucide-react'
 import { useEditorPrefs, FONT_FAMILIES, FONT_SIZE_MIN, FONT_SIZE_MAX } from '../file-editor/hooks/useEditorPrefs'
 import { useApp } from '../../core/AppContext'
 import { dragState } from '../../core/dragState'
-
-interface AIInsights {
-  primaryChange: string
-  sideEffects: string
-  recommendation: string
-  cached: boolean
-}
 
 interface DiffLine {
   content: string
@@ -349,10 +342,8 @@ export function SmartDiff(): JSX.Element {
   const [changes, setChanges]       = useState<Change[]>([])
   const [ignoreWs, setIgnoreWs]     = useState(false)
   const [syncScroll, setSyncScroll] = useState(true)
-  const [insights, setInsights]     = useState<AIInsights | null>(null)
-  const [aiLoading, setAiLoading]   = useState(false)
-  const [aiError, setAiError]       = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   // Keep a stable ref of original so the diffTarget effect can read it without going stale
   const originalRef = useRef(original)
@@ -426,40 +417,24 @@ export function SmartDiff(): JSX.Element {
   const runDiff = (): void => {
     if (!original.trim() || !modified.trim()) return
     const result = diffLines(original, modified, { ignoreWhitespace: ignoreWs })
-    setChanges(result); setHasDiff(true); setInsights(null); setAiError(null)
+    setChanges(result); setHasDiff(true)
   }
 
   const clearAll = (): void => {
     setOriginal(''); setModified('')
     setOrigFile(null); setModFile(null)
     setHasDiff(false); setChanges([])
-    setInsights(null); setAiError(null)
   }
 
-  /** Discard the diff result and AI insights but keep both files loaded in the editors. */
+  /** Discard the diff result but keep both files loaded in the editors. */
   const cancelDiff = (): void => {
     setHasDiff(false); setChanges([])
-    setInsights(null); setAiError(null)
   }
 
   const swapSides = (): void => {
     setOriginal(modified); setModified(original)
     setOrigFile(modFile);  setModFile(origFile)
-    setHasDiff(false); setChanges([]); setInsights(null)
-  }
-
-  const runAI = async (): Promise<void> => {
-    if (!original.trim() || !modified.trim()) return
-    setAiLoading(true); setAiError(null)
-    try {
-      const result = await window.api.invoke<AIInsights>('smart-diff:analyze', { original, modified })
-      setInsights(result)
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'AI analysis failed'
-      setAiError(msg === 'NO_API_KEY' ? 'No OpenAI API key configured. Go to Settings to add one.' : msg)
-    } finally {
-      setAiLoading(false)
-    }
+    setHasDiff(false); setChanges([])
   }
 
   const { left, right } = hasDiff ? buildDiffLines(changes) : { left: [], right: [] }
@@ -487,78 +462,95 @@ export function SmartDiff(): JSX.Element {
   return (
     <div className="flex h-full overflow-hidden">
 
-      {/* ── Sidebar ────────────────────────────────────────────────────────── */}
-      <aside className="w-52 flex-shrink-0 flex flex-col border-r border-outline-variant/20 bg-surface overflow-hidden">
-        <div className="px-3 pt-3 pb-2 flex-shrink-0">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">Compare files</span>
-        </div>
+      {/* ── Sidebar (collapsible — same pattern as File Editor) ───────────── */}
+      <aside className={`flex-shrink-0 flex flex-col border-r border-outline-variant/20 bg-surface overflow-hidden transition-[width] duration-200 ${sidebarCollapsed ? 'w-8' : 'w-52'}`}>
+        {sidebarCollapsed ? (
+          <button type="button" onClick={() => setSidebarCollapsed(false)} title="Expand sidebar"
+            className="flex-1 flex flex-col items-center justify-center gap-3 hover:bg-surface-container transition-colors w-full min-h-0 py-4">
+            <ChevronRight size={13} className="text-on-surface-variant/40 flex-shrink-0" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/35 select-none"
+              style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}>
+              Compare
+            </span>
+          </button>
+        ) : (
+          <>
+            <div className="flex items-center justify-between px-3 pt-3 pb-2 flex-shrink-0 gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 truncate">Compare files</span>
+              <button type="button" onClick={() => setSidebarCollapsed(true)} title="Collapse sidebar"
+                className="text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-surface-container rounded-lg p-0.5 transition-colors flex-shrink-0">
+                <ChevronLeft size={14} />
+              </button>
+            </div>
 
-        <div className="flex-1 overflow-y-auto min-h-0">
-          <FileCard label="Original" dotColor={REMOVED_COLOR} info={origFile} onClear={() => clearSide('orig')} />
-          <div className="mx-3 border-t border-outline-variant/10" />
-          <FileCard label="Modified" dotColor={ADDED_COLOR}   info={modFile}  onClear={() => clearSide('mod')} />
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <FileCard label="Original" dotColor={REMOVED_COLOR} info={origFile} onClear={() => clearSide('orig')} />
+              <div className="mx-3 border-t border-outline-variant/10" />
+              <FileCard label="Modified" dotColor={ADDED_COLOR}   info={modFile}  onClear={() => clearSide('mod')} />
 
-          {/* Diff stats */}
-          {hasDiff && (
-            <>
+              {/* Diff stats */}
+              {hasDiff && (
+                <>
+                  <div className="mx-3 mt-2 border-t border-outline-variant/10" />
+                  <div className="px-3 py-2.5">
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/50">Changes</span>
+                    {isIdentical ? (
+                      <div className="mt-2 flex items-center gap-1.5 text-[11px] text-secondary">
+                        <CheckCircle2 size={13} />
+                        <span className="font-medium">Files are identical</span>
+                      </div>
+                    ) : (
+                      <div className="mt-2 flex flex-col gap-1">
+                        <div className="flex items-center gap-2 text-[11px]">
+                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: ADDED_COLOR }} />
+                          <span className="text-on-surface-variant/70">Added</span>
+                          <span className="ml-auto font-mono font-medium" style={{ color: ADDED_COLOR }}>+{addedCount}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px]">
+                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: REMOVED_COLOR }} />
+                          <span className="text-on-surface-variant/70">Removed</span>
+                          <span className="ml-auto font-mono font-medium" style={{ color: REMOVED_COLOR }}>-{removedCount}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Options */}
               <div className="mx-3 mt-2 border-t border-outline-variant/10" />
-              <div className="px-3 py-2.5">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/50">Changes</span>
-                {isIdentical ? (
-                  <div className="mt-2 flex items-center gap-1.5 text-[11px] text-secondary">
-                    <CheckCircle2 size={13} />
-                    <span className="font-medium">Files are identical</span>
-                  </div>
-                ) : (
-                  <div className="mt-2 flex flex-col gap-1">
-                    <div className="flex items-center gap-2 text-[11px]">
-                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: ADDED_COLOR }} />
-                      <span className="text-on-surface-variant/70">Added</span>
-                      <span className="ml-auto font-mono font-medium" style={{ color: ADDED_COLOR }}>+{addedCount}</span>
+              <div className="px-3 py-2.5 flex flex-col gap-2">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/50">Options</span>
+                {([
+                  { label: 'Ignore whitespace', value: ignoreWs,   set: setIgnoreWs },
+                  { label: 'Sync scroll',       value: syncScroll, set: setSyncScroll },
+                ] as const).map(({ label, value, set }) => (
+                  <label key={label} className="flex items-center gap-2 cursor-pointer select-none">
+                    <div onClick={() => set((v) => !v)}
+                      className={`w-7 h-4 rounded-full transition-colors relative flex-shrink-0 ${value ? 'bg-primary' : 'bg-outline-variant/40'}`}>
+                      <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${value ? 'left-3.5' : 'left-0.5'}`} />
                     </div>
-                    <div className="flex items-center gap-2 text-[11px]">
-                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: REMOVED_COLOR }} />
-                      <span className="text-on-surface-variant/70">Removed</span>
-                      <span className="ml-auto font-mono font-medium" style={{ color: REMOVED_COLOR }}>-{removedCount}</span>
-                    </div>
-                  </div>
-                )}
+                    <span className="text-[11px] text-on-surface-variant/70">{label}</span>
+                  </label>
+                ))}
               </div>
-            </>
-          )}
+            </div>
 
-          {/* Options */}
-          <div className="mx-3 mt-2 border-t border-outline-variant/10" />
-          <div className="px-3 py-2.5 flex flex-col gap-2">
-            <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/50">Options</span>
-            {([
-              { label: 'Ignore whitespace', value: ignoreWs,   set: setIgnoreWs },
-              { label: 'Sync scroll',       value: syncScroll, set: setSyncScroll },
-            ] as const).map(({ label, value, set }) => (
-              <label key={label} className="flex items-center gap-2 cursor-pointer select-none">
-                <div onClick={() => set((v) => !v)}
-                  className={`w-7 h-4 rounded-full transition-colors relative flex-shrink-0 ${value ? 'bg-primary' : 'bg-outline-variant/40'}`}>
-                  <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${value ? 'left-3.5' : 'left-0.5'}`} />
-                </div>
-                <span className="text-[11px] text-on-surface-variant/70">{label}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* Sidebar actions */}
-        <div className="border-t border-outline-variant/15 px-3 py-2 flex-shrink-0 flex flex-col gap-1.5">
-          <button onClick={swapSides} disabled={!original && !modified}
-            className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-[11px] text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors disabled:opacity-40">
-            <ArrowLeftRight size={14} />
-            Swap sides
-          </button>
-          <button onClick={clearAll} disabled={!original && !modified}
-            className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-[11px] text-error/70 hover:bg-error/10 hover:text-error transition-colors disabled:opacity-40">
-            <Trash2 size={14} />
-            Clear all
-          </button>
-        </div>
+            {/* Sidebar actions */}
+            <div className="border-t border-outline-variant/15 px-3 py-2 flex-shrink-0 flex flex-col gap-1.5">
+              <button type="button" onClick={swapSides} disabled={!original && !modified}
+                className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-[11px] text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors disabled:opacity-40">
+                <ArrowLeftRight size={14} />
+                Swap sides
+              </button>
+              <button type="button" onClick={clearAll} disabled={!original && !modified}
+                className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-[11px] text-error/70 hover:bg-error/10 hover:text-error transition-colors disabled:opacity-40">
+                <Trash2 size={14} />
+                Clear all
+              </button>
+            </div>
+          </>
+        )}
       </aside>
 
       {/* ── Main area ─────────────────────────────────────────────────────── */}
@@ -579,13 +571,6 @@ export function SmartDiff(): JSX.Element {
               Cancel diff
             </button>
           )}
-
-          <button onClick={runAI} disabled={aiLoading || !original.trim() || !modified.trim()}
-            className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-[12px] font-bold text-on-primary-fixed shadow-neon-btn hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: 'var(--gradient-brand)' }}>
-            <Sparkles size={14} />
-            {aiLoading ? 'Analyzing…' : 'Analyze with AI'}
-          </button>
 
           {hasDiff && (
             <div className="flex items-center gap-3 ml-2 text-[11px]">
@@ -689,51 +674,6 @@ export function SmartDiff(): JSX.Element {
             </div>
           )}
         </section>
-
-        {/* AI Insights panel */}
-        {(insights || aiLoading || aiError) && (
-          <section className="min-h-[100px] max-h-64 bg-surface border-t border-outline-variant/15 p-5 overflow-y-auto flex-shrink-0">
-            <div className="flex items-center gap-3 mb-4">
-              <Brain size={18} className="text-primary" />
-              <h2 className="text-sm font-bold tracking-tight">AI Insights</h2>
-              {insights?.cached && (
-                <span className="text-[10px] bg-surface-container px-2 py-0.5 rounded-full text-on-surface-variant border border-outline-variant/20">cached</span>
-              )}
-              <div className="h-px flex-1 bg-gradient-to-r from-outline-variant/30 to-transparent" />
-            </div>
-            {aiLoading && (
-              <div className="flex items-center gap-3 text-on-surface-variant text-sm">
-                <Loader2 size={18} className="animate-spin text-primary" />
-                Analyzing semantic changes…
-              </div>
-            )}
-            {aiError && (
-              <div className="flex items-center gap-3 text-error text-sm bg-error-container/20 px-4 py-3 rounded-xl border border-error/20">
-                <CircleAlert size={18} />
-                {aiError}
-              </div>
-            )}
-            {insights && !aiLoading && (
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-surface-container p-4 rounded-xl border border-outline-variant/10">
-                  <div className="text-[10px] uppercase font-bold tracking-widest text-primary mb-2">Primary Change</div>
-                  <p className="text-xs text-on-surface leading-relaxed">{insights.primaryChange}</p>
-                </div>
-                <div className="bg-surface-container p-4 rounded-xl border border-outline-variant/10">
-                  <div className="text-[10px] uppercase font-bold tracking-widest mb-2" style={{ color: REMOVED_COLOR }}>Side Effects</div>
-                  <p className="text-xs text-on-surface leading-relaxed">{insights.sideEffects}</p>
-                </div>
-                <div className="bg-surface-container-highest p-4 rounded-xl border border-primary/20">
-                  <div className="text-[10px] uppercase font-bold tracking-widest text-secondary mb-2">Recommendation</div>
-                  <div className="flex items-start gap-2">
-                    <CheckCircle2 size={14} className="text-secondary flex-shrink-0" />
-                    <p className="text-xs text-on-surface leading-relaxed">{insights.recommendation}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </section>
-        )}
       </div>
     </div>
   )

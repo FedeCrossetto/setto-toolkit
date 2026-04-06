@@ -1,4 +1,5 @@
-import { app, BrowserWindow, shell, session } from 'electron'
+import { existsSync } from 'fs'
+import { app, BrowserWindow, nativeImage, shell, session } from 'electron'
 import path from 'path'
 import { DatabaseService } from './core/services/db.service'
 import { SettingsService } from './core/services/settings.service'
@@ -24,6 +25,11 @@ function epipeHandler(err: NodeJS.ErrnoException): void {
 }
 process.on('uncaughtException', epipeHandler)
 
+// Windows taskbar / Jump List: must match package.json `build.appId` or the shell keeps a stale/generic icon.
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.devtoolkit.app')
+}
+
 // Single instance lock — second launch passes its argv here and quits
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
@@ -42,10 +48,24 @@ app.on('second-instance', (_e, argv) => {
   }
 })
 
-// Resolve icon path for both dev and packaged builds
-const iconPath = app.isPackaged
-  ? path.join(__dirname, '../renderer/icon.ico')
-  : path.join(__dirname, '../../public/icon.ico')
+/** Window / taskbar icon. Prefer copy outside app.asar — Windows often ignores icons loaded from inside the archive. */
+function resolveWindowIconPath(): string {
+  if (!app.isPackaged) {
+    return path.join(__dirname, '../../public/icon.ico')
+  }
+  const unpacked = path.join(process.resourcesPath, 'app.asar.unpacked', 'out', 'renderer', 'icon.ico')
+  if (existsSync(unpacked)) {
+    return unpacked
+  }
+  return path.join(__dirname, '../renderer/icon.ico')
+}
+
+const iconPath = resolveWindowIconPath()
+
+function getWindowIcon(): Electron.NativeImage | string {
+  const img = nativeImage.createFromPath(iconPath)
+  return img.isEmpty() ? iconPath : img
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -55,10 +75,11 @@ function createWindow(): void {
     minHeight: 600,
     frame: false,
     titleBarStyle: 'hidden',
-    backgroundColor: '#0c0e17',
+    // Neutro claro: evita filtrado azulado en bordes con tema light; el contenido oscuro cubre en dark.
+    backgroundColor: '#ffffff',
     show: false,
     autoHideMenuBar: true,
-    icon: iconPath,
+    icon: getWindowIcon(),
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
       sandbox: true,
@@ -152,7 +173,7 @@ app.whenReady().then(() => {
     `script-src 'self'${cspScriptExtra}`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "img-src 'self' data: blob:",
+    "img-src 'self' data: blob: https:",
     `connect-src 'self' https://api.openai.com https://api.bitbucket.org https://api.github.com${cspConnectExtra}`,
     "frame-src 'none'",
     "object-src 'none'",

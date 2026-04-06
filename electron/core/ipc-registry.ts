@@ -15,7 +15,4 @@ export const IPC = {
   REPO_SEARCH_LOGOUT: 'repo-search:logout',
   REPO_SEARCH_ME: 'repo-search:me',
   REPO_SEARCH_SEARCH: 'repo-search:search',
-
-  // Smart Diff
-  SMART_DIFF_ANALYZE: 'smart-diff:analyze'
 } as const

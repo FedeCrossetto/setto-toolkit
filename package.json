@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "postinstall": "echo Setup complete"
+    "postinstall": "echo Setup complete",
+    "icons:build": "node scripts/generate-app-icon.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.3",
@@ -60,9 +61,11 @@
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3",
     "electron-vite": "^2.3.0",
+    "png-to-ico": "^3.0.1",
     "postcss": "^8.4.38",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "sharp": "^0.34.5",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.5.2",
     "vite": "^5.3.1",
@@ -71,7 +74,7 @@
   "build": {
     "appId": "com.devtoolkit.app",
     "productName": "Setto",
-    "icon": "public/dev-logo.png",
+    "icon": "public/icon.ico",
     "directories": {
       "output": "release"
     },
@@ -80,7 +83,8 @@
     ],
     "asar": true,
     "asarUnpack": [
-      "node_modules/node-pty/**/*"
+      "node_modules/node-pty/**/*",
+      "out/renderer/icon.ico"
     ],
     "fileAssociations": [
       {
@@ -120,13 +124,18 @@
       "target": "nsis",
       "icon": "public/icon.ico"
     },
+    "nsis": {
+      "installerIcon": "public/icon.ico",
+      "uninstallerIcon": "public/icon.ico",
+      "installerHeaderIcon": "public/icon.ico"
+    },
     "mac": {
       "target": "dmg",
-      "icon": "public/dev-logo.png"
+      "icon": "public/app-icon-512.png"
     },
     "linux": {
       "target": "AppImage",
-      "icon": "public/dev-logo.png"
+      "icon": "public/app-icon-512.png"
     },
     "publish": {
       "provider": "github",
