@@ -93,11 +93,21 @@ interface GitHubSearchResponse {
 
 // ── Bitbucket helpers ──────────────────────────────────────────────────────
 
+/** Returns true when the token should be sent as a Bearer token (Workspace/Repo HTTP Access Tokens). */
+function isBitbucketBearerToken(token: string): boolean {
+  // Workspace and Repository HTTP Access Tokens start with ATCTT
+  return token.startsWith('ATCTT')
+}
+
 async function bitbucketFetch(url: string, username: string, token: string): Promise<Record<string, unknown>> {
+  const authHeader = isBitbucketBearerToken(token)
+    ? `Bearer ${token}`
+    : 'Basic ' + Buffer.from(`${username}:${token}`).toString('base64')
+
   const response = await fetch(url, {
     headers: {
       Accept: 'application/json',
-      Authorization: 'Basic ' + Buffer.from(`${username}:${token}`).toString('base64'),
+      Authorization: authHeader,
     },
   })
 
@@ -491,13 +501,26 @@ export const handlers: PluginHandlers = {
 
       if (provider === 'bitbucket') {
         const { username, workspace } = payload
-        if (!username) throw new Error('Username is required for Bitbucket')
+        const isBearer = isBitbucketBearerToken(token)
+        if (!isBearer && !username) throw new Error('Username is required for Bitbucket App Passwords')
         if (!workspace) throw new Error('Workspace is required for Bitbucket')
-        const data = await bitbucketFetch(`${BITBUCKET_API}/user`, username, token) as {
-          username?: string; links?: { avatar?: { href?: string } }
+
+        // Validate by hitting the workspace endpoint — only requires repository:read scope.
+        // /user requires account:read which may not be granted on repository-only tokens.
+        let resolvedUsername = username ?? ''
+        let picture: string | null = null
+        try {
+          const userData = await bitbucketFetch(`${BITBUCKET_API}/user`, username ?? '', token) as {
+            username?: string; links?: { avatar?: { href?: string } }
+          }
+          resolvedUsername = userData.username ?? username ?? ''
+          picture = userData.links?.avatar?.href ?? null
+        } catch {
+          // /user failed (e.g. account scope not granted) — validate via repositories listing instead
+          await bitbucketFetch(`${BITBUCKET_API}/repositories/${encodeURIComponent(workspace)}?pagelen=1`, username ?? '', token)
+          resolvedUsername = username ?? workspace
         }
-        const resolvedUsername = data.username ?? username
-        const picture = data.links?.avatar?.href ?? null
+
         settings.set(settingKey(provider, 'username'), resolvedUsername)
         settings.set(settingKey(provider, 'token'), token)
         settings.set(settingKey(provider, 'workspace'), workspace)
