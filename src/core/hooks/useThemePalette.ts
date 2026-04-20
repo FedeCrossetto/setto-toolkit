@@ -216,12 +216,13 @@ const DARK_TOKENS: Record<PaletteId, PaletteTokens> = {
 function applyNeutralSurfaces(isDark: boolean): void {
   const el = document.documentElement
   if (isDark) {
-    el.style.setProperty('--c-background', '17 17 17')
-    el.style.setProperty('--c-surface', '17 17 17')
-    el.style.setProperty('--c-surface-container-low', '21 21 21')
-    el.style.setProperty('--c-surface-container', '26 26 26')
-    el.style.setProperty('--c-surface-container-high', '32 32 32')
-    el.style.setProperty('--c-surface-container-highest', '40 40 40')
+    // Three distinct levels: outer bg (near-black) → sidebar (#161616) → card (#1E1E1E)
+    el.style.setProperty('--c-background', '10 10 10')           // outer shell — near black
+    el.style.setProperty('--c-surface', '30 30 30')              // floating card background
+    el.style.setProperty('--c-surface-container-low', '24 24 24')
+    el.style.setProperty('--c-surface-container', '30 30 30')    // panels inside card
+    el.style.setProperty('--c-surface-container-high', '38 38 38')
+    el.style.setProperty('--c-surface-container-highest', '48 48 48')
     el.style.setProperty('--c-on-surface', '238 238 238')
     el.style.setProperty('--c-on-surface-variant', '160 160 160')
     el.style.setProperty('--c-outline-variant', '60 60 60')

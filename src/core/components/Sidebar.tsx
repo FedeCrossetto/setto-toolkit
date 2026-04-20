@@ -10,19 +10,18 @@ const ACTIVE_BG = 'rgb(var(--c-background))'
 const CORNER_R  = 16
 
 // ── Logo ───────────────────────────────────────────────────────────────────────
-function AppLogo({ size = 34 }: { size?: number }): JSX.Element {
+// The avatar PNG is portrait (1024×1536) — use height as the sizing axis and
+// let width be auto so the robot fills the space without letterboxing.
+function AppLogo({ height = 56 }: { height?: number }): JSX.Element {
   return (
     <img
-      src="./app-icon-512.png"
-      width={size}
-      height={size}
+      src="./setto-avatar/setto-avatar.png"
       alt=""
       style={{
         flexShrink: 0,
-        objectFit: 'contain',
-        // Preflight `img { max-width:100% }` otherwise shrinks the logo; lock intrinsic size.
-        width: size,
-        height: size,
+        display: 'block',
+        height,
+        width: 'auto',
         maxWidth: 'none',
       }}
     />
@@ -170,7 +169,7 @@ export function Sidebar(): JSX.Element {
       <div
         className="absolute flex flex-col"
         style={{
-          top: 26,
+          top: 44,
           bottom: 30,
           left: 8,
           right: 0,
@@ -180,12 +179,12 @@ export function Sidebar(): JSX.Element {
       >
 
         {/* ── Logo ──────────────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-center mt-0.5 mb-1 flex-shrink-0 px-0">
+        <div className="flex items-center justify-center mt-2 mb-1 flex-shrink-0 px-0">
           {collapsed ? (
-            <AppLogo size={54} />
+            <AppLogo height={60} />
           ) : (
             <div className="flex flex-col items-center gap-0">
-              <AppLogo size={120} />
+              <AppLogo height={110} />
               <div className="leading-none text-center mt-0.5">
                 <div className="font-bold text-[14px] tracking-tight" style={{ color: '#ffffff' }}>SETTO</div>
                 <div className="text-[9px] tracking-widest uppercase font-medium mt-px" style={{ color: 'rgba(255,255,255,0.3)' }}>Toolkit</div>

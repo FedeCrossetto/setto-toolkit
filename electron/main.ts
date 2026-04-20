@@ -9,8 +9,18 @@ import { initUpdater } from './core/services/updater.service'
 import { loadPlugins } from './core/plugin-loader'
 import { ipcMain } from 'electron'
 import { registerFileAssociations, getFileArgFromArgv } from './core/file-associations'
+import { logger } from './core/logger'
 
 let mainWindow: BrowserWindow | null = null
+
+// File path queued by the OS before the renderer was ready to receive it.
+// The renderer pulls this via app:pending-file once React has mounted.
+let pendingFileToOpen: string | null = null
+
+// Set to true the first time the renderer calls app:pending-file (React is mounted).
+// Allows open-file to push directly instead of queuing when the renderer is already up.
+// Reset to false each time createWindow() is called so a fresh renderer starts clean.
+let rendererReady = false
 
 // Suppress EPIPE errors thrown by node-pty's internal ConPTY pipes when a
 // child process exits while the main process still holds a read handle.
@@ -29,6 +39,35 @@ process.on('uncaughtException', epipeHandler)
 if (process.platform === 'win32') {
   app.setAppUserModelId('com.devtoolkit.app')
 }
+
+// macOS: Finder double-click / "Open with" fires this event instead of populating argv.
+// Must be registered before app.whenReady() — it can fire during the launch sequence.
+//
+// Push vs pull strategy:
+//   rendererReady=true  → renderer is mounted and listening → push via send()
+//   rendererReady=false → renderer not loaded yet (cold start, new window) → store and let
+//                         the renderer pull via app:pending-file on mount
+//
+// This avoids the race where on macOS cold start open-file fires AFTER app.whenReady()
+// (so mainWindow already exists) but BEFORE React has mounted and registered its listener.
+app.on('open-file', (event, filePath) => {
+  event.preventDefault()
+  logger.info('open-file', 'received', { filePath, rendererReady, hasWindow: !!mainWindow })
+
+  if (rendererReady && mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+    mainWindow.webContents.send('open-file', filePath)
+    logger.info('open-file', 'pushed to renderer')
+  } else {
+    pendingFileToOpen = filePath
+    logger.info('open-file', 'queued as pending', { pendingFileToOpen })
+    if (app.isReady() && BrowserWindow.getAllWindows().length === 0) {
+      logger.info('open-file', 'no windows open — creating window')
+      createWindow()
+    }
+  }
+})
 
 // Single instance lock — second launch passes its argv here and quits
 const gotLock = app.requestSingleInstanceLock()
@@ -68,6 +107,7 @@ function getWindowIcon(): Electron.NativeImage | string {
 }
 
 function createWindow(): void {
+  rendererReady = false   // fresh window = renderer not ready until it calls app:pending-file
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -126,9 +166,6 @@ function createWindow(): void {
   mainWindow.webContents.on('found-in-page', (_e, result) => {
     mainWindow?.webContents.send('page:found', result)
   })
-
-  // App metadata
-  ipcMain.handle('app:version', () => app.getVersion())
 
   // Window controls IPC
   ipcMain.on('window:minimize', () => mainWindow?.minimize())
@@ -203,18 +240,35 @@ app.whenReady().then(() => {
   // Register all plugin IPC handlers
   loadPlugins(ipcMain, services)
 
+  // ── One-time IPC handlers (must not be inside createWindow — it can be called again on macOS) ──
+  ipcMain.handle('app:version', () => app.getVersion())
+
+  // Renderer pulls this once mounted. Calling this signals that React is up and listening,
+  // so subsequent open-file events can be pushed directly without queueing.
+  // Returns the pending file path without consuming it immediately.
+  // The renderer retries up to 3 times with delays so that open-file events
+  // arriving after the first poll (common on macOS cold start) are still caught.
+  // pendingFileToOpen is cleared only once the renderer has received a non-null value.
+  ipcMain.handle('app:pending-file', () => {
+    rendererReady = true
+    const filePath = pendingFileToOpen
+    if (filePath) pendingFileToOpen = null   // consume only when there is something to return
+    logger.info('app:pending-file', 'polled by renderer', { filePath })
+    return filePath
+  })
+
+  // Capture file from argv before creating the window so it is available the moment
+  // the renderer mounts and calls app:pending-file. On macOS this is already set by
+  // the open-file event handler above; on Windows/Linux it comes from argv.
+  if (!pendingFileToOpen) {
+    pendingFileToOpen = getFileArgFromArgv(process.argv)
+  }
+  logger.info('main', 'app ready', { pendingFileToOpen, argv: process.argv })
+
   createWindow()
 
   // Init auto-updater (no-op in dev mode)
   initUpdater(() => mainWindow)
-
-  // Send file path to renderer once the window is ready
-  const fileArg = getFileArgFromArgv(process.argv)
-  if (fileArg) {
-    mainWindow?.webContents.once('did-finish-load', () => {
-      mainWindow?.webContents.send('open-file', fileArg)
-    })
-  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

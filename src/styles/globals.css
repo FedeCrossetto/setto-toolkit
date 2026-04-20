@@ -51,12 +51,12 @@
 
 /* ─── Dark mode tokens ───────────────────────────────────────────────────── */
 .dark {
-  --c-background:                17  17  17;   /* #111111 */
-  --c-surface:                   17  17  17;   /* #111111 */
-  --c-surface-container-low:     21  21  21;   /* #151515 */
-  --c-surface-container:         26  26  26;   /* #1A1A1A */
-  --c-surface-container-high:    32  32  32;   /* #202020 */
-  --c-surface-container-highest: 40  40  40;   /* #282828 */
+  --c-background:                10  10  10;   /* #0A0A0A — outer shell, near black */
+  --c-surface:                   30  30  30;   /* #1E1E1E — floating card */
+  --c-surface-container-low:     24  24  24;   /* #181818 */
+  --c-surface-container:         30  30  30;   /* #1E1E1E */
+  --c-surface-container-high:    38  38  38;   /* #262626 */
+  --c-surface-container-highest: 48  48  48;   /* #303030 */
   --c-on-surface:               238 238 238;   /* #EEEEEE */
   --c-on-surface-variant:       160 160 160;   /* #A0A0A0 */
   --c-primary:                  140 140 145;   /* #8C8C91 */

@@ -30,15 +30,43 @@ function AppShell(): JSX.Element {
 
   // ── Open file from OS (double-click / "Open with") ───────────────────────
   useEffect(() => {
+    function openFromPath(filePath: string): void {
+      const parentDir = filePath.replace(/[/\\][^/\\]+$/, '')
+      window.api.send('editor:authorize-root', parentDir)
+      dispatch({ type: 'OPEN_IN_EDITOR', path: filePath })
+    }
+
+    // Pull: fetch any file queued before this renderer was ready.
+    // On macOS, open-file can fire after app.whenReady() (after the window is created
+    // but before React mounts). We retry a few times with increasing delays to cover
+    // the case where open-file arrives at the main process after our first poll.
+    let cancelled = false
+    const DELAYS = [0, 600, 1500]   // ms after mount to retry
+    DELAYS.forEach((delay) => {
+      setTimeout(() => {
+        if (cancelled) return
+        window.api.invoke<string | null>('app:pending-file').then((filePath) => {
+          if (cancelled) return
+          if (typeof filePath === 'string') {
+            cancelled = true   // got a file — no need for further retries
+            openFromPath(filePath)
+          }
+        })
+      }, delay)
+    })
+
+    // Push: handles files opened while the app is already running.
     const off = window.api.on('open-file', (filePath: unknown) => {
       if (typeof filePath === 'string') {
-        // Authorize the file's parent directory for write operations in this session.
-        const parentDir = filePath.replace(/[/\\][^/\\]+$/, '')
-        window.api.send('editor:authorize-root', parentDir)
-        dispatch({ type: 'OPEN_IN_EDITOR', path: filePath })
+        cancelled = true
+        openFromPath(filePath)
       }
     })
-    return off
+
+    return () => {
+      cancelled = true
+      off()
+    }
   }, [dispatch])
 
   // ── Auto-updater notifications ────────────────────────────────────────────
@@ -69,8 +97,8 @@ function AppShell(): JSX.Element {
           style={{
             margin: '40px 8px 44px 6px',
             borderRadius: 18,
-            background: 'rgb(var(--c-background))',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.07)',
+            background: 'rgb(var(--c-surface))',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.28), 0 1px 4px rgba(0,0,0,0.14)',
           }}
         >
           <TabBar />

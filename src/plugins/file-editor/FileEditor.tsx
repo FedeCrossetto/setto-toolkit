@@ -138,6 +138,11 @@ export function FileEditor(): JSX.Element {
     let session: SavedSession
     try { session = JSON.parse(raw) } catch { return }
     if (!session.tabs?.length) return
+
+    // Capture at mount time: if the OS requested a specific file (editorTarget),
+    // don't let session restore override the active tab once it completes.
+    const hasExternalTarget = !!state.editorTarget
+
     ;(async () => {
       // Open all file-backed tabs in parallel; unsaved buffers are synchronous
       const results = await Promise.all(
@@ -149,10 +154,14 @@ export function FileEditor(): JSX.Element {
           return { tab, path: saved.path, name: null }
         })
       )
-      const active = results.find((r) =>
-        r.path !== null ? r.path === session.activePath : r.name === session.activeName
-      )
-      if (active?.tab) setActiveId(active.tab.id)
+      // Only restore previous active tab if we are NOT opening a file from the OS.
+      // Otherwise the session's last active file would steal focus from the target.
+      if (!hasExternalTarget) {
+        const active = results.find((r) =>
+          r.path !== null ? r.path === session.activePath : r.name === session.activeName
+        )
+        if (active?.tab) setActiveId(active.tab.id)
+      }
     })()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

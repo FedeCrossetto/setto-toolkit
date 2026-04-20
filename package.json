@@ -131,7 +131,7 @@
     },
     "mac": {
       "target": "dmg",
-      "icon": "public/app-icon-512.png"
+      "icon": "public/icon.icns"
     },
     "linux": {
       "target": "AppImage",
