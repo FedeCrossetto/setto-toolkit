@@ -36,14 +36,14 @@ const ICON: Record<ToastType, ComponentType<{ size?: number; className?: string 
 }
 
 const COLOR: Record<ToastType, string> = {
-  success: 'text-accent border-accent/20 bg-accent/8',
+  success: 'text-emerald-400 border-emerald-500/25 bg-emerald-500/10',
   error:   'text-error  border-error/20  bg-error/8',
   warning: 'text-yellow-400 border-yellow-400/20 bg-yellow-400/8',
   info:    'text-primary border-primary/20 bg-primary/8',
 }
 
 const ICON_COLOR: Record<ToastType, string> = {
-  success: 'text-accent',
+  success: 'text-emerald-400',
   error:   'text-error',
   warning: 'text-yellow-400',
   info:    'text-primary',
@@ -86,7 +86,14 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
       style={{ minWidth: '260px', maxWidth: '400px' }}
     >
       {(() => { const Icon = ICON[toast.type]; return <Icon size={18} className={`flex-shrink-0 mt-px ${ICON_COLOR[toast.type]}`} /> })()}
-      <span className="flex-1 text-on-surface leading-snug">{toast.message}</span>
+      <span
+        className={[
+          'flex-1 leading-snug',
+          toast.type === 'success' ? 'text-emerald-100' : 'text-on-surface',
+        ].join(' ')}
+      >
+        {toast.message}
+      </span>
       <button
         onClick={handleDismiss}
         className="flex-shrink-0 text-on-surface-variant/40 hover:text-on-surface transition-colors mt-px"

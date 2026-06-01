@@ -1,13 +1,14 @@
 interface BreadcrumbProps {
   filePath: string
+  onPathCopied?: () => void
 }
 
-export function Breadcrumb({ filePath }: BreadcrumbProps): JSX.Element {
+export function Breadcrumb({ filePath, onPathCopied }: BreadcrumbProps): JSX.Element {
   const segments = filePath.replace(/\\/g, '/').split('/').filter(Boolean)
 
   const copySegment = (idx: number): void => {
     const partial = segments.slice(0, idx + 1).join('/')
-    navigator.clipboard.writeText(partial)
+    void navigator.clipboard.writeText(partial).then(() => onPathCopied?.()).catch(() => {})
   }
 
   return (

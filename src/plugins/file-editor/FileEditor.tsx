@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import {
   ArrowDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Copy, Diff, Eye, EyeOff,
   FileInput, FilePlus, FileSearch, FileText, Filter, Folder,
-  FolderOpen, FolderPlus, FolderSearch, History, Pause, Pencil, Play,
+  FolderOpen, FolderPlus, FolderSearch, History, PanelLeft, PanelLeftClose, Pause, Pencil, Play,
   RotateCcw, Save, SlidersHorizontal, SquareTerminal, Trash2, WrapText, X,
 } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
@@ -54,6 +54,14 @@ export function FileEditor(): JSX.Element {
     setSavedFlash(true)
     setTimeout(() => setSavedFlash(false), 1500)
     showToast('File saved', 'success', 2200)
+  }, [showToast])
+
+  const copyPath = useCallback((path: string) => {
+    void navigator.clipboard.writeText(path).then(() => {
+      showToast('Path copied', 'success', 2000)
+    }).catch(() => {
+      showToast('Could not copy path', 'error', 2500)
+    })
   }, [showToast])
 
   // ── Core state ────────────────────────────────────────────────────────────
@@ -421,7 +429,7 @@ export function FileEditor(): JSX.Element {
         },
       }] : []),
       { divider: true, label: '', action: () => {} },
-      { label: 'Copy Path',          icon: Copy,       action: () => navigator.clipboard.writeText(node.path) },
+      { label: 'Copy Path',          icon: Copy,       action: () => copyPath(node.path) },
       { label: 'Reveal in Explorer', icon: FolderOpen, action: () => window.api.invoke('editor:reveal', node.path) },
       { label: 'Open Terminal Here', icon: SquareTerminal, action: () => dispatch({ type: 'OPEN_TERMINAL_HERE', cwd: dirPath }) },
     ]
@@ -470,7 +478,7 @@ export function FileEditor(): JSX.Element {
         ] : []),
         { divider: true, label: '', icon: '', action: () => {} },
         ...(tab.path ? [
-          { label: 'Copy Path',          icon: Copy,       action: () => navigator.clipboard.writeText(tab.path!) },
+          { label: 'Copy Path',          icon: Copy,       action: () => copyPath(tab.path!) },
           { label: 'Reveal in Explorer', icon: FolderOpen, action: () => window.api.invoke('editor:reveal', tab.path!) },
           { divider: true, label: '', action: () => {} },
         ] : []),
@@ -549,20 +557,23 @@ export function FileEditor(): JSX.Element {
 
   // ── JSX ───────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex h-full overflow-hidden relative">
 
       {/* ── Left sidebar ─────────────────────────────────────────────────── */}
-      <aside className={`flex-shrink-0 flex flex-col border-r border-outline-variant/20 bg-surface overflow-hidden transition-[width] duration-200 ${sidebarCollapsed ? 'w-8' : 'w-56'}`}>
+      <aside
+        className={[
+          'flex-shrink-0 flex flex-col border-r border-outline-variant/20 bg-surface overflow-hidden transition-[width] duration-200 ease-out',
+          sidebarCollapsed ? 'w-10' : 'w-56',
+        ].join(' ')}
+      >
       {sidebarCollapsed ? (
-        /* ── Collapsed strip ── */
-        <button onClick={() => setSidebarCollapsed(false)} title="Expand sidebar"
-          className="flex-1 flex flex-col items-center justify-center gap-3 hover:bg-surface-container transition-colors w-full">
-          <ChevronRight size={13} className="text-on-surface-variant/40 flex-shrink-0" />
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/35 select-none"
-            style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}>
-            Explorer
-          </span>
-        </button>
+        <CollapsedSidebarRail
+          tabs={tabs}
+          activeId={activeId}
+          onExpand={() => setSidebarCollapsed(false)}
+          onSelectTab={(id) => { setSelectedIds(new Set()); setActiveId(id) }}
+          onTabContextMenu={handleTabContextMenu}
+        />
       ) : (<>
 
         {/* EXPLORER */}
@@ -600,23 +611,29 @@ export function FileEditor(): JSX.Element {
           style={folders.length > 0 ? { height: openFilesHeight } : undefined}
           onContextMenu={handleOpenFilesPanelContextMenu}
         >
-          <div className="flex items-center justify-between px-3 pt-3 pb-1.5 flex-shrink-0">
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">Open files</span>
-            <div className="flex items-center gap-1">
-              <button onClick={createNewFile} title="New file (Ctrl+T)" className="text-on-surface-variant hover:text-primary transition-colors">
-                <FilePlus size={15} />
+          <div className="flex items-center justify-between px-2.5 pt-2.5 pb-1 flex-shrink-0 gap-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/55">Open files</span>
+            <div className="flex items-center gap-0.5 rounded-lg bg-surface-container/60 p-0.5">
+              <button onClick={createNewFile} title="New file (Ctrl+T)"
+                className="p-1 rounded-md text-on-surface-variant/70 hover:text-primary hover:bg-surface-container-high transition-colors">
+                <FilePlus size={14} />
               </button>
-              <button onClick={openDialog} title="Open file" className="text-on-surface-variant hover:text-primary transition-colors">
-                <FileInput size={15} />
+              <button onClick={openDialog} title="Open file"
+                className="p-1 rounded-md text-on-surface-variant/70 hover:text-primary hover:bg-surface-container-high transition-colors">
+                <FileInput size={14} />
               </button>
               {folders.length === 0 && (
-                <button onClick={openFolderDialog} title="Open folder" className="text-on-surface-variant hover:text-primary transition-colors">
-                  <FolderOpen size={15} />
+                <button onClick={openFolderDialog} title="Open folder"
+                  className="p-1 rounded-md text-on-surface-variant/70 hover:text-primary hover:bg-surface-container-high transition-colors">
+                  <FolderOpen size={14} />
                 </button>
               )}
-              <button onClick={() => setSidebarCollapsed(true)} title="Collapse sidebar"
-                className="text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-surface-container rounded-lg p-0.5 transition-colors">
-                <ChevronLeft size={14} />
+              <button
+                onClick={() => setSidebarCollapsed(true)}
+                title="Colapsar barra lateral"
+                className="p-1 rounded-md text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container-high transition-colors border-l border-outline-variant/20 ml-0.5 pl-1"
+              >
+                <PanelLeftClose size={14} />
               </button>
             </div>
           </div>
@@ -641,7 +658,7 @@ export function FileEditor(): JSX.Element {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto overflow-x-hidden py-1 px-2 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-1 px-2">
             {tabs.length === 0 ? (
               <p className="text-[11px] text-on-surface-variant/50 text-center pt-4 px-3">
                 No files open.<br />Drop a file or folder here.
@@ -704,7 +721,7 @@ export function FileEditor(): JSX.Element {
             </div>
           </div>
         )}
-        </>)}
+      </>)}
       </aside>
 
       {/* ── Main editor area ─────────────────────────────────────────────── */}
@@ -892,7 +909,7 @@ export function FileEditor(): JSX.Element {
         )}
 
         {/* Breadcrumb */}
-        {activeTab?.path && <Breadcrumb filePath={activeTab.path} />}
+        {activeTab?.path && <Breadcrumb filePath={activeTab.path} onPathCopied={() => showToast('Path copied', 'success', 2000)} />}
 
         {/* Large-file truncation notice */}
         {activeTab?.truncated && (
@@ -965,7 +982,7 @@ export function FileEditor(): JSX.Element {
               <div className="ml-auto flex items-center gap-2 pointer-events-auto">
                 {activeTab.path && (
                   <>
-                    <button onClick={() => navigator.clipboard.writeText(activeTab.path!)} title="Copy path"
+                    <button onClick={() => copyPath(activeTab.path!)} title="Copy path"
                       className="flex items-center gap-0.5 hover:text-primary transition-colors">
                       <Copy size={11} />
                       Path
@@ -1172,6 +1189,60 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
           {node.truncated && <p className="text-[10px] text-on-surface-variant/35 italic py-0.5" style={{ paddingLeft: `${8 + (depth + 1) * 10}px` }}>…more files not shown</p>}
         </>
       )}
+    </div>
+  )
+}
+
+/** Barra lateral colapsada: expandir + iconos de archivos abiertos. */
+function CollapsedSidebarRail({
+  tabs,
+  activeId,
+  onExpand,
+  onSelectTab,
+  onTabContextMenu,
+}: {
+  tabs: OpenFile[]
+  activeId: string | null
+  onExpand: () => void
+  onSelectTab: (id: string) => void
+  onTabContextMenu: (e: React.MouseEvent, tab: OpenFile) => void
+}): JSX.Element {
+  return (
+    <div className="flex flex-1 min-h-0 flex-col w-full">
+      <button
+        type="button"
+        onClick={onExpand}
+        title="Expandir barra lateral"
+        className="flex-shrink-0 flex items-center justify-center h-9 border-b border-outline-variant/15 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
+      >
+        <PanelLeft size={15} />
+      </button>
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-1 flex flex-col items-center gap-0.5">
+        {tabs.map((tab) => {
+          const isActive = activeId === tab.id
+          const Icon = languageIcon(tab.language)
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onSelectTab(tab.id)}
+              onContextMenu={(e) => onTabContextMenu(e, tab)}
+              title={tab.path ? `${tab.name}\n${tab.path}` : tab.name}
+              className={[
+                'relative w-8 h-8 rounded-md flex items-center justify-center transition-colors flex-shrink-0',
+                isActive
+                  ? 'bg-primary/12 text-primary ring-1 ring-primary/30'
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container',
+              ].join(' ')}
+            >
+              <Icon size={15} />
+              {tab.isDirty && (
+                <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-primary" aria-hidden />
+              )}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
