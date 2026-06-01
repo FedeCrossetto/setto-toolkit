@@ -10,7 +10,8 @@ export default defineConfig(({ mode }) => {
 
   return {
   main: {
-    plugins: [externalizeDepsPlugin({ include: ['node-pty'] })],
+    // Bundle Supabase + ws into main (electron-builder only ships `out/`, not node_modules).
+    plugins: [externalizeDepsPlugin({ exclude: ['@supabase/supabase-js', 'ws'] })],
     define: {
       // Credentials are read from .env at build time and embedded in the binary.
       // The .env file is gitignored — they never appear in the source repository.
