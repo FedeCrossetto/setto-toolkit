@@ -14,6 +14,7 @@ const SECURE_KEYS = new Set([
   'ticket-resolver.jira_token',
   'gastos.notion_token',
   'gastos.queries_notion_token',
+  'gastos.supabase_service_key',
 ])
 
 const ENC_PREFIX = 'enc:'

@@ -17,6 +17,10 @@ dist-ssr
 # Notion (tokens solo locales; copiar desde *.example.json)
 gastos-notion.local.json
 queries-notion.local.json
+gastos-supabase.local.json
+
+# Seed SQL generado con datos personales
+supabase/seed/generated/
 
 # Editor directories and files
 .vscode/*

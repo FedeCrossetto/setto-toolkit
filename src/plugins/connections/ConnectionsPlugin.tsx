@@ -63,6 +63,14 @@ function LogoNotion({ size = 24 }: { size?: number }): JSX.Element {
   )
 }
 
+function LogoSupabase({ size = 24 }: { size?: number }): JSX.Element {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M19.3 12.9c-.4-2.8-2.5-4.9-5.1-5.4-1-.6-2.1-.9-3.2-.9-3.5 0-6.4 2.6-6.9 6.1-.5.1-1 .3-1.4.6-1.2.9-1.7 2.5-1.2 4 .5 1.5 1.9 2.5 3.5 2.5h11.8c2.2 0 3.9-1.8 3.9-3.9 0-2-1.5-3.7-3.4-3.9z" fill="currentColor"/>
+    </svg>
+  )
+}
+
 function LogoJira({ size = 24 }: { size?: number }): JSX.Element {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -806,6 +814,149 @@ function NotionSection({ open, onToggle }: { open: boolean; onToggle: (id: strin
   )
 }
 
+// ── Supabase Section ───────────────────────────────────────────────────────────
+
+function SupabaseSection({ open, onToggle }: { open: boolean; onToggle: (id: string) => void }): JSX.Element {
+  const [url, setUrl] = useState('')
+  const [serviceKey, setServiceKey] = useState('')
+  const [keyConfigured, setKeyConfigured] = useState(false)
+  const [backend, setBackend] = useState<'local' | 'supabase'>('local')
+  const [migratedAt, setMigratedAt] = useState<string | undefined>()
+  const [syncOnStartup, setSyncOnStartup] = useState(true)
+  const [lastSyncAt, setLastSyncAt] = useState<string | undefined>()
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [migrating, setMigrating] = useState(false)
+  const [status, setStatus] = useState<Status>('loading')
+
+  useEffect(() => {
+    window.api.invoke<{
+      url: string
+      backend: 'local' | 'supabase'
+      keyConfigured: boolean
+      migratedAt?: string
+      syncOnStartup?: boolean
+      lastSyncAt?: string
+    } | null>('gastos:supabase-config-get').then((cfg) => {
+      if (cfg?.url) setUrl(cfg.url)
+      setKeyConfigured(cfg?.keyConfigured ?? false)
+      setBackend(cfg?.backend ?? 'local')
+      setMigratedAt(cfg?.migratedAt)
+      setSyncOnStartup(cfg?.syncOnStartup !== false)
+      setLastSyncAt(cfg?.lastSyncAt)
+      const ok = Boolean(cfg?.url && cfg?.keyConfigured)
+      setStatus(cfg?.backend === 'supabase' && ok ? 'connected' : ok ? 'partial' : 'disconnected')
+    }).catch(() => setStatus('disconnected'))
+  }, [])
+
+  const save = async (): Promise<void> => {
+    setSaving(true)
+    try {
+      await window.api.invoke('gastos:supabase-config-save', {
+        url: url.trim(),
+        serviceKey: serviceKey.trim(),
+        backend,
+        syncOnStartup,
+      })
+      if (serviceKey.trim()) setKeyConfigured(true)
+      setSaved(true)
+      const ok = Boolean(url.trim() && (serviceKey.trim() || keyConfigured))
+      setStatus(backend === 'supabase' && ok ? 'connected' : ok ? 'partial' : 'disconnected')
+      setTimeout(() => setSaved(false), 2500)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const migrate = async (): Promise<void> => {
+    setMigrating(true)
+    try {
+      const result = await window.api.invoke<{
+        servicios: number
+        pagos: number
+        credenciales: number
+        queries: number
+      }>('gastos:supabase-migrate')
+      setBackend('supabase')
+      setMigratedAt(new Date().toISOString())
+      setStatus('connected')
+      alert(
+        `Migración OK\n` +
+        `Servicios: ${result.servicios}\n` +
+        `Pagos: ${result.pagos}\n` +
+        `Credenciales: ${result.credenciales}\n` +
+        `Queries: ${result.queries}`,
+      )
+    } catch (e) {
+      alert(`Error al migrar: ${e}`)
+    } finally {
+      setMigrating(false)
+    }
+  }
+
+  return (
+    <Section
+      id="supabase"
+      title="Supabase"
+      subtitle="Base de datos para servicios, gastos, contraseñas y queries"
+      Logo={LogoSupabase}
+      status={status}
+      open={open}
+      onToggle={onToggle}
+    >
+      <HowToBox steps={[
+        { title: 'Crear proyecto Supabase', detail: 'supabase.com → New project.' },
+        { title: 'Ejecutar el SQL del repo', detail: 'SQL Editor → pegar supabase/migrations/001_gastos_schema.sql → Run.' },
+        { title: 'Copiar URL y service_role', detail: 'Settings → API → Project URL y service_role (secret).' },
+        { title: 'Migrar', detail: 'Guardá credenciales, luego «Migrar datos locales». Si usás Notion, sincronizá antes desde Gastos.' },
+      ]} />
+
+      <Field label="Project URL">
+        <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://xxxx.supabase.co" className={inputCls} />
+      </Field>
+      <Field label="Service role key" hint="Solo en el proceso principal de Electron; nunca en el renderer.">
+        <PasswordInput value={serviceKey} onChange={setServiceKey} placeholder="eyJ..." configured={keyConfigured} />
+      </Field>
+      <Field label="Backend activo">
+        <select
+          value={backend}
+          onChange={(e) => setBackend(e.target.value as 'local' | 'supabase')}
+          className={inputCls}
+        >
+          <option value="local">Local (JSON en userData)</option>
+          <option value="supabase">Supabase</option>
+        </select>
+      </Field>
+      <label className="flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
+        <input
+          type="checkbox"
+          checked={syncOnStartup}
+          onChange={(e) => setSyncOnStartup(e.target.checked)}
+          className="rounded border-outline-variant/40"
+        />
+        Al abrir la app, subir JSON local a Supabase (upsert)
+      </label>
+      {migratedAt && (
+        <p className="text-xs text-on-surface-variant/60">Última migración: {new Date(migratedAt).toLocaleString()}</p>
+      )}
+      {lastSyncAt && (
+        <p className="text-xs text-on-surface-variant/60">Último sync al inicio: {new Date(lastSyncAt).toLocaleString()}</p>
+      )}
+      <div className="flex flex-wrap gap-2 justify-end">
+        <button
+          type="button"
+          onClick={() => void migrate()}
+          disabled={migrating || !url.trim() || (!serviceKey.trim() && !keyConfigured)}
+          className="px-4 py-2 text-sm rounded-lg border border-outline-variant/30 text-on-surface hover:border-primary/40 disabled:opacity-40"
+        >
+          {migrating ? 'Migrando…' : 'Migrar datos locales a Supabase'}
+        </button>
+        <SaveButton onClick={() => void save()} saving={saving} saved={saved} />
+      </div>
+    </Section>
+  )
+}
+
 // ── Jira Section ───────────────────────────────────────────────────────────────
 
 function JiraSection({ open, onToggle }: { open: boolean; onToggle: (id: string) => void }): JSX.Element {
@@ -876,13 +1027,13 @@ function JiraSection({ open, onToggle }: { open: boolean; onToggle: (id: string)
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 
-type SectionId = 'openai' | 'anthropic' | 'ollama' | 'github' | 'gitlab' | 'bitbucket' | 'notion' | 'jira'
+type SectionId = 'openai' | 'anthropic' | 'ollama' | 'github' | 'gitlab' | 'bitbucket' | 'notion' | 'supabase' | 'jira'
 
 export function ConnectionsPlugin(): JSX.Element {
   const [open, setOpen] = useState<Record<SectionId, boolean>>({
     openai: false, anthropic: false, ollama: false,
     github: false, gitlab: false, bitbucket: false,
-    notion: false, jira: false,
+    notion: false, supabase: false, jira: false,
   })
 
   const toggle = (id: string): void =>
@@ -923,6 +1074,7 @@ export function ConnectionsPlugin(): JSX.Element {
         <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-2">Project Management &amp; Notes</p>
         <div className="space-y-2">
           <NotionSection open={open.notion} onToggle={toggle} />
+          <SupabaseSection open={open.supabase} onToggle={toggle} />
           <JiraSection open={open.jira} onToggle={toggle} />
         </div>
       </div>

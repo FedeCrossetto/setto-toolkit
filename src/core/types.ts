@@ -80,3 +80,5 @@ export type AppAction =
   | { type: 'CLEAR_TERMINAL_TARGET' }
   /** Cross-plugin: send a raw control sequence to the active terminal (no \r appended) */
   | { type: 'INTERRUPT_TERMINAL' }
+  /** Clear editor target after FileEditor has consumed it */
+  | { type: 'CLEAR_EDITOR_TARGET' }

@@ -5,6 +5,7 @@ import { DatabaseService } from './core/services/db.service'
 import { SettingsService } from './core/services/settings.service'
 import { AIService } from './core/services/ai.service'
 import { AuthService } from './core/services/auth.service'
+import { GastosStorageService } from './core/services/gastos-storage.service'
 import { initUpdater } from './core/services/updater.service'
 import { loadPlugins } from './core/plugin-loader'
 import { ipcMain } from 'electron'
@@ -82,8 +83,16 @@ app.on('second-instance', (_e, argv) => {
     mainWindow.focus()
   }
   const filePath = getFileArgFromArgv(argv)
-  if (filePath && mainWindow) {
+  if (!filePath) return
+
+  if (rendererReady && mainWindow) {
+    // Renderer is mounted and listening — push directly
     mainWindow.webContents.send('open-file', filePath)
+    logger.info('second-instance', 'pushed file to renderer', { filePath })
+  } else {
+    // Window was just (re)created and renderer hasn't mounted yet — queue it
+    pendingFileToOpen = filePath
+    logger.info('second-instance', 'queued as pending', { filePath })
   }
 })
 
@@ -167,25 +176,6 @@ function createWindow(): void {
     mainWindow?.webContents.send('page:found', result)
   })
 
-  // Window controls IPC
-  ipcMain.on('window:minimize', () => mainWindow?.minimize())
-  ipcMain.on('window:maximize', () => {
-    if (mainWindow?.isMaximized()) {
-      mainWindow.unmaximize()
-    } else {
-      mainWindow?.maximize()
-    }
-  })
-  ipcMain.on('window:close', () => mainWindow?.close())
-
-  // Find-in-page
-  ipcMain.on('page:find', (_e, text: string, opts: { forward: boolean; findNext: boolean; matchCase: boolean }) => {
-    mainWindow?.webContents.findInPage(text, opts)
-  })
-  ipcMain.on('page:find-stop', () => {
-    mainWindow?.webContents.stopFindInPage('clearSelection')
-  })
-
   if (process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -235,12 +225,40 @@ app.whenReady().then(() => {
   const settings = new SettingsService(db)
   const ai = new AIService(db, settings)
   const auth = new AuthService(db)
-  const services = { db, settings, ai, auth }
+  const gastosStorage = new GastosStorageService(db, settings)
+  const services = { db, settings, ai, auth, gastosStorage }
 
   // Register all plugin IPC handlers
   loadPlugins(ipcMain, services)
 
+  // Gastos: si backend=Supabase, subir JSON local al cloud al iniciar (upsert)
+  void gastosStorage.syncOnStartupIfEnabled().catch((err) => {
+    logger.error('GastosStorage', 'Sync al inicio falló', err)
+  })
+
   // ── One-time IPC handlers (must not be inside createWindow — it can be called again on macOS) ──
+
+  // Window controls — registered once here, not inside createWindow().
+  // createWindow() can be called multiple times on macOS (Dock re-activate) and
+  // ipcMain.on() accumulates listeners rather than replacing them.
+  ipcMain.on('window:minimize', () => mainWindow?.minimize())
+  ipcMain.on('window:maximize', () => {
+    if (mainWindow?.isMaximized()) {
+      mainWindow.unmaximize()
+    } else {
+      mainWindow?.maximize()
+    }
+  })
+  ipcMain.on('window:close', () => mainWindow?.close())
+
+  // Find-in-page
+  ipcMain.on('page:find', (_e, text: string, opts: { forward: boolean; findNext: boolean; matchCase: boolean }) => {
+    mainWindow?.webContents.findInPage(text, opts)
+  })
+  ipcMain.on('page:find-stop', () => {
+    mainWindow?.webContents.stopFindInPage('clearSelection')
+  })
+
   ipcMain.handle('app:version', () => app.getVersion())
 
   // Renderer pulls this once mounted. Calling this signals that React is up and listening,

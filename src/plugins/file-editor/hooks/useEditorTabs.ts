@@ -1,4 +1,4 @@
-import { useState, useCallback, type ComponentType } from 'react'
+import { useState, useCallback, useRef, type ComponentType } from 'react'
 import {
   Code2, Database, FileCode2, FileText, Palette,
   ScrollText, Settings, Terminal,
@@ -30,6 +30,8 @@ export function detectLanguage(filename: string): FileLanguage {
     cpp: 'cpp', cc: 'cpp', cxx: 'cpp', c: 'cpp', h: 'cpp', hpp: 'cpp',
     java: 'java',
     py: 'python', pyw: 'python',
+    rs: 'rust',
+    go: 'go',
     sh: 'shell', bash: 'shell', zsh: 'shell', fish: 'shell',
     bat: 'shell', cmd: 'shell', ps1: 'shell',
     // Logs / plain text
@@ -61,9 +63,15 @@ export function useEditorTabs() {
   const [tabs, setTabs] = useState<OpenFile[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
 
+  // Stable ref so openFile never goes stale during parallel session-restore calls.
+  // Without this, all concurrent openFile() calls in Promise.all() capture the same
+  // empty tabs=[] snapshot and cannot detect already-open files.
+  const tabsRef = useRef<OpenFile[]>(tabs)
+  tabsRef.current = tabs
+
   const openFile = useCallback(async (filePath: string, _line?: number, tailLinesCount?: number): Promise<OpenFile | null> => {
-    // If already open, just activate it
-    const existing = tabs.find((t) => t.path === filePath)
+    // If already open, just activate it (use ref — always current, no stale closure)
+    const existing = tabsRef.current.find((t) => t.path === filePath)
     if (existing) {
       setActiveId(existing.id)
       return existing
@@ -96,7 +104,7 @@ export function useEditorTabs() {
       console.error('Failed to open file:', e)
       return null
     }
-  }, [tabs])
+  }, [])  // stable — tabs lookup goes through tabsRef, not captured state
 
   /** Open a temporary buffer (e.g. API response JSON — no fs path) */
   const openBuffer = useCallback((name: string, content: string, language: FileLanguage = 'json'): OpenFile => {

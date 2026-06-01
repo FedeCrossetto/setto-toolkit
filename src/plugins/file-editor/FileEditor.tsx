@@ -120,11 +120,14 @@ export function FileEditor(): JSX.Element {
   // ── On mount ──────────────────────────────────────────────────────────────
   useEffect(() => { window.api.invoke<RecentFile[]>('editor:recent-get').then(setRecents) }, [])
 
-  // Consume OPEN_IN_EDITOR from global state
+  // Consume OPEN_IN_EDITOR from global state, then clear it so re-mounting FileEditor
+  // (e.g. closing and reopening the tab) does not re-fire the openFile call.
   useEffect(() => {
     if (!state.editorTarget) return
-    openFile(state.editorTarget.path).catch(() => {
-      showToast(`Could not open "${state.editorTarget!.path}"`, 'error')
+    const target = state.editorTarget
+    dispatch({ type: 'CLEAR_EDITOR_TARGET' })
+    openFile(target.path).catch(() => {
+      showToast(`Could not open "${target.path}"`, 'error')
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.editorTarget])

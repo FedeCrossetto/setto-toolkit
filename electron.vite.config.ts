@@ -20,6 +20,9 @@ export default defineConfig(({ mode }) => {
       // Create once, put in .env, build → everyone who gets the binary just clicks "Sign in".
       __GITHUB_CLIENT_ID__: JSON.stringify(env.GITHUB_CLIENT_ID ?? ''),
       __GITLAB_CLIENT_ID__: JSON.stringify(env.GITLAB_CLIENT_ID ?? ''),
+      // Supabase (Gastos) — leídas desde .env en dev/build del proceso main
+      'process.env.SUPABASE_URL': JSON.stringify(env.SUPABASE_URL ?? ''),
+      'process.env.SUPABASE_SERVICE_ROLE_KEY': JSON.stringify(env.SUPABASE_SERVICE_ROLE_KEY ?? ''),
     },
     build: {
       lib: {

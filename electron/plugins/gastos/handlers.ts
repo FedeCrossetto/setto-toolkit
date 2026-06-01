@@ -182,8 +182,6 @@ function notionPageToPago(page: any): PagoMensual {
   }
 }
 
-const SERVICIOS_FILE       = 'gastos-servicios.json'
-const QUERIES_FILE         = 'queries.json'
 const QUERIES_NOTION_FILE  = 'queries-notion.json'
 
 // ── Queries Notion config ──────────────────────────────────────────────────────
@@ -241,101 +239,104 @@ function notionPageToQuery(page: any): QueryItem {
     orden:       getNum(page, 'Orden'),
   }
 }
-const PAGOS_FILE         = 'gastos-pagos.json'
-const CREDENCIALES_FILE  = 'gastos-credenciales.json'
-
-const DEFAULT_SERVICIOS: Servicio[] = [
-  { id: 'metrogas-casa',  nombre: 'Metrogas',   emoji: 'flame',      numeroCuenta: '20421703300',    categoria: 'Casa',      activo: true, orden: 1  },
-  { id: 'edesur',         nombre: 'Edesur',     emoji: 'zap',        numeroCuenta: '0001625984',     categoria: 'Casa',      activo: true, orden: 2  },
-  { id: 'aysa',           nombre: 'Aysa',       emoji: 'droplets',   numeroCuenta: '0000229456',     categoria: 'Casa',      activo: true, orden: 3  },
-  { id: 'telecentro',     nombre: 'Telecentro', emoji: 'wifi',       numeroCuenta: '2262362',        categoria: 'Casa',      activo: true, orden: 4  },
-  { id: 'metrogas-depto', nombre: 'Metrogas',   emoji: 'flame',      numeroCuenta: '40000143442',    categoria: 'Depto',     activo: true, orden: 5  },
-  { id: 'edesur-depto',   nombre: 'Edesur',     emoji: 'zap',        numeroCuenta: '0006013319',     categoria: 'Depto',     activo: true, orden: 6  },
-  { id: 'expensa',        nombre: 'Expensas',   emoji: 'receipt',    numeroCuenta: '1144037043',     categoria: 'Depto',     activo: true, orden: 7  },
-  { id: 'tsg',            nombre: 'TSG',        emoji: 'landmark',   numeroCuenta: 'Lomas de Zamora',categoria: 'Depto',     activo: true, orden: 8  },
-  { id: 'amazon',         nombre: 'Amazon',     emoji: 'tv',         numeroCuenta: '',               categoria: 'Streaming', activo: true, orden: 9  },
-  { id: 'flow',           nombre: 'Flow',       emoji: 'radio',      numeroCuenta: '',               categoria: 'Streaming', activo: true, orden: 10 },
-  { id: 'personal',       nombre: 'Personal',   emoji: 'smartphone', numeroCuenta: '11590591e54',    categoria: 'Depto',     activo: true, orden: 11 },
-]
-
-const DEFAULT_CREDENCIALES: Credencial[] = []
-
 export const handlers: PluginHandlers = {
   pluginId: 'gastos',
 
-  register(ipcMain: IpcMain, { db }: CoreServices): void {
+  register(ipcMain: IpcMain, { db, gastosStorage }: CoreServices): void {
 
-    ipcMain.handle('gastos:load', () => {
-      const servicios    = db.readJSON<Servicio[]>(SERVICIOS_FILE)    ?? DEFAULT_SERVICIOS
-      const pagos        = db.readJSON<PagoMensual[]>(PAGOS_FILE)     ?? []
-      const credenciales = db.readJSON<Credencial[]>(CREDENCIALES_FILE) ?? DEFAULT_CREDENCIALES
-      // Seed defaults on first run
-      if (!db.readJSON<Servicio[]>(SERVICIOS_FILE))     db.writeJSON(SERVICIOS_FILE,    DEFAULT_SERVICIOS)
-      if (!db.readJSON<Credencial[]>(CREDENCIALES_FILE)) db.writeJSON(CREDENCIALES_FILE, DEFAULT_CREDENCIALES)
-      return { servicios, pagos, credenciales }
-    })
+    ipcMain.handle('gastos:load', async () => gastosStorage.load())
 
-    ipcMain.handle('gastos:save-servicio', (_e, servicio: Servicio) => {
-      const all = db.readJSON<Servicio[]>(SERVICIOS_FILE) ?? DEFAULT_SERVICIOS
-      const idx = all.findIndex((s) => s.id === servicio.id)
-      if (idx >= 0) {
-        all[idx] = servicio
-      } else {
-        all.push(servicio)
-      }
-      db.writeJSON(SERVICIOS_FILE, all)
+    ipcMain.handle('gastos:save-servicio', async (_e, servicio: Servicio) => {
+      await gastosStorage.saveServicio(servicio)
       return { ok: true }
     })
 
-    ipcMain.handle('gastos:delete-servicio', (_e, id: string) => {
-      const all = db.readJSON<Servicio[]>(SERVICIOS_FILE) ?? DEFAULT_SERVICIOS
-      db.writeJSON(SERVICIOS_FILE, all.filter((s) => s.id !== id))
-      const pagos = db.readJSON<PagoMensual[]>(PAGOS_FILE) ?? []
-      db.writeJSON(PAGOS_FILE, pagos.filter((p) => p.servicioId !== id))
+    ipcMain.handle('gastos:delete-servicio', async (_e, id: string) => {
+      await gastosStorage.deleteServicio(id)
       return { ok: true }
     })
 
-    ipcMain.handle('gastos:save-pago', (_e, pago: PagoMensual) => {
-      const all = db.readJSON<PagoMensual[]>(PAGOS_FILE) ?? []
-      const idx = all.findIndex((p) => p.id === pago.id)
-      if (idx >= 0) {
-        all[idx] = pago
-      } else {
-        all.push(pago)
-      }
-      db.writeJSON(PAGOS_FILE, all)
+    ipcMain.handle('gastos:save-pago', async (_e, pago: PagoMensual) => {
+      await gastosStorage.savePago(pago)
       return { ok: true }
     })
 
-    ipcMain.handle('gastos:delete-pago', (_e, id: string) => {
-      const all = db.readJSON<PagoMensual[]>(PAGOS_FILE) ?? []
-      db.writeJSON(PAGOS_FILE, all.filter((p) => p.id !== id))
+    ipcMain.handle('gastos:delete-pago', async (_e, id: string) => {
+      await gastosStorage.deletePago(id)
       return { ok: true }
     })
 
-    ipcMain.handle('gastos:save-pagos-bulk', (_e, pagos: PagoMensual[]) => {
-      db.writeJSON(PAGOS_FILE, pagos)
+    ipcMain.handle('gastos:save-pagos-bulk', async (_e, pagos: PagoMensual[]) => {
+      await gastosStorage.savePagosBulk(pagos)
       return { ok: true }
     })
 
-    ipcMain.handle('gastos:credencial-save', (_e, cred: Credencial) => {
+    ipcMain.handle('gastos:credencial-save', async (_e, cred: Credencial) => {
       if (!cred || typeof cred !== 'object') throw new Error('Payload inválido')
       if (!cred.nombre?.trim()) throw new Error('El nombre es requerido')
       if (cred.nombre.length > 200) throw new Error('Nombre demasiado largo')
       if (typeof cred.usuario !== 'string' || cred.usuario.length > 500) throw new Error('Usuario inválido')
       if (typeof cred.password !== 'string' || cred.password.length > 500) throw new Error('Contraseña inválida')
-      const all = db.readJSON<Credencial[]>(CREDENCIALES_FILE) ?? DEFAULT_CREDENCIALES
-      const idx = all.findIndex((c) => c.id === cred.id)
-      if (idx >= 0) all[idx] = cred
-      else all.push(cred)
-      db.writeJSON(CREDENCIALES_FILE, all)
+      await gastosStorage.saveCredencial(cred)
       return { ok: true }
     })
 
-    ipcMain.handle('gastos:credencial-delete', (_e, id: string) => {
-      const all = db.readJSON<Credencial[]>(CREDENCIALES_FILE) ?? DEFAULT_CREDENCIALES
-      db.writeJSON(CREDENCIALES_FILE, all.filter((c) => c.id !== id))
+    ipcMain.handle('gastos:credencial-delete', async (_e, id: string) => {
+      await gastosStorage.deleteCredencial(id)
       return { ok: true }
+    })
+
+    ipcMain.handle('gastos:supabase-config-get', () => gastosStorage.getSupabasePublicConfig())
+
+    ipcMain.handle('gastos:supabase-config-save', (_e, payload: {
+      url: string
+      serviceKey: string
+      backend?: 'local' | 'supabase'
+      syncOnStartup?: boolean
+    }) => {
+      if (!payload || typeof payload.url !== 'string') throw new Error('Payload inválido')
+      gastosStorage.saveSupabaseConfig(payload)
+    })
+
+    ipcMain.handle('gastos:supabase-migrate', async () => gastosStorage.migrateToSupabase())
+
+    ipcMain.handle('gastos:supabase-sync-local', async () => gastosStorage.pushLocalFilesToSupabase())
+
+    ipcMain.handle('gastos:storage-backend-get', () => gastosStorage.getBackend())
+
+    ipcMain.handle('gastos:storage-status-get', () => {
+      const cfg = gastosStorage.getSupabasePublicConfig()
+      const active = gastosStorage.getBackend()
+      return {
+        backend: active,
+        readsFromSupabase: active === 'supabase' && cfg.keyConfigured && Boolean(cfg.url),
+        syncOnStartup: cfg.syncOnStartup !== false,
+        lastSyncAt: cfg.lastSyncAt,
+        migratedAt: cfg.migratedAt,
+      }
+    })
+
+    /** Solo Notion → app (rápido). No sube cambios locales a Notion. */
+    ipcMain.handle('gastos:notion-sync-pull', async () => {
+      const config = mergeNotionConfig(db)
+      const { token, databaseId } = config
+      if (!token) throw new Error('NOTION_NOT_CONFIGURED: falta el Token de integración')
+      if (!databaseId) throw new Error('NOTION_NOT_CONFIGURED: falta el Database ID de Pagos')
+
+      const notionPages = await queryAllNotionPages(token, databaseId)
+      const pagos: PagoMensual[] = []
+      let skipped = 0
+      for (const page of notionPages) {
+        if (page.archived) continue
+        const p = notionPageToPago(page)
+        if (!p.servicioId || !p.mes) { skipped++; continue }
+        pagos.push(p)
+      }
+
+      await gastosStorage.savePagosBulk(pagos)
+      db.writeJSON(NOTION_CONFIG_FILE, { ...config, lastSyncAt: new Date().toISOString() })
+
+      return { ok: true, pulled: pagos.length, skipped, created: 0, updated: 0 }
     })
 
     ipcMain.handle('gastos:notion-sync', async () => {
@@ -345,8 +346,7 @@ export const handlers: PluginHandlers = {
       if (!databaseId) throw new Error('NOTION_NOT_CONFIGURED: falta el Database ID de Pagos')
       const lastSyncAt = config.lastSyncAt ?? '1970-01-01T00:00:00.000Z'
 
-      const localPagos    = db.readJSON<PagoMensual[]>(PAGOS_FILE)    ?? []
-      const localServicios = db.readJSON<Servicio[]>(SERVICIOS_FILE)   ?? DEFAULT_SERVICIOS
+      const { pagos: localPagos, servicios: localServicios } = await gastosStorage.load()
       const svcMap = new Map(localServicios.map((s) => [s.id, s]))
       const localById = new Map(localPagos.map((p) => [p.id, p]))
 
@@ -403,7 +403,7 @@ export const handlers: PluginHandlers = {
         }
       }
 
-      db.writeJSON(PAGOS_FILE, merged)
+      await gastosStorage.savePagosBulk(merged)
       db.writeJSON(NOTION_CONFIG_FILE, { ...config, lastSyncAt: new Date().toISOString() })
 
       return { ok: true, created, updated, pulled }
@@ -417,7 +417,7 @@ export const handlers: PluginHandlers = {
       if (!databaseId) throw new Error('NOTION_NOT_CONFIGURED: falta el Database ID de Credenciales')
       const lastSyncAt = config.credencialesLastSyncAt ?? '1970-01-01T00:00:00.000Z'
 
-      const localCreds = db.readJSON<Credencial[]>(CREDENCIALES_FILE) ?? DEFAULT_CREDENCIALES
+      const { credenciales: localCreds } = await gastosStorage.load()
       const localById  = new Map(localCreds.map((c) => [c.id, c]))
 
       const notionPages   = await queryAllNotionPages(token, databaseId)
@@ -461,11 +461,18 @@ export const handlers: PluginHandlers = {
           pulled++
         } else if (notionEdited > lastSyncAt) {
           const idx = merged.findIndex((c) => c.id === credId)
-          if (idx >= 0) { merged[idx] = notionPageToCredencial(page); pulled++ }
+          if (idx >= 0) {
+            const fromNotion = notionPageToCredencial(page)
+            fromNotion.password = merged[idx].password || localById.get(credId)?.password || ''
+            merged[idx] = fromNotion
+            pulled++
+          }
         }
       }
 
-      db.writeJSON(CREDENCIALES_FILE, merged)
+      for (const cred of merged) {
+        await gastosStorage.saveCredencial(cred)
+      }
       db.writeJSON(NOTION_CONFIG_FILE, { ...config, credencialesLastSyncAt: new Date().toISOString() })
 
       return { ok: true, created, updated, pulled }
@@ -510,9 +517,9 @@ export const handlers: PluginHandlers = {
 
     // ── Queries handlers ────────────────────────────────────────────────────────
 
-    ipcMain.handle('queries:load', () => db.readJSON<QueryItem[]>(QUERIES_FILE) ?? [])
+    ipcMain.handle('queries:load', async () => gastosStorage.loadQueries())
 
-    ipcMain.handle('queries:save', (_e, item: QueryItem) => {
+    ipcMain.handle('queries:save', async (_e, item: QueryItem) => {
       if (!item || typeof item !== 'object') throw new Error('Payload inválido')
       if (!item.descripcion?.trim()) throw new Error('La descripción es requerida')
       if (item.descripcion.length > 500) throw new Error('Descripción demasiado larga (máx 500 caracteres)')
@@ -520,16 +527,12 @@ export const handlers: PluginHandlers = {
       if (item.tags && (!Array.isArray(item.tags) || item.tags.some((t) => typeof t !== 'string' || t.length > 100))) {
         throw new Error('Tags inválidos')
       }
-      const all = db.readJSON<QueryItem[]>(QUERIES_FILE) ?? []
-      const idx = all.findIndex((q) => q.id === item.id)
-      if (idx >= 0) all[idx] = item; else all.push(item)
-      db.writeJSON(QUERIES_FILE, all)
+      await gastosStorage.saveQuery(item)
       return { ok: true }
     })
 
-    ipcMain.handle('queries:delete', (_e, id: string) => {
-      const all = db.readJSON<QueryItem[]>(QUERIES_FILE) ?? []
-      db.writeJSON(QUERIES_FILE, all.filter((q) => q.id !== id))
+    ipcMain.handle('queries:delete', async (_e, id: string) => {
+      await gastosStorage.deleteQuery(id)
       return { ok: true }
     })
 
@@ -540,7 +543,7 @@ export const handlers: PluginHandlers = {
       if (!databaseId) throw new Error('NOTION_NOT_CONFIGURED: falta el Database ID de Queries')
       const lastSyncAt = config.lastSyncAt ?? '1970-01-01T00:00:00.000Z'
 
-      const localItems = db.readJSON<QueryItem[]>(QUERIES_FILE) ?? []
+      const localItems = await gastosStorage.loadQueries()
       const localById  = new Map(localItems.map((q) => [q.id, q]))
 
       const notionPages = await queryAllNotionPages(token, databaseId)
@@ -571,7 +574,9 @@ export const handlers: PluginHandlers = {
         }
       }
 
-      db.writeJSON(QUERIES_FILE, merged)
+      for (const item of merged) {
+        await gastosStorage.saveQuery(item)
+      }
       db.writeJSON(QUERIES_NOTION_FILE, { ...config, lastSyncAt: new Date().toISOString() })
       return { ok: true, created, updated, pulled }
     })

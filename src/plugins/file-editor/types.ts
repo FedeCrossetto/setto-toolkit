@@ -2,6 +2,7 @@ export type FileLanguage =
   | 'javascript' | 'typescript' | 'json' | 'xml' | 'html' | 'yaml'
   | 'sql' | 'markdown' | 'text' | 'log' | 'ini'
   | 'csharp' | 'cpp' | 'java' | 'python' | 'css' | 'shell'
+  | 'rust' | 'go'
 
 export interface OpenFile {
   /** Unique tab key — nanoid */

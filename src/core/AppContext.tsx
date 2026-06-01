@@ -111,6 +111,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
         diffTarget2: action.file2,
       }
     }
+    case 'CLEAR_EDITOR_TARGET':
+      return { ...state, editorTarget: undefined }
     case 'CLEAR_DIFF_TARGET':
       return { ...state, diffTarget: undefined, diffTarget2: undefined }
     case 'OPEN_TERMINAL_HERE': {

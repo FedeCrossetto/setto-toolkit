@@ -1096,7 +1096,6 @@ function TablaGastos({ servicios, pagos, year, onEditPago, onDeletePago }: {
   )
   const totalAnual = Object.values(totalesMes).reduce((a, b) => a + b, 0)
 
-  const [hover, setHover]   = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
   function buildMd() {
@@ -1170,24 +1169,36 @@ function TablaGastos({ servicios, pagos, year, onEditPago, onDeletePago }: {
                       {months.map((mes) => {
                         const p = idx.get(`${svc.id}::${mes}`)
                         if (p) totalSvc += p.monto
-                        const k = `${svc.id}::${mes}`
                         return (
-                          <td key={mes} className="px-2 py-2 text-right"
-                            onMouseEnter={() => setHover(k)} onMouseLeave={() => setHover(null)}>
+                          <td key={mes} className="group/cell px-2 py-2 text-right align-middle">
                             {p ? (
-                              <div className="flex items-center justify-end gap-1">
-                                {hover === k && (
-                                  <div className="flex gap-0.5">
-                                    <button onClick={() => onEditPago(p)} className="p-0.5 rounded hover:bg-surface-container text-on-surface-variant/40 hover:text-on-surface transition-colors">
-                                      <Pencil size={10} />
-                                    </button>
-                                    <button onClick={() => onDeletePago(p.id)} className="p-0.5 rounded hover:bg-error/10 text-on-surface-variant/40 hover:text-error transition-colors">
-                                      <X size={10} />
-                                    </button>
-                                  </div>
-                                )}
-                                <span className={`text-xs font-mono tabular-nums ${p.pagado ? 'text-on-surface' : 'text-yellow-400'}`}
-                                  title={[p.fecha, p.metodoPago, p.notas].filter(Boolean).join(' · ')}>
+                              <div className="relative flex items-center justify-end min-h-[1.25rem]">
+                                {/* Acciones en overlay: no cambian el ancho de la celda */}
+                                <div
+                                  className="absolute right-0 top-1/2 z-10 flex -translate-y-1/2 items-center gap-0.5 rounded bg-surface/95 px-0.5 py-px shadow-sm opacity-0 pointer-events-none transition-opacity group-hover/cell:opacity-100 group-hover/cell:pointer-events-auto"
+                                  aria-hidden
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditPago(p)}
+                                    className="p-0.5 rounded hover:bg-surface-container text-on-surface-variant/60 hover:text-on-surface transition-colors"
+                                    aria-label="Editar pago"
+                                  >
+                                    <Pencil size={10} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onDeletePago(p.id)}
+                                    className="p-0.5 rounded hover:bg-error/10 text-on-surface-variant/60 hover:text-error transition-colors"
+                                    aria-label="Eliminar pago"
+                                  >
+                                    <X size={10} />
+                                  </button>
+                                </div>
+                                <span
+                                  className={`text-xs font-mono tabular-nums transition-opacity group-hover/cell:opacity-40 ${p.pagado ? 'text-on-surface' : 'text-yellow-400'}`}
+                                  title={[p.fecha, p.metodoPago, p.notas].filter(Boolean).join(' · ')}
+                                >
                                   ${fmt(p.monto)}
                                 </span>
                               </div>
@@ -1332,21 +1343,27 @@ function CredencialRow({ c, isRevealed, copied, onReveal, onCopy, onEdit, onDele
       </td>
       <td className="max-w-0 py-1.5 px-2 align-middle">
         <div className="flex min-w-0 items-center gap-1">
-          <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-on-surface-variant select-none" title={isRevealed ? c.password : undefined}>
-            {isRevealed ? c.password : '••••••••'}
-          </span>
-          <div className="flex shrink-0 items-center gap-0 opacity-0 transition-opacity group-hover:opacity-100">
-            <button type="button" onClick={() => onReveal(c.id)}
-              className="rounded p-0.5 text-on-surface-variant/50 hover:bg-surface-container hover:text-on-surface">
-              {isRevealed ? <EyeOff size={11} /> : <Eye size={11} />}
-            </button>
-            {!!c.password && (
-              <button type="button" onClick={() => onCopy(c.password, `p-${c.id}`)}
-                className="rounded p-0.5 text-on-surface-variant/50 hover:bg-surface-container hover:text-on-surface">
-                {copied === `p-${c.id}` ? <Check size={10} className="text-green-400" /> : <Copy size={10} />}
-              </button>
-            )}
-          </div>
+          {c.password ? (
+            <>
+              <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-on-surface-variant select-none" title={isRevealed ? c.password : undefined}>
+                {isRevealed ? c.password : '••••••••'}
+              </span>
+              <div className="flex shrink-0 items-center gap-0 opacity-0 transition-opacity group-hover:opacity-100">
+                <button type="button" onClick={() => onReveal(c.id)}
+                  className="rounded p-0.5 text-on-surface-variant/50 hover:bg-surface-container hover:text-on-surface">
+                  {isRevealed ? <EyeOff size={11} /> : <Eye size={11} />}
+                </button>
+                <button type="button" onClick={() => onCopy(c.password, `p-${c.id}`)}
+                  className="rounded p-0.5 text-on-surface-variant/50 hover:bg-surface-container hover:text-on-surface">
+                  {copied === `p-${c.id}` ? <Check size={10} className="text-green-400" /> : <Copy size={10} />}
+                </button>
+              </div>
+            </>
+          ) : (
+            <span className="text-[11px] italic text-on-surface-variant/35" title="La contraseña no se guarda en Supabase; editá y cargá la clave">
+              Sin clave
+            </span>
+          )}
         </div>
       </td>
       <td className="max-w-0 py-1.5 px-2 align-middle">
@@ -1377,11 +1394,12 @@ function CredencialRow({ c, isRevealed, copied, onReveal, onCopy, onEdit, onDele
   )
 }
 
-function CredencialesView({ credenciales, onEdit, onDelete, onAdd }: {
+function CredencialesView({ credenciales, onEdit, onDelete, onAdd, readsFromSupabase }: {
   credenciales: Credencial[]
   onEdit: (c: Credencial) => void
   onDelete: (id: string) => void
   onAdd: () => void
+  readsFromSupabase?: boolean
 }) {
   const [search,   setSearch]   = useState('')
   const [revealed, setRevealed] = useState<Set<string>>(new Set())
@@ -1410,7 +1428,20 @@ function CredencialesView({ credenciales, onEdit, onDelete, onAdd }: {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Search bar — ancho casi completo */}
-      <div className="shrink-0 border-b border-outline-variant/20 px-3 py-2 sm:px-4">
+      <div className="shrink-0 border-b border-outline-variant/20 px-3 py-2 sm:px-4 space-y-2">
+        {readsFromSupabase && (
+          <div className="mx-auto max-w-[1600px] rounded-md border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-[11px] text-on-surface-variant/80 leading-relaxed">
+            <p>
+              <span className="font-medium text-emerald-400/90">● Supabase</span> guarda metadatos y{' '}
+              <code className="text-[10px]">password_enc</code> (cifrado, base64 — no es la clave en claro).
+              <span className="font-medium text-amber-400/90"> 🔒 Vault local</span> es copia en esta Mac para uso offline.
+            </p>
+            <p className="mt-1 text-on-surface-variant/55">
+              Tras guardar, refrescá el Table Editor: <code className="text-[10px]">password_enc</code> debe tener un valor largo.
+              Solo esta computadora puede descifrarlo.
+            </p>
+          </div>
+        )}
         <div className="relative mx-auto w-full max-w-[1600px]">
           <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
           <input className={`${inputCls} pl-8`} placeholder="Buscar por nombre o usuario…"
@@ -1789,11 +1820,15 @@ function QuerySnippet({ item, copied, onCopy, onEdit, onDelete }: {
   )
 }
 
-function NotionSettingsForm({ gastos, queries, onSave, onCancel }: {
+function NotionSettingsForm({ gastos, queries, onSave, onCancel, usesSupabase, onSyncPull, onSyncFull, syncing }: {
   gastos: { token: string; databaseId: string; credencialesDatabaseId: string }
   queries: { token: string; databaseId: string }
   onSave: (gastos: { token: string; databaseId: string; credencialesDatabaseId: string }, queries: { token: string; databaseId: string }) => void
   onCancel: () => void
+  usesSupabase?: boolean
+  onSyncPull?: () => void
+  onSyncFull?: () => void
+  syncing?: boolean
 }) {
   const [token,     setToken]     = useState(gastos.token || queries.token)
   const [gDbId,     setGDbId]     = useState(gastos.databaseId)
@@ -1871,6 +1906,13 @@ function NotionSettingsForm({ gastos, queries, onSave, onCancel }: {
   return (
     <form onSubmit={submit} className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-5">
+
+        {usesSupabase && (
+          <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2.5 text-[11px] text-on-surface-variant leading-relaxed">
+            <strong className="text-emerald-500">Supabase</strong> es tu base principal (lectura y guardado).
+            Notion es <strong>opcional</strong>: sirve para traer datos viejos o hacer backup, no reemplaza a Supabase.
+          </div>
+        )}
 
         {/* Paso 1 — Token */}
         <div className="flex flex-col gap-3">
@@ -1967,6 +2009,25 @@ function NotionSettingsForm({ gastos, queries, onSave, onCancel }: {
         </div>
 
       </div>
+
+      {usesSupabase && onSyncPull && (
+        <div className="shrink-0 border-t border-outline-variant/15 px-4 py-3 flex flex-col gap-2">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Sincronizar con Notion (opcional)</p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={syncing} onClick={onSyncPull}
+              className="rounded-lg border border-outline-variant/30 px-3 py-1.5 text-[12px] text-on-surface hover:bg-surface-container/50 disabled:opacity-50">
+              {syncing ? 'Importando…' : 'Traer pagos desde Notion'}
+            </button>
+            {onSyncFull && (
+              <button type="button" disabled={syncing} onClick={onSyncFull}
+                className="rounded-lg border border-outline-variant/30 px-3 py-1.5 text-[12px] text-on-surface-variant hover:bg-surface-container/50 disabled:opacity-50"
+                title="Bidireccional, muy lento">
+                Sync completo (lento)
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Footer fijo */}
       <div className="shrink-0 border-t border-outline-variant/20 px-4 py-3 flex gap-2">
@@ -2113,6 +2174,12 @@ export function GastosPlugin() {
   const [lastSyncQueries,setLastSyncQueries]= useState<{ at: string; created: number; updated: number; pulled: number } | null>(null)
   const [notionCfg, setNotionCfg] = useState({ token: '', databaseId: '', credencialesDatabaseId: '' })
   const [queriesCfg, setQueriesCfg] = useState({ token: '', databaseId: '' })
+  const [storageStatus, setStorageStatus] = useState<{
+    backend: 'local' | 'supabase'
+    readsFromSupabase: boolean
+    syncOnStartup: boolean
+    lastSyncAt?: string
+  } | null>(null)
 
   const loadNotionCfg = useCallback(async () => {
     try {
@@ -2152,7 +2219,25 @@ export function GastosPlugin() {
     }
   }, [])
 
-  useEffect(() => { load(); loadNotionCfg() }, [load, loadNotionCfg])
+  const refreshStorageStatus = useCallback(async () => {
+    try {
+      const s = await window.api.invoke<{
+        backend: 'local' | 'supabase'
+        readsFromSupabase: boolean
+        syncOnStartup: boolean
+        lastSyncAt?: string
+      }>('gastos:storage-status-get')
+      setStorageStatus(s)
+    } catch {
+      setStorageStatus(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+    void loadNotionCfg()
+    void refreshStorageStatus()
+  }, [load, loadNotionCfg, refreshStorageStatus])
 
   async function saveServicio(s: Servicio) {
     try {
@@ -2191,6 +2276,15 @@ export function GastosPlugin() {
     try {
       await window.api.invoke('gastos:credencial-save', c)
       await load(); setPanel({ type: 'closed' })
+      if (storageStatus?.readsFromSupabase) {
+        toast.show(
+          c.password
+            ? 'Guardado: password_enc en Supabase (cifrado) y copia en vault local.'
+            : 'Guardado en Supabase (sin contraseña).',
+          'success',
+          5000,
+        )
+      }
     } catch (e) { toast.show(`Error al guardar credencial: ${e}`, 'error') }
   }
 
@@ -2216,9 +2310,27 @@ export function GastosPlugin() {
     }
   }
 
+  async function syncWithNotionPull() {
+    setSyncing(true); setError(null)
+    try {
+      const result = await window.api.invoke<{ ok: boolean; created: number; updated: number; pulled: number; skipped?: number }>('gastos:notion-sync-pull')
+      await load()
+      setLastSync({ at: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), ...result })
+      toast.show(`Importados ${result.pulled} pagos desde Notion${result.skipped ? ` (${result.skipped} omitidos)` : ''}`, 'success', 5000)
+    } catch (e) {
+      const msg = String(e)
+      if (msg.includes('NOTION_NOT_CONFIGURED')) {
+        const detail = msg.split('NOTION_NOT_CONFIGURED:')[1]?.trim() ?? 'configurá Notion desde el ícono de ajustes'
+        toast.show(`Notion: ${detail}`, 'error', 8000)
+        setPanel({ type: 'notion-settings' })
+      } else toast.show(`Error al importar desde Notion: ${e}`, 'error', 7000)
+    } finally { setSyncing(false) }
+  }
+
   async function syncWithNotion() {
     setSyncing(true); setError(null)
     try {
+      toast.show('Sync completo: puede tardar varios minutos (muchas llamadas a Notion)…', 'info', 6000)
       const result = await window.api.invoke<{ ok: boolean; created: number; updated: number; pulled: number }>('gastos:notion-sync')
       await load()
       setLastSync({ at: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), ...result })
@@ -2310,7 +2422,7 @@ export function GastosPlugin() {
     panel.type === 'edit-credencial' ? 'Editar credencial' :
     panel.type === 'add-query'       ? 'Nueva query'       :
     panel.type === 'edit-query'      ? 'Editar query'      :
-    panel.type === 'notion-settings' ? 'Configurar Notion' : ''
+    panel.type === 'notion-settings' ? 'Notion (opcional)' : ''
 
   if (loading) {
     return (
@@ -2344,13 +2456,32 @@ export function GastosPlugin() {
             {b.label}
           </button>
         ))}
-        <div className="ml-auto pb-1">
-          <button
-            onClick={() => setPanel({ type: 'notion-settings' })}
-            className="p-1.5 rounded hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors"
-            title="Configurar Notion">
-            <Settings2 size={15} />
-          </button>
+        <div className="ml-auto pb-1 flex items-center gap-2">
+          {storageStatus && (
+            <span
+              className={[
+                'text-[10px] font-medium px-2 py-0.5 rounded-full border',
+                storageStatus.readsFromSupabase
+                  ? 'text-emerald-500 border-emerald-500/30 bg-emerald-500/10'
+                  : 'text-on-surface-variant/60 border-outline-variant/25',
+              ].join(' ')}
+              title={
+                storageStatus.readsFromSupabase
+                  ? 'Lectura y guardado en Supabase'
+                  : 'Lectura desde archivos locales (userData)'
+              }
+            >
+              {storageStatus.readsFromSupabase ? '● Supabase' : '● Local'}
+            </span>
+          )}
+          {!(activeBoard === 'credenciales' && storageStatus?.readsFromSupabase) && (
+            <button
+              onClick={() => setPanel({ type: 'notion-settings' })}
+              className="p-1.5 rounded hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors"
+              title="Notion opcional (token y bases de datos)">
+              <Settings2 size={15} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -2371,8 +2502,13 @@ export function GastosPlugin() {
               </button>
             ))}
           </div>
+        ) : activeBoard === 'credenciales' ? (
+          <p className="text-[11px] text-on-surface-variant/55">
+            {storageStatus?.readsFromSupabase
+              ? 'Metadatos en la nube · contraseñas solo en este equipo'
+              : 'Almacenamiento local'}
+          </p>
         ) : (
-          /* Credenciales: empty left side */
           <div />
         )}
 
@@ -2407,9 +2543,9 @@ export function GastosPlugin() {
               )}
               <button onClick={syncQueriesWithNotion} disabled={syncingQueries}
                 className={[btnGhost, syncingQueries ? 'opacity-50 cursor-not-allowed' : ''].join(' ')}
-                title="Sincronizar queries con Notion">
+                title="Opcional: backup de queries en Notion">
                 {syncingQueries ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                {syncingQueries ? 'Sincronizando…' : 'Sync Notion'}
+                {syncingQueries ? 'Sincronizando…' : 'Notion (opc.)'}
               </button>
               <button onClick={() => setPanel({ type: 'add-query' })} className={btnPrimary}>
                 <Plus size={14} /> Nueva query
@@ -2418,20 +2554,32 @@ export function GastosPlugin() {
           )}
           {activeBoard === 'credenciales' && (
             <div className="flex items-center gap-2">
-              {lastSyncCred && (
-                <span className="text-[10px] text-on-surface-variant/50 hidden sm:block">
-                  Sync {lastSyncCred.at}
-                  {(lastSyncCred.created + lastSyncCred.pulled) > 0 && (
-                    <span className="ml-1 text-accent">+{lastSyncCred.created + lastSyncCred.pulled}</span>
-                  )}
+              {storageStatus?.readsFromSupabase && (
+                <span
+                  className="hidden sm:inline text-[10px] font-medium px-2 py-0.5 rounded-full border text-amber-400/90 border-amber-500/25 bg-amber-500/10"
+                  title="Archivo cifrado en Application Support/mytools-app"
+                >
+                  🔒 Vault local
                 </span>
               )}
-              <button onClick={syncCredencialesWithNotion} disabled={syncingCred}
-                className={[btnGhost, syncingCred ? 'opacity-50 cursor-not-allowed' : ''].join(' ')}
-                title="Sincronizar credenciales con Notion">
-                {syncingCred ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                {syncingCred ? 'Sincronizando…' : 'Sync Notion'}
-              </button>
+              {!storageStatus?.readsFromSupabase && (
+                <>
+                  {lastSyncCred && (
+                    <span className="text-[10px] text-on-surface-variant/50 hidden sm:block">
+                      Sync {lastSyncCred.at}
+                      {(lastSyncCred.created + lastSyncCred.pulled) > 0 && (
+                        <span className="ml-1 text-accent">+{lastSyncCred.created + lastSyncCred.pulled}</span>
+                      )}
+                    </span>
+                  )}
+                  <button onClick={syncCredencialesWithNotion} disabled={syncingCred}
+                    className={[btnGhost, syncingCred ? 'opacity-50 cursor-not-allowed' : ''].join(' ')}
+                    title="Opcional: metadatos en Notion (sin contraseñas)">
+                    {syncingCred ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                    {syncingCred ? 'Sincronizando…' : 'Notion (opc.)'}
+                  </button>
+                </>
+              )}
               <button onClick={() => setPanel({ type: 'add-credencial' })} className={btnPrimary}>
                 <Plus size={14} /> Nueva credencial
               </button>
@@ -2442,7 +2590,7 @@ export function GastosPlugin() {
               <Plus size={14} /> Nuevo servicio
             </button>
           )}
-          {activeBoard === 'gastos' && boardView === 'tabla' && (
+          {activeBoard === 'gastos' && boardView === 'tabla' && !storageStatus?.readsFromSupabase && (
             <div className="flex items-center gap-2">
               {lastSync && (
                 <span className="text-[10px] text-on-surface-variant/50 hidden sm:block">
@@ -2455,15 +2603,22 @@ export function GastosPlugin() {
                 </span>
               )}
               <button
+                onClick={syncWithNotionPull}
+                disabled={syncing}
+                className={[btnGhost, syncing ? 'opacity-50 cursor-not-allowed' : ''].join(' ')}
+                title="Traer pagos desde Notion (rápido, ~1 min)"
+              >
+                {syncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                {syncing ? 'Importando…' : 'Importar Notion'}
+              </button>
+              <button
                 onClick={syncWithNotion}
                 disabled={syncing}
                 className={[btnGhost, syncing ? 'opacity-50 cursor-not-allowed' : ''].join(' ')}
-                title="Sincronizar con Notion (bidireccional)"
+                title="Bidireccional: puede tardar 10+ min"
               >
-                {syncing
-                  ? <Loader2 size={14} className="animate-spin" />
-                  : <RefreshCw size={14} />}
-                {syncing ? 'Sincronizando…' : 'Sync Notion'}
+                <RefreshCw size={14} />
+                Sync completo
               </button>
             </div>
           )}
@@ -2519,6 +2674,7 @@ export function GastosPlugin() {
             onEdit={(c) => setPanel({ type: 'edit-credencial', credencial: c })}
             onDelete={deleteCredencial}
             onAdd={() => setPanel({ type: 'add-credencial' })}
+            readsFromSupabase={storageStatus?.readsFromSupabase}
           />
         )}
       </div>
@@ -2557,6 +2713,10 @@ export function GastosPlugin() {
             queries={queriesCfg}
             onSave={saveNotionSettings}
             onCancel={() => setPanel({ type: 'closed' })}
+            usesSupabase={storageStatus?.readsFromSupabase}
+            onSyncPull={storageStatus?.readsFromSupabase ? () => void syncWithNotionPull() : undefined}
+            onSyncFull={storageStatus?.readsFromSupabase ? () => void syncWithNotion() : undefined}
+            syncing={syncing}
           />
         )}
       </SlidePanel>
