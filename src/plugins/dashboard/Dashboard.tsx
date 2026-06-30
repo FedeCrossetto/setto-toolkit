@@ -58,8 +58,9 @@ function ToolRow({ plugin, onOpen, mascot }: { plugin: PluginManifest; onOpen: (
     <button
       onClick={onOpen}
       className="relative w-full flex items-center gap-3.5 pl-4 pr-3.5 py-3 text-left rounded-2xl backdrop-blur-sm transition-all duration-150 group overflow-hidden
-        bg-surface-container border border-outline-variant/30 shadow-[0_2px_6px_rgba(0,0,0,0.18)]
-        hover:-translate-y-[1px] hover:bg-surface-container-high hover:shadow-[0_10px_22px_rgba(0,0,0,0.3)] hover:border-primary/25"
+        bg-surface dark:bg-surface-container border border-outline-variant/25 dark:border-outline-variant/30
+        shadow-[0_1px_2px_rgba(0,0,0,0.05)] dark:shadow-[0_2px_6px_rgba(0,0,0,0.18)]
+        hover:-translate-y-[1px] hover:bg-surface-container-high hover:shadow-[0_8px_16px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_10px_22px_rgba(0,0,0,0.3)] hover:border-primary/25"
     >
       <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[3px] bg-primary/0 group-hover:bg-primary/50 transition-colors" />
       <MascotAvatar pluginId={plugin.id} icon={plugin.icon} mascot={mascot} />
@@ -187,9 +188,10 @@ function Card({ children, className = '', noPad = false }: { children: React.Rea
   return (
     <div
       className={`relative overflow-hidden rounded-2xl backdrop-blur-sm transition-all duration-200
-        shadow-[0_2px_8px_rgba(0,0,0,0.25)] hover:-translate-y-[2px] hover:shadow-[0_14px_30px_rgba(0,0,0,0.35)]
+        dark:shadow-[0_2px_8px_rgba(0,0,0,0.25)] shadow-[0_1px_3px_rgba(0,0,0,0.06)]
+        hover:-translate-y-[2px] dark:hover:shadow-[0_14px_30px_rgba(0,0,0,0.35)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.1)]
         ${noPad ? '' : 'p-4'} ${className}`}
-      style={{ background: 'rgb(var(--c-surface-container-high))', border: '1px solid rgb(var(--c-outline-variant) / 0.45)' }}
+      style={{ background: 'rgb(var(--c-surface))', border: '1px solid rgb(var(--c-outline-variant) / 0.35)' }}
     >
       {children}
     </div>

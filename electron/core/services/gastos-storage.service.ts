@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, copyFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { safeStorage } from 'electron'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -8,50 +8,18 @@ import type { SettingsService } from './settings.service'
 import type { Servicio, PagoMensual, Credencial, QueryItem } from '../../../src/plugins/gastos/types'
 import { logger } from '../logger'
 
-const SERVICIOS_FILE = 'gastos-servicios.json'
-const PAGOS_FILE = 'gastos-pagos.json'
-const CREDENCIALES_FILE = 'gastos-credenciales.json'
 /** Copia local de contraseñas (safeStorage); Supabase recibe el mismo cifrado en password_enc */
 const CREDENCIALES_PASSWORDS_VAULT = 'gastos-credenciales-passwords.vault'
-const QUERIES_FILE = 'queries.json'
-const SUPABASE_CONFIG_FILE = 'gastos-supabase.json'
+/** Legacy: archivo local de credenciales de antes de pasar a Supabase-only. Solo se LEE
+ *  (nunca se escribe más) para poder rescatar contraseñas inline de instalaciones viejas. */
+const LEGACY_CREDENCIALES_FILE = 'gastos-credenciales.json'
 
 const SETTINGS_KEY_URL = 'gastos.supabase_url'
 const SETTINGS_KEY_SERVICE = 'gastos.supabase_service_key'
 
-export type GastosBackend = 'local' | 'supabase'
-
 export interface SupabaseConfig {
   url: string
-  backend: GastosBackend
-  migratedAt?: string
-  /** Si true (default con backend supabase), al abrir la app sube JSON local → Supabase */
-  syncOnStartup?: boolean
-  lastSyncAt?: string
 }
-
-export interface MigrationResult {
-  ok: boolean
-  servicios: number
-  pagos: number
-  credenciales: number
-  queries: number
-  backend: GastosBackend
-}
-
-const DEFAULT_SERVICIOS: Servicio[] = [
-  { id: 'metrogas-casa', nombre: 'Metrogas', emoji: 'flame', numeroCuenta: '20421703300', categoria: 'Casa', activo: true, orden: 1 },
-  { id: 'edesur', nombre: 'Edesur', emoji: 'zap', numeroCuenta: '0001625984', categoria: 'Casa', activo: true, orden: 2 },
-  { id: 'aysa', nombre: 'Aysa', emoji: 'droplets', numeroCuenta: '0000229456', categoria: 'Casa', activo: true, orden: 3 },
-  { id: 'telecentro', nombre: 'Telecentro', emoji: 'wifi', numeroCuenta: '2262362', categoria: 'Casa', activo: true, orden: 4 },
-  { id: 'metrogas-depto', nombre: 'Metrogas', emoji: 'flame', numeroCuenta: '40000143442', categoria: 'Depto', activo: true, orden: 5 },
-  { id: 'edesur-depto', nombre: 'Edesur', emoji: 'zap', numeroCuenta: '0006013319', categoria: 'Depto', activo: true, orden: 6 },
-  { id: 'expensa', nombre: 'Expensas', emoji: 'receipt', numeroCuenta: '1144037043', categoria: 'Depto', activo: true, orden: 7 },
-  { id: 'tsg', nombre: 'TSG', emoji: 'landmark', numeroCuenta: 'Lomas de Zamora', categoria: 'Depto', activo: true, orden: 8 },
-  { id: 'amazon', nombre: 'Amazon', emoji: 'tv', numeroCuenta: '', categoria: 'Streaming', activo: true, orden: 9 },
-  { id: 'flow', nombre: 'Flow', emoji: 'radio', numeroCuenta: '', categoria: 'Streaming', activo: true, orden: 10 },
-  { id: 'personal', nombre: 'Personal', emoji: 'smartphone', numeroCuenta: '11590591e54', categoria: 'Depto', activo: true, orden: 11 },
-]
 
 function readOptionalCwdJson<T extends object>(filename: string): Partial<T> {
   try {
@@ -104,68 +72,27 @@ export class GastosStorageService {
     private settings: SettingsService,
   ) {}
 
-  getBackend(): GastosBackend {
-    return this.mergeSupabaseConfig().backend ?? 'local'
-  }
-
   mergeSupabaseConfig(): SupabaseConfig {
-    const fromFile = this.db.readJSON<SupabaseConfig>(SUPABASE_CONFIG_FILE) ?? {}
     const fromCwd = readOptionalCwdJson<SupabaseConfig>('gastos-supabase.local.json')
     const rawUrl =
       this.settings.get(SETTINGS_KEY_URL)?.trim() ||
       fromCwd.url?.trim() ||
-      fromFile.url?.trim() ||
       (typeof process.env.SUPABASE_URL === 'string' ? process.env.SUPABASE_URL.trim() : '') ||
       ''
     const url = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '')
-    const backend = fromFile.backend ?? fromCwd.backend ?? 'local'
-    return {
-      url,
-      backend: backend === 'supabase' ? 'supabase' : 'local',
-      migratedAt: fromFile.migratedAt ?? fromCwd.migratedAt,
-      syncOnStartup: fromFile.syncOnStartup ?? fromCwd.syncOnStartup,
-      lastSyncAt: fromFile.lastSyncAt,
-    }
+    return { url }
   }
 
-  getSupabasePublicConfig(): {
-    url: string
-    backend: GastosBackend
-    keyConfigured: boolean
-    migratedAt?: string
-    syncOnStartup?: boolean
-    lastSyncAt?: string
-  } {
-    const cfg = this.mergeSupabaseConfig()
-    const key = this.getServiceKey()
-    return {
-      url: cfg.url,
-      backend: cfg.backend,
-      keyConfigured: Boolean(key),
-      migratedAt: cfg.migratedAt,
-      syncOnStartup: cfg.syncOnStartup !== false,
-      lastSyncAt: cfg.lastSyncAt,
-    }
+  getSupabasePublicConfig(): { url: string; keyConfigured: boolean } {
+    return { url: this.mergeSupabaseConfig().url, keyConfigured: Boolean(this.getServiceKey()) }
   }
 
-  saveSupabaseConfig(payload: {
-    url: string
-    serviceKey: string
-    backend?: GastosBackend
-    syncOnStartup?: boolean
-  }): void {
-    const existing = this.mergeSupabaseConfig()
+  saveSupabaseConfig(payload: { url: string; serviceKey: string }): void {
     const url = payload.url.trim()
     if (url) this.settings.set(SETTINGS_KEY_URL, url)
     if (payload.serviceKey.trim()) {
       this.settings.set(SETTINGS_KEY_SERVICE, payload.serviceKey.trim())
     }
-    this.db.writeJSON(SUPABASE_CONFIG_FILE, {
-      ...existing,
-      url,
-      backend: payload.backend ?? existing.backend,
-      syncOnStartup: payload.syncOnStartup ?? existing.syncOnStartup ?? true,
-    })
   }
 
   private getServiceKey(): string {
@@ -185,10 +112,6 @@ export class GastosStorageService {
       throw new Error('SUPABASE_NOT_CONFIGURED: configurá URL y Service Role Key en Conexiones → Supabase')
     }
     return createSupabaseClient(url, key)
-  }
-
-  private useSupabase(): boolean {
-    return this.getBackend() === 'supabase' && Boolean(this.mergeSupabaseConfig().url && this.getServiceKey())
   }
 
   // ── Bóveda local de contraseñas (no Supabase) ───────────────────────────────
@@ -216,7 +139,7 @@ export class GastosStorageService {
     }
   }
 
-  /** Importa contraseñas desde JSON local, Supabase legacy o campo inline al vault. */
+  /** Importa contraseñas desde JSON local legacy, Supabase legacy o campo inline al vault. */
   private migratePasswordsIntoVault(
     creds: Array<{ id: string; password?: string }>,
     legacyEncById?: Map<string, string>,
@@ -248,117 +171,91 @@ export class GastosStorageService {
     }))
   }
 
-  private persistCredencialMetadata(cred: Credencial): void {
-    const meta: Credencial = { ...cred, password: '' }
-    const all = this.db.readJSON<Credencial[]>(CREDENCIALES_FILE) ?? []
-    const idx = all.findIndex((c) => c.id === meta.id)
-    if (idx >= 0) all[idx] = meta
-    else all.push(meta)
-    this.db.writeJSON(CREDENCIALES_FILE, all)
-  }
-
-  // ── Load / CRUD ─────────────────────────────────────────────────────────────
+  // ── Load / CRUD — Supabase es la única fuente de verdad ─────────────────────
 
   async load(): Promise<{ servicios: Servicio[]; pagos: PagoMensual[]; credenciales: Credencial[] }> {
-    if (this.useSupabase()) return this.loadFromSupabase()
-    return this.loadLocal()
+    return this.loadFromSupabase()
   }
 
   async loadQueries(): Promise<QueryItem[]> {
-    if (this.useSupabase()) return this.loadQueriesFromSupabase()
-    return this.db.readJSON<QueryItem[]>(QUERIES_FILE) ?? []
+    return this.loadQueriesFromSupabase()
+  }
+
+  /** Versión global de los datos remotos — el mayor `updated_at` entre las 4 tablas. */
+  async getRemoteVersion(): Promise<string | null> {
+    const sb = this.createClient()
+    const tables = ['servicios', 'pagos', 'credenciales', 'queries'] as const
+    const results = await Promise.all(
+      tables.map((t) => sb.from(t).select('updated_at').order('updated_at', { ascending: false }).limit(1)),
+    )
+    let latest: string | null = null
+    for (const r of results) {
+      if (r.error) throw new Error(r.error.message)
+      const ts = r.data?.[0]?.updated_at as string | undefined
+      if (ts && (!latest || ts > latest)) latest = ts
+    }
+    return latest
   }
 
   async saveServicio(servicio: Servicio): Promise<void> {
-    if (this.useSupabase()) {
-      const sb = this.createClient()
-      const { error } = await sb.from('servicios').upsert({
-        id: servicio.id,
-        nombre: servicio.nombre,
-        emoji: servicio.emoji,
-        numero_cuenta: servicio.numeroCuenta ?? null,
-        categoria: servicio.categoria,
-        activo: servicio.activo,
-        orden: servicio.orden,
-        updated_at: new Date().toISOString(),
-      })
-      if (error) throw new Error(error.message)
-      return
-    }
-    const all = this.db.readJSON<Servicio[]>(SERVICIOS_FILE) ?? DEFAULT_SERVICIOS
-    const idx = all.findIndex((s) => s.id === servicio.id)
-    if (idx >= 0) all[idx] = servicio
-    else all.push(servicio)
-    this.db.writeJSON(SERVICIOS_FILE, all)
+    const sb = this.createClient()
+    const { error } = await sb.from('servicios').upsert({
+      id: servicio.id,
+      nombre: servicio.nombre,
+      emoji: servicio.emoji,
+      numero_cuenta: servicio.numeroCuenta ?? null,
+      categoria: servicio.categoria,
+      activo: servicio.activo,
+      orden: servicio.orden,
+      updated_at: new Date().toISOString(),
+    })
+    if (error) throw new Error(error.message)
   }
 
   async deleteServicio(id: string): Promise<void> {
-    if (this.useSupabase()) {
-      const sb = this.createClient()
-      await sb.from('pagos').delete().eq('servicio_id', id)
-      const { error } = await sb.from('servicios').delete().eq('id', id)
-      if (error) throw new Error(error.message)
-      return
-    }
-    const all = this.db.readJSON<Servicio[]>(SERVICIOS_FILE) ?? DEFAULT_SERVICIOS
-    this.db.writeJSON(SERVICIOS_FILE, all.filter((s) => s.id !== id))
-    const pagos = this.db.readJSON<PagoMensual[]>(PAGOS_FILE) ?? []
-    this.db.writeJSON(PAGOS_FILE, pagos.filter((p) => p.servicioId !== id))
+    const sb = this.createClient()
+    await sb.from('pagos').delete().eq('servicio_id', id)
+    const { error } = await sb.from('servicios').delete().eq('id', id)
+    if (error) throw new Error(error.message)
   }
 
   async savePago(pago: PagoMensual): Promise<void> {
-    if (this.useSupabase()) {
-      const sb = this.createClient()
-      const { error } = await sb.from('pagos').upsert({
-        id: pago.id,
-        servicio_id: pago.servicioId,
-        mes: pago.mes,
-        monto: pago.monto,
-        fecha: pago.fecha ?? null,
-        metodo_pago: pago.metodoPago ?? null,
-        pagado: pago.pagado,
-        notas: pago.notas ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      if (error) throw new Error(error.message)
-      return
-    }
-    const all = this.db.readJSON<PagoMensual[]>(PAGOS_FILE) ?? []
-    const idx = all.findIndex((p) => p.id === pago.id)
-    if (idx >= 0) all[idx] = pago
-    else all.push(pago)
-    this.db.writeJSON(PAGOS_FILE, all)
+    const sb = this.createClient()
+    const { error } = await sb.from('pagos').upsert({
+      id: pago.id,
+      servicio_id: pago.servicioId,
+      mes: pago.mes,
+      monto: pago.monto,
+      fecha: pago.fecha ?? null,
+      metodo_pago: pago.metodoPago ?? null,
+      pagado: pago.pagado,
+      notas: pago.notas ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    if (error) throw new Error(error.message)
   }
 
   async deletePago(id: string): Promise<void> {
-    if (this.useSupabase()) {
-      const { error } = await this.createClient().from('pagos').delete().eq('id', id)
-      if (error) throw new Error(error.message)
-      return
-    }
-    const all = this.db.readJSON<PagoMensual[]>(PAGOS_FILE) ?? []
-    this.db.writeJSON(PAGOS_FILE, all.filter((p) => p.id !== id))
+    const { error } = await this.createClient().from('pagos').delete().eq('id', id)
+    if (error) throw new Error(error.message)
   }
 
   async savePagosBulk(pagos: PagoMensual[]): Promise<void> {
-    if (this.useSupabase()) {
-      const sb = this.createClient()
-      const rows = pagos.map((p) => ({
-        id: p.id,
-        servicio_id: p.servicioId,
-        mes: p.mes,
-        monto: p.monto,
-        fecha: p.fecha ?? null,
-        metodo_pago: p.metodoPago ?? null,
-        pagado: p.pagado,
-        notas: p.notas ?? null,
-        updated_at: new Date().toISOString(),
-      }))
-      const { error } = await sb.from('pagos').upsert(rows)
-      if (error) throw new Error(error.message)
-      return
-    }
-    this.db.writeJSON(PAGOS_FILE, pagos)
+    if (!pagos.length) return
+    const sb = this.createClient()
+    const rows = pagos.map((p) => ({
+      id: p.id,
+      servicio_id: p.servicioId,
+      mes: p.mes,
+      monto: p.monto,
+      fecha: p.fecha ?? null,
+      metodo_pago: p.metodoPago ?? null,
+      pagado: p.pagado,
+      notas: p.notas ?? null,
+      updated_at: new Date().toISOString(),
+    }))
+    const { error } = await sb.from('pagos').upsert(rows)
+    if (error) throw new Error(error.message)
   }
 
   async saveCredencial(cred: Credencial): Promise<void> {
@@ -367,231 +264,32 @@ export class GastosStorageService {
       ...credencialSupabaseRow(cred),
       updated_at: new Date().toISOString(),
     }
-    if (this.useSupabase()) {
-      const { error } = await this.createClient().from('credenciales').upsert(row)
-      if (error) throw new Error(error.message)
-    }
-    this.persistCredencialMetadata(cred)
+    const { error } = await this.createClient().from('credenciales').upsert(row)
+    if (error) throw new Error(error.message)
   }
 
   async deleteCredencial(id: string): Promise<void> {
     this.deleteVaultPassword(id)
-    if (this.useSupabase()) {
-      const { error } = await this.createClient().from('credenciales').delete().eq('id', id)
-      if (error) throw new Error(error.message)
-    }
-    const all = this.db.readJSON<Credencial[]>(CREDENCIALES_FILE) ?? []
-    this.db.writeJSON(CREDENCIALES_FILE, all.filter((c) => c.id !== id))
+    const { error } = await this.createClient().from('credenciales').delete().eq('id', id)
+    if (error) throw new Error(error.message)
   }
 
   async saveQuery(item: QueryItem): Promise<void> {
-    if (this.useSupabase()) {
-      const { error } = await this.createClient().from('queries').upsert({
-        id: item.id,
-        motor: item.motor,
-        descripcion: item.descripcion,
-        query: item.query,
-        tags: item.tags ?? [],
-        orden: item.orden,
-        updated_at: new Date().toISOString(),
-      })
-      if (error) throw new Error(error.message)
-      return
-    }
-    const all = this.db.readJSON<QueryItem[]>(QUERIES_FILE) ?? []
-    const idx = all.findIndex((q) => q.id === item.id)
-    if (idx >= 0) all[idx] = item
-    else all.push(item)
-    this.db.writeJSON(QUERIES_FILE, all)
+    const { error } = await this.createClient().from('queries').upsert({
+      id: item.id,
+      motor: item.motor,
+      descripcion: item.descripcion,
+      query: item.query,
+      tags: item.tags ?? [],
+      orden: item.orden,
+      updated_at: new Date().toISOString(),
+    })
+    if (error) throw new Error(error.message)
   }
 
   async deleteQuery(id: string): Promise<void> {
-    if (this.useSupabase()) {
-      const { error } = await this.createClient().from('queries').delete().eq('id', id)
-      if (error) throw new Error(error.message)
-      return
-    }
-    const all = this.db.readJSON<QueryItem[]>(QUERIES_FILE) ?? []
-    this.db.writeJSON(QUERIES_FILE, all.filter((q) => q.id !== id))
-  }
-
-  /** Replace pagos/credenciales in local JSON (used by Notion sync when backend is local). */
-  writeLocalPagos(pagos: PagoMensual[]): void {
-    this.db.writeJSON(PAGOS_FILE, pagos)
-  }
-
-  writeLocalCredenciales(creds: Credencial[]): void {
-    this.db.writeJSON(CREDENCIALES_FILE, creds)
-  }
-
-  writeLocalQueries(queries: QueryItem[]): void {
-    this.db.writeJSON(QUERIES_FILE, queries)
-  }
-
-  readLocalPagos(): PagoMensual[] {
-    return this.db.readJSON<PagoMensual[]>(PAGOS_FILE) ?? []
-  }
-
-  readLocalCredenciales(): Credencial[] {
-    return this.db.readJSON<Credencial[]>(CREDENCIALES_FILE) ?? []
-  }
-
-  readLocalServicios(): Servicio[] {
-    return this.db.readJSON<Servicio[]>(SERVICIOS_FILE) ?? DEFAULT_SERVICIOS
-  }
-
-  readLocalQueries(): QueryItem[] {
-    return this.db.readJSON<QueryItem[]>(QUERIES_FILE) ?? []
-  }
-
-  seedLocalDefaultsIfNeeded(): void {
-    if (!this.db.readJSON<Servicio[]>(SERVICIOS_FILE)) {
-      this.db.writeJSON(SERVICIOS_FILE, DEFAULT_SERVICIOS)
-    }
-    if (!this.db.readJSON<Credencial[]>(CREDENCIALES_FILE)) {
-      this.db.writeJSON(CREDENCIALES_FILE, [])
-    }
-  }
-
-  // ── Migration / sync local → Supabase ───────────────────────────────────────
-
-  /** Sube JSON local a Supabase (upsert). Usado por migración y sync al iniciar. */
-  async pushLocalFilesToSupabase(): Promise<MigrationResult> {
-    const client = this.createClient()
-    this.seedLocalDefaultsIfNeeded()
-
-    const servicios = this.db.readJSON<Servicio[]>(SERVICIOS_FILE) ?? DEFAULT_SERVICIOS
-    const pagos = this.db.readJSON<PagoMensual[]>(PAGOS_FILE) ?? []
-    const credenciales = this.db.readJSON<Credencial[]>(CREDENCIALES_FILE) ?? []
-    const queries = this.db.readJSON<QueryItem[]>(QUERIES_FILE) ?? []
-
-    if (servicios.length) {
-      const { error } = await client.from('servicios').upsert(
-        servicios.map((s) => ({
-          id: s.id,
-          nombre: s.nombre,
-          emoji: s.emoji,
-          numero_cuenta: s.numeroCuenta ?? null,
-          categoria: s.categoria,
-          activo: s.activo,
-          orden: s.orden,
-          updated_at: new Date().toISOString(),
-        })),
-      )
-      if (error) throw new Error(`servicios: ${error.message}`)
-    }
-
-    if (pagos.length) {
-      const { error } = await client.from('pagos').upsert(
-        pagos.map((p) => ({
-          id: p.id,
-          servicio_id: p.servicioId,
-          mes: p.mes,
-          monto: p.monto,
-          fecha: p.fecha ?? null,
-          metodo_pago: p.metodoPago ?? null,
-          pagado: p.pagado,
-          notas: p.notas ?? null,
-          updated_at: new Date().toISOString(),
-        })),
-      )
-      if (error) throw new Error(`pagos: ${error.message}`)
-    }
-
-    if (credenciales.length) {
-      this.migratePasswordsIntoVault(credenciales)
-      const credsWithPasswords = this.attachVaultPasswords(
-        credenciales.map((c) => ({ ...c, password: '' })),
-      )
-      const { error } = await client.from('credenciales').upsert(
-        credsWithPasswords.map((c) => ({
-          ...credencialSupabaseRow(c),
-          updated_at: new Date().toISOString(),
-        })),
-      )
-      if (error) throw new Error(`credenciales: ${error.message}`)
-    }
-
-    if (queries.length) {
-      const { error } = await client.from('queries').upsert(
-        queries.map((q) => ({
-          id: q.id,
-          motor: q.motor,
-          descripcion: q.descripcion,
-          query: q.query,
-          tags: q.tags ?? [],
-          orden: q.orden,
-          updated_at: new Date().toISOString(),
-        })),
-      )
-      if (error) throw new Error(`queries: ${error.message}`)
-    }
-
-    return {
-      ok: true,
-      servicios: servicios.length,
-      pagos: pagos.length,
-      credenciales: credenciales.length,
-      queries: queries.length,
-      backend: 'supabase',
-    }
-  }
-
-  /** Al abrir la app: local → Supabase si backend=supabase y syncOnStartup no está desactivado. */
-  async syncOnStartupIfEnabled(): Promise<MigrationResult | null> {
-    const cfg = this.mergeSupabaseConfig()
-    if (!this.useSupabase()) return null
-    if (cfg.syncOnStartup === false) return null
-
-    logger.info('GastosStorage', 'Sync al inicio: subiendo JSON local → Supabase')
-    const result = await this.pushLocalFilesToSupabase()
-    this.db.writeJSON(SUPABASE_CONFIG_FILE, {
-      ...cfg,
-      lastSyncAt: new Date().toISOString(),
-    })
-    return result
-  }
-
-  async migrateToSupabase(): Promise<MigrationResult> {
-    this.backupLocalFiles()
-    const result = await this.pushLocalFilesToSupabase()
-    const cfg = this.mergeSupabaseConfig()
-    const migratedAt = new Date().toISOString()
-    this.db.writeJSON(SUPABASE_CONFIG_FILE, {
-      ...cfg,
-      backend: 'supabase',
-      migratedAt,
-      syncOnStartup: cfg.syncOnStartup ?? true,
-      lastSyncAt: migratedAt,
-    })
-    return { ...result, backend: 'supabase' }
-  }
-
-  private backupLocalFiles(): void {
-    const ts = Date.now()
-    for (const f of [SERVICIOS_FILE, PAGOS_FILE, CREDENCIALES_FILE, QUERIES_FILE]) {
-      const src = join(this.db.getDataDir(), f)
-      if (existsSync(src)) {
-        try {
-          copyFileSync(src, `${src}.pre-supabase-${ts}.bak`)
-        } catch (e) {
-          logger.error('GastosStorage', `Backup falló para ${f}`, e)
-        }
-      }
-    }
-  }
-
-  private loadLocal(): { servicios: Servicio[]; pagos: PagoMensual[]; credenciales: Credencial[] } {
-    this.seedLocalDefaultsIfNeeded()
-    const rawCreds = this.db.readJSON<Credencial[]>(CREDENCIALES_FILE) ?? []
-    this.migratePasswordsIntoVault(rawCreds)
-    return {
-      servicios: this.db.readJSON<Servicio[]>(SERVICIOS_FILE) ?? DEFAULT_SERVICIOS,
-      pagos: this.db.readJSON<PagoMensual[]>(PAGOS_FILE) ?? [],
-      credenciales: this.attachVaultPasswords(
-        rawCreds.map((c) => ({ ...c, password: '' })),
-      ),
-    }
+    const { error } = await this.createClient().from('queries').delete().eq('id', id)
+    if (error) throw new Error(error.message)
   }
 
   private async loadFromSupabase(): Promise<{
@@ -646,9 +344,9 @@ export class GastosStorageService {
           orden: r.orden ?? 0,
         }))
         this.migratePasswordsIntoVault(meta, legacyEnc)
-        this.migratePasswordsIntoVault(
-          this.db.readJSON<Credencial[]>(CREDENCIALES_FILE) ?? [],
-        )
+        // One-time rescue: instalaciones viejas pueden tener contraseñas inline en el
+        // archivo local legacy (de antes de pasar a Supabase-only). Solo lectura.
+        this.migratePasswordsIntoVault(this.db.readJSON<Credencial[]>(LEGACY_CREDENCIALES_FILE) ?? [])
         return this.attachVaultPasswords(meta)
       })(),
     }
@@ -667,5 +365,3 @@ export class GastosStorageService {
     }))
   }
 }
-
-export { DEFAULT_SERVICIOS }

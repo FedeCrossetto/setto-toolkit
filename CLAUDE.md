@@ -102,7 +102,7 @@ Use `src/plugins/_template/` as the starting point for new plugins.
 - `electron/preload.ts` explicitly allowlists 46 INVOKE channels and 51 SEND/ON channels. Any new IPC channel must be added here or it will be blocked.
 - OAuth credentials are embedded into the binary at build time via `electron-vite define`. They are not accessible at runtime from the renderer.
 - The Terminal plugin requires native compilation of `node-pty`. On Windows, this needs Python 3 and Visual Studio Build Tools (Desktop C++). Run `npm run rebuild` after `npm install`.
-- The `gastos` plugin is a work in progress — it connects to the Notion API and has a local config file (`gastos-notion.local.example.json`).
+- The `gastos` plugin is Supabase-only (no local/offline mode, no Notion integration) — URL and Service Role Key are configured via `gastos:supabase-config-save`, with a local dev override in `gastos-supabase.local.json` (gitignored). A manual "Sync" button reconciles local pending writes (push) against the remote `MAX(updated_at)` version (pull) — see `GastosStorageService.getRemoteVersion()`.
 - `smart-diff` no longer runs AI analysis in the plugin itself — that capability moved to Ticket Resolver (API-only, no CLI dependency).
 - Terminal plugin restores multi-session state across app restarts.
 

@@ -14,9 +14,6 @@ dist-ssr
 .env
 .env.local
 
-# Notion (tokens solo locales; copiar desde *.example.json)
-gastos-notion.local.json
-queries-notion.local.json
 gastos-supabase.local.json
 
 # Seed SQL generado con datos personales

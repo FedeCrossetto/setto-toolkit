@@ -1,5 +1,5 @@
 import { existsSync } from 'fs'
-import { app, BrowserWindow, nativeImage, shell, session } from 'electron'
+import { app, BrowserWindow, nativeImage, shell, session, dialog } from 'electron'
 import path from 'path'
 import { DatabaseService } from './core/services/db.service'
 import { SettingsService } from './core/services/settings.service'
@@ -26,15 +26,33 @@ let rendererReady = false
 // Suppress EPIPE errors thrown by node-pty's internal ConPTY pipes when a
 // child process exits while the main process still holds a read handle.
 // These are benign — the PTY exit handler already cleans up the session.
-// IMPORTANT: must not re-throw inside uncaughtException — that causes a fatal
-// double-exception crash. We remove the listener first so Electron's default
-// crash reporter handles all non-EPIPE errors normally.
-function epipeHandler(err: NodeJS.ErrnoException): void {
-  if (err.code === 'EPIPE') return
-  process.removeListener('uncaughtException', epipeHandler)
-  throw err
+//
+// Every other uncaught exception (e.g. a DB/network failure during startup) used
+// to fall through to Electron's default handler, which in a packaged build just
+// terminates the process with zero feedback — the app appears to silently vanish.
+// Instead, show the user what happened before quitting, and don't ever re-throw
+// (a second exception inside this handler is what causes the silent hard crash).
+function reportFatalError(err: unknown): void {
+  const message = err instanceof Error ? `${err.message}\n\n${err.stack ?? ''}` : String(err)
+  logger.error('main', 'Fatal uncaught exception', message)
+  try {
+    dialog.showErrorBox('Setto Toolkit — Error inesperado', `La aplicación encontró un error y necesita cerrarse.\n\n${message}`)
+  } catch {
+    // dialog can fail if called before the app is ready — nothing more we can do here
+  }
 }
-process.on('uncaughtException', epipeHandler)
+
+process.on('uncaughtException', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EPIPE') return
+  reportFatalError(err)
+  app.exit(1)
+})
+
+process.on('unhandledRejection', (reason) => {
+  // A rejected promise alone doesn't crash the process, so this is a soft report —
+  // log it and keep running rather than treat it as fatal.
+  logger.error('main', 'Unhandled promise rejection', reason instanceof Error ? reason.message : String(reason))
+})
 
 // Windows taskbar / Jump List: must match package.json `build.appId` or the shell keeps a stale/generic icon.
 if (process.platform === 'win32') {
@@ -230,11 +248,6 @@ app.whenReady().then(() => {
 
   // Register all plugin IPC handlers
   loadPlugins(ipcMain, services)
-
-  // Gastos: si backend=Supabase, subir JSON local al cloud al iniciar (upsert)
-  void gastosStorage.syncOnStartupIfEnabled().catch((err) => {
-    logger.error('GastosStorage', 'Sync al inicio falló', err)
-  })
 
   // ── One-time IPC handlers (must not be inside createWindow — it can be called again on macOS) ──
 

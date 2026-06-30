@@ -38,12 +38,9 @@ const INVOKE_CHANNELS = new Set([
   'gastos:save-servicio', 'gastos:delete-servicio',
   'gastos:save-pago', 'gastos:delete-pago', 'gastos:save-pagos-bulk',
   'gastos:credencial-save', 'gastos:credencial-delete',
-  'gastos:notion-sync', 'gastos:notion-sync-pull', 'gastos:notion-sync-credenciales',
-  'gastos:notion-config-get', 'gastos:notion-config-save',
   'gastos:supabase-config-get', 'gastos:supabase-config-save',
-  'gastos:supabase-migrate', 'gastos:supabase-sync-local', 'gastos:storage-backend-get', 'gastos:storage-status-get',
-  'queries:load', 'queries:save', 'queries:delete', 'queries:notion-sync',
-  'queries:notion-config-get', 'queries:notion-config-save',
+  'gastos:remote-version-get',
+  'queries:load', 'queries:save', 'queries:delete',
   'updater:download',
 ])
 
