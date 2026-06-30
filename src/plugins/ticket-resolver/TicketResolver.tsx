@@ -1082,8 +1082,8 @@ export function TicketResolver(): JSX.Element {
               </span>
             )}
             {aiModel && (
-              <span className="hidden xl:inline-flex items-center gap-1 text-[9px] text-on-surface-variant/25 bg-white/[0.03] px-1.5 py-0.5 rounded-full border border-outline-variant/8">
-                <Sparkles size={9}/>{aiModel}
+              <span className="hidden lg:inline-flex items-center gap-1.5 text-[10px] font-medium text-on-surface-variant/70 bg-surface-container-high px-2 py-0.5 rounded-full border border-outline-variant/25">
+                <Sparkles size={10} className="text-primary/70"/>{aiModel}
               </span>
             )}
           </div>

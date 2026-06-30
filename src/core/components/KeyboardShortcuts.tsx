@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Keyboard, X } from 'lucide-react'
 
 interface Shortcut {
   keys: string[]
@@ -78,14 +79,15 @@ export function KeyboardShortcuts({ open, onClose }: KeyboardShortcutsProps): JS
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/15">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary" style={{ fontSize: '18px' }}>keyboard</span>
-            <h2 className="text-sm font-semibold text-on-surface">Keyboard Shortcuts</h2>
+            <Keyboard size={18} className="text-primary" />
+            <h2 className="text-sm font-semibold text-on-surface">Atajos de teclado</h2>
           </div>
           <button
             onClick={onClose}
+            aria-label="Cerrar"
             className="text-on-surface-variant hover:text-on-surface transition-colors"
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+            <X size={18} />
           </button>
         </div>
 

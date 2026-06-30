@@ -49,6 +49,13 @@ const ICON_COLOR: Record<ToastType, string> = {
   info:    'text-primary',
 }
 
+const ACCENT: Record<ToastType, string> = {
+  success: 'bg-emerald-400',
+  error:   'bg-error',
+  warning: 'bg-yellow-400',
+  info:    'bg-primary',
+}
+
 // ── Single toast item ─────────────────────────────────────────────────────────
 
 function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: string) => void }): JSX.Element {
@@ -78,13 +85,15 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
     <div
       role="alert"
       className={[
-        'flex items-start gap-3 px-4 py-3 rounded-xl border shadow-xl text-sm font-medium',
-        'transition-all duration-300',
+        'relative flex items-start gap-3 pl-5 pr-4 py-3 rounded-xl border shadow-xl text-sm font-medium overflow-hidden',
+        'transition-all duration-300 ease-out',
         COLOR[toast.type],
-        visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2',
+        visible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-6',
       ].join(' ')}
       style={{ minWidth: '260px', maxWidth: '400px' }}
     >
+      {/* Left accent stripe */}
+      <span aria-hidden className={`absolute left-0 top-0 bottom-0 w-1 ${ACCENT[toast.type]}`} />
       {(() => { const Icon = ICON[toast.type]; return <Icon size={18} className={`flex-shrink-0 mt-px ${ICON_COLOR[toast.type]}`} /> })()}
       <span
         className={[

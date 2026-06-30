@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   BookmarkPlus, Check, ChevronDown, ChevronRight, CircleAlert, CircleStop,
-  Copy, Download, Eye, FileUp, FolderOpen, LoaderCircle, Network, Paperclip, Pencil, Plus,
+  Copy, Download, Eye, EyeOff, FileUp, FolderOpen, Lock, LockOpen, LoaderCircle, Network, Paperclip, Pencil, Plus,
   RotateCcw, Save, Search, SendHorizontal, Sparkles, Terminal, Trash2, Upload, X,
 } from 'lucide-react'
 import { useCollections } from './hooks/useCollections'
@@ -15,9 +15,20 @@ import type { ActiveRequest, Collection, Environment, HttpMethod, BodyType, KeyV
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 const METHOD_COLOR: Record<HttpMethod, string> = {
-  GET: 'text-accent', POST: 'text-primary', PUT: 'text-secondary',
-  PATCH: 'text-yellow-400', DELETE: 'text-error',
+  GET: 'text-emerald-500', POST: 'text-primary', PUT: 'text-amber-500',
+  PATCH: 'text-orange-400', DELETE: 'text-error',
   HEAD: 'text-on-surface-variant', OPTIONS: 'text-on-surface-variant',
+}
+
+/** Badge with colored background — styled like HTTPie method pills */
+const METHOD_BG: Record<HttpMethod, string> = {
+  GET:     'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20',
+  POST:    'bg-primary/15 text-primary border border-primary/20',
+  PUT:     'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20',
+  PATCH:   'bg-orange-500/15 text-orange-500 border border-orange-500/20',
+  DELETE:  'bg-error/15 text-error border border-error/20',
+  HEAD:    'bg-surface-container-high text-on-surface-variant border border-outline-variant/30',
+  OPTIONS: 'bg-surface-container-high text-on-surface-variant border border-outline-variant/30',
 }
 
 function MethodSelect({ value, onChange }: { value: HttpMethod; onChange: (m: HttpMethod) => void }): JSX.Element {
@@ -38,20 +49,20 @@ function MethodSelect({ value, onChange }: { value: HttpMethod; onChange: (m: Ht
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-1.5 bg-surface-container border border-outline-variant/30 rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors hover:border-outline-variant/60 ${METHOD_COLOR[value]}`}
+        className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-primary/40 transition-colors ${METHOD_BG[value]}`}
       >
         {value}
-        <ChevronDown size={14} className="text-on-surface-variant/40" />
+        <ChevronDown size={12} className="opacity-50" />
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 bg-surface border border-outline-variant/25 rounded-xl shadow-xl overflow-hidden py-1 min-w-[110px]">
+        <div className="absolute top-full left-0 mt-1 z-50 bg-surface border border-outline-variant/25 rounded-xl shadow-xl overflow-hidden py-1.5 min-w-[120px] flex flex-col gap-0.5 px-1">
           {METHODS.map((m) => (
             <button
               key={m}
               type="button"
               onClick={() => { onChange(m); setOpen(false) }}
-              className={`w-full text-left px-3 py-1.5 text-sm font-bold hover:bg-surface-container transition-colors ${METHOD_COLOR[m]} ${m === value ? 'bg-surface-container-high' : ''}`}
+              className={`w-full text-left px-2.5 py-1.5 text-xs font-bold rounded-lg transition-colors flex items-center gap-2 ${METHOD_BG[m]} ${m === value ? 'ring-1 ring-inset ring-current/30' : 'bg-transparent border-transparent hover:opacity-80'}`}
             >
               {m}
             </button>
@@ -83,7 +94,7 @@ function HistoryItem({
   return (
     <div className="group px-2 py-1.5 hover:bg-surface-container transition-colors">
       <button onClick={onRestore} className="w-full flex items-start gap-2 text-left">
-        <span className={`text-[10px] font-bold mt-0.5 w-12 flex-shrink-0 ${METHOD_COLOR[entry.request.method]}`}>
+        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0 ${METHOD_BG[entry.request.method]}`}>
           {entry.request.method}
         </span>
         <div className="flex-1 min-w-0">
@@ -102,7 +113,7 @@ function HistoryItem({
           {!showSave ? (
             <button onClick={() => setShowSave(true)}
               className="text-[10px] text-on-surface-variant/50 hover:text-primary transition-colors flex items-center gap-0.5">
-              <BookmarkPlus size={11} /> Save
+              <BookmarkPlus size={11} /> Guardar
             </button>
           ) : (
             <div className="flex gap-1 items-center">
@@ -151,7 +162,7 @@ function HistoryPanel({
           </span>
           {history.length > 0 && (
             <button onClick={onClear} className="text-[10px] text-on-surface-variant hover:text-error transition-colors">
-              Clear all
+              Limpiar todo
             </button>
           )}
         </div>
@@ -161,7 +172,7 @@ function HistoryPanel({
               <Search size={12} className="text-on-surface-variant/40" />
               <input
                 value={urlSearch} onChange={(e) => setUrlSearch(e.target.value)}
-                placeholder="Filter by URL…"
+                placeholder="Filtrar por URL…"
                 className="flex-1 bg-transparent text-[11px] text-on-surface placeholder-on-surface-variant/40 outline-none"
               />
               {urlSearch && (
@@ -188,10 +199,10 @@ function HistoryPanel({
       <div className="flex-1 overflow-y-auto py-1">
         {history.length === 0 ? (
           <p className="text-xs text-on-surface-variant/60 text-center py-8 px-4">
-            No requests yet.<br />Execute a request to see history.
+            Sin requests aún.<br />Ejecutá uno para ver el historial.
           </p>
         ) : filtered.length === 0 ? (
-          <p className="text-xs text-on-surface-variant/60 text-center py-8">No {methodFilter} requests.</p>
+          <p className="text-xs text-on-surface-variant/60 text-center py-8">Sin requests {methodFilter}.</p>
         ) : (
           filtered.map((h) => (
             <HistoryItem key={h.id} entry={h} collections={collections}
@@ -420,7 +431,7 @@ export function ApiLab(): JSX.Element {
 
         {/* Tab toggle */}
         <div className="flex border-b border-outline-variant/15 flex-shrink-0">
-          {([['collections', 'Saved'], ['environments', 'Envs'], ['history', 'History']] as const).map(([t, label]) => (
+          {([['collections', 'Guardado'], ['environments', 'Entornos'], ['history', 'Historial']] as const).map(([t, label]) => (
             <button key={t} onClick={() => setLeftTab(t)}
               className={`flex-1 py-2 text-[11px] font-semibold transition-colors border-b-2 ${leftTab === t ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/60 hover:text-on-surface'}`}>
               {label}
@@ -435,19 +446,19 @@ export function ApiLab(): JSX.Element {
           <>
             <div className="px-4 pt-3 pb-3 border-b border-outline-variant/15 flex-shrink-0">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">Collections</span>
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">Colecciones</span>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => setShowImportCollection(true)} className="text-on-surface-variant hover:text-primary transition-colors" title="Import collection">
+                  <button onClick={() => setShowImportCollection(true)} className="text-on-surface-variant hover:text-primary transition-colors" title="Importar colección">
                     <Upload size={16} />
                   </button>
-                  <button onClick={() => setShowNewCol(true)} className="text-on-surface-variant hover:text-primary transition-colors" title="New collection">
+                  <button onClick={() => setShowNewCol(true)} className="text-on-surface-variant hover:text-primary transition-colors" title="Nueva colección">
                     <Plus size={16} />
                   </button>
                 </div>
               </div>
               {showNewCol && (
                 <form onSubmit={async (e) => { e.preventDefault(); if (newColName.trim()) { await createCollection(newColName.trim()); setNewColName(''); setShowNewCol(false) } }} className="flex gap-1">
-                  <input autoFocus value={newColName} onChange={(e) => setNewColName(e.target.value)} placeholder="Collection name"
+                  <input autoFocus value={newColName} onChange={(e) => setNewColName(e.target.value)} placeholder="Nombre de la colección"
                     className="flex-1 text-xs bg-surface-container border border-outline-variant/30 rounded-lg px-2 py-1.5 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/50" />
                   <button type="submit" className="text-primary"><Check size={16} /></button>
                 </form>
@@ -458,7 +469,7 @@ export function ApiLab(): JSX.Element {
               {loading ? (
                 <p className="text-xs text-on-surface-variant text-center py-8">Loading...</p>
               ) : collections.length === 0 ? (
-                <p className="text-xs text-on-surface-variant/60 text-center py-8 px-4">No collections yet.<br />Create one to save requests.</p>
+                <p className="text-xs text-on-surface-variant/60 text-center py-8 px-4">Sin colecciones aún.<br />Creá una para guardar requests.</p>
               ) : (
                 collections.map((col) => (
                   <CollectionItem key={col.id} collection={col} activeRequestId={active.requestId}
@@ -516,30 +527,30 @@ export function ApiLab(): JSX.Element {
           )}
 
           {/* Copy as cURL */}
-          <button onClick={handleCopyCurl} title="Copy as cURL" disabled={!active.url.trim()}
+          <button onClick={handleCopyCurl} title="Copiar como cURL" disabled={!active.url.trim()}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:border-primary/40 transition-colors disabled:opacity-40">
             {curlCopied
-              ? <><Check size={14} /> Copied!</>
+              ? <><Check size={14} /> ¡Copiado!</>
               : <><Terminal size={14} /> cURL</>
             }
           </button>
 
           {/* Import cURL */}
-          <button onClick={() => setShowImportCurl(true)} title="Import from cURL"
+          <button onClick={() => setShowImportCurl(true)} title="Importar desde cURL"
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:border-primary/40 transition-colors">
-            <Download size={14} /> Import
+            <Download size={14} /> Importar
           </button>
 
           {status === 'loading' ? (
             <button onClick={cancel}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border border-error/40 text-error hover:bg-error/10 transition-all">
-              <CircleStop size={15} /> Cancel
+              <CircleStop size={15} /> Cancelar
             </button>
           ) : (
             <button onClick={handleExecute} disabled={!active.url.trim()}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-on-primary transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: 'var(--gradient-brand)' }}>
-              <SendHorizontal size={15} /> Send
+              <SendHorizontal size={15} /> Enviar
             </button>
           )}
 
@@ -552,10 +563,17 @@ export function ApiLab(): JSX.Element {
 
         {/* Request tabs */}
         <div className="flex items-center gap-0 px-4 border-b border-outline-variant/15 bg-surface flex-shrink-0">
-          {(['headers', 'params', 'body', 'auth', 'scripts'] as RequestTab[]).map((t) => (
-            <button key={t} onClick={() => setReqTab(t)}
-              className={`px-4 py-2.5 text-xs font-medium capitalize border-b-2 transition-colors ${reqTab === t ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}>
-              {t}
+          {([
+            { id: 'params',  label: 'Params',   dot: active.params.some((p) => p.enabled && p.key) },
+            { id: 'headers', label: 'Headers',  dot: active.headers.some((h) => h.enabled && h.key) },
+            { id: 'auth',    label: 'Auth',     dot: active.auth.type !== 'none' },
+            { id: 'body',    label: 'Body',     dot: active.body.type !== 'none' },
+            { id: 'scripts', label: 'Scripts',  dot: !!(active.preRequestScript?.trim() || active.postResponseScript?.trim()) },
+          ] as { id: RequestTab; label: string; dot: boolean }[]).map(({ id, label, dot }) => (
+            <button key={id} onClick={() => setReqTab(id)}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${reqTab === id ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}>
+              {label}
+              {dot && <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${reqTab === id ? 'bg-primary' : 'bg-accent'}`} />}
             </button>
           ))}
         </div>
@@ -577,13 +595,13 @@ export function ApiLab(): JSX.Element {
                   <button onClick={handleBeautify}
                     className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border transition-colors ${beautified ? 'border-accent/50 text-accent bg-accent/10' : 'border-outline-variant/30 text-on-surface-variant hover:text-primary hover:border-primary/40'}`}>
                     <Sparkles size={13} />
-                    {beautified ? 'Beautified!' : 'Beautify'}
+                    {beautified ? '¡Formateado!' : 'Formatear'}
                   </button>
                 )}
               </div>
 
               {active.body.type === 'none' && (
-                <div className="flex items-center justify-center flex-1 text-xs text-on-surface-variant/50">No body</div>
+                <div className="flex items-center justify-center flex-1 text-xs text-on-surface-variant/50">Sin body</div>
               )}
               {active.body.type === 'form-data' ? (
                 <div className="flex-1 overflow-auto">
@@ -635,14 +653,14 @@ export function ApiLab(): JSX.Element {
           {reqTab === 'scripts' && (
             <div className="flex flex-col gap-4 h-full">
               <ScriptEditor
-                label="Pre-request Script"
-                description="Runs before the request. Use pm.environment.set('key', value) to set variables."
+                label="Script pre-request"
+                description="Se ejecuta antes del request. Usá pm.environment.set('key', value) para definir variables."
                 value={active.preRequestScript ?? ''}
                 onChange={(v) => setActive((a) => ({ ...a, preRequestScript: v }))}
               />
               <ScriptEditor
-                label="Post-response Script"
-                description="Runs after the response. Use pm.response.status, pm.response.json(), pm.response.body."
+                label="Script post-respuesta"
+                description="Se ejecuta después de recibir la respuesta. Accedé con pm.response.status, pm.response.json(), pm.response.body."
                 value={active.postResponseScript ?? ''}
                 onChange={(v) => setActive((a) => ({ ...a, postResponseScript: v }))}
               />
@@ -660,30 +678,37 @@ export function ApiLab(): JSX.Element {
 
         {/* Response panel */}
         <div className="relative flex-shrink-0 border-t border-outline-variant/20 flex flex-col bg-surface overflow-hidden" style={{ height: responseHeight }}>
-          <div className="flex items-center gap-4 px-4 py-2 border-b border-outline-variant/15 flex-shrink-0">
+          <div className="flex items-center gap-3 px-4 py-2 border-b border-outline-variant/15 flex-shrink-0 min-h-[40px]">
+            {/* ── Status / loading / idle ───────────────────────────── */}
             {status === 'loading' && (
               <span className="inline-flex items-center gap-2 text-xs text-on-surface-variant">
                 <LoaderCircle size={13} className="animate-spin text-primary" />
-                Waiting for response…
+                Esperando respuesta…
               </span>
             )}
             {status !== 'loading' && response && (
-              <>
-                <span className={`inline-flex items-center gap-1.5 text-sm font-bold px-2 py-0.5 rounded-md ${isOk ? 'bg-accent/10 text-accent' : 'bg-error/10 text-error'}`}>
-                  <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: 'currentColor' }} />
+              <div className="flex items-center gap-3">
+                {/* Status pill */}
+                <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg ${isOk ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-error/15 text-error border border-error/20'}`}>
+                  <span className="w-1.5 h-1.5 rounded-full inline-block flex-shrink-0" style={{ background: 'currentColor' }} />
                   {response.status} {response.statusText}
                 </span>
-                <span className="text-xs text-on-surface-variant">{response.duration}ms</span>
-                <span className="text-xs text-on-surface-variant">{formatSize(response.size)}</span>
-              </>
+                {/* Timing */}
+                <span className="text-[11px] text-on-surface-variant/70 flex items-center gap-1">
+                  <span className="font-mono">{response.duration}</span>
+                  <span className="text-on-surface-variant/40">ms</span>
+                </span>
+                <span className="text-on-surface-variant/25">·</span>
+                <span className="text-[11px] text-on-surface-variant/70 font-mono">{formatSize(response.size)}</span>
+              </div>
             )}
             {error && (
               <div className="flex items-center gap-2">
-                <span className="text-sm text-error">{error}</span>
+                <span className="text-xs text-error">{error}</span>
                 <button onClick={handleExecute} disabled={!active.url.trim()}
                   className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium border border-error/30 text-error hover:bg-error/10 transition-colors disabled:opacity-40">
                   <RotateCcw size={12} />
-                  Retry
+                  Reintentar
                 </button>
               </div>
             )}
@@ -691,29 +716,32 @@ export function ApiLab(): JSX.Element {
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
                 <img
                   src={mascot === 'panda' ? 'panda-avatar/panda-refused.png' : 'setto-avatar/setto-avatar-refused.png'}
-                  alt="Connection refused"
+                  alt="Conexión rechazada"
                   className="h-48 opacity-90 drop-shadow-lg"
                 />
-                <p className="text-sm font-semibold text-error/80 mt-2">Connection refused</p>
+                <p className="text-sm font-semibold text-error/80 mt-2">Conexión rechazada</p>
               </div>
             )}
-            {status === 'idle' && !response && <span className="text-xs text-on-surface-variant">Send a request to see the response</span>}
+            {status === 'idle' && !response && <span className="text-[11px] text-on-surface-variant/50">Enviá un request para ver la respuesta</span>}
 
-            <div className="ml-auto flex items-center gap-1">
-              {(['body', 'headers', 'raw'] as ResponseTab[]).map((t) => (
-                <button key={t} onClick={() => setResTab(t)}
-                  className={`px-3 py-1 text-xs capitalize border-b-2 transition-colors ${resTab === t ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}>
-                  {t}
-                </button>
-              ))}
-              {sentSnapshot && (
-                <button onClick={() => setResTab('sent')}
-                  className={`px-3 py-1 text-xs border-b-2 transition-colors ${resTab === 'sent' ? 'border-accent text-accent' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}>
-                  Sent
-                </button>
-              )}
+            {/* ── Response tabs (right side) ────────────────────────── */}
+            <div className="ml-auto flex items-center">
+              <div className="flex items-center gap-0 border border-outline-variant/25 rounded-lg overflow-hidden bg-surface-container-low">
+                {([['body', 'Body'], ['headers', 'Headers'], ['raw', 'Raw']] as [ResponseTab, string][]).map(([t, label]) => (
+                  <button key={t} onClick={() => setResTab(t)}
+                    className={`px-3 py-1.5 text-[11px] font-medium transition-colors border-r border-outline-variant/20 last:border-r-0 ${resTab === t ? 'bg-surface text-primary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}>
+                    {label}
+                  </button>
+                ))}
+                {sentSnapshot && (
+                  <button onClick={() => setResTab('sent')}
+                    className={`px-3 py-1.5 text-[11px] font-medium transition-colors ${resTab === 'sent' ? 'bg-surface text-accent' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}>
+                    Enviado
+                  </button>
+                )}
+              </div>
               {response && resTab !== 'sent' && (
-                <button onClick={() => navigator.clipboard.writeText(formattedBody)} title="Copy response"
+                <button onClick={() => navigator.clipboard.writeText(formattedBody)} title="Copiar respuesta"
                   className="ml-2 text-on-surface-variant hover:text-primary transition-colors">
                   <Copy size={15} />
                 </button>
@@ -743,10 +771,10 @@ export function ApiLab(): JSX.Element {
 
                 {/* Headers */}
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50 mb-1.5">Headers</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50 mb-1.5">Encabezados</p>
                   <div className="space-y-1 bg-surface-container rounded-lg p-2">
                     {sentSnapshot.headers.length === 0
-                      ? <span className="text-on-surface-variant/40 text-xs italic">none</span>
+                      ? <span className="text-on-surface-variant/40 text-xs italic">ninguno</span>
                       : sentSnapshot.headers.map((h, i) => (
                         <div key={i} className="flex gap-2 text-xs">
                           <span className="text-primary/80 flex-shrink-0">{h.key}:</span>
@@ -830,22 +858,22 @@ export function ApiLab(): JSX.Element {
                 <Save size={16} className="text-primary" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-on-surface">Overwrite request?</h2>
+                <h2 className="text-sm font-semibold text-on-surface">¿Sobreescribir request?</h2>
                 <p className="text-xs text-on-surface-variant mt-1">
-                  This will replace the saved request
-                  {active.url ? <> at <span className="font-mono text-primary/80 break-all">{active.url}</span></> : ''} with your current changes.
+                  Esto reemplazará el request guardado
+                  {active.url ? <> en <span className="font-mono text-primary/80 break-all">{active.url}</span></> : ''} con los cambios actuales.
                 </p>
               </div>
             </div>
             <div className="flex gap-2 justify-end">
               <button onClick={() => saveConfirm.resolve(false)}
                 className="px-4 py-2 text-sm font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
-                Cancel
+                Cancelar
               </button>
               <button onClick={() => saveConfirm.resolve(true)}
                 className="px-4 py-2 text-sm font-semibold rounded-lg text-on-primary transition-all hover:opacity-90"
                 style={{ background: 'var(--gradient-brand)' }}>
-                Save
+                Guardar
               </button>
             </div>
           </div>
@@ -863,18 +891,18 @@ export function ApiLab(): JSX.Element {
                 <Trash2 size={16} className="text-error" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-on-surface">Delete {deleteConfirm.label}?</h2>
-                <p className="text-xs text-on-surface-variant mt-1">This action cannot be undone.</p>
+                <h2 className="text-sm font-semibold text-on-surface">¿Eliminar {deleteConfirm.label}?</h2>
+                <p className="text-xs text-on-surface-variant mt-1">Esta acción no se puede deshacer.</p>
               </div>
             </div>
             <div className="flex gap-2 justify-end">
               <button onClick={() => deleteConfirm.resolve(false)}
                 className="px-4 py-2 text-sm font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
-                Cancel
+                Cancelar
               </button>
               <button onClick={() => deleteConfirm.resolve(true)}
                 className="px-4 py-2 text-sm font-semibold rounded-lg bg-error text-white transition-all hover:opacity-90">
-                Delete
+                Eliminar
               </button>
             </div>
           </div>
@@ -913,8 +941,8 @@ function ImportCollectionModal({ onImport, onClose }: {
       <div className="bg-surface border border-outline-variant/20 rounded-2xl shadow-2xl w-[600px] max-w-[90vw] p-6 flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold text-on-surface">Import Collection</h2>
-            <p className="text-xs text-on-surface-variant mt-0.5">Supports Postman Collection v2/v2.1 and native format.</p>
+            <h2 className="text-base font-semibold text-on-surface">Importar Colección</h2>
+            <p className="text-xs text-on-surface-variant mt-0.5">Compatible con Postman Collection v2/v2.1 y formato nativo.</p>
           </div>
           <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
             <X size={20} />
@@ -939,17 +967,17 @@ function ImportCollectionModal({ onImport, onClose }: {
         <div className="flex items-center gap-2">
           <button onClick={() => void handleBrowse()}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:border-primary/40 transition-colors">
-            <FolderOpen size={14} /> Browse file
+            <FolderOpen size={14} /> Buscar archivo
           </button>
           <div className="flex-1" />
           <button onClick={onClose}
             className="px-4 py-2 text-sm font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
-            Cancel
+            Cancelar
           </button>
           <button onClick={() => void handleImport()} disabled={!value.trim() || loading}
             className="px-4 py-2 text-sm font-semibold rounded-lg text-on-primary disabled:opacity-50 transition-all hover:opacity-90"
             style={{ background: 'var(--gradient-brand)' }}>
-            {loading ? 'Importing…' : 'Import'}
+            {loading ? 'Importando…' : 'Importar'}
           </button>
         </div>
       </div>
@@ -988,8 +1016,8 @@ function ImportCurlModal({ onImport, onClose, activeEnvName }: {
       <div className="bg-surface border border-outline-variant/20 rounded-2xl shadow-2xl w-[600px] max-w-[90vw] p-6 flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold text-on-surface">Import from cURL</h2>
-            <p className="text-xs text-on-surface-variant mt-0.5">Paste a cURL command to populate the request fields.</p>
+            <h2 className="text-base font-semibold text-on-surface">Importar desde cURL</h2>
+            <p className="text-xs text-on-surface-variant mt-0.5">Pegá un comando cURL para rellenar los campos del request.</p>
           </div>
           <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
             <X size={20} />
@@ -1028,12 +1056,12 @@ function ImportCurlModal({ onImport, onClose, activeEnvName }: {
         <div className="flex justify-end gap-2">
           <button onClick={onClose}
             className="px-4 py-2 text-sm font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
-            Cancel
+            Cancelar
           </button>
           <button onClick={handleImport} disabled={!value.trim()}
             className="px-4 py-2 text-sm font-semibold rounded-lg text-on-primary disabled:opacity-50 transition-all hover:opacity-90"
             style={{ background: 'var(--gradient-brand)' }}>
-            Import
+            Importar
           </button>
         </div>
       </div>
@@ -1099,7 +1127,7 @@ function CollectionItem({ collection, activeRequestId, onSelectRequest, onNewReq
           onClick={() => { if (renamingId !== req.id) onSelectRequest(req.id) }}
           onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, reqId: req.id }) }}
           className={`flex items-center gap-2 pl-7 pr-3 py-1.5 group hover:bg-surface-container rounded-lg cursor-pointer ${activeRequestId === req.id ? 'bg-primary/10' : ''}`}>
-          <span className={`text-[9px] font-bold w-10 flex-shrink-0 ${METHOD_COLOR[req.method]}`}>{req.method}</span>
+          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0 ${METHOD_BG[req.method]}`}>{req.method}</span>
 
           {renamingId === req.id ? (
             <input
@@ -1136,16 +1164,16 @@ function CollectionItem({ collection, activeRequestId, onSelectRequest, onNewReq
           >
             <button onClick={() => startRename(req.id, req.name)}
               className="w-full flex items-center gap-2 px-3 py-2 text-xs text-on-surface hover:bg-surface-container transition-colors">
-              <Pencil size={14} /> Rename
+              <Pencil size={14} /> Renombrar
             </button>
             <button onClick={() => { onDuplicate(req.id); setCtxMenu(null) }}
               className="w-full flex items-center gap-2 px-3 py-2 text-xs text-on-surface hover:bg-surface-container transition-colors">
-              <Copy size={14} /> Duplicate
+              <Copy size={14} /> Duplicar
             </button>
             <div className="border-t border-outline-variant/15 my-1" />
             <button onClick={() => { onDeleteRequest(req.id); setCtxMenu(null) }}
               className="w-full flex items-center gap-2 px-3 py-2 text-xs text-error hover:bg-error/10 transition-colors">
-              <Trash2 size={14} /> Delete
+              <Trash2 size={14} /> Eliminar
             </button>
           </div>
         )
@@ -1176,7 +1204,7 @@ function KVEditor({ pairs, onChange }: { pairs: KeyValuePair[]; onChange: (p: Ke
         </div>
       ))}
       <button onClick={add} className="flex items-center gap-1 text-xs text-on-surface-variant hover:text-primary transition-colors mt-2">
-        <Plus size={14} /> Add row
+        <Plus size={14} /> Agregar fila
       </button>
     </div>
   )
@@ -1235,7 +1263,7 @@ function FormDataEditor({ fields, onChange }: { fields: FormDataField[]; onChang
         </div>
       ))}
       <button onClick={add} className="flex items-center gap-1 text-xs text-on-surface-variant hover:text-primary transition-colors mt-2">
-        <Plus size={14} /> Add field
+        <Plus size={14} /> Agregar campo
       </button>
     </div>
   )
@@ -1326,14 +1354,14 @@ function EnvironmentPanel({ environments, onChange }: {
       {/* Environment list */}
       <div className="px-3 pt-3 pb-2 border-b border-outline-variant/15 flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">Environments</span>
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">Entornos</span>
           <button onClick={() => setShowNew(true)} className="text-on-surface-variant hover:text-primary transition-colors">
             <Plus size={16} />
           </button>
         </div>
         {showNew && (
           <form onSubmit={(e) => { e.preventDefault(); void handleAddEnv() }} className="flex gap-1 mb-2">
-            <input autoFocus value={newEnvName} onChange={(e) => setNewEnvName(e.target.value)} placeholder="Environment name"
+            <input autoFocus value={newEnvName} onChange={(e) => setNewEnvName(e.target.value)} placeholder="Nombre del entorno"
               className="flex-1 text-xs bg-surface-container border border-outline-variant/30 rounded-lg px-2 py-1.5 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/50" />
             <button type="submit" className="text-primary"><Check size={16} /></button>
           </form>
@@ -1356,7 +1384,7 @@ function EnvironmentPanel({ environments, onChange }: {
             </div>
           ))}
           {environments.length === 0 && (
-            <p className="text-xs text-on-surface-variant/50 text-center py-4 px-2">No environments yet.<br />Create one to use variables.</p>
+            <p className="text-xs text-on-surface-variant/50 text-center py-4 px-2">Sin entornos aún.<br />Creá uno para usar variables.</p>
           )}
         </div>
       </div>
@@ -1397,9 +1425,9 @@ function EnvironmentPanel({ environments, onChange }: {
                           type="button"
                           onClick={() => setRevealedKeys((prev) => { const n = new Set(prev); n.has(p.key) ? n.delete(p.key) : n.add(p.key); return n })}
                           className="absolute right-1.5 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-primary transition-colors"
-                          title={isRevealed ? 'Hide value' : 'Reveal value'}
+                          title={isRevealed ? 'Ocultar valor' : 'Mostrar valor'}
                         >
-                          <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>{isRevealed ? 'visibility_off' : 'visibility'}</span>
+                          {isRevealed ? <EyeOff size={12} /> : <Eye size={12} />}
                         </button>
                       )}
                     </div>
@@ -1407,10 +1435,10 @@ function EnvironmentPanel({ environments, onChange }: {
                     <button
                       type="button"
                       onClick={() => toggleSecret(p.key)}
-                      title={isSecret ? 'Unmark as secret' : 'Mark as secret'}
+                      title={isSecret ? 'Desmarcar como secreto' : 'Marcar como secreto'}
                       className={`flex-shrink-0 transition-colors ${isSecret ? 'text-warning' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}`}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>{isSecret ? 'lock' : 'lock_open'}</span>
+                      {isSecret ? <Lock size={13} /> : <LockOpen size={13} />}
                     </button>
                     <button onClick={() => void handleSaveVars()} title="Save"
                       className="text-green-400 hover:text-green-300 transition-colors flex-shrink-0">
@@ -1426,7 +1454,7 @@ function EnvironmentPanel({ environments, onChange }: {
             </div>
             <button onClick={() => setVarPairs((ps) => [...ps, { id: randomUUID(), key: '', value: '', enabled: true }])}
               className="flex items-center gap-1 text-xs text-on-surface-variant hover:text-primary transition-colors mt-2">
-              <Plus size={13} /> Add variable
+              <Plus size={13} /> Agregar variable
             </button>
           </div>
         </div>

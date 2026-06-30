@@ -2,9 +2,10 @@ import { useEffect, useRef, useCallback } from 'react'
 import { EditorView, basicSetup } from 'codemirror'
 import { EditorState, RangeSetBuilder, Compartment } from '@codemirror/state'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
-import { ViewPlugin, Decoration, keymap } from '@codemirror/view'
+import { ViewPlugin, Decoration, keymap, gutter, GutterMarker } from '@codemirror/view'
 import type { DecorationSet, ViewUpdate } from '@codemirror/view'
 import { gotoLine } from '@codemirror/search'
+import { showMinimap } from '@replit/codemirror-minimap'
 import { javascript } from '@codemirror/lang-javascript'
 import { json } from '@codemirror/lang-json'
 import { xml } from '@codemirror/lang-xml'
@@ -17,7 +18,32 @@ import { python } from '@codemirror/lang-python'
 import { cpp } from '@codemirror/lang-cpp'
 import { java } from '@codemirror/lang-java'
 import { tags } from '@lezer/highlight'
-import type { EditorHandle, FileLanguage } from '../types'
+import type { EditorHandle, FileLanguage, GitLineDiff } from '../types'
+import type { EditorColorScheme } from '../hooks/useEditorPrefs'
+
+// ── Git diff gutter ─────────────────────────────────────────────────────────
+class GitDiffMarker extends GutterMarker {
+  constructor(private cls: string) { super() }
+  toDOM(): HTMLElement { const el = document.createElement('div'); el.className = this.cls; return el }
+}
+const ADDED_MARKER   = new GitDiffMarker('cm-git-added')
+const CHANGED_MARKER = new GitDiffMarker('cm-git-changed')
+const DELETED_MARKER = new GitDiffMarker('cm-git-deleted')
+
+function buildGitGutter(diff: GitLineDiff | null) {
+  if (!diff || (diff.added.length === 0 && diff.changed.length === 0 && diff.deleted.length === 0)) return []
+  const added = new Set(diff.added), changed = new Set(diff.changed), deleted = new Set(diff.deleted)
+  return gutter({
+    class: 'cm-git-gutter',
+    lineMarker(view, block) {
+      const ln = view.state.doc.lineAt(block.from).number
+      if (added.has(ln))   return ADDED_MARKER
+      if (changed.has(ln)) return CHANGED_MARKER
+      if (deleted.has(ln)) return DELETED_MARKER
+      return null
+    },
+  })
+}
 
 // ── Nexus palette ─────────────────────────────────────────────────────────────
 const C = {
@@ -25,6 +51,20 @@ const C = {
   accent:    '#16C8C7', blue:      '#4896FE',
   text:      '#c4c5d6', muted:     '#5a5a80',
   border:    'rgb(83 71 206 / 0.2)',
+}
+
+// ── HTTPie / Tokyo Night palette ──────────────────────────────────────────────
+const H = {
+  string:   '#9ece6a', // green
+  property: '#e0af68', // gold
+  number:   '#ff9e64', // orange
+  keyword:  '#bb9af7', // purple
+  func:     '#7aa2f7', // blue
+  type:     '#2ac3de', // cyan
+  bracket:  '#89ddff', // light cyan
+  comment:  '#565f89', // muted blue-gray
+  text:     '#c0caf5', // lavender white
+  muted:    '#414868', // dark muted
 }
 
 /** Plain-text (.txt, .cfg) accents — lime instead of blue */
@@ -93,6 +133,70 @@ const nexusLightHighlight = HighlightStyle.define([
   { tag: tags.color,                                          color: '#0a9e9e' },
   { tag: tags.unit,                                           color: '#2b7adf' },
   { tag: tags.invalid,                                        color: '#cc0000', textDecoration: 'underline wavy' },
+])
+
+// ── HTTPie / Tokyo Night highlight styles ─────────────────────────────────────
+const httpieDarkHighlight = HighlightStyle.define([
+  { tag: [tags.keyword, tags.operatorKeyword],                color: H.keyword },
+  { tag: [tags.controlKeyword, tags.moduleKeyword],           color: H.keyword, fontStyle: 'italic' },
+  { tag: tags.definitionKeyword,                              color: H.keyword },
+  { tag: [tags.string, tags.special(tags.string)],            color: H.string },
+  { tag: tags.regexp,                                         color: H.string },
+  { tag: tags.escape,                                         color: H.bracket },
+  { tag: [tags.number, tags.integer, tags.float],             color: H.number },
+  { tag: [tags.bool, tags.null],                              color: H.keyword },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: H.comment, fontStyle: 'italic' },
+  { tag: tags.operator,                                       color: H.bracket },
+  { tag: [tags.punctuation, tags.separator],                  color: H.muted },
+  { tag: [tags.angleBracket, tags.squareBracket, tags.paren, tags.brace], color: H.bracket },
+  { tag: tags.typeName,                                       color: H.type },
+  { tag: tags.className,                                      color: H.type, fontWeight: 'bold' },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: H.func },
+  { tag: tags.definition(tags.variableName),                  color: H.text },
+  { tag: tags.variableName,                                   color: H.text },
+  { tag: tags.propertyName,                                   color: H.property },
+  { tag: tags.namespace,                                      color: H.type },
+  { tag: tags.tagName,                                        color: H.func },
+  { tag: tags.attributeName,                                  color: H.property },
+  { tag: tags.attributeValue,                                 color: H.string },
+  { tag: [tags.heading, tags.heading1, tags.heading2],        color: H.func, fontWeight: 'bold' },
+  { tag: tags.emphasis,                                       color: H.string, fontStyle: 'italic' },
+  { tag: tags.strong,                                         color: H.text, fontWeight: 'bold' },
+  { tag: [tags.link, tags.url],                               color: H.func, textDecoration: 'underline' },
+  { tag: tags.color,                                          color: H.string },
+  { tag: tags.unit,                                           color: H.number },
+  { tag: tags.invalid,                                        color: '#f7768e', textDecoration: 'underline wavy' },
+])
+
+const httpieLightHighlight = HighlightStyle.define([
+  { tag: [tags.keyword, tags.operatorKeyword],                color: '#7c3aed' },
+  { tag: [tags.controlKeyword, tags.moduleKeyword],           color: '#7c3aed', fontStyle: 'italic' },
+  { tag: tags.definitionKeyword,                              color: '#7c3aed' },
+  { tag: [tags.string, tags.special(tags.string)],            color: '#16a34a' },
+  { tag: tags.regexp,                                         color: '#16a34a' },
+  { tag: tags.escape,                                         color: '#0284c7' },
+  { tag: [tags.number, tags.integer, tags.float],             color: '#c2410c' },
+  { tag: [tags.bool, tags.null],                              color: '#7c3aed' },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: '#94a3b8', fontStyle: 'italic' },
+  { tag: tags.operator,                                       color: '#475569' },
+  { tag: [tags.punctuation, tags.separator],                  color: '#64748b' },
+  { tag: [tags.angleBracket, tags.squareBracket, tags.paren, tags.brace], color: '#0284c7' },
+  { tag: tags.typeName,                                       color: '#0369a1' },
+  { tag: tags.className,                                      color: '#0369a1', fontWeight: 'bold' },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: '#1d4ed8' },
+  { tag: tags.definition(tags.variableName),                  color: '#1e293b' },
+  { tag: tags.variableName,                                   color: '#1e293b' },
+  { tag: tags.propertyName,                                   color: '#92400e' },
+  { tag: tags.tagName,                                        color: '#1d4ed8' },
+  { tag: tags.attributeName,                                  color: '#92400e' },
+  { tag: tags.attributeValue,                                 color: '#16a34a' },
+  { tag: [tags.heading, tags.heading1, tags.heading2],        color: '#1d4ed8', fontWeight: 'bold' },
+  { tag: tags.emphasis,                                       color: '#16a34a', fontStyle: 'italic' },
+  { tag: tags.strong,                                         color: '#1e293b', fontWeight: 'bold' },
+  { tag: [tags.link, tags.url],                               color: '#1d4ed8', textDecoration: 'underline' },
+  { tag: tags.color,                                          color: '#16a34a' },
+  { tag: tags.unit,                                           color: '#c2410c' },
+  { tag: tags.invalid,                                        color: '#dc2626', textDecoration: 'underline wavy' },
 ])
 
 // ── Plain-text token highlight plugin ────────────────────────────────────────
@@ -270,7 +374,10 @@ function buildFilterPlugin(text: string) {
 
 // ── UI themes ─────────────────────────────────────────────────────────────────
 function monoStack(family: string): string {
-  return `'${family}', 'Cascadia Code', 'Fira Code', 'Consolas', monospace`
+  // `ui-monospace` → SF Mono on macOS / Cascadia on Windows: crisp modern fallbacks
+  // so we never drop to the generic (Courier-like) monospace when the chosen
+  // family isn't installed.
+  return `'${family}', ui-monospace, 'SF Mono', 'SFMono-Regular', 'Menlo', 'Cascadia Code', 'Fira Code', 'Consolas', monospace`
 }
 
 function buildNexusDarkTheme(fontSize: number, fontFamily: string) {
@@ -293,6 +400,14 @@ function buildNexusDarkTheme(fontSize: number, fontFamily: string) {
     },
     '.cm-activeLineGutter': { backgroundColor: line, color: 'rgb(var(--c-on-surface-variant))' },
     '.cm-activeLine': { backgroundColor: line },
+    // Code folding arrows — more visible + interactive
+    '.cm-foldGutter span': { color: 'rgb(var(--c-on-surface-variant) / 0.5)', cursor: 'pointer', fontSize: '11px' },
+    '.cm-foldGutter span:hover': { color: 'rgb(var(--c-primary-light))' },
+    // Git diff gutter
+    '.cm-git-gutter': { width: '3px', minWidth: '3px', padding: '0' },
+    '.cm-git-added':   { backgroundColor: '#3fb950', width: '3px', height: '100%' },
+    '.cm-git-changed': { backgroundColor: '#d29922', width: '3px', height: '100%' },
+    '.cm-git-deleted': { backgroundColor: '#f85149', width: '100%', height: '2px', marginTop: 'auto', borderRadius: '1px' },
     '.cm-selectionBackground': { backgroundColor: `${sel} !important` },
     '.cm-focused .cm-selectionBackground': { backgroundColor: `${selFocus} !important` },
     '.cm-cursor': { borderLeftColor: 'rgb(var(--c-primary-light))' },
@@ -372,6 +487,14 @@ function buildNexusLightTheme(fontSize: number, fontFamily: string) {
     '.cm-gutters': { backgroundColor: 'rgb(244 245 249)', borderRight: '1px solid rgb(200 202 216 / 0.5)', color: 'rgb(148 151 168)', minWidth: '44px' },
     '.cm-activeLineGutter': { backgroundColor: 'rgb(236 238 244)' },
     '.cm-activeLine': { backgroundColor: 'rgb(83 71 206 / 0.04)' },
+    // Code folding arrows
+    '.cm-foldGutter span': { color: 'rgb(148 151 168)', cursor: 'pointer', fontSize: '11px' },
+    '.cm-foldGutter span:hover': { color: 'rgb(83 71 206)' },
+    // Git diff gutter
+    '.cm-git-gutter': { width: '3px', minWidth: '3px', padding: '0' },
+    '.cm-git-added':   { backgroundColor: '#2da44e', width: '3px', height: '100%' },
+    '.cm-git-changed': { backgroundColor: '#bf8700', width: '3px', height: '100%' },
+    '.cm-git-deleted': { backgroundColor: '#cf222e', width: '100%', height: '2px', marginTop: 'auto', borderRadius: '1px' },
     '.cm-selectionBackground': { backgroundColor: 'rgb(83 71 206 / 0.12) !important' },
     '.cm-focused .cm-selectionBackground': { backgroundColor: 'rgb(83 71 206 / 0.18) !important' },
     '.cm-cursor': { borderLeftColor: 'rgb(83 71 206)' },
@@ -421,6 +544,93 @@ function buildNexusLightTheme(fontSize: number, fontFamily: string) {
   }, { dark: false })
 }
 
+function buildHttpieDarkTheme(fontSize: number, fontFamily: string) {
+  const bg = '#1a1b26', gutterBg = '#16161e', activeLine = '#1e2030'
+  const sel = 'rgba(122,162,247,0.2)', selFocus = 'rgba(122,162,247,0.28)'
+  const border = 'rgba(89,98,140,0.35)'
+  return EditorView.theme({
+    '&': { height: '100%', backgroundColor: bg },
+    '.cm-scroller': { fontFamily: monoStack(fontFamily), fontSize: `${fontSize}px`, lineHeight: '1.7', color: H.text },
+    '.cm-content': { caretColor: H.text },
+    '.cm-gutters': { backgroundColor: gutterBg, borderRight: `1px solid ${border}`, color: H.comment, minWidth: '44px' },
+    '.cm-activeLineGutter': { backgroundColor: activeLine, color: H.text },
+    '.cm-activeLine': { backgroundColor: activeLine },
+    '.cm-foldGutter span': { color: H.comment, cursor: 'pointer', fontSize: '11px' },
+    '.cm-foldGutter span:hover': { color: H.bracket },
+    '.cm-git-gutter': { width: '3px', minWidth: '3px', padding: '0' },
+    '.cm-git-added':   { backgroundColor: '#9ece6a', width: '3px', height: '100%' },
+    '.cm-git-changed': { backgroundColor: '#e0af68', width: '3px', height: '100%' },
+    '.cm-git-deleted': { backgroundColor: '#f7768e', width: '100%', height: '2px', marginTop: 'auto', borderRadius: '1px' },
+    '.cm-selectionBackground': { backgroundColor: `${sel} !important` },
+    '.cm-focused .cm-selectionBackground': { backgroundColor: `${selFocus} !important` },
+    '.cm-cursor': { borderLeftColor: H.text },
+    '.cm-searchMatch': { backgroundColor: 'rgba(224,175,104,0.2)', outline: '1px solid rgba(224,175,104,0.5)' },
+    '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgba(187,154,247,0.3)' },
+    '.cm-foldPlaceholder': { backgroundColor: gutterBg, border: `1px solid ${border}`, color: H.comment },
+    '.cm-tooltip': { backgroundColor: '#24283b', border: `1px solid ${border}`, color: H.text },
+    '.cm-txt-string': { color: H.string },
+    '.cm-txt-number': { color: H.number },
+    '.cm-txt-bool':   { color: H.keyword },
+    '.cm-txt-url':    { color: H.func, textDecoration: 'underline' },
+    '.cm-ini-section': { color: H.func, fontWeight: 'bold' },
+    '.cm-ini-key':     { color: H.property },
+    '.cm-ini-value':   { color: H.string },
+    '.cm-ini-string':  { color: H.string },
+    '.cm-ini-comment': { color: H.comment, fontStyle: 'italic' },
+    '.cm-panels': { backgroundColor: '#24283b', borderTop: `1px solid ${border}`, color: H.text },
+    '.cm-panels.cm-panels-bottom': { borderTop: `1px solid ${border}`, borderBottom: 'none' },
+    '.cm-search': { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', padding: '8px 12px' },
+    '.cm-search label': { fontSize: '11px', color: H.comment, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' },
+    '.cm-textfield': { backgroundColor: '#16161e', color: H.text, border: `1px solid ${border}`, borderRadius: '7px', padding: '3px 8px', fontSize: '12px', outline: 'none', fontFamily: monoStack(fontFamily) },
+    '.cm-textfield:focus': { borderColor: 'rgba(122,162,247,0.6)', boxShadow: '0 0 0 2px rgba(122,162,247,0.12)' },
+    '.cm-button': { backgroundColor: 'rgba(122,162,247,0.12)', color: H.text, border: `1px solid ${border}`, borderRadius: '7px', padding: '3px 10px', fontSize: '11px', fontWeight: '500', cursor: 'pointer', backgroundImage: 'none' },
+    '.cm-button:hover': { backgroundColor: 'rgba(122,162,247,0.22)' },
+    '.cm-button:active': { backgroundColor: 'rgba(122,162,247,0.32)' },
+  }, { dark: true })
+}
+
+function buildHttpieLightTheme(fontSize: number, fontFamily: string) {
+  return EditorView.theme({
+    '&': { height: '100%', backgroundColor: '#f8f8f0' },
+    '.cm-scroller': { fontFamily: monoStack(fontFamily), fontSize: `${fontSize}px`, lineHeight: '1.7', color: '#1e293b' },
+    '.cm-content': { caretColor: '#1e293b' },
+    '.cm-gutters': { backgroundColor: '#f0f0e8', borderRight: '1px solid rgba(0,0,0,0.08)', color: '#94a3b8', minWidth: '44px' },
+    '.cm-activeLineGutter': { backgroundColor: '#e8e8e0' },
+    '.cm-activeLine': { backgroundColor: 'rgba(0,0,0,0.03)' },
+    '.cm-foldGutter span': { color: '#94a3b8', cursor: 'pointer', fontSize: '11px' },
+    '.cm-foldGutter span:hover': { color: '#0284c7' },
+    '.cm-git-gutter': { width: '3px', minWidth: '3px', padding: '0' },
+    '.cm-git-added':   { backgroundColor: '#16a34a', width: '3px', height: '100%' },
+    '.cm-git-changed': { backgroundColor: '#d97706', width: '3px', height: '100%' },
+    '.cm-git-deleted': { backgroundColor: '#dc2626', width: '100%', height: '2px', marginTop: 'auto', borderRadius: '1px' },
+    '.cm-selectionBackground': { backgroundColor: 'rgba(29,78,216,0.12) !important' },
+    '.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(29,78,216,0.18) !important' },
+    '.cm-cursor': { borderLeftColor: '#1e293b' },
+    '.cm-searchMatch': { backgroundColor: 'rgba(146,64,14,0.12)', outline: '1px solid rgba(146,64,14,0.3)' },
+    '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgba(124,58,237,0.18)' },
+    '.cm-foldPlaceholder': { backgroundColor: '#e8e8e0', border: '1px solid rgba(0,0,0,0.12)', color: '#94a3b8' },
+    '.cm-tooltip': { backgroundColor: '#f0f0e8', border: '1px solid rgba(0,0,0,0.12)', color: '#1e293b' },
+    '.cm-txt-string': { color: '#16a34a' },
+    '.cm-txt-number': { color: '#c2410c' },
+    '.cm-txt-bool':   { color: '#7c3aed' },
+    '.cm-txt-url':    { color: '#1d4ed8', textDecoration: 'underline' },
+    '.cm-ini-section': { color: '#1d4ed8', fontWeight: 'bold' },
+    '.cm-ini-key':     { color: '#92400e' },
+    '.cm-ini-value':   { color: '#16a34a' },
+    '.cm-ini-string':  { color: '#16a34a' },
+    '.cm-ini-comment': { color: '#94a3b8', fontStyle: 'italic' },
+    '.cm-panels': { backgroundColor: '#f0f0e8', borderTop: '1px solid rgba(0,0,0,0.1)', color: '#1e293b' },
+    '.cm-panels.cm-panels-bottom': { borderTop: '1px solid rgba(0,0,0,0.1)', borderBottom: 'none' },
+    '.cm-search': { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', padding: '8px 12px' },
+    '.cm-search label': { fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' },
+    '.cm-textfield': { backgroundColor: '#ffffff', color: '#1e293b', border: '1px solid rgba(0,0,0,0.15)', borderRadius: '7px', padding: '3px 8px', fontSize: '12px', outline: 'none', fontFamily: monoStack(fontFamily) },
+    '.cm-textfield:focus': { borderColor: 'rgba(29,78,216,0.5)', boxShadow: '0 0 0 2px rgba(29,78,216,0.1)' },
+    '.cm-button': { backgroundColor: 'rgba(29,78,216,0.08)', color: '#1d4ed8', border: '1px solid rgba(29,78,216,0.25)', borderRadius: '7px', padding: '3px 10px', fontSize: '11px', fontWeight: '500', cursor: 'pointer', backgroundImage: 'none' },
+    '.cm-button:hover': { backgroundColor: 'rgba(29,78,216,0.15)' },
+    '.cm-button:active': { backgroundColor: 'rgba(29,78,216,0.25)' },
+  }, { dark: false })
+}
+
 // ── Language extensions ───────────────────────────────────────────────────────
 function getLanguageExt(lang: FileLanguage) {
   switch (lang) {
@@ -452,6 +662,9 @@ interface CodeEditorProps {
   initialLine?: number
   fontSize?: number
   fontFamily?: string
+  gitDiff?: GitLineDiff | null
+  minimap?: boolean
+  colorScheme?: EditorColorScheme
   onChange?: (value: string) => void
   onCursorChange?: (line: number, col: number) => void
   onSaveShortcut?: () => void
@@ -462,12 +675,14 @@ interface CodeEditorProps {
 
 export function CodeEditor({
   content, language, isDark, readOnly = false, wordWrap = true,
-  initialLine, fontSize = 11, fontFamily = 'JetBrains Mono',
+  initialLine, fontSize = 13, fontFamily = 'SF Mono', gitDiff = null, minimap = false,
+  colorScheme = 'nexus',
   onChange, onCursorChange, onSaveShortcut, onNewFileShortcut, onRenameShortcut, editorRef,
 }: CodeEditorProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef      = useRef<EditorView | null>(null)
   const filterCompartment = useRef(new Compartment())
+  const gitCompartment = useRef(new Compartment())
   const saveShortcutRef = useRef(onSaveShortcut)
   const newFileShortcutRef = useRef(onNewFileShortcut)
   const renameShortcutRef = useRef(onRenameShortcut)
@@ -493,17 +708,28 @@ export function CodeEditor({
     view.dispatch({ effects: filterCompartment.current.reconfigure(buildFilterPlugin(text)) })
   }, [])
 
+  const openGotoLine = useCallback(() => {
+    const view = viewRef.current
+    if (!view) return
+    view.focus()
+    gotoLine(view)
+  }, [])
+
   useEffect(() => {
-    if (editorRef) editorRef.current = { scrollToBottom, scrollToLine, setFilter }
-  }, [editorRef, scrollToBottom, scrollToLine, setFilter])
+    if (editorRef) editorRef.current = { scrollToBottom, scrollToLine, setFilter, openGotoLine }
+  }, [editorRef, scrollToBottom, scrollToLine, setFilter, openGotoLine])
 
   // Build and mount editor
   useEffect(() => {
     if (!containerRef.current) return
 
-    const themeExts = isDark
-      ? [buildNexusDarkTheme(fontSize, fontFamily), syntaxHighlighting(nexusDarkHighlight)]
-      : [buildNexusLightTheme(fontSize, fontFamily), syntaxHighlighting(nexusLightHighlight)]
+    const themeExts = colorScheme === 'httpie'
+      ? isDark
+        ? [buildHttpieDarkTheme(fontSize, fontFamily), syntaxHighlighting(httpieDarkHighlight)]
+        : [buildHttpieLightTheme(fontSize, fontFamily), syntaxHighlighting(httpieLightHighlight)]
+      : isDark
+        ? [buildNexusDarkTheme(fontSize, fontFamily), syntaxHighlighting(nexusDarkHighlight)]
+        : [buildNexusLightTheme(fontSize, fontFamily), syntaxHighlighting(nexusLightHighlight)]
 
     const listeners = EditorView.updateListener.of((u) => {
       if (u.docChanged && onChange) onChange(u.state.doc.toString())
@@ -527,6 +753,12 @@ export function CodeEditor({
       wordWrap ? EditorView.lineWrapping : [],
       language === 'log' ? [logLineTheme, logColorPlugin] : [],
       filterCompartment.current.of([]),
+      gitCompartment.current.of(buildGitGutter(gitDiff)),
+      minimap ? showMinimap.compute([], () => ({
+        create: () => ({ dom: document.createElement('div') }),
+        displayText: 'blocks',
+        showOverlay: 'always',
+      })) : [],
       EditorState.readOnly.of(readOnly),
       listeners,
     ]
@@ -542,7 +774,12 @@ export function CodeEditor({
 
     return () => { view.destroy(); viewRef.current = null }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language, isDark, readOnly, wordWrap, fontSize, fontFamily])
+  }, [language, isDark, readOnly, wordWrap, fontSize, fontFamily, minimap, colorScheme])
+
+  // Update the git diff gutter without remounting the editor
+  useEffect(() => {
+    viewRef.current?.dispatch({ effects: gitCompartment.current.reconfigure(buildGitGutter(gitDiff)) })
+  }, [gitDiff])
 
   // Patch content without remounting
   useEffect(() => {

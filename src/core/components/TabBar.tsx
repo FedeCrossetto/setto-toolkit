@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Search, X } from 'lucide-react'
+import { Search, X, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
 import { useApp } from '../AppContext'
 import { getPlugin } from '../plugin-registry'
 import { PluginIcon } from '../pluginIcons'
@@ -48,9 +48,10 @@ export function TabBar(): JSX.Element {
       {canScrollLeft && (
         <button
           onClick={() => scrollBy('left')}
+          aria-label="Desplazar pestañas a la izquierda"
           className="flex-shrink-0 mr-1 text-on-surface-variant hover:text-primary transition-colors"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>chevron_left</span>
+          <ChevronLeft size={16} />
         </button>
       )}
 
@@ -64,28 +65,37 @@ export function TabBar(): JSX.Element {
           return (
             <div
               key={tab.tabId}
-              className={`flex items-center gap-1.5 px-4 pb-3 pt-3 text-sm cursor-pointer border-b-2 transition-all duration-200 whitespace-nowrap group ${
+              role="tab"
+              tabIndex={0}
+              aria-selected={active}
+              className={`relative flex items-center gap-1.5 px-3 py-1.5 my-1.5 text-xs cursor-pointer transition-all duration-200 whitespace-nowrap group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 rounded-lg ${
                 active
-                  ? 'text-primary border-primary font-semibold'
-                  : 'text-on-surface-variant border-transparent hover:text-on-surface hover:bg-surface-container'
+                  ? 'text-primary font-semibold bg-primary/10 shadow-sm'
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
               }`}
               onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', tabId: tab.tabId })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  dispatch({ type: 'SET_ACTIVE_TAB', tabId: tab.tabId })
+                }
+              }}
             >
-              <PluginIcon icon={plugin.icon} size={14} />
+              <PluginIcon icon={plugin.icon} size={13} />
               <span>{plugin.name}</span>
               {state.dirtyPlugins[tab.pluginId] && (
-                <span title="Unsaved changes" className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
+                <span title="Sin guardar" className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
               )}
               {state.openTabs.length > 1 && (
                 <button
-                  aria-label={`Close ${plugin.name}`}
-                  className="ml-1 opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error transition-all"
+                  aria-label={`Cerrar ${plugin.name}`}
+                  className="ml-0.5 opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error transition-all"
                   onClick={(e) => {
                     e.stopPropagation()
                     requestClose(tab.tabId, tab.pluginId, plugin.name)
                   }}
                 >
-                  <X size={12} />
+                  <X size={11} />
                 </button>
               )}
             </div>
@@ -97,9 +107,10 @@ export function TabBar(): JSX.Element {
       {canScrollRight && (
         <button
           onClick={() => scrollBy('right')}
+          aria-label="Desplazar pestañas a la derecha"
           className="flex-shrink-0 ml-1 text-on-surface-variant hover:text-primary transition-colors"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>chevron_right</span>
+          <ChevronRight size={16} />
         </button>
       )}
 
@@ -110,8 +121,9 @@ export function TabBar(): JSX.Element {
           className="flex items-center gap-2 bg-surface-container px-3 py-1.5 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:border-primary/40 hover:text-on-surface transition-colors"
         >
           <Search size={14} />
-          <span className="text-xs hidden md:block pr-4">Search tools...</span>
+          <span className="text-xs hidden md:block pr-4">Buscar herramientas...</span>
           <kbd className="text-[10px] bg-surface-container-low px-1.5 py-0.5 rounded border border-outline-variant/30 hidden md:block">⌘K</kbd>
+          <kbd className="text-[10px] bg-surface-container-low px-1.5 py-0.5 rounded border border-outline-variant/30 hidden md:block">/</kbd>
         </button>
       </div>
 
@@ -120,12 +132,12 @@ export function TabBar(): JSX.Element {
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="w-[360px] bg-surface-container border border-outline-variant/30 rounded-2xl shadow-2xl p-5 flex flex-col gap-5">
             <div className="flex items-start gap-3">
-              <span className="material-symbols-outlined text-warning mt-0.5" style={{ fontSize: '20px' }}>warning</span>
+              <AlertTriangle size={20} className="text-warning mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-sm font-semibold text-on-surface">Unsaved changes</p>
+                <p className="text-sm font-semibold text-on-surface">Cambios sin guardar</p>
                 <p className="text-[12px] text-on-surface-variant mt-1">
-                  <span className="font-medium text-on-surface">"{confirmClose.pluginName}"</span> has unsaved files.
-                  Close anyway?
+                  <span className="font-medium text-on-surface">"{confirmClose.pluginName}"</span> tiene archivos sin guardar.
+                  ¿Cerrar de todos modos?
                 </p>
               </div>
             </div>
@@ -134,7 +146,7 @@ export function TabBar(): JSX.Element {
                 onClick={() => setConfirmClose(null)}
                 className="px-3 py-1.5 text-[12px] rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors"
               >
-                Cancel
+                Cancelar
               </button>
               <button
                 onClick={() => {
@@ -143,7 +155,7 @@ export function TabBar(): JSX.Element {
                 }}
                 className="px-3 py-1.5 text-[12px] rounded-lg text-error hover:bg-error/10 border border-error/30 transition-colors"
               >
-                Close anyway
+                Cerrar igualmente
               </button>
             </div>
           </div>

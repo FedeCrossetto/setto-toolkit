@@ -23,6 +23,7 @@ const config: Config = {
         'outline-variant':        'rgb(var(--c-outline-variant) / <alpha-value>)',
         outline:                  'rgb(var(--c-outline) / <alpha-value>)',
         error:                    'rgb(var(--c-error) / <alpha-value>)',
+        warning:                  'rgb(var(--c-warning) / <alpha-value>)',
       },
       fontFamily: {
         sans: ['Inter', 'SF Pro Display', 'system-ui', 'sans-serif'],

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Check, CheckCircle2, ChevronDown, CircleAlert, Download,
   Eye, EyeOff, Lock, Moon, Sun, Upload,
+  Palette, Bot, Plug, Archive, Puzzle, type LucideIcon,
 } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
 import { allPlugins } from '../../core/plugin-registry'
@@ -54,6 +55,15 @@ const SECURE_SET_SENTINEL = '__CONFIGURED__'
 const OPENAI_MODELS = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo']
 const ANTHROPIC_MODELS = ['claude-haiku-4-5-20251001', 'claude-sonnet-4-5-20251001', 'claude-sonnet-4-6', 'claude-opus-4-6']
 type AIProvider = 'openai' | 'anthropic' | 'ollama'
+
+function SectionHeader({ icon: Icon, label, accent = 'text-primary' }: { icon: LucideIcon; label: string; accent?: string }): JSX.Element {
+  return (
+    <h2 className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-widest mb-3 ${accent}`}>
+      <Icon size={14} />
+      {label}
+    </h2>
+  )
+}
 
 function SettingRow({
   label,
@@ -189,8 +199,8 @@ export function SettingsPage(): JSX.Element {
     <div className="p-8 max-w-3xl mx-auto w-full">
       {/* Header */}
       <div className="mb-10">
-        <h1 className="text-2xl font-bold tracking-tight text-on-surface">Settings</h1>
-        <p className="text-on-surface-variant mt-1 text-sm">Configure API keys and workspace preferences.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-on-surface">Ajustes</h1>
+        <p className="text-on-surface-variant mt-1 text-sm">Configurá tus API keys y las preferencias del espacio de trabajo.</p>
       </div>
 
       {/* Encryption warning */}
@@ -206,9 +216,9 @@ export function SettingsPage(): JSX.Element {
 
       {/* Appearance */}
       <section className="mb-8">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Appearance</h2>
+        <SectionHeader icon={Palette} label="Apariencia" />
         <div className="bg-surface rounded-xl border border-outline-variant/20 px-6">
-          <SettingRow label="Theme" description="Choose between light and dark interface.">
+          <SettingRow label="Tema" description="Elegí entre interfaz clara u oscura.">
             <div className="flex gap-2">
               {(['light', 'dark'] as const).map((t) => (
                 <button
@@ -221,13 +231,13 @@ export function SettingsPage(): JSX.Element {
                   }`}
                 >
                   {t === 'light' ? <Sun size={16} /> : <Moon size={16} />}
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                  {t === 'light' ? 'Claro' : 'Oscuro'}
                 </button>
               ))}
             </div>
           </SettingRow>
 
-          <SettingRow label="Font family" description="Global UI font. Takes effect immediately.">
+          <SettingRow label="Tipografía" description="Fuente global de la interfaz. Se aplica al instante.">
             <div className="flex flex-col gap-1.5">
               {APP_FONT_FAMILIES.map((f) => (
                 <button
@@ -249,32 +259,32 @@ export function SettingsPage(): JSX.Element {
             </div>
           </SettingRow>
 
-          <SettingRow label="Font size" description="Scales the entire UI. Default is Normal.">
+          <SettingRow label="Tamaño de fuente" description="Escala toda la interfaz. Por defecto: Normal.">
             <div className="flex gap-2">
               {(Object.keys(APP_FONT_SIZES) as Array<keyof typeof APP_FONT_SIZES>).map((size) => (
                 <button
                   key={size}
                   onClick={() => updateFont({ fontSize: size })}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-all capitalize ${
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-all ${
                     fontPrefs.fontSize === size
                       ? 'bg-primary text-on-primary border-primary'
                       : 'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:border-primary/40'
                   }`}
                 >
-                  {size}
+                  {size === 'small' ? 'Chico' : size === 'large' ? 'Grande' : 'Normal'}
                 </button>
               ))}
             </div>
           </SettingRow>
 
           <SettingRow
-            label="Dashboard mascot"
-            description="Character shown on the dashboard tool cards."
+            label="Mascota del dashboard"
+            description="Personaje que aparece en las tarjetas del dashboard."
           >
             <div className="flex gap-3">
               {([
-                { id: 'panda',        label: 'Panda',        icon: '🐼', hint: 'Default mascot' },
-                { id: 'setto-avatar', label: 'Setto Avatar', icon: '🎭', hint: 'Custom — add PNGs to public/setto-avatar/' },
+                { id: 'panda',        label: 'Panda',        icon: '🐼', hint: 'Mascota por defecto' },
+                { id: 'setto-avatar', label: 'Setto Avatar', icon: '🎭', hint: 'Personalizada — agregá PNGs en public/setto-avatar/' },
               ] as const).map(({ id, label, icon, hint }) => {
                 const active = (settings['dashboard.mascot'] || 'setto-avatar') === id
                 return (
@@ -303,7 +313,7 @@ export function SettingsPage(): JSX.Element {
             </div>
           </SettingRow>
 
-          <SettingRow label="Color palette" description="Changes the primary accent colors across the entire app.">
+          <SettingRow label="Paleta de colores" description="Cambia los colores de acento principales en toda la app.">
             <div className="grid grid-cols-2 gap-2">
               {PALETTES.map((p) => {
                 const active = palette === p.id
@@ -346,11 +356,11 @@ export function SettingsPage(): JSX.Element {
 
       {/* AI Section */}
       <section className="mb-8">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">AI Service</h2>
+        <SectionHeader icon={Bot} label="Servicio de IA" />
         <div className="bg-surface rounded-xl border border-outline-variant/20 px-6">
 
           {/* Provider selector */}
-          <SettingRow label="Provider" description="Which AI service to use for Smart Diff analysis.">
+          <SettingRow label="Proveedor" description="Qué servicio de IA usar para el análisis de Smart Diff.">
             <div className="flex gap-2">
               {(['openai', 'anthropic', 'ollama'] as AIProvider[]).map((p) => (
                 <button
@@ -371,12 +381,12 @@ export function SettingsPage(): JSX.Element {
           {/* OpenAI */}
           {provider === 'openai' && (
             <>
-              <SettingRow label="OpenAI API Key" description="Stored encrypted locally. Never leaves your machine.">
+              <SettingRow label="OpenAI API Key" description="Se guarda cifrada localmente. Nunca sale de tu equipo.">
                 <div className="flex flex-col gap-2">
                   {openAIKeyConfigured && !settings['ai.openai_key'] && (
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/20 text-xs text-accent font-medium">
                       <Lock size={14} />
-                      API key is configured
+                      API key configurada
                     </div>
                   )}
                   <div className="relative">
@@ -384,7 +394,7 @@ export function SettingsPage(): JSX.Element {
                       type={showOpenAIKey ? 'text' : 'password'}
                       value={settings['ai.openai_key']}
                       onChange={(e) => { update('ai.openai_key', e.target.value); if (!e.target.value) setOpenAIKeyConfigured(false) }}
-                      placeholder={openAIKeyConfigured ? 'Enter new key to replace…' : 'sk-…'}
+                      placeholder={openAIKeyConfigured ? 'Ingresá una nueva key para reemplazar…' : 'sk-…'}
                       className={inputCls + ' pr-10'}
                     />
                     <button onClick={() => setShowOpenAIKey((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary">
@@ -397,14 +407,14 @@ export function SettingsPage(): JSX.Element {
                       disabled={keyTest.status === 'loading' || (!settings['ai.openai_key'].trim() && !openAIKeyConfigured)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-outline-variant/30 text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {keyTest.status === 'loading' ? <><span className="inline-block w-3 h-3 border-2 border-primary/40 border-t-primary rounded-full animate-spin" /> Validating…</> : 'Test key'}
+                      {keyTest.status === 'loading' ? <><span className="inline-block w-3 h-3 border-2 border-primary/40 border-t-primary rounded-full animate-spin" /> Validando…</> : 'Probar key'}
                     </button>
-                    {keyTest.status === 'ok' && <span className="flex items-center gap-1 text-xs text-accent"><Check size={12} /> Valid</span>}
-                    {keyTest.status === 'error' && <span className="text-xs text-error">{keyTest.message ?? 'Invalid key'}</span>}
+                    {keyTest.status === 'ok' && <span className="flex items-center gap-1 text-xs text-accent"><Check size={12} /> Válida</span>}
+                    {keyTest.status === 'error' && <span className="text-xs text-error">{keyTest.message ?? 'Key inválida'}</span>}
                   </div>
                 </div>
               </SettingRow>
-              <SettingRow label="Model" description="OpenAI model for completions.">
+              <SettingRow label="Modelo" description="Modelo de OpenAI para las respuestas.">
                 <div className="relative">
                   <select value={settings['ai.model']} onChange={(e) => update('ai.model', e.target.value)} className={inputCls + ' appearance-none pr-8'}>
                     {OPENAI_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
@@ -418,12 +428,12 @@ export function SettingsPage(): JSX.Element {
           {/* Anthropic */}
           {provider === 'anthropic' && (
             <>
-              <SettingRow label="Anthropic API Key" description="Stored encrypted locally. Never leaves your machine.">
+              <SettingRow label="Anthropic API Key" description="Se guarda cifrada localmente. Nunca sale de tu equipo.">
                 <div className="flex flex-col gap-2">
                   {anthropicKeyConfigured && !settings['ai.anthropic_key'] && (
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/20 text-xs text-accent font-medium">
                       <Lock size={14} />
-                      API key is configured
+                      API key configurada
                     </div>
                   )}
                   <div className="relative">
@@ -431,7 +441,7 @@ export function SettingsPage(): JSX.Element {
                       type={showAnthropicKey ? 'text' : 'password'}
                       value={settings['ai.anthropic_key']}
                       onChange={(e) => { update('ai.anthropic_key', e.target.value); if (!e.target.value) setAnthropicKeyConfigured(false) }}
-                      placeholder={anthropicKeyConfigured ? 'Enter new key to replace…' : 'sk-ant-…'}
+                      placeholder={anthropicKeyConfigured ? 'Ingresá una nueva key para reemplazar…' : 'sk-ant-…'}
                       className={inputCls + ' pr-10'}
                     />
                     <button onClick={() => setShowAnthropicKey((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary">
@@ -440,7 +450,7 @@ export function SettingsPage(): JSX.Element {
                   </div>
                 </div>
               </SettingRow>
-              <SettingRow label="Model" description="Anthropic Claude model for completions.">
+              <SettingRow label="Modelo" description="Modelo Claude de Anthropic para las respuestas.">
                 <div className="relative">
                   <select value={settings['ai.anthropic_model']} onChange={(e) => update('ai.anthropic_model', e.target.value)} className={inputCls + ' appearance-none pr-8'}>
                     {ANTHROPIC_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
@@ -454,7 +464,7 @@ export function SettingsPage(): JSX.Element {
           {/* Ollama (local) */}
           {provider === 'ollama' && (
             <>
-              <SettingRow label="Ollama URL" description="Base URL of your local Ollama instance.">
+              <SettingRow label="URL de Ollama" description="URL base de tu instancia local de Ollama.">
                 <input
                   type="text"
                   value={settings['ai.ollama_url']}
@@ -463,7 +473,7 @@ export function SettingsPage(): JSX.Element {
                   className={inputCls}
                 />
               </SettingRow>
-              <SettingRow label="Model" description="Ollama model tag (e.g. llama3, qwen3:14b, mistral).">
+              <SettingRow label="Modelo" description="Tag del modelo de Ollama (ej. llama3, qwen3:14b, mistral).">
                 <input
                   type="text"
                   value={settings['ai.ollama_model']}
@@ -494,7 +504,7 @@ export function SettingsPage(): JSX.Element {
 
       {/* Integrations Section */}
       <section className="mb-8">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-secondary mb-3">Integrations</h2>
+        <SectionHeader icon={Plug} label="Integraciones" accent="text-secondary" />
         <div className="bg-surface rounded-xl border border-outline-variant/20 px-6">
 
           {/* GitHub OAuth App Client ID */}
@@ -502,9 +512,9 @@ export function SettingsPage(): JSX.Element {
             label="GitHub OAuth App — Client ID"
             description={
               <span>
-                Required for Sign in with GitHub (Device Flow).{' '}
+                Necesario para Iniciar sesión con GitHub (Device Flow).{' '}
                 <span className="text-on-surface-variant/60">
-                  github.com → Settings → Developer settings → OAuth Apps → New OAuth App → Enable Device Flow → copy the Client ID.
+                  github.com → Settings → Developer settings → OAuth Apps → New OAuth App → activá Device Flow → copiá el Client ID.
                 </span>
               </span>
             }
@@ -523,9 +533,9 @@ export function SettingsPage(): JSX.Element {
             label="GitLab OAuth Application — Application ID"
             description={
               <span>
-                Required for Sign in with GitLab (Device Flow).{' '}
+                Necesario para Iniciar sesión con GitLab (Device Flow).{' '}
                 <span className="text-on-surface-variant/60">
-                  gitlab.com → Preferences → Applications → New application → Scope: read_api → Enable Device Authorization Grant → copy the Application ID.
+                  gitlab.com → Preferences → Applications → New application → Scope: read_api → activá Device Authorization Grant → copiá el Application ID.
                 </span>
               </span>
             }
@@ -540,7 +550,7 @@ export function SettingsPage(): JSX.Element {
           </SettingRow>
 
           {/* Bitbucket default workspace */}
-          <SettingRow label="Bitbucket — Default Workspace" description="Default workspace slug for Bitbucket searches.">
+          <SettingRow label="Bitbucket — Workspace por defecto" description="Slug del workspace por defecto para las búsquedas en Bitbucket.">
             <input
               type="text"
               value={settings['bitbucket.workspace']}
@@ -555,49 +565,49 @@ export function SettingsPage(): JSX.Element {
 
       {/* Backup / Restore */}
       <section className="mb-8">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Backup &amp; Restore</h2>
+        <SectionHeader icon={Archive} label="Copia y restauración" />
         <div className="bg-surface rounded-xl border border-outline-variant/20 px-6">
           <SettingRow
-            label="Export Settings"
-            description="Save non-sensitive settings (models, workspace, aliases) to a JSON file. API keys are never exported."
+            label="Exportar ajustes"
+            description="Guarda los ajustes no sensibles (modelos, workspace, alias) en un archivo JSON. Las API keys nunca se exportan."
           >
             <button
               onClick={async () => {
                 try {
                   const res = await window.api.invoke<{ ok: boolean; canceled?: boolean }>('settings:export')
-                  if (!res.canceled) setImportMsg({ ok: true, text: 'Settings exported.' })
+                  if (!res.canceled) setImportMsg({ ok: true, text: 'Ajustes exportados.' })
                 } catch (e) {
-                  setImportMsg({ ok: false, text: e instanceof Error ? e.message : 'Export failed' })
+                  setImportMsg({ ok: false, text: e instanceof Error ? e.message : 'Falló la exportación' })
                 }
                 setTimeout(() => setImportMsg(null), 3000)
               }}
               className="w-full flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-lg border border-outline-variant/30 text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors"
             >
               <Download size={16} />
-              Export JSON
+              Exportar JSON
             </button>
           </SettingRow>
 
           <SettingRow
-            label="Import Settings"
-            description="Load settings from a previously exported JSON file. Existing values will be overwritten."
+            label="Importar ajustes"
+            description="Carga los ajustes desde un JSON exportado previamente. Los valores actuales se sobrescriben."
           >
             <button
               onClick={async () => {
                 try {
                   const res = await window.api.invoke<{ ok: boolean; canceled?: boolean; count?: number }>('settings:import')
                   if (!res.canceled) {
-                    setImportMsg({ ok: true, text: `Imported ${res.count ?? 0} setting(s). Reload to apply.` })
+                    setImportMsg({ ok: true, text: `Se importaron ${res.count ?? 0} ajuste(s). Recargá para aplicar.` })
                   }
                 } catch (e) {
-                  setImportMsg({ ok: false, text: e instanceof Error ? e.message : 'Import failed' })
+                  setImportMsg({ ok: false, text: e instanceof Error ? e.message : 'Falló la importación' })
                 }
                 setTimeout(() => setImportMsg(null), 4000)
               }}
               className="w-full flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-lg border border-outline-variant/30 text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors"
             >
               <Upload size={16} />
-              Import JSON
+              Importar JSON
             </button>
           </SettingRow>
 
@@ -612,8 +622,8 @@ export function SettingsPage(): JSX.Element {
 
       {/* Modules */}
       <section className="mb-8">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-primary mb-1">Modules</h2>
-        <p className="text-xs text-on-surface-variant mb-3">Enable or disable plugins. Disabled modules are hidden from the sidebar.</p>
+        <SectionHeader icon={Puzzle} label="Módulos" />
+        <p className="text-xs text-on-surface-variant -mt-1 mb-3">Activá o desactivá plugins. Los módulos desactivados se ocultan de la barra lateral.</p>
         <div className="grid grid-cols-1 gap-2">
           {allPlugins.map((plugin) => {
             const locked   = ['dashboard', 'settings', 'about'].includes(plugin.id)
@@ -640,7 +650,7 @@ export function SettingsPage(): JSX.Element {
                 </div>
                 {locked ? (
                   <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-2 py-1 rounded-full border border-outline-variant/20 flex-shrink-0">
-                    Always on
+                    Siempre activo
                   </span>
                 ) : (
                   <Toggle
@@ -661,12 +671,12 @@ export function SettingsPage(): JSX.Element {
           className="px-6 py-2.5 rounded-lg text-sm font-semibold text-on-primary transition-all hover:opacity-90 active:scale-95"
           style={{ background: 'var(--gradient-brand)' }}
         >
-          Save Settings
+          Guardar ajustes
         </button>
         {saved && (
           <div className="flex items-center gap-2 text-accent text-sm font-medium">
             <CheckCircle2 size={16} />
-            Saved
+            Guardado
           </div>
         )}
       </div>

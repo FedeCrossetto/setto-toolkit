@@ -29,7 +29,12 @@ export default defineConfig(({ mode }) => {
       lib: {
         entry: './electron/main.ts'
       },
-      rollupOptions: {}
+      rollupOptions: {
+        // `ws` is bundled (see exclude above), but it optionally requires these
+        // native add-ons. They are not installed and `ws` falls back to pure JS,
+        // so mark them external to stop Rollup from trying to resolve them.
+        external: ['bufferutil', 'utf-8-validate']
+      }
     }
   },
   preload: {

@@ -14,6 +14,7 @@ import type { Servicio, PagoMensual, Credencial, QueryItem } from './types'
 import { buildHistoricoPagos, mergeHistoricoFaltante, mergePagosImport } from './historico-import'
 import { useToast } from '../../core/components/Toast'
 import { EmptyState } from '../../core/components/EmptyState'
+import { SegmentedControl } from '../../core/components/SegmentedControl'
 
 // ── Icon registry ─────────────────────────────────────────────────────────────
 
@@ -2213,7 +2214,12 @@ export function GastosPlugin() {
       const qs = await window.api.invoke<QueryItem[]>('queries:load')
       setQueries((qs ?? []).sort((a, b) => a.orden - b.orden))
     } catch (e) {
-      setError(String(e))
+      const raw = String(e)
+      // Clean up Electron's verbose "Error invoking remote method '…'" wrapper.
+      const friendly = /fetch failed|ENOTFOUND|ECONNREFUSED|network/i.test(raw)
+        ? 'No se pudo conectar con el servidor de datos. Revisá tu conexión o la configuración de Supabase.'
+        : raw.replace(/^Error: Error invoking remote method '[^']+':\s*/i, '').replace(/^Error:\s*/i, '')
+      setError(friendly)
     } finally {
       setLoading(false)
     }
@@ -2437,26 +2443,25 @@ export function GastosPlugin() {
 
       {/* Error banner */}
       {error && (
-        <div className="absolute top-0 left-0 right-0 z-50 flex items-center gap-2 px-4 py-2 bg-error/10 border-b border-error/30 text-error text-xs">
-          <span className="flex-1">{error}</span>
-          <button onClick={() => setError(null)} className="hover:opacity-70"><X size={13} /></button>
+        <div className="shrink-0 flex items-start gap-2.5 mx-3 mt-3 px-3.5 py-2.5 rounded-xl bg-error/10 border border-error/30 text-error text-xs">
+          <CircleAlert size={15} className="flex-shrink-0 mt-px" />
+          <span className="flex-1 leading-snug break-words">{error}</span>
+          <button onClick={() => setError(null)} aria-label="Cerrar" className="flex-shrink-0 hover:opacity-70 transition-opacity"><X size={13} /></button>
         </div>
       )}
 
       {/* ── Board tabs ──────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-0 px-4 pt-2 border-b border-outline-variant/20 shrink-0">
-        {BOARDS.map((b) => (
-          <button key={b.id} onClick={() => { setActiveBoard(b.id); setPanel({ type: 'closed' }) }}
-            className={[
-              'px-4 py-2 text-sm font-medium border-b-2 transition-colors',
-              activeBoard === b.id
-                ? 'border-primary text-primary'
-                : 'border-transparent text-on-surface-variant hover:text-on-surface',
-            ].join(' ')}>
-            {b.label}
-          </button>
-        ))}
-        <div className="ml-auto pb-1 flex items-center gap-2">
+      <div className="flex items-center gap-0 px-4 py-2 border-b border-outline-variant/20 shrink-0">
+        <SegmentedControl
+          options={BOARDS.map((b) => ({
+            value: b.id,
+            label: b.label,
+            count: b.id === 'gastos' ? servicios.length : b.id === 'credenciales' ? credenciales.length : queries.length,
+          }))}
+          value={activeBoard}
+          onChange={(id) => { setActiveBoard(id); setPanel({ type: 'closed' }) }}
+        />
+        <div className="ml-auto flex items-center gap-2">
           {storageStatus && (
             <span
               className={[

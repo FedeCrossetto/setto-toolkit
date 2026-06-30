@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Check, ChevronDown, ChevronRight, CircleAlert, Eye, EyeOff, Lock, Unlink } from 'lucide-react'
+import { StatusPill, type StatusTone } from '../../core/components/StatusPill'
 
 // ── Brand SVG logos ────────────────────────────────────────────────────────────
 
@@ -88,27 +89,16 @@ type Status = 'connected' | 'partial' | 'disconnected' | 'loading'
 const inputCls =
   'w-full bg-surface-container border border-outline-variant/25 rounded-lg px-3 py-2 text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary/40 transition-colors'
 
-function StatusDot({ status }: { status: Status }): JSX.Element {
-  if (status === 'loading') {
-    return <span className="inline-block w-2 h-2 rounded-full bg-outline-variant/50 animate-pulse" />
-  }
-  const cls: Record<Exclude<Status, 'loading'>, string> = {
-    connected:    'bg-emerald-500',
-    partial:      'bg-amber-400',
-    disconnected: 'bg-outline-variant/40',
-  }
-  return <span className={`inline-block w-2 h-2 rounded-full ${cls[status]}`} />
+const STATUS_PILL: Record<Status, { tone: StatusTone; label: string; pulse?: boolean }> = {
+  loading:      { tone: 'neutral', label: 'Verificando…', pulse: true },
+  connected:    { tone: 'success', label: 'Conectado' },
+  partial:      { tone: 'warning', label: 'Incompleto' },
+  disconnected: { tone: 'neutral', label: 'Sin configurar' },
 }
 
-function StatusLabel({ status }: { status: Status }): JSX.Element {
-  const map: Record<Status, { text: string; cls: string }> = {
-    loading:      { text: 'Checking…',     cls: 'text-on-surface-variant/50' },
-    connected:    { text: 'Connected',     cls: 'text-emerald-500' },
-    partial:      { text: 'Incomplete',    cls: 'text-amber-400' },
-    disconnected: { text: 'Not set up',    cls: 'text-on-surface-variant/40' },
-  }
-  const { text, cls } = map[status]
-  return <span className={`text-xs font-medium ${cls}`}>{text}</span>
+function ConnStatus({ status }: { status: Status }): JSX.Element {
+  const s = STATUS_PILL[status]
+  return <StatusPill tone={s.tone} label={s.label} pulse={s.pulse} />
 }
 
 function PasswordInput({
@@ -122,7 +112,7 @@ function PasswordInput({
       {configured && !value && (
         <div className="flex items-center gap-1.5 text-xs text-on-surface-variant/60 font-medium">
           <Lock size={12} />
-          Already configured — enter a new value to replace
+          Ya configurado — ingresá un valor nuevo para reemplazar
         </div>
       )}
       <div className="relative">
@@ -159,10 +149,10 @@ function SaveButton({ onClick, saving, saved }: { onClick: () => void; saving: b
       ].join(' ')}
     >
       {saving
-        ? <><span className="inline-block w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />Saving…</>
+        ? <><span className="inline-block w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />Guardando…</>
         : saved
-          ? <><Check size={13} />Saved</>
-          : 'Save'}
+          ? <><Check size={13} />Guardado</>
+          : 'Guardar'}
     </button>
   )
 }
@@ -180,7 +170,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 function HowToBox({ steps }: { steps: Array<{ title: string; detail?: string | JSX.Element }> }): JSX.Element {
   return (
     <div className="rounded-xl border border-outline-variant/20 bg-surface-container/40 p-4">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-3">How to get credentials</p>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-3">Cómo obtener las credenciales</p>
       <ol className="space-y-3">
         {steps.map((s, i) => (
           <li key={i} className="flex gap-3 text-xs text-on-surface-variant/70 leading-relaxed">
@@ -232,10 +222,7 @@ function Section({
 
         {/* Status + chevron */}
         <div className="flex items-center gap-3 flex-shrink-0">
-          <div className="flex items-center gap-1.5">
-            <StatusDot status={status} />
-            <StatusLabel status={status} />
-          </div>
+          <ConnStatus status={status} />
           {open
             ? <ChevronDown size={15} className="text-on-surface-variant/40" />
             : <ChevronRight size={15} className="text-on-surface-variant/40" />}
@@ -282,11 +269,11 @@ function AIOpenAISection({ open, onToggle }: { open: boolean; onToggle: (id: str
   }
 
   return (
-    <Section id="openai" title="OpenAI" subtitle="GPT models for Smart Diff analysis" Logo={LogoOpenAI} status={status} open={open} onToggle={onToggle}>
+    <Section id="openai" title="OpenAI" subtitle="Modelos GPT para el análisis de Smart Diff" Logo={LogoOpenAI} status={status} open={open} onToggle={onToggle}>
       <HowToBox steps={[
-        { title: 'Go to platform.openai.com', detail: 'Sign in or create an account.' },
-        { title: 'Open API keys', detail: 'Top-right menu → API keys → Create new secret key.' },
-        { title: 'Paste below', detail: 'The key starts with sk-… and is only shown once.' },
+        { title: 'Andá a platform.openai.com', detail: 'Iniciá sesión o creá una cuenta.' },
+        { title: 'Abrí API keys', detail: 'Menú arriba a la derecha → API keys → Create new secret key.' },
+        { title: 'Pegala abajo', detail: 'La key empieza con sk-… y solo se muestra una vez.' },
       ]} />
       <Field label="API Key">
         <PasswordInput value={key} onChange={setKey} placeholder="sk-…" configured={configured} />
@@ -326,11 +313,11 @@ function AIAnthropicSection({ open, onToggle }: { open: boolean; onToggle: (id: 
   }
 
   return (
-    <Section id="anthropic" title="Anthropic" subtitle="Claude models for Smart Diff analysis" Logo={LogoAnthropic} status={status} open={open} onToggle={onToggle}>
+    <Section id="anthropic" title="Anthropic" subtitle="Modelos Claude para el análisis de Smart Diff" Logo={LogoAnthropic} status={status} open={open} onToggle={onToggle}>
       <HowToBox steps={[
-        { title: 'Go to console.anthropic.com', detail: 'Sign in or create an account.' },
-        { title: 'Open API Keys', detail: 'Left sidebar → API Keys → Create Key.' },
-        { title: 'Paste below', detail: 'The key starts with sk-ant-…' },
+        { title: 'Andá a console.anthropic.com', detail: 'Iniciá sesión o creá una cuenta.' },
+        { title: 'Abrí API Keys', detail: 'Barra lateral izquierda → API Keys → Create Key.' },
+        { title: 'Pegala abajo', detail: 'La key empieza con sk-ant-…' },
       ]} />
       <Field label="API Key">
         <PasswordInput value={key} onChange={setKey} placeholder="sk-ant-…" configured={configured} />
@@ -373,16 +360,16 @@ function AILocalSection({ open, onToggle }: { open: boolean; onToggle: (id: stri
   }
 
   return (
-    <Section id="ollama" title="Ollama (Local)" subtitle="Run AI models locally — no API key needed" Logo={LogoOllama} status={status} open={open} onToggle={onToggle}>
+    <Section id="ollama" title="Ollama (Local)" subtitle="Ejecutá modelos de IA localmente — sin API key" Logo={LogoOllama} status={status} open={open} onToggle={onToggle}>
       <HowToBox steps={[
-        { title: 'Install Ollama', detail: 'Download from ollama.com and run it. It starts a local server automatically.' },
-        { title: 'Pull a model', detail: 'Run: ollama pull llama3 (or qwen3:14b, mistral, etc.) in your terminal.' },
-        { title: 'Configure below', detail: 'Default URL is http://localhost:11434. Enter the model name you pulled.' },
+        { title: 'Instalá Ollama', detail: 'Descargalo de ollama.com y ejecutalo. Levanta un servidor local automáticamente.' },
+        { title: 'Descargá un modelo', detail: 'Ejecutá: ollama pull llama3 (o qwen3:14b, mistral, etc.) en tu terminal.' },
+        { title: 'Configurá abajo', detail: 'La URL por defecto es http://localhost:11434. Ingresá el nombre del modelo que descargaste.' },
       ]} />
-      <Field label="Server URL">
+      <Field label="URL del servidor">
         <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:11434" className={inputCls} />
       </Field>
-      <Field label="Model">
+      <Field label="Modelo">
         <input type="text" value={model} onChange={(e) => setModel(e.target.value)} placeholder="llama3" className={inputCls} />
       </Field>
       <div className="flex justify-end">
@@ -442,11 +429,11 @@ function GitHubSection({ open, onToggle }: { open: boolean; onToggle: (id: strin
   }
 
   return (
-    <Section id="github" title="GitHub" subtitle="Search code across your repositories and organizations" Logo={LogoGitHub} status={status} open={open} onToggle={onToggle}>
+    <Section id="github" title="GitHub" subtitle="Buscá código en tus repositorios y organizaciones" Logo={LogoGitHub} status={status} open={open} onToggle={onToggle}>
       <HowToBox steps={[
-        { title: 'Create a GitHub OAuth App', detail: 'github.com → Settings → Developer settings → OAuth Apps → New OAuth App.' },
-        { title: 'Enable Device Flow', detail: 'Check the "Enable Device Flow" checkbox. The redirect URI can be anything.' },
-        { title: 'Copy the Client ID', detail: 'Paste it below and save. Then click "Sign in with GitHub".' },
+        { title: 'Creá una OAuth App en GitHub', detail: 'github.com → Settings → Developer settings → OAuth Apps → New OAuth App.' },
+        { title: 'Activá Device Flow', detail: 'Marcá la casilla "Enable Device Flow". La redirect URI puede ser cualquiera.' },
+        { title: 'Copiá el Client ID', detail: 'Pegalo abajo y guardá. Después clic en "Iniciar sesión con GitHub".' },
       ]} />
 
       <Field label="OAuth App — Client ID">
@@ -455,24 +442,24 @@ function GitHubSection({ open, onToggle }: { open: boolean; onToggle: (id: strin
 
       {oauthStep && (
         <div className="rounded-xl border border-outline-variant/30 bg-surface-container p-4 space-y-3">
-          <p className="text-xs font-semibold text-on-surface">Authorize in your browser</p>
+          <p className="text-xs font-semibold text-on-surface">Autorizá en tu navegador</p>
           <p className="text-xs text-on-surface-variant/60">
-            Go to <span className="font-mono text-on-surface">{oauthStep.verification_uri}</span> and enter:
+            Andá a <span className="font-mono text-on-surface">{oauthStep.verification_uri}</span> e ingresá:
           </p>
           <p className="font-mono text-xl font-bold tracking-widest text-on-surface">{oauthStep.user_code}</p>
           <div className="flex items-center gap-2 text-xs text-on-surface-variant/50">
             <span className="inline-block w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />
-            Waiting for authorization…
+            Esperando autorización…
           </div>
         </div>
       )}
 
       {authInfo?.authenticated && (
         <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-outline-variant/20 bg-surface-container/40">
-          <span className="text-xs text-on-surface-variant/60">Signed in as</span>
+          <span className="text-xs text-on-surface-variant/60">Sesión iniciada como</span>
           <span className="text-sm font-semibold text-on-surface flex-1">{authInfo.username}</span>
           <button onClick={() => void logout()} className="flex items-center gap-1 text-xs text-on-surface-variant/40 hover:text-error transition-colors">
-            <Unlink size={12} />Disconnect
+            <Unlink size={12} />Desconectar
           </button>
         </div>
       )}
@@ -484,7 +471,7 @@ function GitHubSection({ open, onToggle }: { open: boolean; onToggle: (id: strin
             disabled={!clientId.trim() || polling}
             className="text-xs font-semibold text-primary hover:underline disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
           >
-            {polling ? 'Waiting for authorization…' : 'Sign in with GitHub →'}
+            {polling ? 'Esperando autorización…' : 'Iniciar sesión con GitHub →'}
           </button>
         ) : <span />}
         <SaveButton onClick={() => void save()} saving={saving} saved={saved} />
@@ -543,11 +530,11 @@ function GitLabSection({ open, onToggle }: { open: boolean; onToggle: (id: strin
   }
 
   return (
-    <Section id="gitlab" title="GitLab" subtitle="Search code across your GitLab projects and groups" Logo={LogoGitLab} status={status} open={open} onToggle={onToggle}>
+    <Section id="gitlab" title="GitLab" subtitle="Buscá código en tus proyectos y grupos de GitLab" Logo={LogoGitLab} status={status} open={open} onToggle={onToggle}>
       <HowToBox steps={[
-        { title: 'Create a GitLab Application', detail: 'gitlab.com → Avatar → Preferences → Applications → New application.' },
-        { title: 'Configure scopes', detail: 'Scopes: read_api. Enable "Device Authorization Grant". Redirect URI can be left empty.' },
-        { title: 'Copy the Application ID', detail: 'Paste it below, save, then click "Sign in with GitLab".' },
+        { title: 'Creá una Application en GitLab', detail: 'gitlab.com → Avatar → Preferences → Applications → New application.' },
+        { title: 'Configurá los scopes', detail: 'Scopes: read_api. Activá "Device Authorization Grant". La redirect URI puede quedar vacía.' },
+        { title: 'Copiá el Application ID', detail: 'Pegalo abajo, guardá y después clic en "Iniciar sesión con GitLab".' },
       ]} />
 
       <Field label="OAuth Application — Application ID">
@@ -556,24 +543,24 @@ function GitLabSection({ open, onToggle }: { open: boolean; onToggle: (id: strin
 
       {oauthStep && (
         <div className="rounded-xl border border-outline-variant/30 bg-surface-container p-4 space-y-3">
-          <p className="text-xs font-semibold text-on-surface">Authorize in your browser</p>
+          <p className="text-xs font-semibold text-on-surface">Autorizá en tu navegador</p>
           <p className="text-xs text-on-surface-variant/60">
-            Go to <span className="font-mono text-on-surface">{oauthStep.verification_uri}</span> and enter:
+            Andá a <span className="font-mono text-on-surface">{oauthStep.verification_uri}</span> e ingresá:
           </p>
           <p className="font-mono text-xl font-bold tracking-widest text-on-surface">{oauthStep.user_code}</p>
           <div className="flex items-center gap-2 text-xs text-on-surface-variant/50">
             <span className="inline-block w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />
-            Waiting for authorization…
+            Esperando autorización…
           </div>
         </div>
       )}
 
       {authInfo?.authenticated && (
         <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-outline-variant/20 bg-surface-container/40">
-          <span className="text-xs text-on-surface-variant/60">Signed in as</span>
+          <span className="text-xs text-on-surface-variant/60">Sesión iniciada como</span>
           <span className="text-sm font-semibold text-on-surface flex-1">{authInfo.username}</span>
           <button onClick={() => void logout()} className="flex items-center gap-1 text-xs text-on-surface-variant/40 hover:text-error transition-colors">
-            <Unlink size={12} />Disconnect
+            <Unlink size={12} />Desconectar
           </button>
         </div>
       )}
@@ -585,7 +572,7 @@ function GitLabSection({ open, onToggle }: { open: boolean; onToggle: (id: strin
             disabled={!clientId.trim() || polling}
             className="text-xs font-semibold text-primary hover:underline disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
           >
-            {polling ? 'Waiting for authorization…' : 'Sign in with GitLab →'}
+            {polling ? 'Esperando autorización…' : 'Iniciar sesión con GitLab →'}
           </button>
         ) : <span />}
         <SaveButton onClick={() => void save()} saving={saving} saved={saved} />
@@ -640,10 +627,10 @@ function BitbucketSection({ open, onToggle }: { open: boolean; onToggle: (id: st
         setTimeout(() => setSaved(false), 2500)
         await load()
       } else {
-        setError(result.error ?? 'Authentication failed')
+        setError(result.error ?? 'Falló la autenticación')
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Authentication failed — check your credentials and try again')
+      setError(e instanceof Error ? e.message : 'Falló la autenticación — revisá tus credenciales e intentá de nuevo')
     } finally {
       setSaving(false)
     }
@@ -655,62 +642,62 @@ function BitbucketSection({ open, onToggle }: { open: boolean; onToggle: (id: st
   }
 
   return (
-    <Section id="bitbucket" title="Bitbucket" subtitle="Search code in Bitbucket repositories" Logo={LogoBitbucket} status={status} open={open} onToggle={onToggle}>
+    <Section id="bitbucket" title="Bitbucket" subtitle="Buscá código en repositorios de Bitbucket" Logo={LogoBitbucket} status={status} open={open} onToggle={onToggle}>
 
       {/* Token type notice */}
       <div className="rounded-xl border border-outline-variant/20 bg-surface-container/40 p-4 space-y-3">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Which token do I need?</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">¿Qué token necesito?</p>
         <div className="space-y-2 text-xs text-on-surface-variant/70 leading-relaxed">
           <p>
-            <span className="font-semibold text-on-surface/80">Atlassian API token scoped to Bitbucket</span>
-            {' '}(recommended) — starts with <span className="font-mono bg-surface-container px-1 rounded">ATATT…</span>.
-            Create at <span className="font-mono text-on-surface/60">id.atlassian.com → Security → API tokens</span>.
-            Select <span className="font-semibold">Bitbucket</span> as the app, then check scopes: <span className="font-mono">Account → Read</span> and <span className="font-mono">Repositories → Read</span>.
-            Use your <span className="font-semibold">Atlassian email</span> as the username.
+            <span className="font-semibold text-on-surface/80">API token de Atlassian con scope de Bitbucket</span>
+            {' '}(recomendado) — empieza con <span className="font-mono bg-surface-container px-1 rounded">ATATT…</span>.
+            Crealo en <span className="font-mono text-on-surface/60">id.atlassian.com → Security → API tokens</span>.
+            Elegí <span className="font-semibold">Bitbucket</span> como app y marcá los scopes: <span className="font-mono">Account → Read</span> y <span className="font-mono">Repositories → Read</span>.
+            Usá tu <span className="font-semibold">email de Atlassian</span> como usuario.
           </p>
           <p>
-            <span className="font-semibold text-on-surface/80">Workspace/Repository Access Token</span>
-            {' '}— starts with <span className="font-mono bg-surface-container px-1 rounded">ATCTT…</span>.
-            Create at <span className="font-mono text-on-surface/60">bitbucket.org → Workspace Settings → Access tokens</span>. Scopes: <span className="font-mono">repository:read</span>. No username needed.
+            <span className="font-semibold text-on-surface/80">Access Token de Workspace/Repositorio</span>
+            {' '}— empieza con <span className="font-mono bg-surface-container px-1 rounded">ATCTT…</span>.
+            Crealo en <span className="font-mono text-on-surface/60">bitbucket.org → Workspace Settings → Access tokens</span>. Scopes: <span className="font-mono">repository:read</span>. No necesita usuario.
           </p>
           <p>
             <span className="font-semibold text-on-surface/80">App Password</span>
-            {' '}(legacy, deprecated Sep 2025) — starts with <span className="font-mono bg-surface-container px-1 rounded">ATBB…</span>.
-            Use your Bitbucket <span className="font-semibold">username</span> (not email).
+            {' '}(legacy, discontinuado en sep. 2025) — empieza con <span className="font-mono bg-surface-container px-1 rounded">ATBB…</span>.
+            Usá tu <span className="font-semibold">usuario</span> de Bitbucket (no el email).
           </p>
         </div>
       </div>
 
       {authInfo?.authenticated ? (
         <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-outline-variant/20 bg-surface-container/40">
-          <span className="text-xs text-on-surface-variant/60">Signed in as</span>
+          <span className="text-xs text-on-surface-variant/60">Sesión iniciada como</span>
           <span className="text-sm font-semibold text-on-surface flex-1">{authInfo.username}</span>
           {authInfo.workspace && <span className="text-xs text-on-surface-variant/50">· {authInfo.workspace}</span>}
           <button onClick={() => void logout()} className="flex items-center gap-1 text-xs text-on-surface-variant/40 hover:text-error transition-colors">
-            <Unlink size={12} />Disconnect
+            <Unlink size={12} />Desconectar
           </button>
         </div>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3">
             <Field
-              label={isBearer ? 'Username (optional)' : 'Username / Email'}
-              hint={isBearer ? 'Not required for Workspace/Repo tokens (ATCTT)' : 'Use your Atlassian email for ATATT tokens, or your Bitbucket username for ATBB App Passwords'}
+              label={isBearer ? 'Usuario (opcional)' : 'Usuario / Email'}
+              hint={isBearer ? 'No requerido para tokens de Workspace/Repo (ATCTT)' : 'Usá tu email de Atlassian para tokens ATATT, o tu usuario de Bitbucket para App Passwords ATBB'}
             >
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder={isBearer ? 'optional' : 'you@company.com'}
+                placeholder={isBearer ? 'opcional' : 'vos@empresa.com'}
                 className={inputCls}
               />
             </Field>
-            <Field label="Workspace slug" hint="The slug from your repo URLs">
+            <Field label="Slug del workspace" hint="El slug que aparece en las URLs de tus repos">
               <input type="text" value={workspace} onChange={(e) => setWorkspace(e.target.value)} placeholder="my-workspace" className={inputCls} />
             </Field>
           </div>
           <Field label="Access Token">
-            <PasswordInput value={token} onChange={setToken} placeholder="ATCTT… or ATBB…" />
+            <PasswordInput value={token} onChange={setToken} placeholder="ATCTT… o ATBB…" />
           </Field>
 
           {error && (
@@ -731,9 +718,9 @@ function BitbucketSection({ open, onToggle }: { open: boolean; onToggle: (id: st
                 'disabled:opacity-40 disabled:cursor-not-allowed',
               ].join(' ')}
             >
-              {saving ? <><span className="inline-block w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />Connecting…</>
-                : saved ? <><Check size={13} />Connected</>
-                : 'Connect'}
+              {saving ? <><span className="inline-block w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />Conectando…</>
+                : saved ? <><Check size={13} />Conectado</>
+                : 'Conectar'}
             </button>
           </div>
         </>
@@ -786,25 +773,25 @@ function NotionSection({ open, onToggle }: { open: boolean; onToggle: (id: strin
   }
 
   return (
-    <Section id="notion" title="Notion" subtitle="Sync expenses, credentials and queries with your Notion workspace" Logo={LogoNotion} status={status} open={open} onToggle={onToggle}>
+    <Section id="notion" title="Notion" subtitle="Sincronizá gastos, credenciales y queries con tu workspace de Notion" Logo={LogoNotion} status={status} open={open} onToggle={onToggle}>
       <HowToBox steps={[
-        { title: 'Create a Notion integration', detail: 'notion.so/my-integrations → New integration → Internal. Copy the token (ntn_… or secret_…).' },
-        { title: 'Share databases with it', detail: 'Open each database → ••• menu → Connections → add your integration.' },
-        { title: 'Copy each Database ID', detail: 'Found in the URL: notion.so/…/<Title>-<32-char-ID>. You can also paste the full URL.' },
+        { title: 'Creá una integración en Notion', detail: 'notion.so/my-integrations → New integration → Internal. Copiá el token (ntn_… o secret_…).' },
+        { title: 'Compartí las bases con ella', detail: 'Abrí cada base → menú ••• → Connections → agregá tu integración.' },
+        { title: 'Copiá cada Database ID', detail: 'Está en la URL: notion.so/…/<Título>-<ID-de-32-caracteres>. También podés pegar la URL completa.' },
       ]} />
 
-      <Field label="Integration Token">
-        <PasswordInput value={token} onChange={setToken} placeholder="ntn_… or secret_…" configured={Boolean(token)} />
+      <Field label="Token de la integración">
+        <PasswordInput value={token} onChange={setToken} placeholder="ntn_… o secret_…" configured={Boolean(token)} />
       </Field>
       <div className="grid grid-cols-1 gap-3">
-        <Field label="Expenses DB (Gastos)" hint="The database where your monthly expenses are stored">
-          <input type="text" value={gastosDbId} onChange={(e) => setGastosDbId(e.target.value)} placeholder="32-char ID or full Notion URL" className={inputCls} />
+        <Field label="Base de Gastos" hint="La base donde se guardan tus gastos mensuales">
+          <input type="text" value={gastosDbId} onChange={(e) => setGastosDbId(e.target.value)} placeholder="ID de 32 caracteres o URL completa de Notion" className={inputCls} />
         </Field>
-        <Field label="Credentials DB (Credenciales)" hint="The database where your saved credentials live">
-          <input type="text" value={credencialesDbId} onChange={(e) => setCredencialesDbId(e.target.value)} placeholder="32-char ID or full Notion URL" className={inputCls} />
+        <Field label="Base de Credenciales" hint="La base donde viven tus credenciales guardadas">
+          <input type="text" value={credencialesDbId} onChange={(e) => setCredencialesDbId(e.target.value)} placeholder="ID de 32 caracteres o URL completa de Notion" className={inputCls} />
         </Field>
-        <Field label="Queries DB" hint="The database used by the Queries module">
-          <input type="text" value={queriesDbId} onChange={(e) => setQueriesDbId(e.target.value)} placeholder="32-char ID or full Notion URL" className={inputCls} />
+        <Field label="Base de Queries" hint="La base que usa el módulo de Queries">
+          <input type="text" value={queriesDbId} onChange={(e) => setQueriesDbId(e.target.value)} placeholder="ID de 32 caracteres o URL completa de Notion" className={inputCls} />
         </Field>
       </div>
       <div className="flex justify-end">
@@ -1000,14 +987,14 @@ function JiraSection({ open, onToggle }: { open: boolean; onToggle: (id: string)
   }
 
   return (
-    <Section id="jira" title="Jira" subtitle="Fetch and analyze Jira tickets in the Ticket Resolver" Logo={LogoJira} status={status} open={open} onToggle={onToggle}>
+    <Section id="jira" title="Jira" subtitle="Traé y analizá tickets de Jira en el Ticket Resolver" Logo={LogoJira} status={status} open={open} onToggle={onToggle}>
       <HowToBox steps={[
-        { title: 'Get your Jira instance URL', detail: 'e.g. https://company.atlassian.net' },
-        { title: 'Create an API token', detail: 'id.atlassian.com → Security → API tokens → Create API token. Copy the value.' },
-        { title: 'Enter your email', detail: 'The email associated with your Atlassian account.' },
+        { title: 'Conseguí la URL de tu instancia de Jira', detail: 'ej. https://empresa.atlassian.net' },
+        { title: 'Creá un API token', detail: 'id.atlassian.com → Security → API tokens → Create API token. Copiá el valor.' },
+        { title: 'Ingresá tu email', detail: 'El email asociado a tu cuenta de Atlassian.' },
       ]} />
 
-      <Field label="Jira Base URL">
+      <Field label="URL base de Jira">
         <input type="text" value={jiraUrl} onChange={(e) => setJiraUrl(e.target.value)} placeholder="https://company.atlassian.net" className={inputCls} />
       </Field>
       <div className="grid grid-cols-2 gap-3">
@@ -1043,15 +1030,15 @@ export function ConnectionsPlugin(): JSX.Element {
     <div className="p-8 max-w-2xl mx-auto w-full">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-xl font-bold tracking-tight text-on-surface">Connections</h1>
+        <h1 className="text-xl font-bold tracking-tight text-on-surface">Conexiones</h1>
         <p className="text-on-surface-variant/60 mt-1 text-sm">
-          Configure your integrations. Expand a service to see setup instructions and enter credentials.
+          Configurá tus integraciones. Expandí un servicio para ver las instrucciones e ingresar las credenciales.
         </p>
       </div>
 
       {/* AI */}
       <div className="mb-6">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-2">Artificial Intelligence</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-2">Inteligencia artificial</p>
         <div className="space-y-2">
           <AIOpenAISection open={open.openai} onToggle={toggle} />
           <AIAnthropicSection open={open.anthropic} onToggle={toggle} />
@@ -1061,7 +1048,7 @@ export function ConnectionsPlugin(): JSX.Element {
 
       {/* Code repos */}
       <div className="mb-6">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-2">Code Repositories</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-2">Repositorios de código</p>
         <div className="space-y-2">
           <GitHubSection open={open.github} onToggle={toggle} />
           <GitLabSection open={open.gitlab} onToggle={toggle} />
@@ -1071,7 +1058,7 @@ export function ConnectionsPlugin(): JSX.Element {
 
       {/* PM & Notes */}
       <div className="mb-6">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-2">Project Management &amp; Notes</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-2">Gestión de proyectos y notas</p>
         <div className="space-y-2">
           <NotionSection open={open.notion} onToggle={toggle} />
           <SupabaseSection open={open.supabase} onToggle={toggle} />

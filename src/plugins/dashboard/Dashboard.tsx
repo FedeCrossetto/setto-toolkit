@@ -3,6 +3,7 @@ import { ArrowRight, Plus, Search, Sparkles, X } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
 import { allPlugins } from '../../core/plugin-registry'
 import { PluginIcon } from '../../core/pluginIcons'
+import { Badge } from '../../core/components/Badge'
 import type { PluginManifest } from '../../core/types'
 
 const ONBOARDING_DISMISSED_KEY = 'dashboard:onboarding-dismissed'
@@ -390,7 +391,7 @@ function ToolCard({ plugin, onOpen, mascot }: { plugin: PluginManifest; onOpen: 
             </p>
           </div>
           <div className="flex items-center gap-1 mt-4 text-[11px] font-bold" style={{ color: cfg.accent }}>
-            <span>Open</span>
+            <span>Abrir</span>
             <ArrowRight size={13} />
           </div>
         </div>
@@ -413,15 +414,15 @@ function OnboardingBanner({ onDismiss, onGoToSettings }: {
     <div className="relative flex items-start gap-4 px-5 py-4 rounded-2xl border border-primary/20 bg-primary/5">
       <Sparkles size={22} className="text-primary flex-shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-on-surface">Unlock AI features</p>
+        <p className="text-sm font-semibold text-on-surface">Activá las funciones de IA</p>
         <p className="text-xs text-on-surface-variant mt-0.5 leading-relaxed">
-          Add your OpenAI API key in Settings to enable Smart Diff semantic analysis and other AI-powered tools.
+          Agregá tu API key de OpenAI en Ajustes para habilitar el análisis semántico de Smart Diff y otras herramientas con IA.
         </p>
         <button
           onClick={onGoToSettings}
           className="mt-2.5 text-xs font-semibold text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
         >
-          <span>Go to Settings</span>
+          <span>Ir a Ajustes</span>
           <ArrowRight size={12} />
         </button>
       </div>
@@ -438,7 +439,7 @@ function OnboardingBanner({ onDismiss, onGoToSettings }: {
 
 // ── Section labels ────────────────────────────────────────────────────────────
 const SECTION_LABELS: Record<string, string> = {
-  __default__: 'Developer Tools',
+  __default__: 'Herramientas de desarrollo',
   personal:    'Personal',
 }
 
@@ -473,10 +474,11 @@ function ToolGrid({ tools, openTool, mascot }: {
 
         return (
           <div key={sectionKey}>
-            <div className="flex items-center gap-3 mb-5">
+            <div className="flex items-center gap-2.5 mb-5">
               <h2 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">
                 {label}
               </h2>
+              <Badge>{plugins.length}</Badge>
               {isPersonal && (
                 <div className="flex-1 h-px bg-outline-variant/20" />
               )}
@@ -500,9 +502,9 @@ function ToolGrid({ tools, openTool, mascot }: {
                     <Plus size={20} className="text-on-surface-variant/40" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-on-surface-variant/50">Add Plugin</p>
+                    <p className="text-sm font-semibold text-on-surface-variant/50">Agregar plugin</p>
                     <p className="text-xs text-on-surface-variant/35 mt-1 leading-relaxed">
-                      Drop a folder in{' '}
+                      Soltá una carpeta en{' '}
                       <code className="bg-surface-container px-1 py-0.5 rounded text-primary/70 text-[10px]">src/plugins/</code>
                     </p>
                   </div>
@@ -571,7 +573,7 @@ export function Dashboard(): JSX.Element {
         <h1 className="text-3xl font-bold tracking-tight text-on-surface">
           <span className="brand-gradient-text">Setto</span>{' '}Toolkit
         </h1>
-        <p className="text-on-surface-variant text-sm">Your modular workspace for developer utilities.</p>
+        <p className="text-on-surface-variant text-sm">Tu espacio de trabajo modular de utilidades para desarrollo.</p>
       </div>
 
       {/* Search — mismo patrón que las cards: superficie + borde token (claro y oscuro) */}
@@ -594,7 +596,7 @@ export function Dashboard(): JSX.Element {
         }}
       >
         <Search size={18} className="text-primary/60" />
-        <span className="flex-1 text-sm text-on-surface-variant/50">Search tools or run a command…</span>
+        <span className="flex-1 text-sm text-on-surface-variant/50">Buscá herramientas o ejecutá un comando…</span>
         <div className="flex gap-1">
           {['Ctrl', 'K'].map((k) => (
             <kbd

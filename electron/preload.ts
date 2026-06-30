@@ -14,7 +14,7 @@ const INVOKE_CHANNELS = new Set([
   'editor:read-file', 'editor:write-file', 'editor:save-dialog',
   'editor:watch-start', 'editor:watch-stop', 'editor:reveal',
   'editor:create-file', 'editor:create-dir', 'editor:rename', 'editor:delete',
-  'editor:find-in-files', 'editor:recent-get', 'editor:recent-clear',
+  'editor:find-in-files', 'editor:recent-get', 'editor:recent-clear', 'editor:git-diff',
   'app:version', 'app:pending-file',
   'auth:google-user', 'auth:google-start', 'auth:google-logout',
   'api-tester:collections-get', 'api-tester:collections-save',

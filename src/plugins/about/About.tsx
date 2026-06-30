@@ -26,17 +26,17 @@ export function About(): JSX.Element {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-on-surface">Setto Toolkit</h1>
           <p className="text-sm text-on-surface-variant mt-0.5">
-            Version <span className="font-mono text-primary">{version}</span>
+            Versión <span className="font-mono text-primary">{version}</span>
           </p>
         </div>
       </div>
 
       {/* Info cards */}
       <div className="space-y-3">
-        <InfoRow icon="category" label="Architecture" value="Electron + React + TypeScript" />
-        <InfoRow icon="security" label="Renderer security" value="Sandbox · Context isolation · IPC allowlist" />
-        <InfoRow icon="storage" label="Data storage" value="Local only — userData directory" />
-        <InfoRow icon="lock" label="Secrets" value="Encrypted via OS safeStorage" />
+        <InfoRow icon="category" label="Arquitectura" value="Electron + React + TypeScript" />
+        <InfoRow icon="security" label="Seguridad del renderer" value="Sandbox · Aislamiento de contexto · Allowlist de IPC" />
+        <InfoRow icon="storage" label="Almacenamiento" value="Solo local — directorio userData" />
+        <InfoRow icon="lock" label="Secretos" value="Cifrados con safeStorage del SO" />
       </div>
 
       {/* Divider */}
@@ -44,9 +44,10 @@ export function About(): JSX.Element {
 
       {/* Description */}
       <p className="text-sm text-on-surface-variant leading-relaxed">
-        Setto Toolkit is a modular developer workspace for everyday tasks — API testing,
-        code diffing with AI analysis, repository search across Bitbucket and GitHub,
-        and a lightweight file editor. All data stays local on your machine.
+        Setto Toolkit es un espacio de trabajo modular para desarrolladores pensado para las tareas
+        del día a día — testing de APIs, comparación de código con análisis por IA, búsqueda en
+        repositorios de Bitbucket y GitHub, y un editor de archivos liviano. Todos los datos quedan
+        localmente en tu equipo.
       </p>
     </div>
   )

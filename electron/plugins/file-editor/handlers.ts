@@ -7,6 +7,67 @@ import fs from 'fs'
 import path from 'path'
 import chokidar from 'chokidar'
 import type { FSWatcher } from 'chokidar'
+import { execFile } from 'child_process'
+
+/** Run git in `cwd` and resolve stdout, or reject on non-zero exit. */
+function runGit(cwd: string, args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile('git', args, { cwd, maxBuffer: 10 * 1024 * 1024, windowsHide: true }, (err, stdout) => {
+      if (err) reject(err)
+      else resolve(stdout)
+    })
+  })
+}
+
+export interface GitLineDiff { added: number[]; changed: number[]; deleted: number[] }
+
+/**
+ * Compute changed lines for a file vs. its git HEAD using `git diff -U0`.
+ * Returns null when the path isn't inside a git repo (so the UI can hide the gutter).
+ */
+async function computeGitDiff(filePath: string): Promise<GitLineDiff | null> {
+  const dir = path.dirname(filePath)
+  try {
+    await runGit(dir, ['rev-parse', '--is-inside-work-tree'])
+  } catch {
+    return null   // not a git repo
+  }
+
+  // Untracked file → mark every line as added.
+  try {
+    await runGit(dir, ['ls-files', '--error-unmatch', filePath])
+  } catch {
+    try {
+      const lineCount = fs.readFileSync(filePath, 'utf8').split('\n').length
+      return { added: Array.from({ length: lineCount }, (_, i) => i + 1), changed: [], deleted: [] }
+    } catch { return { added: [], changed: [], deleted: [] } }
+  }
+
+  let out = ''
+  try {
+    out = await runGit(dir, ['diff', '--no-color', '--unified=0', '--', filePath])
+  } catch {
+    return { added: [], changed: [], deleted: [] }
+  }
+
+  const added: number[] = [], changed: number[] = [], deleted: number[] = []
+  const hunkRe = /^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/
+  for (const line of out.split('\n')) {
+    const m = hunkRe.exec(line)
+    if (!m) continue
+    const oldCount = m[1] === undefined ? 1 : parseInt(m[1], 10)
+    const newStart = parseInt(m[2], 10)
+    const newCount = m[3] === undefined ? 1 : parseInt(m[3], 10)
+    if (newCount === 0) {
+      deleted.push(newStart)               // pure deletion
+    } else if (oldCount === 0) {
+      for (let i = 0; i < newCount; i++) added.push(newStart + i)   // pure addition
+    } else {
+      for (let i = 0; i < newCount; i++) changed.push(newStart + i) // modification
+    }
+  }
+  return { added, changed, deleted }
+}
 
 const RECENT_KEY    = 'editor.recentFiles'
 const MAX_RECENT    = 20
@@ -286,6 +347,8 @@ export const handlers: PluginHandlers = {
     })
 
     // ── File system operations ─────────────────────────────────────────────
+
+    ipcMain.handle('editor:git-diff', (_e, filePath: string) => computeGitDiff(filePath))
 
     ipcMain.handle('editor:reveal', (_e, filePath: string) => {
       const safe = validatePath(filePath)

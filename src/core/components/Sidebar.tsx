@@ -6,16 +6,13 @@ import { PluginIcon } from '../pluginIcons'
 import type { PluginManifest } from '../types'
 
 const PANEL_BG  = 'rgb(var(--c-sidebar))'
-const ACTIVE_BG = 'rgb(var(--c-background))'
 const CORNER_R  = 16
 
 // ── Logo ───────────────────────────────────────────────────────────────────────
-// The avatar PNG is portrait (1024×1536) — use height as the sizing axis and
-// let width be auto so the robot fills the space without letterboxing.
 function AppLogo({ height = 56 }: { height?: number }): JSX.Element {
   return (
     <img
-      src="./setto-avatar/setto-avatar.png"
+      src="./setto-logo.png"
       alt=""
       style={{
         flexShrink: 0,
@@ -25,38 +22,6 @@ function AppLogo({ height = 56 }: { height?: number }): JSX.Element {
         maxWidth: 'none',
       }}
     />
-  )
-}
-
-// ── Concave notch corner ───────────────────────────────────────────────────────
-function Notch({ side, visible }: { side: 'above' | 'below'; visible: boolean }): JSX.Element {
-  return (
-    <div
-      aria-hidden
-      style={{
-        position: 'absolute',
-        right: 0,
-        ...(side === 'above' ? { bottom: '100%' } : { top: '100%' }),
-        width: CORNER_R,
-        height: CORNER_R,
-        background: visible ? ACTIVE_BG : 'transparent',
-        zIndex: 2,
-        pointerEvents: 'none',
-        opacity: visible ? 1 : 0,
-        transition: 'opacity 200ms ease-out',
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: PANEL_BG,
-          borderRadius: side === 'above'
-            ? `0 0 ${CORNER_R}px 0`
-            : `0 ${CORNER_R}px 0 0`,
-        }}
-      />
-    </div>
   )
 }
 
@@ -72,14 +37,7 @@ function SidebarItem({ plugin, active, collapsed, onClick }: SidebarItemProps): 
   const h = collapsed ? 40 : 38
 
   return (
-    <div style={{
-      position: 'relative',
-      marginBottom: 2,
-      zIndex: active ? 10 : undefined,
-    }}>
-
-      <Notch side="above" visible={active} />
-
+    <div style={{ position: 'relative', marginBottom: 4 }}>
       <button
         onClick={onClick}
         title={plugin.name}
@@ -87,54 +45,44 @@ function SidebarItem({ plugin, active, collapsed, onClick }: SidebarItemProps): 
           height: h,
           display: 'flex',
           alignItems: 'center',
-          width: active ? 'calc(100% - 8px)' : 'calc(100% - 16px)',
+          width: 'calc(100% - 16px)',
           marginLeft: 8,
-          marginRight: 0,
-          paddingLeft: collapsed ? 0 : 8,
-          paddingRight: collapsed ? 0 : 8,
+          marginRight: 8,
+          paddingLeft: collapsed ? 0 : 10,
+          paddingRight: collapsed ? 0 : 10,
           justifyContent: collapsed ? 'center' : undefined,
-          borderTopLeftRadius: 12,
-          borderBottomLeftRadius: 12,
-          borderTopRightRadius: active ? 0 : 12,
-          borderBottomRightRadius: active ? 0 : 12,
-          background: active ? ACTIVE_BG : undefined,
+          borderRadius: 12,
+          // Active = filled brand-gradient pill with a soft glow (CloudDock style)
+          background: active ? 'var(--gradient-brand)' : undefined,
+          boxShadow: active ? '0 4px 14px rgb(var(--c-primary) / 0.35)' : undefined,
           position: 'relative',
           zIndex: 1,
-          transition: 'none',
-          color: active ? undefined : 'rgba(255,255,255,0.45)',
+          transition: 'background-color 180ms ease-out, color 180ms ease-out',
+          color: active ? 'rgb(var(--c-on-primary))' : 'rgba(255,255,255,0.45)',
         }}
         className={[
           'transition-colors duration-200',
-          !active && 'hover:!bg-white/[0.07]',
-          active ? 'text-on-surface' : '',
+          !active && 'hover:!bg-white/[0.07] hover:!text-white/80',
         ].filter(Boolean).join(' ')}
       >
         {/* Icon */}
         <PluginIcon
           icon={plugin.icon}
-          size={active ? 20 : 18}
+          size={active ? 19 : 18}
           className="flex-shrink-0"
-          style={{
-            color: active ? 'rgb(var(--c-primary-light))' : 'inherit',
-            transition: 'width 200ms, height 200ms, color 200ms',
-          }}
+          style={{ color: 'inherit', transition: 'width 200ms, height 200ms, color 200ms' }}
         />
 
         {/* Label */}
         {!collapsed && (
           <span
             className="truncate text-[12px] select-none ml-3"
-            style={{
-              fontWeight: active ? 600 : 500,
-              color: active ? 'rgb(var(--c-primary-light))' : 'inherit',
-            }}
+            style={{ fontWeight: active ? 600 : 500, color: 'inherit' }}
           >
             {plugin.name}
           </span>
         )}
       </button>
-
-      <Notch side="below" visible={active} />
     </div>
   )
 }

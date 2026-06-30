@@ -36,10 +36,15 @@ export interface OpenFile {
 }
 
 /** Handle exposed by CodeEditor via ref */
+/** Changed line numbers for a file vs. its git HEAD */
+export interface GitLineDiff { added: number[]; changed: number[]; deleted: number[] }
+
 export interface EditorHandle {
   scrollToBottom: () => void
   scrollToLine: (line: number) => void
   setFilter: (text: string) => void
+  /** Focus the editor and open CodeMirror's "go to line" panel */
+  openGotoLine: () => void
 }
 
 /** A single find-in-files match */

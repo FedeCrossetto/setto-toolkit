@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useState } from 'react'
-import { LayoutGrid } from 'lucide-react'
+import { LayoutGrid, ArrowDownToLine, X } from 'lucide-react'
 import { AppProvider, useApp } from './core/AppContext'
 import { useAppFont } from './core/hooks/useAppFont'
 import { useThemePalette } from './core/hooks/useThemePalette'
@@ -8,6 +8,7 @@ import { TabBar } from './core/components/TabBar'
 import { CommandPalette } from './core/components/CommandPalette'
 import { KeyboardShortcutsModal } from './core/components/KeyboardShortcutsModal'
 import { EmptyState } from './core/components/EmptyState'
+import { PluginLoadingFallback } from './core/components/Skeleton'
 import { GlobalSearch } from './core/components/GlobalSearch'
 import { StatusBar } from './core/components/StatusBar'
 import { TitleBar } from './core/components/TitleBar'
@@ -93,12 +94,11 @@ function AppShell(): JSX.Element {
 
         {/* Floating card — sits below TitleBar, above floating StatusBar */}
         <div
-          className="flex flex-col flex-1 overflow-hidden"
+          className="flex flex-col flex-1 overflow-hidden border border-outline-variant/30 dark:border-transparent shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.28),0_1px_4px_rgba(0,0,0,0.14)]"
           style={{
             margin: '40px 8px 44px 6px',
             borderRadius: 18,
             background: 'rgb(var(--c-surface))',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.28), 0 1px 4px rgba(0,0,0,0.14)',
           }}
         >
           <TabBar />
@@ -108,9 +108,10 @@ function AppShell(): JSX.Element {
             {state.openTabs.length === 0 ? (
               <div className="flex items-center justify-center h-full min-h-[200px]">
                 <EmptyState
+                  mascot
                   icon={LayoutGrid}
-                  title="No tool open"
-                  description="Select a tool from the sidebar or press Ctrl+K to search tools."
+                  title="Ninguna herramienta abierta"
+                  description="Elegí una herramienta en la barra lateral o presioná Ctrl+K para buscar."
                 />
               </div>
             ) : (
@@ -125,13 +126,7 @@ function AppShell(): JSX.Element {
                     className={`absolute inset-0 w-full h-full overflow-auto ${active ? '' : 'hidden'}`}
                   >
                     <ErrorBoundary label={plugin.name}>
-                      <Suspense
-                        fallback={
-                          <div className="flex items-center justify-center h-full min-h-[120px] text-on-surface-variant text-sm">
-                            Loading…
-                          </div>
-                        }
-                      >
+                      <Suspense fallback={<PluginLoadingFallback />}>
                         <Component />
                       </Suspense>
                     </ErrorBoundary>
@@ -149,30 +144,30 @@ function AppShell(): JSX.Element {
       {/* Update banner */}
       {updateStatus && (
         <div className="fixed bottom-8 right-4 z-[500] flex items-center gap-3 bg-surface-container-high border border-outline-variant/30 rounded-xl shadow-2xl px-4 py-3 text-sm">
-          <span className="material-symbols-outlined text-accent" style={{ fontSize: '18px' }}>system_update</span>
+          <ArrowDownToLine size={18} className="text-accent" />
           {updateStatus.type === 'available' ? (
             <>
-              <span className="text-on-surface">Update <span className="font-semibold">{updateStatus.version}</span> available</span>
+              <span className="text-on-surface">Actualización <span className="font-semibold">{updateStatus.version}</span> disponible</span>
               <button
                 onClick={() => { void window.api.invoke('updater:download') }}
                 className="px-3 py-1 rounded-lg bg-primary text-on-primary text-xs font-semibold hover:opacity-90 transition-opacity"
               >
-                Download
+                Descargar
               </button>
             </>
           ) : (
             <>
-              <span className="text-on-surface">Ready to install <span className="font-semibold">{updateStatus.version}</span></span>
+              <span className="text-on-surface">Lista para instalar <span className="font-semibold">{updateStatus.version}</span></span>
               <button
                 onClick={() => window.api.send('updater:install')}
                 className="px-3 py-1 rounded-lg bg-primary text-on-primary text-xs font-semibold hover:opacity-90 transition-opacity"
               >
-                Restart & Install
+                Reiniciar e instalar
               </button>
             </>
           )}
-          <button onClick={() => setUpdateStatus(null)} className="text-on-surface-variant hover:text-on-surface transition-colors ml-1">
-            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+          <button onClick={() => setUpdateStatus(null)} aria-label="Descartar" className="text-on-surface-variant hover:text-on-surface transition-colors ml-1">
+            <X size={14} />
           </button>
         </div>
       )}

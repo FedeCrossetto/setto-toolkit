@@ -44,14 +44,15 @@ type PaletteTokens = {
 
 const LIGHT_TOKENS: Record<PaletteId, PaletteTokens> = {
   neonLime: {
-    // Mismos tokens que en oscuro: verde flúor / lima neón (texto primary, botones, acentos).
-    primary:      '163 230 53',
-    primaryLight: '190 242 100',
-    onPrimary:    '15 23 15',
-    secondary:    '132 204 22',
+    // En claro, el lima neón puro quema la vista como texto/ícono sobre blanco;
+    // se oscurece a un verde lima legible y se reserva el tono flúor para acentos suaves.
+    primary:      '77 124 15',
+    primaryLight: '101 163 13',
+    onPrimary:    '255 255 255',
+    secondary:    '63 98 18',
     onSecondary:  '255 255 255',
-    accent:       '217 249 157',
-    gradient:     'linear-gradient(135deg, #A3E635, #D9F99D)',
+    accent:       '163 230 53',
+    gradient:     'linear-gradient(135deg, #4D7C0F, #65A30D)',
   },
   fresh: {
     primary:      '14 142 210',
@@ -230,17 +231,18 @@ function applyNeutralSurfaces(isDark: boolean): void {
     el.style.setProperty('--c-error', '255 110 132')
     el.style.setProperty('--c-sidebar', '22 22 22')
   } else {
-    // Grises con R=G=B puros (sin matiz azul/violeta); si no, junto a un primary verde se percibe tinte.
-    el.style.setProperty('--c-background', '255 255 255')
+    // Fondo levemente gris (vs. blanco puro) para que las superficies/cards con sombra
+    // generen profundidad real, como Linear/Notion/Stripe en modo claro.
+    el.style.setProperty('--c-background', '248 248 250')
     el.style.setProperty('--c-surface', '255 255 255')
-    el.style.setProperty('--c-surface-container-low', '250 250 250')
-    el.style.setProperty('--c-surface-container', '245 245 245')
-    el.style.setProperty('--c-surface-container-high', '237 237 237')
-    el.style.setProperty('--c-surface-container-highest', '229 229 229')
+    el.style.setProperty('--c-surface-container-low', '251 251 252')
+    el.style.setProperty('--c-surface-container', '244 244 246')
+    el.style.setProperty('--c-surface-container-high', '236 236 239')
+    el.style.setProperty('--c-surface-container-highest', '227 227 231')
     el.style.setProperty('--c-on-surface', '24 24 24')
-    el.style.setProperty('--c-on-surface-variant', '82 82 82')
-    el.style.setProperty('--c-outline-variant', '224 224 224')
-    el.style.setProperty('--c-outline', '142 142 142')
+    el.style.setProperty('--c-on-surface-variant', '90 90 96')
+    el.style.setProperty('--c-outline-variant', '228 228 232')
+    el.style.setProperty('--c-outline', '142 142 148')
     el.style.setProperty('--c-error', '215 51 87')
     el.style.setProperty('--c-sidebar', '22 22 22')
   }
