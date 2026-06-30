@@ -2,6 +2,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { LayoutGrid, ArrowDownToLine, X } from 'lucide-react'
 import { AppProvider, useApp } from './core/AppContext'
 import { useAppFont } from './core/hooks/useAppFont'
+import { useUiScale } from './core/hooks/useUiScale'
 import { useThemePalette } from './core/hooks/useThemePalette'
 import { Sidebar } from './core/components/Sidebar'
 import { TabBar } from './core/components/TabBar'
@@ -27,6 +28,7 @@ function AppShell(): JSX.Element {
   const shortcuts = useKeyboardShortcutsModal()
   const [updateStatus, setUpdateStatus] = useState<UpdaterStatus>(null)
   useAppFont()        // applies persisted font prefs to DOM on mount
+  useUiScale()         // applies persisted window zoom (Settings → Escala de la interfaz)
   useThemePalette()   // applies persisted color palette on mount
 
   // ── Open file from OS (double-click / "Open with") ───────────────────────

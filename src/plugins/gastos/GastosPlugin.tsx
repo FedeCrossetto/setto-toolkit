@@ -2437,8 +2437,8 @@ export function GastosPlugin() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full text-on-surface-variant text-sm">
-        Cargando…
+      <div className="flex items-center justify-center h-full">
+        <img src="./setto-logo.png" alt="" className="h-28 w-auto animate-pulse" style={{ animationDuration: '1.4s' }} />
       </div>
     )
   }

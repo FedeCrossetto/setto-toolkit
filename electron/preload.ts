@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webFrame } from 'electron'
 
 /** Channels the renderer may invoke (request → main) */
 const INVOKE_CHANNELS = new Set([
@@ -65,6 +65,11 @@ const ON_CHANNELS = new Set([
 
 const api = {
   platform: process.platform,
+  /** Scales the entire rendered page (like Ctrl+/Ctrl- in a browser) — unlike CSS
+   * font-size vars, this scales every pixel value uniformly regardless of whether
+   * a component uses rem or hardcoded px. */
+  setZoomFactor: (factor: number): void => { webFrame.setZoomFactor(factor) },
+  getZoomFactor: (): number => webFrame.getZoomFactor(),
   invoke: <T = unknown>(channel: string, ...args: unknown[]): Promise<T> => {
     if (!INVOKE_CHANNELS.has(channel)) throw new Error(`IPC invoke blocked: unknown channel "${channel}"`)
     return ipcRenderer.invoke(channel, ...args) as Promise<T>

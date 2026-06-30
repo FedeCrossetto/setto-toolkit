@@ -160,9 +160,9 @@ const nexusLightHighlight = HighlightStyle.define([
   { tag: [tags.number, tags.integer, tags.float],             color: '#2b7adf' },
   { tag: [tags.bool, tags.null],                              color: '#5347CE' },
   { tag: [tags.comment, tags.lineComment, tags.blockComment], color: '#8890aa', fontStyle: 'italic' },
-  { tag: tags.operator,                                       color: '#555580' },
-  { tag: [tags.punctuation, tags.separator],                  color: '#888aaa' },
-  { tag: [tags.angleBracket, tags.squareBracket, tags.paren, tags.brace], color: '#7a7aaa' },
+  { tag: tags.operator,                                       color: '#3f3f66' },
+  { tag: [tags.punctuation, tags.separator],                  color: '#5c5e82' },
+  { tag: [tags.angleBracket, tags.squareBracket, tags.paren, tags.brace], color: '#52527a' },
   { tag: tags.typeName,                                       color: '#2b7adf' },
   { tag: tags.className,                                      color: '#2b7adf', fontWeight: 'bold' },
   { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: '#1a1a3a' },
@@ -629,7 +629,7 @@ function buildNexusDarkTheme(fontSize: number, fontFamily: string) {
 function buildNexusLightTheme(fontSize: number, fontFamily: string) {
   return EditorView.theme({
     '&': { height: '100%', backgroundColor: 'rgb(255 255 255)' },
-    '.cm-scroller': { fontFamily: monoStack(fontFamily), fontSize: `${fontSize}px`, lineHeight: '1.7' },
+    '.cm-scroller': { fontFamily: monoStack(fontFamily), fontSize: `${fontSize}px`, lineHeight: '1.7', color: '#1a1a3a' },
     '.cm-gutters': { backgroundColor: 'rgb(244 245 249)', borderRight: '1px solid rgb(200 202 216 / 0.5)', color: 'rgb(148 151 168)', minWidth: '44px' },
     '.cm-activeLineGutter': { backgroundColor: 'rgb(236 238 244)' },
     '.cm-activeLine': { backgroundColor: 'rgb(83 71 206 / 0.04)' },

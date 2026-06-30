@@ -33,17 +33,16 @@ function MascotAvatar({ pluginId, icon, mascot }: {
   const src = (MASCOT_IMAGES[pluginId] ?? DEFAULT_MASCOT)[mascot === 'panda' ? 'panda' : 'setto']
 
   return (
-    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden bg-on-surface/[0.06] border border-outline-variant/20">
+    <div className="relative w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-on-surface/[0.05] border border-outline-variant/20">
       {imgError ? (
-        <PluginIcon icon={icon} size={15} className="text-on-surface-variant/70" />
+        <PluginIcon icon={icon} size={20} className="text-on-surface-variant/70" />
       ) : (
         <img
           key={src}
           src={src}
           alt=""
           draggable={false}
-          className="w-full h-full object-contain"
-          style={{ transform: 'scale(1.5) translateY(15%)', transformOrigin: 'bottom center' }}
+          className="w-full h-full object-contain scale-110"
           onError={() => setImgError(true)}
         />
       )}
@@ -58,17 +57,18 @@ function ToolRow({ plugin, onOpen, mascot }: { plugin: PluginManifest; onOpen: (
   return (
     <button
       onClick={onOpen}
-      className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left rounded-xl backdrop-blur-sm transition-all duration-150 group
-        bg-surface-container/55 border border-outline-variant/10 shadow-[0_1px_2px_rgba(0,0,0,0.06)]
-        hover:-translate-y-[1px] hover:bg-surface-container-high/70 hover:shadow-[0_6px_16px_rgba(0,0,0,0.16)]"
+      className="relative w-full flex items-center gap-3.5 pl-4 pr-3.5 py-3 text-left rounded-2xl backdrop-blur-sm transition-all duration-150 group overflow-hidden
+        bg-surface-container border border-outline-variant/30 shadow-[0_2px_6px_rgba(0,0,0,0.18)]
+        hover:-translate-y-[1px] hover:bg-surface-container-high hover:shadow-[0_10px_22px_rgba(0,0,0,0.3)] hover:border-primary/25"
     >
+      <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[3px] bg-primary/0 group-hover:bg-primary/50 transition-colors" />
       <MascotAvatar pluginId={plugin.id} icon={plugin.icon} mascot={mascot} />
-      <div className="min-w-0 flex-1 flex items-baseline gap-2.5">
-        <p className="text-[13px] font-medium text-on-surface flex-shrink-0">{plugin.name}</p>
+      <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+        <p className="text-[14px] font-semibold text-on-surface leading-tight">{plugin.name}</p>
         <p className="text-[11.5px] text-on-surface-variant/50 truncate">{plugin.description}</p>
       </div>
       <ArrowRight
-        size={14}
+        size={16}
         className="text-on-surface-variant/25 group-hover:text-primary group-hover:translate-x-0.5 transition-all flex-shrink-0"
       />
     </button>
@@ -154,7 +154,7 @@ function ToolGrid({ tools, openTool, mascot }: {
             </div>
 
             {/* Compact rows — each its own subtly-floating mini card, not a glued table */}
-            <div className="flex flex-col gap-[5px]">
+            <div className="flex flex-col gap-2">
               {plugins.map((plugin) => (
                 <ToolRow key={plugin.id} plugin={plugin} onOpen={() => openTool(plugin.id)} mascot={mascot} />
               ))}
@@ -186,8 +186,10 @@ function ToolGrid({ tools, openTool, mascot }: {
 function Card({ children, className = '', noPad = false }: { children: React.ReactNode; className?: string; noPad?: boolean }): JSX.Element {
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl backdrop-blur-sm ${noPad ? '' : 'p-4'} ${className}`}
-      style={{ background: 'rgb(var(--c-surface-container) / 0.65)', border: '1px solid rgb(var(--c-outline-variant) / 0.2)' }}
+      className={`relative overflow-hidden rounded-2xl backdrop-blur-sm transition-all duration-200
+        shadow-[0_2px_8px_rgba(0,0,0,0.25)] hover:-translate-y-[2px] hover:shadow-[0_14px_30px_rgba(0,0,0,0.35)]
+        ${noPad ? '' : 'p-4'} ${className}`}
+      style={{ background: 'rgb(var(--c-surface-container-high))', border: '1px solid rgb(var(--c-outline-variant) / 0.45)' }}
     >
       {children}
     </div>
@@ -196,6 +198,22 @@ function Card({ children, className = '', noPad = false }: { children: React.Rea
 
 // ── DonutCard — replaces the old Resumen + Command Palette cards with a single
 // modern donut chart (section breakdown) + compact KPI rows below it.
+// Same arc-path technique as the "Por categoría" donut in Gastos — real pie slices
+// (not a stroke-dasharray ring), one color per section, gap stroke between slices.
+function donutSegmentPath(cx: number, cy: number, rOuter: number, rInner: number, a0: number, a1: number): string {
+  const large = a1 - a0 > Math.PI ? 1 : 0
+  const x0o = cx + rOuter * Math.cos(a0), y0o = cy + rOuter * Math.sin(a0)
+  const x1o = cx + rOuter * Math.cos(a1), y1o = cy + rOuter * Math.sin(a1)
+  const x0i = cx + rInner * Math.cos(a1), y0i = cy + rInner * Math.sin(a1)
+  const x1i = cx + rInner * Math.cos(a0), y1i = cy + rInner * Math.sin(a0)
+  return [
+    `M ${x0o} ${y0o}`, `A ${rOuter} ${rOuter} 0 ${large} 1 ${x1o} ${y1o}`,
+    `L ${x0i} ${y0i}`, `A ${rInner} ${rInner} 0 ${large} 0 ${x1i} ${y1i}`, 'Z',
+  ].join(' ')
+}
+
+const DONUT_COLORS = ['rgb(var(--c-primary))', 'rgb(var(--c-accent))', 'rgb(var(--c-secondary))', 'rgb(var(--c-primary-light))']
+
 function DonutCard({ tools, openTabCount, recentCount }: { tools: PluginManifest[]; openTabCount: number; recentCount: number }): JSX.Element {
   const sections = useMemo(() => {
     const map = new Map<string, number>()
@@ -203,42 +221,46 @@ function DonutCard({ tools, openTabCount, recentCount }: { tools: PluginManifest
       const key = t.section ?? 'Desarrollo'
       map.set(key, (map.get(key) ?? 0) + 1)
     }
-    return Array.from(map.entries()).map(([label, count]) => ({
-      label, count, pct: tools.length ? (count / tools.length) * 100 : 0,
+    return Array.from(map.entries()).map(([label, count], i) => ({
+      label, count,
+      pct: tools.length ? (count / tools.length) * 100 : 0,
+      color: DONUT_COLORS[i % DONUT_COLORS.length],
     }))
   }, [tools])
 
-  const r = 40, strokeW = 9, circumference = 2 * Math.PI * r
+  const cx = 100, cy = 100, rOuter = 92, rInner = 56
+  let angle = -Math.PI / 2
+  const slices = sections.map((s) => {
+    const sweep = (s.pct / 100) * Math.PI * 2
+    const d = donutSegmentPath(cx, cy, rOuter, rInner, angle, angle + sweep)
+    angle += sweep
+    return { ...s, d }
+  })
 
   return (
     <Card className="flex flex-col gap-4">
       <span className="text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/60">Resumen</span>
 
-      {/* Single closed gradient ring (theme brand gradient) with a soft glow behind it —
-          no segment seams, no awkward gaps, just a clean modern progress-ring look. */}
-      <div className="relative w-[124px] h-[124px] mx-auto">
-        <div aria-hidden className="absolute inset-3 rounded-full blur-xl opacity-25" style={{ background: 'var(--gradient-brand)' }} />
-        <svg viewBox="0 0 100 100" className="relative w-full h-full -rotate-90">
-          <defs>
-            <linearGradient id="dashboard-donut-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(var(--c-primary))" />
-              <stop offset="100%" stopColor="rgb(var(--c-primary-light))" />
-            </linearGradient>
-          </defs>
-          <circle cx="50" cy="50" r={r} fill="none" stroke="rgb(var(--c-on-surface) / 0.05)" strokeWidth={strokeW} />
-          <circle cx="50" cy="50" r={r} fill="none" strokeWidth={strokeW} stroke="url(#dashboard-donut-gradient)" />
+      <div className="relative w-[164px] h-[164px] mx-auto">
+        <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-sm">
+          {slices.map((s) => (
+            <path key={s.label} d={s.d} fill={s.color} className="stroke-surface-container" strokeWidth={2} strokeLinejoin="round" />
+          ))}
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[26px] font-bold text-on-surface tabular-nums leading-none">{tools.length}</span>
-          <span className="text-[8.5px] text-on-surface-variant/45 uppercase tracking-[0.12em] mt-1.5">herramientas</span>
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="flex flex-col items-center">
+            <span className="text-[26px] font-bold text-on-surface tabular-nums leading-none">{tools.length}</span>
+            <span className="text-[8.5px] text-on-surface-variant/45 uppercase tracking-[0.12em] mt-1.5">herramientas</span>
+          </div>
         </div>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 border-t border-outline-variant/10 pt-3">
         {sections.map((s) => (
-          <div key={s.label} className="flex items-center justify-between text-[11px]">
-            <span className="text-on-surface-variant/65">{s.label}</span>
-            <span className="text-on-surface-variant/45 tabular-nums">{Math.round(s.pct)}%</span>
+          <div key={s.label} className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+            <span className="text-[11px] text-on-surface-variant/70">{s.label}</span>
+            <span className="text-[10px] font-mono tabular-nums text-on-surface-variant/45">{Math.round(s.pct)}%</span>
           </div>
         ))}
       </div>
@@ -260,6 +282,103 @@ function DonutCard({ tools, openTabCount, recentCount }: { tools: PluginManifest
 }
 
 interface RecentEntry { path: string; name: string; openedAt: string }
+
+// ── ConnectionsCard — real status of every integration the Connections plugin
+// manages (same settings keys + auth checks it uses), not a placeholder list.
+type ConnStatus = 'connected' | 'partial' | 'disconnected'
+interface ConnEntry { label: string; status: ConnStatus }
+
+async function checkOAuthProvider(provider: 'github' | 'gitlab' | 'bitbucket', clientIdKey?: string): Promise<ConnStatus> {
+  const [me, cid] = await Promise.all([
+    window.api.invoke<{ authenticated: boolean } | null>('repo-search:me', { provider }),
+    clientIdKey ? window.api.invoke<string | null>('settings:get', clientIdKey) : Promise.resolve(null),
+  ])
+  if (me?.authenticated) return 'connected'
+  return cid ? 'partial' : 'disconnected'
+}
+
+function useConnectionsStatus(): ConnEntry[] | null {
+  const [entries, setEntries] = useState<ConnEntry[] | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([
+      window.api.invoke<string | null>('settings:get', 'ai.openai_key').then((v): ConnStatus => v === SECURE_SET_SENTINEL ? 'connected' : 'disconnected'),
+      window.api.invoke<string | null>('settings:get', 'ai.anthropic_key').then((v): ConnStatus => v === SECURE_SET_SENTINEL ? 'connected' : 'disconnected'),
+      window.api.invoke<string | null>('settings:get', 'ai.ollama_url').then((v): ConnStatus => v ? 'connected' : 'disconnected'),
+      checkOAuthProvider('github', 'repo-search.github.client_id'),
+      checkOAuthProvider('gitlab', 'repo-search.gitlab.client_id'),
+      checkOAuthProvider('bitbucket'),
+      Promise.all([
+        window.api.invoke<string | null>('settings:get', 'ticket-resolver.jira_url'),
+        window.api.invoke<string | null>('settings:get', 'ticket-resolver.jira_user'),
+        window.api.invoke<string | null>('settings:get', 'ticket-resolver.jira_token'),
+      ]).then(([url, user, tok]): ConnStatus => {
+        const tokOk = tok === SECURE_SET_SENTINEL
+        if (url && user && tokOk) return 'connected'
+        return (url || user) ? 'partial' : 'disconnected'
+      }),
+    ]).then(([openai, anthropic, ollama, github, gitlab, bitbucket, jira]) => {
+      if (cancelled) return
+      setEntries([
+        { label: 'OpenAI',    status: openai },
+        { label: 'Anthropic', status: anthropic },
+        { label: 'Ollama',    status: ollama },
+        { label: 'GitHub',    status: github },
+        { label: 'GitLab',    status: gitlab },
+        { label: 'Bitbucket', status: bitbucket },
+        { label: 'Jira',      status: jira },
+      ])
+    }).catch(() => { if (!cancelled) setEntries([]) })
+    return () => { cancelled = true }
+  }, [])
+
+  return entries
+}
+
+const CONN_STATUS_DOT: Record<ConnStatus, string> = {
+  connected: 'bg-emerald-400',
+  partial: 'bg-warning',
+  disconnected: 'bg-on-surface-variant/25',
+}
+
+function ConnectionsCard({ onOpen }: { onOpen: () => void }): JSX.Element {
+  const entries = useConnectionsStatus()
+  const connectedCount = entries?.filter((e) => e.status === 'connected').length ?? 0
+
+  return (
+    <Card noPad className="flex flex-col">
+      {/* Bold brand-gradient header — the one deliberately "loud" card on the dashboard,
+          using the active theme's own gradient so it never clashes with a custom palette. */}
+      <button onClick={onOpen} className="relative flex items-center justify-between gap-3 px-4 py-3.5 overflow-hidden text-left group" style={{ background: 'var(--gradient-brand)' }}>
+        <div aria-hidden className="absolute -top-8 -left-6 w-32 h-32 rounded-full bg-white/10 blur-2xl pointer-events-none" />
+        <span className="relative text-[11px] font-semibold uppercase tracking-wide text-white/85">Conexiones</span>
+        <span className="relative text-[11px] font-bold text-white flex items-center gap-1">
+          {entries ? `${connectedCount}/${entries.length}` : '…'}
+          <ArrowRight size={12} className="opacity-80 group-hover:translate-x-0.5 transition-transform" />
+        </span>
+      </button>
+
+      <div className="p-4">
+        {!entries ? (
+          <p className="text-[11px] text-on-surface-variant/35 py-2">Verificando…</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {entries.map((e) => (
+              <div key={e.label} className="flex items-center gap-2">
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${CONN_STATUS_DOT[e.status]}`} />
+                <span className="text-[11.5px] text-on-surface-variant/75 flex-1">{e.label}</span>
+                <span className="text-[10px] text-on-surface-variant/40">
+                  {e.status === 'connected' ? 'Conectado' : e.status === 'partial' ? 'Parcial' : 'Sin configurar'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Card>
+  )
+}
 
 // ── ActivityCard — recent files + 7-day mini activity bars + top language ─────
 // Folds what used to be three separate cards (list / heatmap / kpi) into one,
@@ -293,8 +412,11 @@ function ActivityCard({ recents, onOpen }: { recents: RecentEntry[]; onOpen: (pa
         {topLanguage && (() => {
           const Icon = languageIcon(topLanguage)
           return (
-            <span className="flex items-center gap-1 text-[10px] text-on-surface-variant/50" title="Lenguaje más abierto recientemente">
-              <Icon size={11} className="opacity-70" /> {topLanguage}
+            <span
+              className="flex items-center gap-1.5 text-[10px] text-on-surface-variant/60 px-2 py-1 rounded-full bg-on-surface/[0.05]"
+              title="Lenguaje más abierto recientemente"
+            >
+              <Icon size={12} /> {topLanguage}
             </span>
           )
         })()}
@@ -420,6 +542,7 @@ export function Dashboard(): JSX.Element {
         <ToolGrid tools={tools} openTool={openTool} mascot={mascot} />
         <div className="flex flex-col gap-5">
           <DonutCard tools={tools} openTabCount={state.openTabs.length} recentCount={recents.length} />
+          <ConnectionsCard onOpen={() => openTool('connections')} />
           <ActivityCard recents={recents} onOpen={openFile} />
         </div>
       </div>

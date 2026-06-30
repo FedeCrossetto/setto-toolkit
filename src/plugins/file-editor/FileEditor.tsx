@@ -869,20 +869,20 @@ export function FileEditor(): JSX.Element {
                 }}
                 onContextMenu={(e) => handleTabContextMenu(e, tab)}
                 title={`${tab.name}${tab.path ? `\n${tab.path}` : ''}\nCtrl+click to select · Drag to reorder · Drag onto Smart Diff to compare`}
-                className={`relative flex items-center gap-2 pl-3.5 pr-2.5 py-2 text-[13px] font-medium cursor-grab active:cursor-grabbing whitespace-nowrap group transition-all duration-150 flex-shrink-0 rounded-lg border ${
+                className={`relative flex items-center gap-1.5 pl-3 pr-2 py-1.5 text-[12px] font-medium cursor-grab active:cursor-grabbing whitespace-nowrap group transition-all duration-150 flex-shrink-0 rounded-lg border ${
                   dragOverTab === tab.id ? 'ring-2 ring-primary/50' : ''
                 } ${
                   selectedIds.has(tab.id)
-                    ? 'text-on-surface bg-on-surface/[0.08] border-outline-variant/50'
+                    ? 'text-on-surface bg-on-surface/[0.1] border-outline-variant/50'
                     : activeId === tab.id
-                      ? 'text-on-surface bg-surface border-outline-variant/40 shadow-sm'
-                      : 'text-on-surface-variant border-transparent hover:text-on-surface hover:bg-surface-container-high'}`}>
-                {(() => { const Icon = languageIcon(tab.language); return <Icon size={14} className="text-on-surface-variant/70" /> })()}
-                <span className="max-w-[140px] truncate">{tab.name}</span>
+                      ? 'text-on-surface bg-surface-container-high border-outline-variant/50 shadow-sm'
+                      : 'text-on-surface-variant bg-surface-container/60 border-outline-variant/15 hover:text-on-surface hover:bg-surface-container-high'}`}>
+                {(() => { const Icon = languageIcon(tab.language); return <Icon size={13} className="text-on-surface-variant/70" /> })()}
+                <span className="max-w-[120px] truncate">{tab.name}</span>
                 {tab.isDirty && <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />}
                 <button onClick={(e) => { e.stopPropagation(); void handleCloseTab(tab.id) }}
-                  className="flex items-center justify-center w-[18px] h-[18px] rounded-md opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error hover:bg-error/10 transition-all ml-0.5">
-                  <X size={12} />
+                  className="flex items-center justify-center w-4 h-4 rounded-md opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error hover:bg-error/10 transition-all ml-0.5">
+                  <X size={11} />
                 </button>
               </div>
             ))}
@@ -1261,21 +1261,21 @@ export function FileEditor(): JSX.Element {
             <div className="flex items-start gap-3">
               <Trash2 size={22} className="text-error flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-on-surface">Delete {deleteConfirm.isDir ? 'folder' : 'file'}?</p>
+                <p className="text-sm font-semibold text-on-surface">¿Eliminar {deleteConfirm.isDir ? 'carpeta' : 'archivo'}?</p>
                 <p className="text-[12px] text-on-surface-variant mt-1">
                   <span className="font-medium text-on-surface">"{deleteConfirm.name}"</span>
-                  {deleteConfirm.isDir ? ' and all its contents will be ' : ' will be '}
-                  permanently deleted.
+                  {deleteConfirm.isDir ? ' y todo su contenido se van a eliminar' : ' se va a eliminar'}
+                  {' '}permanentemente.
                 </p>
-                <p className="text-[11px] text-error/70 mt-1">This action cannot be undone.</p>
+                <p className="text-[11px] text-error/70 mt-1">Esta acción no se puede deshacer.</p>
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <button onClick={() => deleteConfirm.resolve(false)} className="ui-btn ui-btn-ghost text-[12px]">Cancel</button>
+              <button onClick={() => deleteConfirm.resolve(false)} className="ui-btn ui-btn-ghost text-[12px]">Cancelar</button>
               <button
                 onClick={() => deleteConfirm.resolve(true)}
                 className="ui-btn text-[12px] bg-error text-white hover:bg-error/90"
-              >Delete</button>
+              >Eliminar</button>
             </div>
           </motion.div>
         </motion.div>
@@ -1297,21 +1297,21 @@ export function FileEditor(): JSX.Element {
             <div className="flex items-start gap-3">
               <Save size={22} className="text-primary flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-on-surface">Save changes?</p>
+                <p className="text-sm font-semibold text-on-surface">¿Guardar cambios?</p>
                 <p className="text-[12px] text-on-surface-variant mt-1">
-                  Do you want to save changes to{' '}
+                  ¿Querés guardar los cambios en{' '}
                   <span className="font-medium text-on-surface">"{closeConfirm.name}"</span>?
                 </p>
-                <p className="text-[11px] text-on-surface-variant/50 mt-1">Your changes will be lost if you don't save them.</p>
+                <p className="text-[11px] text-on-surface-variant/50 mt-1">Si no los guardás, se van a perder.</p>
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <button onClick={() => closeConfirm.resolve('cancel')} className="ui-btn ui-btn-ghost text-[12px]">Cancel</button>
+              <button onClick={() => closeConfirm.resolve('cancel')} className="ui-btn ui-btn-ghost text-[12px]">Cancelar</button>
               <button
                 onClick={() => closeConfirm.resolve('discard')}
                 className="ui-btn ui-btn-outline text-[12px] text-error border-error/30 hover:bg-error/10"
-              >Don't Save</button>
-              <button onClick={() => closeConfirm.resolve('save')} className="ui-btn ui-btn-primary text-[12px]">Save</button>
+              >No guardar</button>
+              <button onClick={() => closeConfirm.resolve('save')} className="ui-btn ui-btn-primary text-[12px]">Guardar</button>
             </div>
           </motion.div>
         </motion.div>
@@ -1362,7 +1362,7 @@ function FolderRoot({ folder, expanded, onToggle, onClose, cb }: {
           {isOpen ? <FolderOpen size={14} className="text-primary/70 flex-shrink-0" /> : <Folder size={14} className="text-primary/70 flex-shrink-0" />}
           {cb.renaming === folder.path
             ? <InlineInput defaultValue={folder.name} onCommit={(n) => cb.onRenameCommit(folder.path, n)} onCancel={cb.onCancel} />
-            : <span className="text-[12px] font-semibold text-on-surface-variant uppercase tracking-wide truncate" title={folder.path}>{folder.name}</span>
+            : <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wide truncate" title={folder.path}>{folder.name}</span>
           }
         </button>
         <button onClick={() => onClose(folder.path)} title="Close folder"
@@ -1402,7 +1402,7 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
       <div onClick={() => node.isDir ? onToggle(node.path) : cb.onOpen(node.path)}
         onContextMenu={(e) => cb.onContextMenu(e, node, rootPath)}
         title={node.path}
-        className="flex items-center gap-1 py-[4px] cursor-pointer hover:bg-surface-container group transition-colors"
+        className="flex items-center gap-1 py-[3px] cursor-pointer hover:bg-surface-container group transition-colors"
         style={{ paddingLeft: `${8 + indent}px`, paddingRight: '8px' }}>
         {node.isDir
           ? (isOpen ? <ChevronDown size={13} className="text-on-surface-variant/40 flex-shrink-0" /> : <ChevronRight size={13} className="text-on-surface-variant/40 flex-shrink-0" />)
@@ -1410,11 +1410,11 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
         }
         {node.isDir
           ? (isOpen ? <FolderOpen size={13} className="text-primary/60 flex-shrink-0" /> : <Folder size={13} className="text-primary/60 flex-shrink-0" />)
-          : (() => { const Icon = languageIcon(detectLanguage(node.name)); return <Icon size={15} className="text-on-surface-variant/50 flex-shrink-0" /> })()
+          : (() => { const Icon = languageIcon(detectLanguage(node.name)); return <Icon size={13} className="text-on-surface-variant/50 flex-shrink-0" /> })()
         }
         {cb.renaming === node.path
           ? <InlineInput defaultValue={node.name} onCommit={(n) => cb.onRenameCommit(node.path, n)} onCancel={cb.onCancel} />
-          : <span className="text-[12px] text-on-surface-variant group-hover:text-on-surface truncate flex-1">{node.name}</span>
+          : <span className="text-[11.5px] text-on-surface-variant group-hover:text-on-surface truncate flex-1">{node.name}</span>
         }
         {node.isDir && !isOpen && (node.children?.length ?? 0) > 0 && (
           <Badge className="ml-auto group-hover:opacity-100 opacity-60">{node.children!.length}</Badge>
@@ -1520,11 +1520,11 @@ function FileListItem({ tab, isActive, isSelected = false, savedFlash = false, o
             ? 'bg-on-surface/[0.07] text-on-surface [box-shadow:inset_0_0_0_1px_rgb(var(--c-outline-variant)_/_0.4)]'
             : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container/90'
       }`}>
-      {(() => { const Icon = languageIcon(tab.language); return <Icon size={16} className="flex-shrink-0 text-on-surface-variant/60" /> })()}
+      {(() => { const Icon = languageIcon(tab.language); return <Icon size={14} className="flex-shrink-0 text-on-surface-variant/60" /> })()}
       {renaming ? (
         <InlineInput defaultValue={tab.name} onCommit={onRenameCommit} onCancel={onRenameCancel} />
       ) : (
-        <span className="text-[13px] font-medium truncate flex-1">{tab.name}</span>
+        <span className="text-[12px] font-medium truncate flex-1">{tab.name}</span>
       )}
       {tab.watchActive && !tab.frozen && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" />}
       {savedFlash

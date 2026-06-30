@@ -8,6 +8,7 @@ import { useApp } from '../../core/AppContext'
 import { allPlugins } from '../../core/plugin-registry'
 import { PluginIcon } from '../../core/pluginIcons'
 import { useAppFont, APP_FONT_FAMILIES, APP_FONT_SIZES } from '../../core/hooks/useAppFont'
+import { useUiScale, UI_SCALE_MIN, UI_SCALE_MAX, UI_SCALE_STEP } from '../../core/hooks/useUiScale'
 import { useThemePalette, PALETTES } from '../../core/hooks/useThemePalette'
 
 // ── Toggle switch ──────────────────────────────────────────────────────────────
@@ -88,6 +89,7 @@ function SettingRow({
 export function SettingsPage(): JSX.Element {
   const { state, dispatch } = useApp()
   const { prefs: fontPrefs, updateFont } = useAppFont()
+  const { scale: uiScale, setScale: setUiScale, resetScale: resetUiScale } = useUiScale()
   const { palette, setPalette } = useThemePalette()
   const [settings, setSettings] = useState<SettingsState>({
     'ai.provider': 'openai',
@@ -273,6 +275,35 @@ export function SettingsPage(): JSX.Element {
                   {size === 'small' ? 'Chico' : size === 'large' ? 'Grande' : 'Normal'}
                 </button>
               ))}
+            </div>
+          </SettingRow>
+
+          <SettingRow
+            label="Escala de la interfaz"
+            description="Zoom real de toda la ventana — ajuste fino para cuando 'chico/normal/grande' no alcanza."
+          >
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={UI_SCALE_MIN}
+                max={UI_SCALE_MAX}
+                step={UI_SCALE_STEP}
+                value={uiScale}
+                onChange={(e) => setUiScale(parseFloat(e.target.value))}
+                className="flex-1 accent-primary"
+              />
+              <span className="text-sm font-medium text-on-surface tabular-nums w-12 text-right">
+                {Math.round(uiScale * 100)}%
+              </span>
+              {uiScale !== 1 && (
+                <button
+                  onClick={resetUiScale}
+                  title="Restablecer a 100%"
+                  className="text-xs text-on-surface-variant hover:text-primary transition-colors px-2 py-1 rounded-md border border-outline-variant/30 hover:border-primary/40"
+                >
+                  Reset
+                </button>
+              )}
             </div>
           </SettingRow>
 
