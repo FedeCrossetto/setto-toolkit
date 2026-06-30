@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   BookmarkPlus, Check, ChevronDown, ChevronRight, CircleAlert, CircleStop,
   Copy, Download, Eye, EyeOff, FileUp, FolderOpen, Lock, LockOpen, LoaderCircle, Network, Paperclip, Pencil, Plus,
@@ -31,6 +32,28 @@ const METHOD_BG: Record<HttpMethod, string> = {
   OPTIONS: 'bg-surface-container-high text-on-surface-variant border border-outline-variant/30',
 }
 
+/** Shared animated modal shell — fade backdrop + scale-in card, theme-aware via .ui-card */
+function ModalShell({ onClose, width = 'w-80', children }: { onClose: () => void; width?: string; children: React.ReactNode }): JSX.Element {
+  return (
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
+      >
+        <motion.div
+          className={`ui-card ${width} max-w-[90vw] p-6 flex flex-col gap-4`}
+          onClick={(e) => e.stopPropagation()}
+          initial={{ opacity: 0, scale: 0.96, y: 6 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 6 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+        >
+          {children}
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  )
+}
+
 function MethodSelect({ value, onChange }: { value: HttpMethod; onChange: (m: HttpMethod) => void }): JSX.Element {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -55,20 +78,26 @@ function MethodSelect({ value, onChange }: { value: HttpMethod; onChange: (m: Ht
         <ChevronDown size={12} className="opacity-50" />
       </button>
 
-      {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 bg-surface border border-outline-variant/25 rounded-xl shadow-xl overflow-hidden py-1.5 min-w-[120px] flex flex-col gap-0.5 px-1">
-          {METHODS.map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => { onChange(m); setOpen(false) }}
-              className={`w-full text-left px-2.5 py-1.5 text-xs font-bold rounded-lg transition-colors flex items-center gap-2 ${METHOD_BG[m]} ${m === value ? 'ring-1 ring-inset ring-current/30' : 'bg-transparent border-transparent hover:opacity-80'}`}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
-      )}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            className="ui-menu absolute top-full left-0 mt-1.5 z-50 min-w-[120px] flex flex-col gap-0.5"
+            initial={{ opacity: 0, scale: 0.96, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: -4 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+          >
+            {METHODS.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => { onChange(m); setOpen(false) }}
+                className={`w-full text-left px-2.5 py-1.5 text-xs font-bold rounded-lg transition-colors flex items-center gap-2 ${METHOD_BG[m]} ${m === value ? 'ring-1 ring-inset ring-current/30' : 'bg-transparent border-transparent hover:opacity-80'}`}
+              >
+                {m}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -168,7 +197,7 @@ function HistoryPanel({
         </div>
         {history.length > 0 && (
           <>
-            <div className="flex items-center gap-1.5 bg-surface-container border border-outline-variant/25 rounded-lg px-2 py-1 mb-2">
+            <div className="ui-input flex items-center gap-1.5 px-2 py-1 mb-2">
               <Search size={12} className="text-on-surface-variant/40" />
               <input
                 value={urlSearch} onChange={(e) => setUrlSearch(e.target.value)}
@@ -459,7 +488,7 @@ export function ApiLab(): JSX.Element {
               {showNewCol && (
                 <form onSubmit={async (e) => { e.preventDefault(); if (newColName.trim()) { await createCollection(newColName.trim()); setNewColName(''); setShowNewCol(false) } }} className="flex gap-1">
                   <input autoFocus value={newColName} onChange={(e) => setNewColName(e.target.value)} placeholder="Nombre de la colección"
-                    className="flex-1 text-xs bg-surface-container border border-outline-variant/30 rounded-lg px-2 py-1.5 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                    className="ui-input flex-1" />
                   <button type="submit" className="text-primary"><Check size={16} /></button>
                 </form>
               )}
@@ -517,10 +546,10 @@ export function ApiLab(): JSX.Element {
           <input value={active.url} onChange={(e) => setActive((a) => ({ ...a, url: e.target.value }))}
             onKeyDown={(e) => e.key === 'Enter' && handleExecute()}
             placeholder="https://api.example.com/endpoint"
-            className="flex-1 bg-surface-container border border-outline-variant/30 rounded-lg px-3 py-2 text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/50" />
+            className="ui-input flex-1 text-sm" />
 
           {activeEnvName && (
-            <span className="flex-shrink-0 flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-md bg-accent/10 text-accent border border-accent/20" title="Active environment">
+            <span className="ui-badge ui-badge-accent flex-shrink-0" title="Active environment">
               <Network size={11} />
               {activeEnvName}
             </span>
@@ -528,7 +557,7 @@ export function ApiLab(): JSX.Element {
 
           {/* Copy as cURL */}
           <button onClick={handleCopyCurl} title="Copiar como cURL" disabled={!active.url.trim()}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:border-primary/40 transition-colors disabled:opacity-40">
+            className="ui-btn ui-btn-outline disabled:opacity-40">
             {curlCopied
               ? <><Check size={14} /> ¡Copiado!</>
               : <><Terminal size={14} /> cURL</>
@@ -536,20 +565,16 @@ export function ApiLab(): JSX.Element {
           </button>
 
           {/* Import cURL */}
-          <button onClick={() => setShowImportCurl(true)} title="Importar desde cURL"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:border-primary/40 transition-colors">
+          <button onClick={() => setShowImportCurl(true)} title="Importar desde cURL" className="ui-btn ui-btn-outline">
             <Download size={14} /> Importar
           </button>
 
           {status === 'loading' ? (
-            <button onClick={cancel}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border border-error/40 text-error hover:bg-error/10 transition-all">
+            <button onClick={cancel} className="ui-btn border border-error/40 text-error hover:bg-error/10">
               <CircleStop size={15} /> Cancelar
             </button>
           ) : (
-            <button onClick={handleExecute} disabled={!active.url.trim()}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-on-primary transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: 'var(--gradient-brand)' }}>
+            <button onClick={handleExecute} disabled={!active.url.trim()} className="ui-btn ui-btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
               <SendHorizontal size={15} /> Enviar
             </button>
           )}
@@ -562,7 +587,7 @@ export function ApiLab(): JSX.Element {
         </div>
 
         {/* Request tabs */}
-        <div className="flex items-center gap-0 px-4 border-b border-outline-variant/15 bg-surface flex-shrink-0">
+        <div className="flex items-center gap-1 px-3 py-1.5 border-b border-outline-variant/15 bg-surface-container-low flex-shrink-0">
           {([
             { id: 'params',  label: 'Params',   dot: active.params.some((p) => p.enabled && p.key) },
             { id: 'headers', label: 'Headers',  dot: active.headers.some((h) => h.enabled && h.key) },
@@ -571,7 +596,10 @@ export function ApiLab(): JSX.Element {
             { id: 'scripts', label: 'Scripts',  dot: !!(active.preRequestScript?.trim() || active.postResponseScript?.trim()) },
           ] as { id: RequestTab; label: string; dot: boolean }[]).map(({ id, label, dot }) => (
             <button key={id} onClick={() => setReqTab(id)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${reqTab === id ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}>
+              className={`relative flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-lg transition-colors duration-150 ${
+                reqTab === id
+                  ? 'text-on-surface bg-surface border border-outline-variant/40 shadow-sm'
+                  : 'text-on-surface-variant border border-transparent hover:text-on-surface hover:bg-surface-container-high'}`}>
               {label}
               {dot && <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${reqTab === id ? 'bg-primary' : 'bg-accent'}`} />}
             </button>
@@ -617,7 +645,7 @@ export function ApiLab(): JSX.Element {
               ) : active.body.type !== 'none' && (
                 <>
                   <textarea value={active.body.content} onChange={(e) => setActive((a) => ({ ...a, body: { ...a.body, content: e.target.value } }))}
-                    className="flex-1 font-mono text-xs bg-surface border border-outline-variant/20 rounded-xl p-4 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none"
+                    className="ui-input flex-1 font-mono p-4 resize-none"
                     placeholder={
                       active.body.type === 'json' ? '{\n  "key": "value"\n}' :
                       active.body.type === 'xml'  ? '<root>\n  <key>value</key>\n</root>' :
@@ -849,64 +877,46 @@ export function ApiLab(): JSX.Element {
 
       {/* ── Save overwrite confirmation ────────────────────────────────────── */}
       {saveConfirm && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={() => saveConfirm.resolve(false)}>
-          <div className="bg-surface border border-outline-variant/20 rounded-2xl shadow-2xl w-80 p-6 flex flex-col gap-4"
-            onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                <Save size={16} className="text-primary" />
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold text-on-surface">¿Sobreescribir request?</h2>
-                <p className="text-xs text-on-surface-variant mt-1">
-                  Esto reemplazará el request guardado
-                  {active.url ? <> en <span className="font-mono text-primary/80 break-all">{active.url}</span></> : ''} con los cambios actuales.
-                </p>
-              </div>
+        <ModalShell onClose={() => saveConfirm.resolve(false)}>
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+              <Save size={16} className="text-primary" />
             </div>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => saveConfirm.resolve(false)}
-                className="px-4 py-2 text-sm font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
-                Cancelar
-              </button>
-              <button onClick={() => saveConfirm.resolve(true)}
-                className="px-4 py-2 text-sm font-semibold rounded-lg text-on-primary transition-all hover:opacity-90"
-                style={{ background: 'var(--gradient-brand)' }}>
-                Guardar
-              </button>
+            <div>
+              <h2 className="text-sm font-semibold text-on-surface">¿Sobreescribir request?</h2>
+              <p className="text-xs text-on-surface-variant mt-1">
+                Esto reemplazará el request guardado
+                {active.url ? <> en <span className="font-mono text-primary/80 break-all">{active.url}</span></> : ''} con los cambios actuales.
+              </p>
             </div>
           </div>
-        </div>
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => saveConfirm.resolve(false)} className="ui-btn ui-btn-ghost">Cancelar</button>
+            <button onClick={() => saveConfirm.resolve(true)} className="ui-btn ui-btn-primary">Guardar</button>
+          </div>
+        </ModalShell>
       )}
 
       {/* ── Delete confirmation ────────────────────────────────────────────── */}
       {deleteConfirm && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={() => deleteConfirm.resolve(false)}>
-          <div className="bg-surface border border-outline-variant/20 rounded-2xl shadow-2xl w-80 p-6 flex flex-col gap-4"
-            onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-error/10 flex items-center justify-center">
-                <Trash2 size={16} className="text-error" />
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold text-on-surface">¿Eliminar {deleteConfirm.label}?</h2>
-                <p className="text-xs text-on-surface-variant mt-1">Esta acción no se puede deshacer.</p>
-              </div>
+        <ModalShell onClose={() => deleteConfirm.resolve(false)}>
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 w-9 h-9 rounded-full bg-error/10 flex items-center justify-center">
+              <Trash2 size={16} className="text-error" />
             </div>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => deleteConfirm.resolve(false)}
-                className="px-4 py-2 text-sm font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
-                Cancelar
-              </button>
-              <button onClick={() => deleteConfirm.resolve(true)}
-                className="px-4 py-2 text-sm font-semibold rounded-lg bg-error text-white transition-all hover:opacity-90">
-                Eliminar
-              </button>
+            <div>
+              <h2 className="text-sm font-semibold text-on-surface">¿Eliminar {deleteConfirm.label}?</h2>
+              <p className="text-xs text-on-surface-variant mt-1">Esta acción no se puede deshacer.</p>
             </div>
           </div>
-        </div>
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => deleteConfirm.resolve(false)} className="ui-btn ui-btn-ghost">Cancelar</button>
+            <button onClick={() => deleteConfirm.resolve(true)}
+              className="ui-btn text-white" style={{ background: 'rgb(var(--c-error))' }}>
+              Eliminar
+            </button>
+          </div>
+        </ModalShell>
       )}
     </div>
   )
@@ -937,51 +947,43 @@ function ImportCollectionModal({ onImport, onClose }: {
   }
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-surface border border-outline-variant/20 rounded-2xl shadow-2xl w-[600px] max-w-[90vw] p-6 flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-on-surface">Importar Colección</h2>
-            <p className="text-xs text-on-surface-variant mt-0.5">Compatible con Postman Collection v2/v2.1 y formato nativo.</p>
-          </div>
-          <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
-            <X size={20} />
-          </button>
+    <ModalShell onClose={onClose} width="w-[600px]">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-on-surface">Importar Colección</h2>
+          <p className="text-xs text-on-surface-variant mt-0.5">Compatible con Postman Collection v2/v2.1 y formato nativo.</p>
         </div>
-
-        <textarea
-          autoFocus
-          value={value}
-          onChange={(e) => { setValue(e.target.value); setError('') }}
-          placeholder={'Paste a Postman Collection JSON or a native collection export…'}
-          className="font-mono text-xs bg-surface-container border border-outline-variant/20 rounded-xl p-4 text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none h-44"
-        />
-
-        {error && (
-          <p className="text-xs text-error flex items-center gap-1.5">
-            <CircleAlert size={14} />
-            {error}
-          </p>
-        )}
-
-        <div className="flex items-center gap-2">
-          <button onClick={() => void handleBrowse()}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:border-primary/40 transition-colors">
-            <FolderOpen size={14} /> Buscar archivo
-          </button>
-          <div className="flex-1" />
-          <button onClick={onClose}
-            className="px-4 py-2 text-sm font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
-            Cancelar
-          </button>
-          <button onClick={() => void handleImport()} disabled={!value.trim() || loading}
-            className="px-4 py-2 text-sm font-semibold rounded-lg text-on-primary disabled:opacity-50 transition-all hover:opacity-90"
-            style={{ background: 'var(--gradient-brand)' }}>
-            {loading ? 'Importando…' : 'Importar'}
-          </button>
-        </div>
+        <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
+          <X size={20} />
+        </button>
       </div>
-    </div>
+
+      <textarea
+        autoFocus
+        value={value}
+        onChange={(e) => { setValue(e.target.value); setError('') }}
+        placeholder={'Paste a Postman Collection JSON or a native collection export…'}
+        className="ui-input font-mono text-xs resize-none h-44"
+      />
+
+      {error && (
+        <p className="text-xs text-error flex items-center gap-1.5">
+          <CircleAlert size={14} />
+          {error}
+        </p>
+      )}
+
+      <div className="flex items-center gap-2">
+        <button onClick={() => void handleBrowse()} className="ui-btn ui-btn-outline">
+          <FolderOpen size={14} /> Buscar archivo
+        </button>
+        <div className="flex-1" />
+        <button onClick={onClose} className="ui-btn ui-btn-ghost">Cancelar</button>
+        <button onClick={() => void handleImport()} disabled={!value.trim() || loading} className="ui-btn ui-btn-primary disabled:opacity-50">
+          {loading ? 'Importando…' : 'Importar'}
+        </button>
+      </div>
+    </ModalShell>
   )
 }
 
@@ -1012,60 +1014,53 @@ function ImportCurlModal({ onImport, onClose, activeEnvName }: {
   }
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-surface border border-outline-variant/20 rounded-2xl shadow-2xl w-[600px] max-w-[90vw] p-6 flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-on-surface">Importar desde cURL</h2>
-            <p className="text-xs text-on-surface-variant mt-0.5">Pegá un comando cURL para rellenar los campos del request.</p>
-          </div>
-          <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
-            <X size={20} />
-          </button>
+    <ModalShell onClose={onClose} width="w-[600px]">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-on-surface">Importar desde cURL</h2>
+          <p className="text-xs text-on-surface-variant mt-0.5">Pegá un comando cURL para rellenar los campos del request.</p>
         </div>
-
-        <textarea
-          autoFocus
-          value={value}
-          onChange={(e) => { setValue(e.target.value); setParseError('') }}
-          placeholder={`curl -X POST 'https://api.example.com/data' \\\n  -H 'Content-Type: application/json' \\\n  -H 'Authorization: Bearer token123' \\\n  -d '{"key": "value"}'`}
-          className="font-mono text-xs bg-surface-container border border-outline-variant/20 rounded-xl p-4 text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none h-44"
-        />
-
-        {detectedVars.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-            <span className="text-accent font-semibold flex-shrink-0">Variables detected:</span>
-            {detectedVars.map((v) => (
-              <span key={v} className="font-mono px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">{`{{${v}}}`}</span>
-            ))}
-            <span className="text-on-surface-variant/50 ml-1">
-              {activeEnvName
-                ? <>→ will be added to <span className="text-accent font-medium">{activeEnvName}</span></>
-                : '→ no active environment (go to Envs tab to create one)'}
-            </span>
-          </div>
-        )}
-
-        {parseError && (
-          <p className="text-xs text-error flex items-center gap-1.5">
-            <CircleAlert size={14} />
-            {parseError}
-          </p>
-        )}
-
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose}
-            className="px-4 py-2 text-sm font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
-            Cancelar
-          </button>
-          <button onClick={handleImport} disabled={!value.trim()}
-            className="px-4 py-2 text-sm font-semibold rounded-lg text-on-primary disabled:opacity-50 transition-all hover:opacity-90"
-            style={{ background: 'var(--gradient-brand)' }}>
-            Importar
-          </button>
-        </div>
+        <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
+          <X size={20} />
+        </button>
       </div>
-    </div>
+
+      <textarea
+        autoFocus
+        value={value}
+        onChange={(e) => { setValue(e.target.value); setParseError('') }}
+        placeholder={`curl -X POST 'https://api.example.com/data' \\\n  -H 'Content-Type: application/json' \\\n  -H 'Authorization: Bearer token123' \\\n  -d '{"key": "value"}'`}
+        className="ui-input font-mono text-xs resize-none h-44"
+      />
+
+      {detectedVars.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="text-accent font-semibold flex-shrink-0">Variables detected:</span>
+          {detectedVars.map((v) => (
+            <span key={v} className="ui-badge ui-badge-accent font-mono">{`{{${v}}}`}</span>
+          ))}
+          <span className="text-on-surface-variant/50 ml-1">
+            {activeEnvName
+              ? <>→ will be added to <span className="text-accent font-medium">{activeEnvName}</span></>
+              : '→ no active environment (go to Envs tab to create one)'}
+          </span>
+        </div>
+      )}
+
+      {parseError && (
+        <p className="text-xs text-error flex items-center gap-1.5">
+          <CircleAlert size={14} />
+          {parseError}
+        </p>
+      )}
+
+      <div className="flex justify-end gap-2">
+        <button onClick={onClose} className="ui-btn ui-btn-ghost">Cancelar</button>
+        <button onClick={handleImport} disabled={!value.trim()} className="ui-btn ui-btn-primary disabled:opacity-50">
+          Importar
+        </button>
+      </div>
+    </ModalShell>
   )
 }
 
@@ -1153,31 +1148,32 @@ function CollectionItem({ collection, activeRequestId, onSelectRequest, onNewReq
       ))}
 
       {/* Context menu */}
-      {ctxMenu && (() => {
-        const req = collection.requests.find((r) => r.id === ctxMenu.reqId)
-        if (!req) return null
-        return (
-          <div
-            className="fixed z-[300] bg-surface border border-outline-variant/25 rounded-xl shadow-xl overflow-hidden py-1 min-w-[140px]"
-            style={{ top: ctxMenu.y, left: ctxMenu.x }}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <button onClick={() => startRename(req.id, req.name)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-on-surface hover:bg-surface-container transition-colors">
-              <Pencil size={14} /> Renombrar
-            </button>
-            <button onClick={() => { onDuplicate(req.id); setCtxMenu(null) }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-on-surface hover:bg-surface-container transition-colors">
-              <Copy size={14} /> Duplicar
-            </button>
-            <div className="border-t border-outline-variant/15 my-1" />
-            <button onClick={() => { onDeleteRequest(req.id); setCtxMenu(null) }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-error hover:bg-error/10 transition-colors">
-              <Trash2 size={14} /> Eliminar
-            </button>
-          </div>
-        )
-      })()}
+      <AnimatePresence>
+        {ctxMenu && (() => {
+          const req = collection.requests.find((r) => r.id === ctxMenu.reqId)
+          if (!req) return null
+          return (
+            <motion.div
+              className="ui-menu fixed z-[300] min-w-[140px]"
+              style={{ top: ctxMenu.y, left: ctxMenu.x }}
+              onMouseDown={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+            >
+              <button onClick={() => startRename(req.id, req.name)} className="ui-menu-item">
+                <Pencil size={14} /> Renombrar
+              </button>
+              <button onClick={() => { onDuplicate(req.id); setCtxMenu(null) }} className="ui-menu-item">
+                <Copy size={14} /> Duplicar
+              </button>
+              <div className="border-t border-outline-variant/15 my-1" />
+              <button onClick={() => { onDeleteRequest(req.id); setCtxMenu(null) }} className="ui-menu-item text-error hover:bg-error/10">
+                <Trash2 size={14} /> Eliminar
+              </button>
+            </motion.div>
+          )
+        })()}
+      </AnimatePresence>
     </div>
   )
 }
@@ -1195,9 +1191,9 @@ function KVEditor({ pairs, onChange }: { pairs: KeyValuePair[]; onChange: (p: Ke
         <div key={p.id} className="flex items-center gap-2">
           <input type="checkbox" checked={p.enabled} onChange={(e) => update(p.id, 'enabled', e.target.checked)} className="accent-primary" />
           <input value={p.key} onChange={(e) => update(p.id, 'key', e.target.value)} placeholder="Key"
-            className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+            className="ui-input flex-1" />
           <input value={p.value} onChange={(e) => update(p.id, 'value', e.target.value)} placeholder="Value"
-            className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+            className="ui-input flex-1" />
           <button onClick={() => remove(p.id)} className="text-on-surface-variant hover:text-error transition-colors">
             <X size={14} />
           </button>
@@ -1240,9 +1236,9 @@ function FormDataEditor({ fields, onChange }: { fields: FormDataField[]; onChang
         <div key={f.id} className="flex items-center gap-2">
           <input type="checkbox" checked={f.enabled} onChange={(e) => update(f.id, { enabled: e.target.checked })} className="accent-primary" />
           <input value={f.key} onChange={(e) => update(f.id, { key: e.target.value })} placeholder="Key"
-            className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+            className="ui-input flex-1" />
           {f.isFile ? (
-            <div className="flex-1 flex items-center gap-1 text-xs text-on-surface-variant bg-surface border border-outline-variant/20 rounded-lg px-2.5 py-1.5">
+            <div className="ui-input flex-1 flex items-center gap-1 text-on-surface-variant">
               <Paperclip size={12} />
               <span className="truncate">{getFileLabel(f.value)}</span>
               <button onClick={() => update(f.id, { value: '', isFile: false })} className="ml-auto text-on-surface-variant/50 hover:text-error">
@@ -1251,7 +1247,7 @@ function FormDataEditor({ fields, onChange }: { fields: FormDataField[]; onChang
             </div>
           ) : (
             <input value={f.value} onChange={(e) => update(f.id, { value: e.target.value })} placeholder="Value"
-              className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2.5 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+              className="ui-input flex-1" />
           )}
           <label title="Attach file" className="cursor-pointer text-on-surface-variant/50 hover:text-primary transition-colors">
             <FileUp size={14} />
@@ -1362,7 +1358,7 @@ function EnvironmentPanel({ environments, onChange }: {
         {showNew && (
           <form onSubmit={(e) => { e.preventDefault(); void handleAddEnv() }} className="flex gap-1 mb-2">
             <input autoFocus value={newEnvName} onChange={(e) => setNewEnvName(e.target.value)} placeholder="Nombre del entorno"
-              className="flex-1 text-xs bg-surface-container border border-outline-variant/30 rounded-lg px-2 py-1.5 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/50" />
+              className="ui-input flex-1" />
             <button type="submit" className="text-primary"><Check size={16} /></button>
           </form>
         )}
@@ -1411,14 +1407,14 @@ function EnvironmentPanel({ environments, onChange }: {
                   <div key={p.id} className="flex items-center gap-1.5">
                     <input value={p.key} onChange={(e) => setVarPairs((ps) => ps.map((x) => x.id === p.id ? { ...x, key: e.target.value } : x))}
                       placeholder="Variable"
-                      className="flex-1 text-xs bg-surface border border-outline-variant/20 rounded-lg px-2 py-1.5 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                      className="ui-input flex-1" />
                     <div className="relative flex-1">
                       <input
                         type={isSecret && !isRevealed ? 'password' : 'text'}
                         value={p.value}
                         onChange={(e) => setVarPairs((ps) => ps.map((x) => x.id === p.id ? { ...x, value: e.target.value } : x))}
                         placeholder="Value"
-                        className="w-full text-xs bg-surface border border-outline-variant/20 rounded-lg px-2 py-1.5 pr-6 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        className="ui-input w-full pr-6"
                       />
                       {isSecret && (
                         <button
@@ -1476,14 +1472,14 @@ function AuthEditor({ auth, onChange }: { auth: ActiveRequest['auth']; onChange:
       </div>
       {auth.type === 'bearer' && (
         <input value={auth.token ?? ''} onChange={(e) => onChange({ ...auth, token: e.target.value })} placeholder="Token"
-          className="w-full text-xs bg-surface border border-outline-variant/20 rounded-lg px-3 py-2 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+          className="ui-input w-full" />
       )}
       {auth.type === 'basic' && (
         <div className="space-y-2">
           <input value={auth.username ?? ''} onChange={(e) => onChange({ ...auth, username: e.target.value })} placeholder="Username"
-            className="w-full text-xs bg-surface border border-outline-variant/20 rounded-lg px-3 py-2 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+            className="ui-input w-full" />
           <input type="password" value={auth.password ?? ''} onChange={(e) => onChange({ ...auth, password: e.target.value })} placeholder="Password"
-            className="w-full text-xs bg-surface border border-outline-variant/20 rounded-lg px-3 py-2 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/50" />
+            className="ui-input w-full" />
         </div>
       )}
     </div>
@@ -1512,7 +1508,7 @@ function ScriptEditor({
         onChange={(e) => onChange(e.target.value)}
         spellCheck={false}
         placeholder={'// JavaScript\npm.environment.set(\'token\', pm.response.json().access_token)'}
-        className="flex-1 min-h-[80px] font-mono text-xs bg-surface border border-outline-variant/20 rounded-lg px-3 py-2 text-on-surface resize-none focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-on-surface-variant/40"
+        className="ui-input flex-1 min-h-[80px] font-mono resize-none placeholder:text-on-surface-variant/40"
       />
     </div>
   )

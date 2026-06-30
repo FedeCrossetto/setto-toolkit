@@ -65,8 +65,7 @@ export function SessionHistoryPanel({ onNewSession }: Props): JSX.Element {
           </button>
           <button
             onClick={onNewSession}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
-            style={{ background: 'rgb(var(--c-primary))', color: '#fff' }}
+            className="ui-btn ui-btn-primary text-[12px] py-1.5"
           >
             <Terminal size={12} />
             New Session

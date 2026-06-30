@@ -1,8 +1,17 @@
-import { useState, useCallback, useRef, type ComponentType } from 'react'
+import { createElement, useState, useCallback, useRef, type ComponentType } from 'react'
 import {
-  Code2, Database, FileCode2, FileText, Palette,
-  ScrollText, Settings, Terminal,
+  Database, FileCode2, FileText,
+  ScrollText, Settings,
 } from 'lucide-react'
+import {
+  SiTypescript, SiJavascript, SiHtml5, SiCss, SiYaml,
+  SiMarkdown, SiPython, SiCplusplus,
+} from 'react-icons/si'
+import deviconJava from '../../../assets/devicon/java-original.svg?raw'
+import deviconCsharp from '../../../assets/devicon/csharp-original.svg?raw'
+import deviconGo from '../../../assets/devicon/go-original.svg?raw'
+import deviconRust from '../../../assets/devicon/rust-original.svg?raw'
+import deviconBash from '../../../assets/devicon/bash-original.svg?raw'
 import type { OpenFile, FileLanguage, ReadFileResponse } from '../types'
 
 let tabCounter = 0
@@ -23,8 +32,7 @@ export function detectLanguage(filename: string): FileLanguage {
     yml: 'yaml', yaml: 'yaml',
     sql: 'sql',
     md: 'markdown', markdown: 'markdown', mdx: 'markdown',
-    toml: 'ini', ini: 'ini', conf: 'ini', env: 'ini', properties: 'ini',
-    cfg: 'text',
+    toml: 'ini', ini: 'ini', conf: 'ini', env: 'ini', properties: 'ini', cfg: 'ini',
     // Systems
     cs: 'csharp',
     cpp: 'cpp', cc: 'cpp', cxx: 'cpp', c: 'cpp', h: 'cpp', hpp: 'cpp',
@@ -40,28 +48,91 @@ export function detectLanguage(filename: string): FileLanguage {
   return map[ext] ?? 'text'
 }
 
-/** Lucide icon component for a given language */
-export function languageIcon(lang: FileLanguage): ComponentType<{ size?: number; className?: string }> {
+/**
+ * Some extensions are ambiguous (.cfg can hold XML or ini-style key=value pairs).
+ * Sniff the actual content for those and override the extension-based guess —
+ * gets both the icon and the syntax highlighting right.
+ */
+export function refineLanguageFromContent(lang: FileLanguage, content: string): FileLanguage {
+  if (lang !== 'ini' && lang !== 'text') return lang
+  // Strip a possible UTF-8 BOM (U+FEFF) — trimStart() doesn't remove it, so a
+  // BOM-prefixed XML file would otherwise fail the '<' sniff below.
+  const firstChar = content.replace(/^\uFEFF/, '').trimStart().charAt(0)
+  if (firstChar === '<') return 'xml'
+  return lang
+}
+
+type IconComponent = ComponentType<{ size?: number; className?: string }>
+
+/** Wraps a brand (simple-icons) glyph with a fixed brand color, keeping the same {size, className} signature as Lucide icons. */
+function brandIcon(Icon: ComponentType<{ size?: number; className?: string; color?: string }>, color?: string): IconComponent {
+  return ({ size, className }) => createElement(Icon, { size, className, color })
+}
+
+const TYPESCRIPT_ICON = brandIcon(SiTypescript, '#3178C6')
+const JAVASCRIPT_ICON = brandIcon(SiJavascript, '#F7DF1E')
+const HTML_ICON       = brandIcon(SiHtml5, '#E34F26')
+const CSS_ICON        = brandIcon(SiCss, '#1572B6')
+const YAML_ICON       = brandIcon(SiYaml, '#CB171E')
+const MARKDOWN_ICON   = brandIcon(SiMarkdown) // brand mark is black/white — inherit currentColor instead
+const PYTHON_ICON     = brandIcon(SiPython, '#3776AB')
+const CPP_ICON        = brandIcon(SiCplusplus, '#00599C')
+// Same lime accent CodeEditor already uses to highlight numbers/URLs in plain text (.txt/.log) —
+// ties the sidebar icon color to the same visual language as the in-editor styling.
+const TXT_LIME = '#BEF264'
+const TEXT_ICON = brandIcon(FileText, TXT_LIME)
+const LOG_ICON  = brandIcon(ScrollText, TXT_LIME)
+
+/** Wraps a raw Devicon SVG (no fixed size/fill) as an inline brand icon. */
+function devicon(raw: string): IconComponent {
+  // Devicon source SVGs don't set a root fill — paths without their own fill default
+  // to black, invisible on a dark UI. Force currentColor on the few that need it.
+  const html = raw.includes('fill=') ? raw : raw.replace('<svg ', '<svg fill="currentColor" ')
+  return ({ size = 16, className }) => createElement('span', {
+    className: ['devicon-svg', className].filter(Boolean).join(' '),
+    style: { width: size, height: size },
+    dangerouslySetInnerHTML: { __html: html },
+  })
+}
+
+const JAVA_DEVICON   = devicon(deviconJava)
+const CSHARP_DEVICON = devicon(deviconCsharp)
+const GO_DEVICON     = devicon(deviconGo)
+const RUST_DEVICON   = devicon(deviconRust)
+const SHELL_DEVICON  = devicon(deviconBash)
+
+/** Language-specific icon — brand logo (simple-icons) when one exists and reads well at small sizes, Lucide fallback otherwise */
+export function languageIcon(lang: FileLanguage): IconComponent {
   switch (lang) {
-    case 'log':        return ScrollText
+    case 'log':        return LOG_ICON
     case 'json':       return FileCode2
-    case 'typescript':
-    case 'javascript': return Code2
-    case 'html':
+    case 'typescript': return TYPESCRIPT_ICON
+    case 'javascript': return JAVASCRIPT_ICON
+    case 'html':       return HTML_ICON
     case 'xml':        return FileCode2
-    case 'markdown':   return FileText
+    case 'markdown':   return MARKDOWN_ICON
     case 'sql':        return Database
-    case 'yaml':       return Settings
-    case 'python':     return Terminal
-    case 'css':        return Palette
-    case 'shell':      return Terminal
-    default:           return FileText
+    case 'yaml':       return YAML_ICON
+    case 'python':     return PYTHON_ICON
+    case 'css':        return CSS_ICON
+    case 'shell':      return SHELL_DEVICON
+    case 'rust':       return RUST_DEVICON
+    case 'go':         return GO_DEVICON
+    case 'cpp':        return CPP_ICON
+    case 'csharp':     return CSHARP_DEVICON
+    case 'java':       return JAVA_DEVICON
+    case 'ini':        return Settings
+    case 'text':       return TEXT_ICON
+    default:           return TEXT_ICON
   }
 }
 
 export function useEditorTabs() {
   const [tabs, setTabs] = useState<OpenFile[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
+  // Tracks in-flight openFile() reads so the UI can show a thin loading bar —
+  // there was previously zero feedback while a large/slow file was being read.
+  const [openingCount, setOpeningCount] = useState(0)
 
   // Stable ref so openFile never goes stale during parallel session-restore calls.
   // Without this, all concurrent openFile() calls in Promise.all() capture the same
@@ -77,6 +148,7 @@ export function useEditorTabs() {
       return existing
     }
 
+    setOpeningCount((n) => n + 1)
     try {
       const result = await window.api.invoke<ReadFileResponse>('editor:read-file', { path: filePath, tailLinesCount })
       const name = filePath.split(/[\\/]/).pop() ?? filePath
@@ -84,6 +156,10 @@ export function useEditorTabs() {
         id: newId(),
         path: filePath,
         name,
+        // Stays purely extension-derived — the icon must never change while editing or
+        // differ between two files with the same extension. Syntax highlighting (which
+        // CAN be smarter about ambiguous extensions like .cfg) is resolved separately,
+        // inline where CodeEditor is rendered — see refineLanguageFromContent.
         language: detectLanguage(name),
         content: result.content,
         isDirty: false,
@@ -96,6 +172,7 @@ export function useEditorTabs() {
         size: result.size,
         wordWrap: true,
         truncated: result.truncated,
+        encodingWarning: result.encodingWarning,
       }
       setTabs((prev) => [...prev, file])
       setActiveId(file.id)
@@ -103,6 +180,8 @@ export function useEditorTabs() {
     } catch (e) {
       console.error('Failed to open file:', e)
       return null
+    } finally {
+      setOpeningCount((n) => n - 1)
     }
   }, [])  // stable — tabs lookup goes through tabsRef, not captured state
 
@@ -146,5 +225,5 @@ export function useEditorTabs() {
 
   const activeTab = tabs.find((t) => t.id === activeId) ?? null
 
-  return { tabs, activeId, activeTab, setActiveId, openFile, openBuffer, closeTab, updateTab, reorderTabs }
+  return { tabs, activeId, activeTab, setActiveId, openFile, openBuffer, closeTab, updateTab, reorderTabs, isOpening: openingCount > 0 }
 }

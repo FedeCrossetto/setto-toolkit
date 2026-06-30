@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, type ComponentType } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { diffLines, diffWords, type Change } from 'diff'
 import {
   ArrowLeftRight, CheckCircle2, ChevronLeft, ChevronRight, Code2, Diff,
@@ -307,7 +308,7 @@ function FileCard({ label, dotColor, info, onClear }: {
         <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/50">{label}</span>
       </div>
       {info ? (
-        <div className="flex items-center gap-2 px-2 py-1.5 bg-surface-container rounded-lg border border-outline-variant/15 group">
+        <div className="ui-card flex items-center gap-2 px-2 py-1.5 group">
           {(() => { const Icon = fileIcon(info.name); return <Icon size={14} className="text-on-surface-variant/50 flex-shrink-0" /> })()}
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-medium text-on-surface truncate">{info.name}</p>
@@ -559,14 +560,14 @@ export function SmartDiff(): JSX.Element {
         {/* Toolbar */}
         <div className="px-4 py-2.5 bg-surface border-b border-outline-variant/15 flex items-center gap-3 flex-shrink-0">
           <button onClick={runDiff} disabled={!original.trim() || !modified.trim()}
-            className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-[12px] font-medium transition-colors disabled:opacity-40 border border-primary/20">
+            className="ui-btn ui-btn-primary text-[12px] py-1.5 disabled:opacity-40">
             <Diff size={14} />
             Compare
           </button>
 
           {hasDiff && (
             <button onClick={cancelDiff}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors border border-outline-variant/20">
+              className="ui-btn ui-btn-ghost text-[12px] py-1.5 hover:text-error hover:bg-error/10">
               <X size={14} />
               Cancel diff
             </button>
@@ -586,35 +587,41 @@ export function SmartDiff(): JSX.Element {
               <Settings size={16} />
             </button>
 
-            {settingsOpen && (
-              <div className="absolute right-0 top-full mt-1 w-56 bg-surface-container border border-outline-variant/30 rounded-xl shadow-xl z-30 p-3 flex flex-col gap-3">
-                {/* Font size */}
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] uppercase tracking-widest font-semibold text-on-surface-variant/50">Font size</span>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => updatePrefs({ fontSize: Math.max(FONT_SIZE_MIN, prefs.fontSize - 1) })}
-                      className="w-6 h-6 flex items-center justify-center rounded-md bg-surface hover:bg-surface-container-high text-on-surface-variant border border-outline-variant/20 text-sm font-bold transition-colors">−</button>
-                    <span className="flex-1 text-center text-[12px] font-mono text-on-surface">{prefs.fontSize}px</span>
-                    <button onClick={() => updatePrefs({ fontSize: Math.min(FONT_SIZE_MAX, prefs.fontSize + 1) })}
-                      className="w-6 h-6 flex items-center justify-center rounded-md bg-surface hover:bg-surface-container-high text-on-surface-variant border border-outline-variant/20 text-sm font-bold transition-colors">+</button>
+            <AnimatePresence>
+              {settingsOpen && (
+                <motion.div
+                  className="ui-card absolute right-0 top-full mt-1 w-56 z-30 p-3 flex flex-col gap-3"
+                  initial={{ opacity: 0, scale: 0.96, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: -4 }}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                >
+                  {/* Font size */}
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[10px] uppercase tracking-widest font-semibold text-on-surface-variant/50">Font size</span>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => updatePrefs({ fontSize: Math.max(FONT_SIZE_MIN, prefs.fontSize - 1) })}
+                        className="ui-btn ui-btn-outline w-6 h-6 p-0 justify-center text-sm font-bold">−</button>
+                      <span className="flex-1 text-center text-[12px] font-mono text-on-surface">{prefs.fontSize}px</span>
+                      <button onClick={() => updatePrefs({ fontSize: Math.min(FONT_SIZE_MAX, prefs.fontSize + 1) })}
+                        className="ui-btn ui-btn-outline w-6 h-6 p-0 justify-center text-sm font-bold">+</button>
+                    </div>
                   </div>
-                </div>
 
-                {/* Font family */}
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] uppercase tracking-widest font-semibold text-on-surface-variant/50">Font family</span>
-                  <div className="flex flex-col gap-1">
-                    {FONT_FAMILIES.map((f) => (
-                      <button key={f} onClick={() => updatePrefs({ fontFamily: f })}
-                        className={`text-left px-2.5 py-1 rounded-lg text-[11px] transition-colors ${prefs.fontFamily === f ? 'bg-primary/15 text-primary' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
-                        style={{ fontFamily: f }}>
-                        {f}
-                      </button>
-                    ))}
+                  {/* Font family */}
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[10px] uppercase tracking-widest font-semibold text-on-surface-variant/50">Font family</span>
+                    <div className="flex flex-col gap-1">
+                      {FONT_FAMILIES.map((f) => (
+                        <button key={f} onClick={() => updatePrefs({ fontFamily: f })}
+                          className={`text-left px-2.5 py-1 rounded-lg text-[11px] transition-colors ${prefs.fontFamily === f ? 'bg-primary/15 text-primary' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
+                          style={{ fontFamily: f }}>
+                          {f}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </div>
-            )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 
@@ -659,20 +666,29 @@ export function SmartDiff(): JSX.Element {
           />
 
           {/* No-differences banner */}
-          {isIdentical && (
-            <div className="absolute inset-0 flex items-center justify-center bg-surface/50 backdrop-blur-[2px] z-10 pointer-events-none">
-              <div className="flex flex-col items-center gap-3 px-10 py-7 rounded-2xl bg-surface-container border border-secondary/20 shadow-xl pointer-events-auto">
-                <CheckCircle2 size={40} className="text-secondary" />
-                <p className="text-sm font-semibold text-on-surface">There are no differences between files.</p>
-                <button
-                  onClick={cancelDiff}
-                  className="mt-1 text-[11px] text-on-surface-variant hover:text-primary transition-colors underline underline-offset-2"
+          <AnimatePresence>
+            {isIdentical && (
+              <motion.div
+                className="absolute inset-0 flex items-center justify-center bg-surface/50 backdrop-blur-[2px] z-10 pointer-events-none"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
+              >
+                <motion.div
+                  className="ui-card flex flex-col items-center gap-3 px-10 py-7 pointer-events-auto"
+                  initial={{ opacity: 0, scale: 0.96, y: 6 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 6 }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
                 >
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          )}
+                  <CheckCircle2 size={40} className="text-secondary" />
+                  <p className="text-sm font-semibold text-on-surface">There are no differences between files.</p>
+                  <button
+                    onClick={cancelDiff}
+                    className="mt-1 text-[11px] text-on-surface-variant hover:text-primary transition-colors underline underline-offset-2"
+                  >
+                    Dismiss
+                  </button>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </section>
       </div>
     </div>

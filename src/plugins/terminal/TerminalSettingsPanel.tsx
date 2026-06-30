@@ -17,7 +17,7 @@ export function TerminalSettingsPanel({ prefs, onChange }: Props): JSX.Element {
   const row = 'flex items-center justify-between gap-4 py-2.5 border-b border-outline-variant/20'
   const label = 'text-[12px] text-on-surface font-medium'
   const sublabel = 'text-[11px] mt-0.5 text-on-surface-variant'
-  const select = 'text-[12px] px-2 py-1 rounded-md focus:outline-none cursor-pointer border border-outline-variant/40'
+  const select = 'ui-input text-[12px] py-1 cursor-pointer'
 
   return (
     <div className="flex flex-col h-full overflow-y-auto px-4 py-4">

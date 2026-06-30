@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { EditorView, basicSetup } from 'codemirror'
 import { EditorState, RangeSetBuilder, Compartment } from '@codemirror/state'
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { HighlightStyle, StreamLanguage, syntaxHighlighting } from '@codemirror/language'
 import { ViewPlugin, Decoration, keymap, gutter, GutterMarker } from '@codemirror/view'
 import type { DecorationSet, ViewUpdate } from '@codemirror/view'
 import { gotoLine } from '@codemirror/search'
@@ -17,6 +17,10 @@ import { yaml } from '@codemirror/lang-yaml'
 import { python } from '@codemirror/lang-python'
 import { cpp } from '@codemirror/lang-cpp'
 import { java } from '@codemirror/lang-java'
+import { rust } from '@codemirror/lang-rust'
+import { csharp } from '@codemirror/legacy-modes/mode/clike'
+import { go } from '@codemirror/legacy-modes/mode/go'
+import { shell } from '@codemirror/legacy-modes/mode/shell'
 import { tags } from '@lezer/highlight'
 import type { EditorHandle, FileLanguage, GitLineDiff } from '../types'
 import type { EditorColorScheme } from '../hooks/useEditorPrefs'
@@ -47,10 +51,52 @@ function buildGitGutter(diff: GitLineDiff | null) {
 
 // ── Nexus palette ─────────────────────────────────────────────────────────────
 const C = {
-  primary:   '#5347CE', secondary: '#887CFD',
-  accent:    '#16C8C7', blue:      '#4896FE',
-  text:      '#c4c5d6', muted:     '#5a5a80',
+  primary:   '#5347CE', secondary: '#a89bff',
+  accent:    '#2adfdd', blue:      '#6ba8ff',
+  text:      '#eef0ff', muted:     '#84849c',
   border:    'rgb(83 71 206 / 0.2)',
+}
+
+// ── Aurora palette (dark navy + pink/violet/cyan accents) ─────────────────────
+const AU = {
+  string:   '#FFB870', // warm amber
+  property: '#7FE0C8', // teal
+  number:   '#FFB870', // amber
+  keyword:  '#8B93FF', // blue-violet
+  func:     '#FF6FA8', // pink/magenta — macros, function & type calls
+  type:     '#5CCFE6', // cyan
+  bracket:  '#9DA3C2', // soft lavender-grey
+  comment:  '#5B6178', // muted slate
+  text:     '#E4E6F1', // off-white
+  muted:    '#3A3D52', // dark muted
+}
+
+// ── Dracula palette (canonical) ────────────────────────────────────────────────
+const DR = {
+  string:   '#F1FA8C', // yellow
+  property: '#FFB86C', // orange (parameters/properties)
+  number:   '#BD93F9', // purple
+  keyword:  '#FF79C6', // pink
+  func:     '#50FA7B', // green
+  type:     '#8BE9FD', // cyan
+  bracket:  '#F8F8F2', // foreground
+  comment:  '#6272A4', // muted blue-grey
+  text:     '#F8F8F2', // foreground
+  muted:    '#44475A', // current-line grey
+}
+
+// ── Monokai palette (canonical) ────────────────────────────────────────────────
+const MK = {
+  string:   '#E6DB74', // yellow
+  property: '#FD971F', // orange
+  number:   '#AE81FF', // purple
+  keyword:  '#F92672', // pink/red
+  func:     '#A6E22E', // green
+  type:     '#66D9EF', // blue/cyan
+  bracket:  '#F8F8F2', // foreground
+  comment:  '#75715E', // olive grey
+  text:     '#F8F8F2', // foreground
+  muted:    '#49483E', // dark olive
 }
 
 // ── HTTPie / Tokyo Night palette ──────────────────────────────────────────────
@@ -82,15 +128,15 @@ const nexusDarkHighlight = HighlightStyle.define([
   { tag: [tags.number, tags.integer, tags.float],             color: C.blue },
   { tag: [tags.bool, tags.null],                              color: C.secondary },
   { tag: [tags.comment, tags.lineComment, tags.blockComment], color: C.muted, fontStyle: 'italic' },
-  { tag: tags.operator,                                       color: '#a0a1c0' },
-  { tag: [tags.punctuation, tags.separator],                  color: '#6a6a90' },
-  { tag: [tags.angleBracket, tags.squareBracket, tags.paren, tags.brace], color: '#7a7aaa' },
+  { tag: tags.operator,                                       color: '#c5c6e0' },
+  { tag: [tags.punctuation, tags.separator],                  color: '#9b9cc0' },
+  { tag: [tags.angleBracket, tags.squareBracket, tags.paren, tags.brace], color: '#aaabd0' },
   { tag: tags.typeName,                                       color: C.blue },
   { tag: tags.className,                                      color: C.blue, fontWeight: 'bold' },
-  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: '#c8c9e8' },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: '#e6e7f5' },
   { tag: tags.definition(tags.variableName),                  color: C.text },
   { tag: tags.variableName,                                   color: C.text },
-  { tag: tags.propertyName,                                   color: '#a0a8cc' },
+  { tag: tags.propertyName,                                   color: '#c0c6ec' },
   { tag: tags.namespace,                                      color: C.blue },
   { tag: tags.tagName,                                        color: C.secondary },
   { tag: tags.attributeName,                                  color: C.blue },
@@ -198,6 +244,106 @@ const httpieLightHighlight = HighlightStyle.define([
   { tag: tags.unit,                                           color: '#c2410c' },
   { tag: tags.invalid,                                        color: '#dc2626', textDecoration: 'underline wavy' },
 ])
+
+const auroraDarkHighlight = HighlightStyle.define([
+  { tag: [tags.keyword, tags.operatorKeyword],                color: AU.keyword },
+  { tag: [tags.controlKeyword, tags.moduleKeyword],           color: AU.keyword, fontStyle: 'italic' },
+  { tag: tags.definitionKeyword,                              color: AU.keyword },
+  { tag: [tags.string, tags.special(tags.string)],            color: AU.string },
+  { tag: tags.regexp,                                         color: AU.string },
+  { tag: tags.escape,                                         color: AU.bracket },
+  { tag: [tags.number, tags.integer, tags.float],             color: AU.number },
+  { tag: [tags.bool, tags.null],                              color: AU.keyword },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: AU.comment, fontStyle: 'italic' },
+  { tag: tags.operator,                                       color: AU.bracket },
+  { tag: [tags.punctuation, tags.separator],                  color: AU.muted },
+  { tag: [tags.angleBracket, tags.squareBracket, tags.paren, tags.brace], color: AU.bracket },
+  { tag: tags.typeName,                                       color: AU.type },
+  { tag: tags.className,                                      color: AU.type, fontWeight: 'bold' },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: AU.func },
+  { tag: tags.definition(tags.variableName),                  color: AU.text },
+  { tag: tags.variableName,                                   color: AU.text },
+  { tag: tags.propertyName,                                   color: AU.property },
+  { tag: tags.namespace,                                      color: AU.type },
+  { tag: tags.tagName,                                        color: AU.func },
+  { tag: tags.attributeName,                                  color: AU.property },
+  { tag: tags.attributeValue,                                 color: AU.string },
+  { tag: [tags.heading, tags.heading1, tags.heading2],        color: AU.func, fontWeight: 'bold' },
+  { tag: tags.emphasis,                                       color: AU.string, fontStyle: 'italic' },
+  { tag: tags.strong,                                         color: AU.text, fontWeight: 'bold' },
+  { tag: [tags.link, tags.url],                               color: AU.func, textDecoration: 'underline' },
+  { tag: tags.color,                                          color: AU.string },
+  { tag: tags.unit,                                           color: AU.number },
+  { tag: tags.invalid,                                        color: '#ff5c7a', textDecoration: 'underline wavy' },
+])
+
+const auroraLightHighlight = HighlightStyle.define([
+  { tag: [tags.keyword, tags.operatorKeyword],                color: '#5B5FE0' },
+  { tag: [tags.controlKeyword, tags.moduleKeyword],           color: '#5B5FE0', fontStyle: 'italic' },
+  { tag: tags.definitionKeyword,                              color: '#5B5FE0' },
+  { tag: [tags.string, tags.special(tags.string)],            color: '#C2660A' },
+  { tag: tags.regexp,                                         color: '#C2660A' },
+  { tag: tags.escape,                                         color: '#0E7681' },
+  { tag: [tags.number, tags.integer, tags.float],             color: '#C2660A' },
+  { tag: [tags.bool, tags.null],                              color: '#5B5FE0' },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: '#8A8F9E', fontStyle: 'italic' },
+  { tag: tags.operator,                                       color: '#5B6178' },
+  { tag: [tags.punctuation, tags.separator],                  color: '#6B7187' },
+  { tag: [tags.angleBracket, tags.squareBracket, tags.paren, tags.brace], color: '#0E7681' },
+  { tag: tags.typeName,                                       color: '#0E7681' },
+  { tag: tags.className,                                      color: '#0E7681', fontWeight: 'bold' },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: '#D6336C' },
+  { tag: tags.definition(tags.variableName),                  color: '#1E2030' },
+  { tag: tags.variableName,                                   color: '#1E2030' },
+  { tag: tags.propertyName,                                   color: '#0F8A6E' },
+  { tag: tags.tagName,                                        color: '#D6336C' },
+  { tag: tags.attributeName,                                  color: '#0F8A6E' },
+  { tag: tags.attributeValue,                                 color: '#C2660A' },
+  { tag: [tags.heading, tags.heading1, tags.heading2],        color: '#D6336C', fontWeight: 'bold' },
+  { tag: tags.emphasis,                                       color: '#C2660A', fontStyle: 'italic' },
+  { tag: tags.strong,                                         color: '#1E2030', fontWeight: 'bold' },
+  { tag: [tags.link, tags.url],                               color: '#D6336C', textDecoration: 'underline' },
+  { tag: tags.color,                                          color: '#C2660A' },
+  { tag: tags.unit,                                           color: '#C2660A' },
+  { tag: tags.invalid,                                        color: '#dc2626', textDecoration: 'underline wavy' },
+])
+
+function buildHighlight(P: typeof AU, invalid: string) {
+  return HighlightStyle.define([
+    { tag: [tags.keyword, tags.operatorKeyword],                color: P.keyword },
+    { tag: [tags.controlKeyword, tags.moduleKeyword],           color: P.keyword, fontStyle: 'italic' },
+    { tag: tags.definitionKeyword,                              color: P.keyword },
+    { tag: [tags.string, tags.special(tags.string)],            color: P.string },
+    { tag: tags.regexp,                                         color: P.string },
+    { tag: tags.escape,                                         color: P.bracket },
+    { tag: [tags.number, tags.integer, tags.float],             color: P.number },
+    { tag: [tags.bool, tags.null],                              color: P.keyword },
+    { tag: [tags.comment, tags.lineComment, tags.blockComment], color: P.comment, fontStyle: 'italic' },
+    { tag: tags.operator,                                       color: P.bracket },
+    { tag: [tags.punctuation, tags.separator],                  color: P.muted },
+    { tag: [tags.angleBracket, tags.squareBracket, tags.paren, tags.brace], color: P.bracket },
+    { tag: tags.typeName,                                       color: P.type },
+    { tag: tags.className,                                      color: P.type, fontWeight: 'bold' },
+    { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: P.func },
+    { tag: tags.definition(tags.variableName),                  color: P.text },
+    { tag: tags.variableName,                                   color: P.text },
+    { tag: tags.propertyName,                                   color: P.property },
+    { tag: tags.namespace,                                      color: P.type },
+    { tag: tags.tagName,                                        color: P.func },
+    { tag: tags.attributeName,                                  color: P.property },
+    { tag: tags.attributeValue,                                 color: P.string },
+    { tag: [tags.heading, tags.heading1, tags.heading2],        color: P.func, fontWeight: 'bold' },
+    { tag: tags.emphasis,                                       color: P.string, fontStyle: 'italic' },
+    { tag: tags.strong,                                         color: P.text, fontWeight: 'bold' },
+    { tag: [tags.link, tags.url],                               color: P.func, textDecoration: 'underline' },
+    { tag: tags.color,                                          color: P.string },
+    { tag: tags.unit,                                           color: P.number },
+    { tag: tags.invalid,                                        color: invalid, textDecoration: 'underline wavy' },
+  ])
+}
+
+const draculaHighlight = buildHighlight(DR, '#ff5555')
+const monokaiHighlight = buildHighlight(MK, '#f92672')
 
 // ── Plain-text token highlight plugin ────────────────────────────────────────
 // Patterns are applied in priority order; first match "wins" per character position
@@ -389,7 +535,7 @@ function buildNexusDarkTheme(fontSize: number, fontFamily: string) {
     '&': { height: '100%', backgroundColor: 'rgb(var(--c-surface))' },
     '.cm-scroller': {
       fontFamily: monoStack(fontFamily), fontSize: `${fontSize}px`, lineHeight: '1.7',
-      color: 'rgb(var(--c-on-surface))',
+      color: '#FFFFFF',
     },
     '.cm-content': { caretColor: 'rgb(var(--c-primary-light))' },
     '.cm-gutters': {
@@ -631,6 +777,140 @@ function buildHttpieLightTheme(fontSize: number, fontFamily: string) {
   }, { dark: false })
 }
 
+function buildAuroraDarkTheme(fontSize: number, fontFamily: string) {
+  const bg = '#13151D', gutterBg = '#0F1018', activeLine = '#1B1D2B'
+  const sel = 'rgba(139,147,255,0.22)', selFocus = 'rgba(139,147,255,0.3)'
+  const border = 'rgba(157,163,194,0.18)'
+  return EditorView.theme({
+    '&': { height: '100%', backgroundColor: bg },
+    '.cm-scroller': { fontFamily: monoStack(fontFamily), fontSize: `${fontSize}px`, lineHeight: '1.7', color: AU.text },
+    '.cm-content': { caretColor: AU.func },
+    '.cm-gutters': { backgroundColor: gutterBg, borderRight: `1px solid ${border}`, color: AU.comment, minWidth: '44px' },
+    '.cm-activeLineGutter': { backgroundColor: activeLine, color: AU.text },
+    '.cm-activeLine': { backgroundColor: activeLine },
+    '.cm-foldGutter span': { color: AU.comment, cursor: 'pointer', fontSize: '11px' },
+    '.cm-foldGutter span:hover': { color: AU.bracket },
+    '.cm-git-gutter': { width: '3px', minWidth: '3px', padding: '0' },
+    '.cm-git-added':   { backgroundColor: '#7FE0C8', width: '3px', height: '100%' },
+    '.cm-git-changed': { backgroundColor: '#FFB870', width: '3px', height: '100%' },
+    '.cm-git-deleted': { backgroundColor: '#ff5c7a', width: '100%', height: '2px', marginTop: 'auto', borderRadius: '1px' },
+    '.cm-selectionBackground': { backgroundColor: `${sel} !important` },
+    '.cm-focused .cm-selectionBackground': { backgroundColor: `${selFocus} !important` },
+    '.cm-cursor': { borderLeftColor: AU.func },
+    '.cm-searchMatch': { backgroundColor: 'rgba(255,184,112,0.2)', outline: '1px solid rgba(255,184,112,0.5)' },
+    '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgba(255,111,168,0.3)' },
+    '.cm-foldPlaceholder': { backgroundColor: gutterBg, border: `1px solid ${border}`, color: AU.comment },
+    '.cm-tooltip': { backgroundColor: '#1B1D2B', border: `1px solid ${border}`, color: AU.text },
+    '.cm-txt-string': { color: AU.string },
+    '.cm-txt-number': { color: AU.number },
+    '.cm-txt-bool':   { color: AU.keyword },
+    '.cm-txt-url':    { color: AU.func, textDecoration: 'underline' },
+    '.cm-ini-section': { color: AU.func, fontWeight: 'bold' },
+    '.cm-ini-key':     { color: AU.property },
+    '.cm-ini-value':   { color: AU.string },
+    '.cm-ini-string':  { color: AU.string },
+    '.cm-ini-comment': { color: AU.comment, fontStyle: 'italic' },
+    '.cm-panels': { backgroundColor: '#1B1D2B', borderTop: `1px solid ${border}`, color: AU.text },
+    '.cm-panels.cm-panels-bottom': { borderTop: `1px solid ${border}`, borderBottom: 'none' },
+    '.cm-search': { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', padding: '8px 12px' },
+    '.cm-search label': { fontSize: '11px', color: AU.comment, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' },
+    '.cm-textfield': { backgroundColor: '#0F1018', color: AU.text, border: `1px solid ${border}`, borderRadius: '7px', padding: '3px 8px', fontSize: '12px', outline: 'none', fontFamily: monoStack(fontFamily) },
+    '.cm-textfield:focus': { borderColor: 'rgba(139,147,255,0.6)', boxShadow: '0 0 0 2px rgba(139,147,255,0.12)' },
+    '.cm-button': { backgroundColor: 'rgba(255,111,168,0.14)', color: AU.text, border: `1px solid ${border}`, borderRadius: '7px', padding: '3px 10px', fontSize: '11px', fontWeight: '500', cursor: 'pointer', backgroundImage: 'none' },
+    '.cm-button:hover': { backgroundColor: 'rgba(255,111,168,0.24)' },
+    '.cm-button:active': { backgroundColor: 'rgba(255,111,168,0.34)' },
+  }, { dark: true })
+}
+
+function buildAuroraLightTheme(fontSize: number, fontFamily: string) {
+  return EditorView.theme({
+    '&': { height: '100%', backgroundColor: '#fbfaf7' },
+    '.cm-scroller': { fontFamily: monoStack(fontFamily), fontSize: `${fontSize}px`, lineHeight: '1.7', color: '#1E2030' },
+    '.cm-content': { caretColor: '#D6336C' },
+    '.cm-gutters': { backgroundColor: '#f3f1ea', borderRight: '1px solid rgba(0,0,0,0.08)', color: '#8A8F9E', minWidth: '44px' },
+    '.cm-activeLineGutter': { backgroundColor: '#ebe8de' },
+    '.cm-activeLine': { backgroundColor: 'rgba(0,0,0,0.03)' },
+    '.cm-foldGutter span': { color: '#8A8F9E', cursor: 'pointer', fontSize: '11px' },
+    '.cm-foldGutter span:hover': { color: '#0E7681' },
+    '.cm-git-gutter': { width: '3px', minWidth: '3px', padding: '0' },
+    '.cm-git-added':   { backgroundColor: '#0F8A6E', width: '3px', height: '100%' },
+    '.cm-git-changed': { backgroundColor: '#C2660A', width: '3px', height: '100%' },
+    '.cm-git-deleted': { backgroundColor: '#dc2626', width: '100%', height: '2px', marginTop: 'auto', borderRadius: '1px' },
+    '.cm-selectionBackground': { backgroundColor: 'rgba(91,95,224,0.12) !important' },
+    '.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(91,95,224,0.18) !important' },
+    '.cm-cursor': { borderLeftColor: '#D6336C' },
+    '.cm-searchMatch': { backgroundColor: 'rgba(194,102,10,0.12)', outline: '1px solid rgba(194,102,10,0.3)' },
+    '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgba(91,95,224,0.18)' },
+    '.cm-foldPlaceholder': { backgroundColor: '#ebe8de', border: '1px solid rgba(0,0,0,0.12)', color: '#8A8F9E' },
+    '.cm-tooltip': { backgroundColor: '#f3f1ea', border: '1px solid rgba(0,0,0,0.12)', color: '#1E2030' },
+    '.cm-txt-string': { color: '#C2660A' },
+    '.cm-txt-number': { color: '#C2660A' },
+    '.cm-txt-bool':   { color: '#5B5FE0' },
+    '.cm-txt-url':    { color: '#D6336C', textDecoration: 'underline' },
+    '.cm-ini-section': { color: '#D6336C', fontWeight: 'bold' },
+    '.cm-ini-key':     { color: '#0F8A6E' },
+    '.cm-ini-value':   { color: '#C2660A' },
+    '.cm-ini-string':  { color: '#C2660A' },
+    '.cm-ini-comment': { color: '#8A8F9E', fontStyle: 'italic' },
+    '.cm-panels': { backgroundColor: '#f3f1ea', borderTop: '1px solid rgba(0,0,0,0.1)', color: '#1E2030' },
+    '.cm-panels.cm-panels-bottom': { borderTop: '1px solid rgba(0,0,0,0.1)', borderBottom: 'none' },
+    '.cm-search': { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', padding: '8px 12px' },
+    '.cm-search label': { fontSize: '11px', color: '#8A8F9E', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' },
+    '.cm-textfield': { backgroundColor: '#ffffff', color: '#1E2030', border: '1px solid rgba(0,0,0,0.15)', borderRadius: '7px', padding: '3px 8px', fontSize: '12px', outline: 'none', fontFamily: monoStack(fontFamily) },
+    '.cm-textfield:focus': { borderColor: 'rgba(91,95,224,0.5)', boxShadow: '0 0 0 2px rgba(91,95,224,0.1)' },
+    '.cm-button': { backgroundColor: 'rgba(214,51,108,0.08)', color: '#D6336C', border: '1px solid rgba(214,51,108,0.25)', borderRadius: '7px', padding: '3px 10px', fontSize: '11px', fontWeight: '500', cursor: 'pointer', backgroundImage: 'none' },
+    '.cm-button:hover': { backgroundColor: 'rgba(214,51,108,0.15)' },
+    '.cm-button:active': { backgroundColor: 'rgba(214,51,108,0.25)' },
+  }, { dark: false })
+}
+
+// Dracula and Monokai are canonically dark-only themes (no official light variant) —
+// they render with their dark palette regardless of the app's light/dark UI mode,
+// same as picking a dark editor theme in VS Code while the OS chrome stays light.
+function buildFixedDarkTheme(P: typeof AU, bg: string, gutterBg: string, activeLine: string, accent: string, fontSize: number, fontFamily: string) {
+  const sel = `${accent}38`, selFocus = `${accent}50`
+  const border = `${P.muted}aa`
+  return EditorView.theme({
+    '&': { height: '100%', backgroundColor: bg },
+    '.cm-scroller': { fontFamily: monoStack(fontFamily), fontSize: `${fontSize}px`, lineHeight: '1.7', color: P.text },
+    '.cm-content': { caretColor: accent },
+    '.cm-gutters': { backgroundColor: gutterBg, borderRight: `1px solid ${border}`, color: P.comment, minWidth: '44px' },
+    '.cm-activeLineGutter': { backgroundColor: activeLine, color: P.text },
+    '.cm-activeLine': { backgroundColor: activeLine },
+    '.cm-foldGutter span': { color: P.comment, cursor: 'pointer', fontSize: '11px' },
+    '.cm-foldGutter span:hover': { color: P.bracket },
+    '.cm-git-gutter': { width: '3px', minWidth: '3px', padding: '0' },
+    '.cm-git-added':   { backgroundColor: P.func, width: '3px', height: '100%' },
+    '.cm-git-changed': { backgroundColor: P.property, width: '3px', height: '100%' },
+    '.cm-git-deleted': { backgroundColor: P.keyword, width: '100%', height: '2px', marginTop: 'auto', borderRadius: '1px' },
+    '.cm-selectionBackground': { backgroundColor: `${sel} !important` },
+    '.cm-focused .cm-selectionBackground': { backgroundColor: `${selFocus} !important` },
+    '.cm-cursor': { borderLeftColor: accent },
+    '.cm-searchMatch': { backgroundColor: `${P.string}33`, outline: `1px solid ${P.string}80` },
+    '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: `${P.keyword}4d` },
+    '.cm-foldPlaceholder': { backgroundColor: gutterBg, border: `1px solid ${border}`, color: P.comment },
+    '.cm-tooltip': { backgroundColor: activeLine, border: `1px solid ${border}`, color: P.text },
+    '.cm-txt-string': { color: P.string },
+    '.cm-txt-number': { color: P.number },
+    '.cm-txt-bool':   { color: P.keyword },
+    '.cm-txt-url':    { color: P.func, textDecoration: 'underline' },
+    '.cm-ini-section': { color: P.func, fontWeight: 'bold' },
+    '.cm-ini-key':     { color: P.property },
+    '.cm-ini-value':   { color: P.string },
+    '.cm-ini-string':  { color: P.string },
+    '.cm-ini-comment': { color: P.comment, fontStyle: 'italic' },
+    '.cm-panels': { backgroundColor: activeLine, borderTop: `1px solid ${border}`, color: P.text },
+    '.cm-panels.cm-panels-bottom': { borderTop: `1px solid ${border}`, borderBottom: 'none' },
+    '.cm-search': { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', padding: '8px 12px' },
+    '.cm-search label': { fontSize: '11px', color: P.comment, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' },
+    '.cm-textfield': { backgroundColor: gutterBg, color: P.text, border: `1px solid ${border}`, borderRadius: '7px', padding: '3px 8px', fontSize: '12px', outline: 'none', fontFamily: monoStack(fontFamily) },
+    '.cm-textfield:focus': { borderColor: `${accent}99`, boxShadow: `0 0 0 2px ${accent}1f` },
+    '.cm-button': { backgroundColor: `${accent}24`, color: P.text, border: `1px solid ${border}`, borderRadius: '7px', padding: '3px 10px', fontSize: '11px', fontWeight: '500', cursor: 'pointer', backgroundImage: 'none' },
+    '.cm-button:hover': { backgroundColor: `${accent}3d` },
+    '.cm-button:active': { backgroundColor: `${accent}57` },
+  }, { dark: true })
+}
+
 // ── Language extensions ───────────────────────────────────────────────────────
 function getLanguageExt(lang: FileLanguage) {
   switch (lang) {
@@ -646,9 +926,34 @@ function getLanguageExt(lang: FileLanguage) {
     case 'python':     return python()
     case 'cpp':        return cpp()
     case 'java':       return java()
+    case 'csharp':     return StreamLanguage.define(csharp)
+    case 'rust':       return rust()
+    case 'go':         return StreamLanguage.define(go)
+    case 'shell':      return StreamLanguage.define(shell)
     case 'text':       return [textHighlightPlugin]
     case 'ini':        return [iniHighlightPlugin]
     default:           return []
+  }
+}
+
+function getThemeExtensions(colorScheme: EditorColorScheme, isDark: boolean, fontSize: number, fontFamily: string) {
+  switch (colorScheme) {
+    case 'httpie':
+      return isDark
+        ? [buildHttpieDarkTheme(fontSize, fontFamily), syntaxHighlighting(httpieDarkHighlight)]
+        : [buildHttpieLightTheme(fontSize, fontFamily), syntaxHighlighting(httpieLightHighlight)]
+    case 'aurora':
+      return isDark
+        ? [buildAuroraDarkTheme(fontSize, fontFamily), syntaxHighlighting(auroraDarkHighlight)]
+        : [buildAuroraLightTheme(fontSize, fontFamily), syntaxHighlighting(auroraLightHighlight)]
+    case 'dracula':
+      return [buildFixedDarkTheme(DR, '#282A36', '#21222C', '#44475A', '#FF79C6', fontSize, fontFamily), syntaxHighlighting(draculaHighlight)]
+    case 'monokai':
+      return [buildFixedDarkTheme(MK, '#272822', '#1E1F1A', '#3E3D32', '#F92672', fontSize, fontFamily), syntaxHighlighting(monokaiHighlight)]
+    default:
+      return isDark
+        ? [buildNexusDarkTheme(fontSize, fontFamily), syntaxHighlighting(nexusDarkHighlight)]
+        : [buildNexusLightTheme(fontSize, fontFamily), syntaxHighlighting(nexusLightHighlight)]
   }
 }
 
@@ -723,13 +1028,7 @@ export function CodeEditor({
   useEffect(() => {
     if (!containerRef.current) return
 
-    const themeExts = colorScheme === 'httpie'
-      ? isDark
-        ? [buildHttpieDarkTheme(fontSize, fontFamily), syntaxHighlighting(httpieDarkHighlight)]
-        : [buildHttpieLightTheme(fontSize, fontFamily), syntaxHighlighting(httpieLightHighlight)]
-      : isDark
-        ? [buildNexusDarkTheme(fontSize, fontFamily), syntaxHighlighting(nexusDarkHighlight)]
-        : [buildNexusLightTheme(fontSize, fontFamily), syntaxHighlighting(nexusLightHighlight)]
+    const themeExts = getThemeExtensions(colorScheme, isDark, fontSize, fontFamily)
 
     const listeners = EditorView.updateListener.of((u) => {
       if (u.docChanged && onChange) onChange(u.state.doc.toString())

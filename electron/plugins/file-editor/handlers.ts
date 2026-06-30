@@ -198,12 +198,11 @@ export const handlers: PluginHandlers = {
     // ── File dialog ────────────────────────────────────────────────────────
 
     ipcMain.handle('editor:open-dialog', async (_e) => {
+      // A single "All Files" filter avoids the OS dimming out/blocking extensions that
+      // aren't in a stricter filter's list (same root cause as the save-dialog .txt bug).
       const result = await dialog.showOpenDialog({
         properties: ['openFile', 'multiSelections'],
-        filters: [
-          { name: 'Text & Code', extensions: ['txt', 'log', 'json', 'xml', 'yml', 'yaml', 'sql', 'ts', 'js', 'tsx', 'jsx', 'cs', 'md', 'csv'] },
-          { name: 'All Files', extensions: ['*'] },
-        ],
+        filters: [{ name: 'All Files', extensions: ['*'] }],
       })
       if (!result.canceled) {
         // Register the parent directory of each opened file as an authorized root.
@@ -224,6 +223,10 @@ export const handlers: PluginHandlers = {
       const mtime = stat.mtimeMs
       let content = fs.readFileSync(safe, 'utf-8')
       let truncated = false
+      // Node's 'utf-8' decoding never throws — invalid byte sequences become U+FFFD
+      // (the replacement char). Their presence means this likely isn't valid UTF-8
+      // text (binary file, or a different encoding like Windows-1252/UTF-16).
+      const encodingWarning = content.includes('�')
 
       // tailLinesCount = -1 → load full file regardless of size
       const forceAll = tailLinesCount === -1
@@ -240,7 +243,7 @@ export const handlers: PluginHandlers = {
         openedAt: new Date().toISOString(),
       })
 
-      return { content, mtime, size, truncated }
+      return { content, mtime, size, truncated, encodingWarning }
     })
 
     // ── Write file ─────────────────────────────────────────────────────────
@@ -266,13 +269,12 @@ export const handlers: PluginHandlers = {
     // ── Save As dialog ─────────────────────────────────────────────────────
 
     ipcMain.handle('editor:save-dialog', async (_e, defaultName: string) => {
+      // A single "All Files" filter avoids macOS/Windows auto-appending an extension
+      // from a stricter filter (e.g. forcing ".txt" onto "name.cs" because "cs" wasn't
+      // in the active filter's extension list).
       const result = await dialog.showSaveDialog({
         defaultPath: defaultName,
-        filters: [
-          { name: 'Text Files', extensions: ['txt', 'log', 'md'] },
-          { name: 'Code Files', extensions: ['ts', 'js', 'json', 'xml', 'yaml', 'yml', 'sql', 'py', 'cs', 'cpp', 'java', 'css', 'html'] },
-          { name: 'All Files', extensions: ['*'] },
-        ],
+        filters: [{ name: 'All Files', extensions: ['*'] }],
       })
       if (!result.canceled && result.filePath) {
         // Authorize the directory the user chose so the subsequent write-file call succeeds.

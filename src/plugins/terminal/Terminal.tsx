@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Terminal as XTerminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -660,38 +661,38 @@ export function Terminal(): JSX.Element {
             </button>
 
             {/* Usage popover */}
-            {usageOpen && claudeUsagePct !== null && (
-              <div
-                className="absolute right-0 top-full mt-1 z-[9999] rounded-xl shadow-2xl py-3 px-4 min-w-[220px]"
-                style={{
-                  background: 'rgb(var(--c-surface-container-high))',
-                  border: '1px solid rgb(var(--c-outline-variant))',
-                }}
-              >
-                <div className="text-[10px] font-semibold uppercase tracking-widest mb-1" style={{ color: 'rgb(var(--c-on-surface-variant))' }}>
-                  Claude Context Window
-                </div>
-                <div className="text-[10px] mb-2.5" style={{ color: 'rgb(var(--c-on-surface-variant) / 0.6)' }}>
-                  Porcentaje de contexto usado — dato real de /usage
-                </div>
-                {(() => {
-                  const pct = claudeUsagePct
-                  const barColor = pct >= 80 ? 'rgb(var(--c-error))' : pct >= 50 ? '#f59e0b' : 'rgb(74 222 128)'
-                  const remaining = 100 - pct
-                  return (
-                    <>
-                      <div className="w-full rounded-full mb-3" style={{ height: 5, background: 'rgb(var(--c-outline-variant) / 0.4)' }}>
-                        <div className="rounded-full h-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, background: barColor }} />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <Row label="Context used"      value={`${pct}%`}       color={barColor} />
-                        <Row label="Context remaining" value={`${remaining}%`} color={remaining <= 20 ? 'rgb(var(--c-error))' : undefined} />
-                      </div>
-                    </>
-                  )
-                })()}
-              </div>
-            )}
+            <AnimatePresence>
+              {usageOpen && claudeUsagePct !== null && (
+                <motion.div
+                  className="ui-card absolute right-0 top-full mt-1 z-[9999] py-3 px-4 min-w-[220px]"
+                  initial={{ opacity: 0, scale: 0.96, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: -4 }}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                >
+                  <div className="text-[10px] font-semibold uppercase tracking-widest mb-1 text-on-surface-variant">
+                    Claude Context Window
+                  </div>
+                  <div className="text-[10px] mb-2.5 text-on-surface-variant/60">
+                    Porcentaje de contexto usado — dato real de /usage
+                  </div>
+                  {(() => {
+                    const pct = claudeUsagePct
+                    const barColor = pct >= 80 ? 'rgb(var(--c-error))' : pct >= 50 ? '#f59e0b' : 'rgb(74 222 128)'
+                    const remaining = 100 - pct
+                    return (
+                      <>
+                        <div className="w-full rounded-full mb-3" style={{ height: 5, background: 'rgb(var(--c-outline-variant) / 0.4)' }}>
+                          <div className="rounded-full h-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, background: barColor }} />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Row label="Context used"      value={`${pct}%`}       color={barColor} />
+                          <Row label="Context remaining" value={`${remaining}%`} color={remaining <= 20 ? 'rgb(var(--c-error))' : undefined} />
+                        </div>
+                      </>
+                    )
+                  })()}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
           {/* Send terminal buffer to Smart Diff */}
           {activeId && !sidePanel && (
@@ -771,8 +772,7 @@ export function Terminal(): JSX.Element {
                   <button
                     type="button"
                     onClick={() => { void createSession() }}
-                    className="mt-2 px-4 py-1.5 rounded-lg text-[12px] font-medium"
-                    style={{ background: 'rgb(var(--c-primary))', color: '#fff' }}
+                    className="ui-btn ui-btn-primary mt-2 text-[12px] py-1.5"
                   >
                     Reintentar
                   </button>
@@ -783,8 +783,7 @@ export function Terminal(): JSX.Element {
                   <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.3)' }}>No active session</span>
                   <button
                     onClick={() => setShellPickerOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium"
-                    style={{ background: 'rgb(var(--c-primary))', color: '#fff' }}
+                    className="ui-btn ui-btn-primary text-[12px] py-1.5"
                   >
                     <Plus size={12} /> New Session
                   </button>
@@ -816,44 +815,37 @@ export function Terminal(): JSX.Element {
       </div>
 
       {/* Shell picker — fixed position, escapes all overflow:hidden ancestors */}
-      {shellPickerOpen && pickerPos && (
-        <div
-          className="rounded-xl shadow-2xl z-[9999]"
-          style={{
-            position: 'fixed',
-            top: pickerPos.top,
-            left: pickerPos.left,
-            background: 'rgb(var(--c-surface-container-high))',
-            border: '1px solid rgb(var(--c-outline-variant))',
-            minWidth: 220,
-          }}
-        >
-          <div
-            className="px-3 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-widest"
-            style={{ color: 'rgb(var(--c-on-surface-variant))' }}
+      <AnimatePresence>
+        {shellPickerOpen && pickerPos && (
+          <motion.div
+            className="ui-menu z-[9999]"
+            style={{ position: 'fixed', top: pickerPos.top, left: pickerPos.left, minWidth: 220 }}
+            initial={{ opacity: 0, scale: 0.96, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: -4 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
           >
-            New Session
-          </div>
-          {SHELL_OPTIONS.map((opt) => (
-            <button
-              key={opt.cmd}
-              onMouseDown={(e) => {
-                e.preventDefault()   // prevent outside-click handler from firing first
-                setShellPickerOpen(false)
-                void createSession(opt.cmd)
-              }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 text-[13px] text-left transition-colors hover:bg-black/[0.06]"
-              style={{ color: 'rgb(var(--c-on-surface))' }}
-            >
-              <span className="text-[11px] w-4 text-center font-mono" style={{ color: 'rgb(var(--c-on-surface-variant))' }}>
-                {opt.icon}
-              </span>
-              {opt.label}
-            </button>
-          ))}
-          <div className="h-1.5" />
-        </div>
-      )}
+            <div className="px-3 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">
+              New Session
+            </div>
+            {SHELL_OPTIONS.map((opt) => (
+              <button
+                key={opt.cmd}
+                onMouseDown={(e) => {
+                  e.preventDefault()   // prevent outside-click handler from firing first
+                  setShellPickerOpen(false)
+                  void createSession(opt.cmd)
+                }}
+                className="ui-menu-item w-full px-3 py-2.5 text-[13px] text-left text-on-surface"
+              >
+                <span className="text-[11px] w-4 text-center font-mono text-on-surface-variant">
+                  {opt.icon}
+                </span>
+                {opt.label}
+              </button>
+            ))}
+            <div className="h-1.5" />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

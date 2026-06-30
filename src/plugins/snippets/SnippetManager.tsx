@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import Fuse from 'fuse.js'
 import {
   BookMarked, Check, ChevronLeft, ChevronRight, Copy, Download, Folder, LayoutGrid,
@@ -101,7 +102,7 @@ function LangBadge({ lang }: { lang: SnippetLanguage }): JSX.Element {
 
 function Tag({ label, onRemove }: { label: string; onRemove?: () => void }): JSX.Element {
   return (
-    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-medium">
+    <span className="ui-badge ui-badge-primary rounded-full">
       {label}
       {onRemove && (
         <button onClick={onRemove} className="hover:text-error transition-colors leading-none">
@@ -109,6 +110,28 @@ function Tag({ label, onRemove }: { label: string; onRemove?: () => void }): JSX
         </button>
       )}
     </span>
+  )
+}
+
+/** Shared animated modal shell — fade backdrop + scale-in card, theme-aware via .ui-card */
+function ModalShell({ onClose, width = 'w-80', children }: { onClose: () => void; width?: string; children: React.ReactNode }): JSX.Element {
+  return (
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
+      >
+        <motion.div
+          className={`ui-card ${width} max-w-[90vw] p-6 flex flex-col gap-4`}
+          onClick={(e) => e.stopPropagation()}
+          initial={{ opacity: 0, scale: 0.96, y: 6 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 6 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+        >
+          {children}
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   )
 }
 
@@ -309,7 +332,7 @@ export function SnippetManager(): JSX.Element {
 
             {/* Search */}
             <div className="px-3 pb-2 flex-shrink-0">
-              <div className="flex items-center gap-2 bg-surface-container border border-outline-variant/25 rounded-xl px-3 py-2">
+              <div className="ui-input flex items-center gap-2">
                 <Search size={15} className="text-on-surface-variant/50 flex-shrink-0" />
                 <input
                   value={search} onChange={(e) => setSearch(e.target.value)}
@@ -369,7 +392,7 @@ export function SnippetManager(): JSX.Element {
                   <form onSubmit={(e) => { e.preventDefault(); createCollection() }} className="flex gap-1">
                     <input autoFocus value={newColName} onChange={(e) => setNewColName(e.target.value)}
                       placeholder="Collection name"
-                      className="flex-1 text-xs bg-surface-container border border-outline-variant/30 rounded-lg px-2 py-1.5 text-on-surface placeholder-on-surface-variant/40 outline-none focus:ring-1 focus:ring-primary/50" />
+                      className="ui-input flex-1" />
                     <button type="submit" className="text-primary"><Check size={16} /></button>
                     <button type="button" onClick={() => setShowNewCol(false)} className="text-on-surface-variant/50"><X size={16} /></button>
                   </form>
@@ -385,9 +408,7 @@ export function SnippetManager(): JSX.Element {
 
             {/* Sidebar footer: New + Export/Import */}
             <div className="px-3 pb-3 flex-shrink-0 border-t border-outline-variant/15 pt-3 flex flex-col gap-2">
-              <button onClick={startNew}
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-[12px] font-semibold text-on-primary transition-all hover:opacity-90"
-                style={{ background: 'var(--gradient-brand)' }}>
+              <button onClick={startNew} className="ui-btn ui-btn-primary w-full justify-center">
                 <Plus size={15} />
                 New snippet <span className="opacity-60 text-[10px] font-normal ml-1">Ctrl+N</span>
               </button>
@@ -398,7 +419,7 @@ export function SnippetManager(): JSX.Element {
                     if (res.ok) await reload()
                   } catch { /* ignore */ }
                 }}
-                  className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-medium border border-outline-variant/30 text-on-surface-variant hover:text-primary hover:border-primary/40 transition-colors"
+                  className="ui-btn ui-btn-outline flex-1 justify-center text-[11px]"
                   title="Export snippets to JSON">
                   <Download size={13} />
                   Export
@@ -409,7 +430,7 @@ export function SnippetManager(): JSX.Element {
                     if (res.ok) await reload()
                   } catch { /* ignore */ }
                 }}
-                  className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-medium border border-outline-variant/30 text-on-surface-variant hover:text-primary hover:border-primary/40 transition-colors"
+                  className="ui-btn ui-btn-outline flex-1 justify-center text-[11px]"
                   title="Import snippets from JSON">
                   <Upload size={13} />
                   Import
@@ -514,31 +535,24 @@ export function SnippetManager(): JSX.Element {
 
     {/* Delete confirmation */}
     {deleteConfirm && (
-      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm"
-        onClick={() => deleteConfirm.resolve(false)}>
-        <div className="bg-surface border border-outline-variant/20 rounded-2xl shadow-2xl w-80 p-6 flex flex-col gap-4"
-          onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 w-9 h-9 rounded-full bg-error/10 flex items-center justify-center">
-              <Trash2 size={16} className="text-error" />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-on-surface">Delete "{deleteConfirm.name}"?</h2>
-              <p className="text-xs text-on-surface-variant mt-1">This action cannot be undone.</p>
-            </div>
+      <ModalShell onClose={() => deleteConfirm.resolve(false)}>
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0 w-9 h-9 rounded-full bg-error/10 flex items-center justify-center">
+            <Trash2 size={16} className="text-error" />
           </div>
-          <div className="flex gap-2 justify-end">
-            <button onClick={() => deleteConfirm.resolve(false)}
-              className="px-4 py-2 text-sm font-medium rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
-              Cancel
-            </button>
-            <button onClick={() => deleteConfirm.resolve(true)}
-              className="px-4 py-2 text-sm font-semibold rounded-lg bg-error text-white transition-all hover:opacity-90">
-              Delete
-            </button>
+          <div>
+            <h2 className="text-sm font-semibold text-on-surface">Delete "{deleteConfirm.name}"?</h2>
+            <p className="text-xs text-on-surface-variant mt-1">This action cannot be undone.</p>
           </div>
         </div>
-      </div>
+        <div className="flex gap-2 justify-end">
+          <button onClick={() => deleteConfirm.resolve(false)} className="ui-btn ui-btn-ghost">Cancel</button>
+          <button onClick={() => deleteConfirm.resolve(true)}
+            className="ui-btn text-white" style={{ background: 'rgb(var(--c-error))' }}>
+            Delete
+          </button>
+        </div>
+      </ModalShell>
     )}
     </>
   )
@@ -679,7 +693,7 @@ function SnippetDetail({
           <div className="flex items-center gap-2 self-end">
             {SHELL_LANGUAGES.has(snippet.language) && (
               <button onClick={onRunInTerminal}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:opacity-90"
+                className="ui-btn"
                 style={{ background: 'rgb(var(--c-surface-container-high))', color: 'rgb(74 222 128)', border: '1px solid rgb(74 222 128 / 0.3)' }}
                 title="Run in Terminal">
                 <SquareTerminal size={15} />
@@ -687,8 +701,7 @@ function SnippetDetail({
               </button>
             )}
             <button onClick={onCopy}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${copied ? 'bg-accent/20 text-accent' : 'text-on-primary hover:opacity-90'}`}
-              style={copied ? {} : { background: 'var(--gradient-brand)' }}>
+              className={copied ? 'ui-btn bg-accent/20 text-accent' : 'ui-btn ui-btn-primary'}>
               {copied ? <Check size={16} /> : <Copy size={16} />}
               {copied ? 'Copied!' : 'Copy'}
             </button>
@@ -797,13 +810,9 @@ function SnippetForm({
           {form.title ? `Editing "${form.title}"` : 'New snippet'}
         </h3>
         <div className="flex gap-2">
-          <button onClick={onCancel}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium text-on-surface-variant hover:bg-surface-container transition-colors">
-            Cancel
-          </button>
+          <button onClick={onCancel} className="ui-btn ui-btn-ghost">Cancel</button>
           <button onClick={onSave} disabled={!form.title.trim() || !form.content.trim()}
-            className="px-4 py-1.5 rounded-lg text-xs font-semibold text-on-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:opacity-90"
-            style={{ background: 'var(--gradient-brand)' }}>
+            className="ui-btn ui-btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
             Save
           </button>
         </div>
@@ -815,7 +824,7 @@ function SnippetForm({
           <label className="block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mb-1.5">Title *</label>
           <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
             placeholder="e.g. SQL active users query"
-            className="w-full bg-surface-container border border-outline-variant/30 rounded-xl px-3 py-2 text-sm text-on-surface placeholder-on-surface-variant/40 outline-none focus:ring-1 focus:ring-primary/50" />
+            className="ui-input w-full text-sm" />
         </div>
 
         {/* Language + Collection row */}
@@ -823,7 +832,7 @@ function SnippetForm({
           <div className="flex-1">
             <label className="block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mb-1.5">Language</label>
             <select value={form.language} onChange={(e) => setForm((f) => ({ ...f, language: e.target.value as SnippetLanguage }))}
-              className="w-full bg-surface-container border border-outline-variant/30 rounded-xl px-3 py-2 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/50">
+              className="ui-input w-full text-sm">
               {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
           </div>
@@ -831,7 +840,7 @@ function SnippetForm({
             <div className="flex-1">
               <label className="block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mb-1.5">Collection</label>
               <select value={form.collectionId ?? ''} onChange={(e) => setForm((f) => ({ ...f, collectionId: e.target.value || null }))}
-                className="w-full bg-surface-container border border-outline-variant/30 rounded-xl px-3 py-2 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/50">
+                className="ui-input w-full text-sm">
                 <option value="">None</option>
                 {collections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
@@ -844,7 +853,7 @@ function SnippetForm({
           <label className="block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mb-1.5">Description</label>
           <input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             placeholder="Optional — when or why to use this snippet"
-            className="w-full bg-surface-container border border-outline-variant/30 rounded-xl px-3 py-2 text-sm text-on-surface placeholder-on-surface-variant/40 outline-none focus:ring-1 focus:ring-primary/50" />
+            className="ui-input w-full text-sm" />
         </div>
 
         {/* Tags */}
@@ -859,9 +868,9 @@ function SnippetForm({
             <input value={tagInput} onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onAddTag() } }}
               placeholder="Add tag and press Enter"
-              className="flex-1 bg-surface-container border border-outline-variant/30 rounded-xl px-3 py-2 text-sm text-on-surface placeholder-on-surface-variant/40 outline-none focus:ring-1 focus:ring-primary/50" />
+              className="ui-input flex-1 text-sm" />
             <button type="button" onClick={onAddTag} disabled={!tagInput.trim()}
-              className="px-3 py-2 rounded-xl text-xs font-medium border border-outline-variant/30 text-on-surface-variant hover:text-primary hover:border-primary/40 disabled:opacity-40 transition-colors">
+              className="ui-btn ui-btn-outline disabled:opacity-40">
               Add
             </button>
           </div>
@@ -872,7 +881,7 @@ function SnippetForm({
           <label className="block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mb-1.5">Content *</label>
           <textarea ref={textareaRef} value={form.content} onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
             placeholder="Paste code or notes here... drag & drop or paste images inline"
-            className="flex-1 w-full bg-surface-container border border-outline-variant/30 rounded-xl px-3 py-2.5 text-[12px] font-mono text-on-surface placeholder-on-surface-variant/40 outline-none focus:ring-1 focus:ring-primary/50 resize-none leading-relaxed"
+            className="ui-input flex-1 w-full font-mono resize-none leading-relaxed"
             style={{ minHeight: '200px' }} />
         </div>
 

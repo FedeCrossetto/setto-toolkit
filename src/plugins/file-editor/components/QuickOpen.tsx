@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { motion } from 'framer-motion'
 import { Search } from 'lucide-react'
 import { detectLanguage, languageIcon } from '../hooks/useEditorTabs'
 import type { FileTreeNode } from '../types'
@@ -66,13 +67,16 @@ export function QuickOpen({ folders, openTabs = [], onOpen, onClose }: QuickOpen
   }
 
   return (
-    <div
+    <motion.div
       className="fixed inset-0 z-[100] flex items-start justify-center pt-[12vh] bg-black/40 backdrop-blur-sm"
       onMouseDown={onClose}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.15, ease: 'easeOut' }}
     >
-      <div
-        className="w-[540px] max-h-[65vh] bg-surface-container border border-outline-variant/30 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+      <motion.div
+        className="ui-card w-[540px] max-h-[65vh] overflow-hidden flex flex-col"
         onMouseDown={(e) => e.stopPropagation()}
+        initial={{ opacity: 0, scale: 0.96, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}
       >
         {/* Input */}
         <div className="flex items-center gap-2.5 px-4 py-3 border-b border-outline-variant/20">
@@ -119,7 +123,7 @@ export function QuickOpen({ folders, openTabs = [], onOpen, onClose }: QuickOpen
           <span>↑↓ navigate</span><span>↵ open</span><span>Esc close</span>
           <span className="ml-auto">{filtered.length} files</span>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }

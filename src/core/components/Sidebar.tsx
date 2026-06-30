@@ -129,10 +129,10 @@ export function Sidebar(): JSX.Element {
         {/* ── Logo ──────────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-center mt-2 mb-1 flex-shrink-0 px-0">
           {collapsed ? (
-            <AppLogo height={60} />
+            <AppLogo height={34} />
           ) : (
             <div className="flex flex-col items-center gap-0">
-              <AppLogo height={110} />
+              <AppLogo height={56} />
               <div className="leading-none text-center mt-0.5">
                 <div className="font-bold text-[14px] tracking-tight" style={{ color: '#ffffff' }}>SETTO</div>
                 <div className="text-[9px] tracking-widest uppercase font-medium mt-px" style={{ color: 'rgba(255,255,255,0.3)' }}>Toolkit</div>

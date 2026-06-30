@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useId, useRef, Fragment } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Pencil, Trash2, Check, X, ChevronLeft, ChevronRight, Copy,
   ToggleLeft, ToggleRight, TrendingUp, TrendingDown, Minus,
@@ -78,23 +79,13 @@ function CurrencyFlag({ code = 'ARS' }: { code?: string }) {
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
-const inputCls = [
-  'w-full bg-surface-container border border-outline-variant/30 rounded-lg',
-  'px-3 py-1.5 text-sm text-on-surface placeholder:text-on-surface-variant/40',
-  'outline-none focus:ring-1 focus:ring-primary/50 transition',
-].join(' ')
+const inputCls = 'ui-input w-full text-sm'
 
 const selectCls = inputCls
 
-const btnPrimary = [
-  'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium',
-  'bg-primary text-on-primary rounded-lg hover:opacity-90 transition-all',
-].join(' ')
+const btnPrimary = 'ui-btn ui-btn-primary text-sm'
 
-const btnGhost = [
-  'flex items-center gap-1.5 px-3 py-1.5 text-sm',
-  'text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-lg transition-colors',
-].join(' ')
+const btnGhost = 'ui-btn ui-btn-ghost text-sm'
 
 const btnIcon = 'p-1.5 rounded-lg text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container transition-colors'
 
@@ -104,17 +95,29 @@ function SlidePanel({ title, open, onClose, children }: {
   title: string; open: boolean; onClose: () => void; children: React.ReactNode
 }) {
   return (
-    <div className={[
-      'absolute right-0 top-0 bottom-0 z-50 w-80 bg-surface border-l border-outline-variant/20',
-      'flex flex-col shadow-2xl transition-transform duration-200',
-      open ? 'translate-x-0' : 'translate-x-full',
-    ].join(' ')}>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-outline-variant/20 shrink-0">
-        <span className="font-medium text-sm">{title}</span>
-        <button onClick={onClose} className={btnIcon}><X size={15} /></button>
-      </div>
-      <div className="flex-1 overflow-y-auto p-4">{children}</div>
-    </div>
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            className="absolute inset-0 z-40 bg-black/20"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={onClose}
+          />
+          <motion.div
+            className="ui-card absolute right-0 top-0 bottom-0 z-50 w-80 rounded-none border-l border-y-0 border-r-0 flex flex-col"
+            initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-outline-variant/20 shrink-0">
+              <span className="font-medium text-sm">{title}</span>
+              <button onClick={onClose} className={btnIcon}><X size={15} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">{children}</div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   )
 }
 
@@ -230,32 +233,38 @@ function ServiceSelect({ servicios, value, onChange }: {
         )}
         <ChevronRight size={13} className={`shrink-0 text-on-surface-variant/40 transition-transform ${open ? 'rotate-90' : ''}`} />
       </button>
-      {open && (
-        <div className="absolute z-50 mt-1 w-full bg-surface border border-outline-variant/30 rounded-lg shadow-xl max-h-56 overflow-y-auto">
-          <button
-            type="button"
-            onClick={() => { onChange(''); setOpen(false) }}
-            className="flex w-full items-center px-3 py-2 text-sm text-on-surface-variant/50 hover:bg-surface-container transition-colors"
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            className="ui-menu absolute z-50 mt-1 w-full max-h-56 overflow-y-auto"
+            initial={{ opacity: 0, scale: 0.96, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: -4 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
           >
-            — Seleccionar —
-          </button>
-          {servicios.filter((s) => s.activo).map((s) => (
             <button
-              key={s.id}
               type="button"
-              onClick={() => { onChange(s.id); setOpen(false) }}
-              className={[
-                'flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors',
-                s.id === value ? 'bg-primary/10 text-primary' : 'text-on-surface hover:bg-surface-container',
-              ].join(' ')}
+              onClick={() => { onChange(''); setOpen(false) }}
+              className="ui-menu-item w-full text-sm text-on-surface-variant/50"
             >
-              <ServiceIcon icon={s.emoji} size={14} className="shrink-0" />
-              <span className="flex-1 text-left">{s.nombre}</span>
-              <span className="text-[10px] text-on-surface-variant/40">{s.categoria}</span>
+              — Seleccionar —
             </button>
-          ))}
-        </div>
-      )}
+            {servicios.filter((s) => s.activo).map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => { onChange(s.id); setOpen(false) }}
+                className={[
+                  'ui-menu-item w-full text-sm',
+                  s.id === value ? 'bg-primary/10 text-primary' : 'text-on-surface',
+                ].join(' ')}
+              >
+                <ServiceIcon icon={s.emoji} size={14} className="shrink-0" />
+                <span className="flex-1 text-left">{s.nombre}</span>
+                <span className="text-[10px] text-on-surface-variant/40">{s.categoria}</span>
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -371,7 +380,7 @@ function KpiCard({ label, value, sub, delta, sparkData }: {
   label: string; value: string; sub?: string; delta?: number | null; sparkData?: number[]
 }) {
   return (
-    <div className="rounded-xl border border-outline-variant/15 bg-surface-container px-4 pt-3.5 pb-3 flex flex-col gap-0">
+    <div className="ui-card px-4 pt-3.5 pb-3 flex flex-col gap-0">
       <div className="mb-2 flex min-h-[26px] items-center justify-between gap-2">
         <span className="text-[11px] text-on-surface-variant/55 font-medium leading-none">{label}</span>
         {sparkData && sparkData.length >= 2 ? (
@@ -447,7 +456,7 @@ function CategoryDonutCard({ servicios, pagos, year }: {
   })
 
   return (
-    <div className="flex min-h-[260px] flex-col overflow-hidden rounded-xl border border-outline-variant/15 bg-surface-container shadow-sm">
+    <div className="ui-card flex min-h-[260px] flex-col overflow-hidden">
       <div className="flex shrink-0 items-center justify-between border-b border-outline-variant/10 px-4 py-3">
         <span className="text-sm font-semibold text-on-surface">Por categoría</span>
         <span className="rounded-full border border-outline-variant/15 px-2 py-0.5 text-[10px] font-medium tabular-nums text-on-surface-variant/40">
@@ -524,7 +533,7 @@ function TopServicesTrafficCard({ servicios, pagos, year }: {
   const max = Math.max(...top.map((s) => s.total), 1)
 
   return (
-    <div className="flex min-h-[260px] flex-1 flex-col overflow-hidden rounded-xl border border-outline-variant/15 bg-surface-container shadow-sm">
+    <div className="ui-card flex min-h-[260px] flex-1 flex-col overflow-hidden">
       <div className="flex shrink-0 items-center justify-between border-b border-outline-variant/10 px-4 py-3">
         <span className="text-sm font-semibold text-on-surface">Top gastos por servicio</span>
         <span className="rounded-full border border-outline-variant/15 px-2 py-0.5 text-[10px] tabular-nums text-on-surface-variant/40">
@@ -882,13 +891,13 @@ function DashboardView({ servicios, pagos, year, onEditPago, onDeletePago }: {
         return (
           <div className="flex shrink-0 gap-3 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
             {/* Total anual — primary blue */}
-            <div className="min-w-[148px] flex-1 rounded-xl bg-surface-container p-4">
+            <div className="ui-card min-w-[148px] flex-1 p-4">
               <div className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60">Total Anual</div>
               <div className="mt-1.5 text-xl font-bold tabular-nums text-on-surface">${fmt(totalAnual)}</div>
               <div className="mt-2 text-[9px] text-on-surface-variant/40">{year} · activos</div>
             </div>
             {/* Mes actual */}
-            <div className="min-w-[148px] flex-1 rounded-xl bg-surface-container p-4">
+            <div className="ui-card min-w-[148px] flex-1 p-4">
               <div className="flex items-center gap-1.5">
                 <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60">Mes Actual</span>
                 {mesDetalle && (
@@ -906,13 +915,13 @@ function DashboardView({ servicios, pagos, year, onEditPago, onDeletePago }: {
               <div className="mt-2 text-[9px] text-on-surface-variant/40">vs anterior ${fmt(prevTotal)}</div>
             </div>
             {/* Promedio */}
-            <div className="min-w-[148px] flex-1 rounded-xl bg-surface-container p-4">
+            <div className="ui-card min-w-[148px] flex-1 p-4">
               <div className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60">Promedio</div>
               <div className="mt-1.5 text-xl font-bold tabular-nums text-on-surface">${fmt(promedio)}</div>
               <div className="mt-2 text-[9px] text-on-surface-variant/40">{mesesConDatos} meses con datos</div>
             </div>
             {/* Pendientes */}
-            <div className="min-w-[148px] flex-1 rounded-xl bg-surface-container p-4">
+            <div className="ui-card min-w-[148px] flex-1 p-4">
               <div className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60">Pendientes</div>
               <div className="mt-1.5 text-xl font-bold tabular-nums text-on-surface">
                 {pendientes.length > 0 ? `$${fmt(totalPendiente)}` : '—'}
@@ -926,7 +935,7 @@ function DashboardView({ servicios, pagos, year, onEditPago, onDeletePago }: {
       })()}
 
       {/* Hero card: chart + detail */}
-      <div className="flex min-h-0 flex-1 flex-col rounded-2xl bg-surface-container overflow-hidden">
+      <div className="ui-card flex min-h-0 flex-1 flex-col overflow-hidden">
 
         {/* Chart header */}
         <div className="flex shrink-0 items-center justify-between px-5 pt-5 pb-2">
@@ -1034,10 +1043,8 @@ function ServiciosView({ servicios, onEdit, onDelete, onToggle }: {
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
             {servicios.filter((s) => s.categoria === cat).map((svc) => (
-              <div key={svc.id} className={`group relative bg-surface-container rounded-xl p-3.5 border transition-all ${
-                svc.activo
-                  ? 'border-outline-variant/15 hover:border-primary/25'
-                  : 'border-outline-variant/10 opacity-50'
+              <div key={svc.id} className={`ui-card group relative p-3.5 transition-all ${
+                svc.activo ? 'hover:border-primary/25' : 'opacity-50'
               }`}>
                 {/* Icon */}
                 <div className="w-9 h-9 rounded-xl bg-surface-container-high flex items-center justify-center mb-2.5 text-on-surface-variant/70">
@@ -1124,7 +1131,7 @@ function TablaGastos({ servicios, pagos, year, onEditPago, onDeletePago }: {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col gap-3">
-      <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-outline-variant/20">
+      <div className="ui-card min-h-0 flex-1 overflow-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="bg-surface-container/60">
@@ -1238,9 +1245,7 @@ function TablaGastos({ servicios, pagos, year, onEditPago, onDeletePago }: {
 
       <div className="flex justify-end">
         <button onClick={copyMd}
-          className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg transition-colors ${
-            copied ? 'text-green-400 bg-green-400/10' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
-          }`}>
+          className={`ui-btn ui-btn-ghost text-xs ${copied ? 'text-green-400 bg-green-400/10' : ''}`}>
           {copied ? <Check size={12} /> : <Copy size={12} />}
           {copied ? 'Copiado' : 'Copiar como Markdown'}
         </button>
@@ -1482,7 +1487,7 @@ function CredencialesView({ credenciales, onEdit, onDelete, onAdd, readsFromSupa
                     <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">{cat}</span>
                     <span className="text-[10px] text-on-surface-variant/30">{items.length}</span>
                   </div>
-                  <div className="overflow-x-auto rounded-lg border border-outline-variant/15 bg-surface-container/30">
+                  <div className="ui-card overflow-x-auto">
                     <table className="w-full min-w-[880px] table-fixed border-collapse text-left">
                       <colgroup>
                         <col className="w-[15%]" />
@@ -1868,7 +1873,7 @@ function NotionSettingsForm({ gastos, queries, onSave, onCancel, usesSupabase, o
     )
   }
 
-  const inputCls = 'w-full rounded-lg border border-outline-variant/30 bg-surface-container/50 px-3 py-2 text-[13px] text-on-surface placeholder:text-on-surface-variant/30 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 font-mono transition-colors'
+  const inputCls = 'ui-input w-full text-[13px] font-mono'
   const labelCls = 'flex items-center justify-between text-[11px] font-semibold text-on-surface-variant mb-1.5'
   const hintCls  = 'text-[10px] text-on-surface-variant/50 leading-relaxed mt-1'
 
@@ -1884,7 +1889,7 @@ function NotionSettingsForm({ gastos, queries, onSave, onCancel, usesSupabase, o
   }) {
     const preview = idPreview(value)
     return (
-      <div className="rounded-xl border border-outline-variant/20 bg-surface-container/30 p-3 flex flex-col gap-2">
+      <div className="ui-card p-3 flex flex-col gap-2">
         <div className={labelCls}>
           <span>{label}</span>
           <StatusDot value={value} />
@@ -1922,8 +1927,8 @@ function NotionSettingsForm({ gastos, queries, onSave, onCancel, usesSupabase, o
             <span className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60">Token de integración</span>
           </div>
 
-          <div className="rounded-xl border border-outline-variant/20 bg-surface-container/30 p-3 flex flex-col gap-2">
-            <div className="rounded-lg bg-surface-container/60 border border-outline-variant/15 px-3 py-2.5 text-[11px] text-on-surface-variant/70 leading-relaxed space-y-1">
+          <div className="ui-card p-3 flex flex-col gap-2">
+            <div className="rounded-lg bg-surface-container-high/60 border border-outline-variant/15 px-3 py-2.5 text-[11px] text-on-surface-variant/70 leading-relaxed space-y-1">
               <p className="font-medium text-on-surface-variant">¿Cómo obtener el token?</p>
               <p>1. Ir a <span className="font-mono text-primary">notion.so/my-integrations</span></p>
               <p>2. Crear nueva integración → tipo <strong>Interno</strong></p>
@@ -1959,7 +1964,7 @@ function NotionSettingsForm({ gastos, queries, onSave, onCancel, usesSupabase, o
             <span className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60">Bases de datos</span>
           </div>
 
-          <div className="rounded-xl border border-outline-variant/20 bg-surface-container/30 px-3 py-2.5 text-[11px] text-on-surface-variant/70 leading-relaxed space-y-1">
+          <div className="ui-card px-3 py-2.5 text-[11px] text-on-surface-variant/70 leading-relaxed space-y-1">
             <p className="font-medium text-on-surface-variant">¿Cómo obtener el Database ID?</p>
             <p>Abrí la base de datos en Notion en el navegador. El ID está en la URL:</p>
             <p className="font-mono text-[10px] bg-surface-container/80 rounded px-2 py-1 mt-1 break-all">
@@ -1989,7 +1994,7 @@ function NotionSettingsForm({ gastos, queries, onSave, onCancel, usesSupabase, o
         </div>
 
         {/* Estado general */}
-        <div className="rounded-xl border border-outline-variant/20 bg-surface-container/20 px-3 py-2.5">
+        <div className="ui-card px-3 py-2.5">
           <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-2">Estado actual</p>
           <div className="flex flex-col gap-1.5">
             {[
@@ -2016,12 +2021,12 @@ function NotionSettingsForm({ gastos, queries, onSave, onCancel, usesSupabase, o
           <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Sincronizar con Notion (opcional)</p>
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={syncing} onClick={onSyncPull}
-              className="rounded-lg border border-outline-variant/30 px-3 py-1.5 text-[12px] text-on-surface hover:bg-surface-container/50 disabled:opacity-50">
+              className="ui-btn ui-btn-outline text-[12px] disabled:opacity-50">
               {syncing ? 'Importando…' : 'Traer pagos desde Notion'}
             </button>
             {onSyncFull && (
               <button type="button" disabled={syncing} onClick={onSyncFull}
-                className="rounded-lg border border-outline-variant/30 px-3 py-1.5 text-[12px] text-on-surface-variant hover:bg-surface-container/50 disabled:opacity-50"
+                className="ui-btn ui-btn-outline text-[12px] disabled:opacity-50"
                 title="Bidireccional, muy lento">
                 Sync completo (lento)
               </button>
@@ -2033,11 +2038,11 @@ function NotionSettingsForm({ gastos, queries, onSave, onCancel, usesSupabase, o
       {/* Footer fijo */}
       <div className="shrink-0 border-t border-outline-variant/20 px-4 py-3 flex gap-2">
         <button type="submit"
-          className="flex-1 rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-on-primary hover:bg-primary/90 transition-colors">
+          className="ui-btn ui-btn-primary flex-1 text-[13px]">
           Guardar configuración
         </button>
         <button type="button" onClick={onCancel}
-          className="rounded-lg border border-outline-variant/30 px-4 py-2 text-[13px] text-on-surface-variant hover:bg-surface-container/50 transition-colors">
+          className="ui-btn ui-btn-outline text-[13px]">
           Cancelar
         </button>
       </div>

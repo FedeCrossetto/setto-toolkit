@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowRight, BarChart2, Building2, Check, ChevronDown, CircleAlert,
   Copy, ExternalLink, Eye, EyeOff, FileText, Folder, FolderOpen,
@@ -357,7 +358,7 @@ function LoginForm({ provider, onLogin }: { provider: Provider; onLogin: (auth: 
   }
 
   const providerLabel = provider === 'bitbucket' ? 'Bitbucket' : provider === 'github' ? 'GitHub' : 'GitLab'
-  const inputCls = 'w-full bg-surface-container-highest border-none rounded-lg px-3 py-2.5 text-sm text-on-surface placeholder-on-surface-variant/50 focus:outline-none focus:ring-1 focus:ring-primary'
+  const inputCls = 'ui-input w-full text-sm'
 
   return (
     <div className="flex items-center justify-center h-full p-8">
@@ -471,8 +472,7 @@ function LoginForm({ provider, onLogin }: { provider: Provider; onLogin: (auth: 
             )}
 
             <button onClick={handleLogin} disabled={loading || !isValid}
-              className="w-full py-2.5 rounded-lg text-sm font-bold text-on-primary-fixed shadow-neon-btn hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: 'var(--gradient-brand)' }}>
+              className="ui-btn ui-btn-primary w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed">
               {loading ? 'Connecting…' : 'Connect'}
             </button>
           </div>
@@ -561,7 +561,7 @@ function GitHubRepoPanel({
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter…"
-          className="w-full bg-surface-container rounded-lg px-2.5 py-1.5 text-xs text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary"
+          className="ui-input w-full text-xs"
         />
       </div>
 
@@ -891,42 +891,47 @@ export function RepoSearch(): JSX.Element {
                         ? `Search in my GitHub repos…`
                         : 'Search code…'
                   }
-                  className="w-full bg-surface-container-highest border-none rounded-lg pl-10 pr-10 py-2.5 text-sm text-on-surface placeholder-on-surface-variant/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="ui-input w-full pl-10 pr-10 text-sm"
                 />
                 <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-on-surface-variant/40 font-mono bg-surface-container px-1.5 py-0.5 rounded border border-outline-variant/20 pointer-events-none">
                   /
                 </kbd>
 
                 {/* History dropdown */}
-                {showHistory && history.length > 0 && (
-                  <div className="absolute top-full mt-1.5 left-0 right-0 z-20 bg-surface-container-low border border-outline-variant/15 rounded-xl shadow-lg overflow-hidden">
-                    <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 border-b border-outline-variant/10 flex items-center justify-between">
-                      <span>History</span>
-                      <button
-                        onClick={() => { setHistory([]); void window.api.invoke('repo-search:history-clear'); setShowHistory(false) }}
-                        className="text-[10px] text-on-surface-variant hover:text-error transition-colors normal-case font-normal"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                    {history.map((h) => (
-                      <button key={h}
-                        onClick={() => { setQuery(h); setShowHistory(false); void handleSearch(h) }}
-                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-on-surface hover:bg-primary/5 transition-colors text-left"
-                      >
-                        <History size={14} className="text-on-surface-variant/50" />
-                        {h}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <AnimatePresence>
+                  {showHistory && history.length > 0 && (
+                    <motion.div
+                      className="ui-menu absolute top-full mt-1.5 left-0 right-0 z-20 overflow-hidden"
+                      initial={{ opacity: 0, scale: 0.96, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: -4 }}
+                      transition={{ duration: 0.15, ease: 'easeOut' }}
+                    >
+                      <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 border-b border-outline-variant/10 flex items-center justify-between">
+                        <span>History</span>
+                        <button
+                          onClick={() => { setHistory([]); void window.api.invoke('repo-search:history-clear'); setShowHistory(false) }}
+                          className="text-[10px] text-on-surface-variant hover:text-error transition-colors normal-case font-normal"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                      {history.map((h) => (
+                        <button key={h}
+                          onClick={() => { setQuery(h); setShowHistory(false); void handleSearch(h) }}
+                          className="ui-menu-item w-full px-3 py-2 text-sm text-on-surface text-left"
+                        >
+                          <History size={14} className="text-on-surface-variant/50" />
+                          {h}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               <button
                 onClick={() => void handleSearch()}
                 disabled={loading || !query.trim()}
-                className="px-5 py-2.5 rounded-lg text-sm font-bold text-on-primary-fixed shadow-neon-btn hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                style={{ background: 'var(--gradient-brand)' }}
+                className="ui-btn ui-btn-primary flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <span className="flex items-center gap-2">
@@ -1124,14 +1129,14 @@ export function RepoSearch(): JSX.Element {
                   value={newAliasFrom}
                   onChange={(e) => setNewAliasFrom(e.target.value)}
                   placeholder="repo"
-                  className="flex-1 min-w-0 bg-surface-container-highest border-none rounded-lg px-2 py-1.5 text-[11px] font-mono text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="ui-input flex-1 min-w-0 text-[11px] font-mono"
                 />
                 <ArrowRight size={12} className="text-on-surface-variant/40 self-center flex-shrink-0" />
                 <input
                   value={newAliasTo}
                   onChange={(e) => setNewAliasTo(e.target.value)}
                   placeholder="alias"
-                  className="flex-1 min-w-0 bg-surface-container-highest border-none rounded-lg px-2 py-1.5 text-[11px] font-mono text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="ui-input flex-1 min-w-0 text-[11px] font-mono"
                 />
               </div>
               <button
@@ -1142,7 +1147,7 @@ export function RepoSearch(): JSX.Element {
                   void window.api.invoke('settings:set', ALIAS_KEY, JSON.stringify(updated))
                   setNewAliasFrom(''); setNewAliasTo('')
                 }}
-                className="w-full py-1.5 rounded-lg text-[11px] font-bold text-on-surface-variant border border-outline-variant/20 hover:text-primary hover:border-primary/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="ui-btn ui-btn-outline w-full justify-center text-[11px] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 + Add alias
               </button>

@@ -108,13 +108,13 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose }: FindInFile
           <select
             value={scope === 'tabs' ? 'tabs' : String(scope)}
             onChange={(e) => setScope(e.target.value === 'tabs' ? 'tabs' : Number(e.target.value))}
-            className="text-[11px] bg-surface-container border border-outline-variant/30 rounded-lg px-1.5 py-0.5 text-on-surface-variant outline-none"
+            className="ui-input text-[11px] py-0.5 px-1.5 text-on-surface-variant"
           >
             {scopeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         )}
 
-        <div className="flex-1 flex items-center gap-1.5 bg-surface-container border border-outline-variant/25 rounded-lg px-2 py-1">
+        <div className="ui-input flex-1 flex items-center gap-1.5 py-1">
           <input
             ref={inputRef}
             value={query}
@@ -135,7 +135,7 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose }: FindInFile
         <button
           onClick={() => void run()}
           disabled={!canSearch || searching}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 transition-colors"
+          className="ui-btn ui-btn-outline text-[11px] py-1 disabled:opacity-40"
         >
           {searching ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
           {searching ? 'Searching…' : 'Search'}

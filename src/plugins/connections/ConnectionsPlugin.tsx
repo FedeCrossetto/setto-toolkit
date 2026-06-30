@@ -86,8 +86,7 @@ type Status = 'connected' | 'partial' | 'disconnected' | 'loading'
 
 // ── Shared UI ──────────────────────────────────────────────────────────────────
 
-const inputCls =
-  'w-full bg-surface-container border border-outline-variant/25 rounded-lg px-3 py-2 text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary/40 transition-colors'
+const inputCls = 'ui-input w-full text-sm'
 
 const STATUS_PILL: Record<Status, { tone: StatusTone; label: string; pulse?: boolean }> = {
   loading:      { tone: 'neutral', label: 'Verificando…', pulse: true },
@@ -141,10 +140,8 @@ function SaveButton({ onClick, saving, saved }: { onClick: () => void; saving: b
       onClick={onClick}
       disabled={saving}
       className={[
-        'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all',
-        saved
-          ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/25'
-          : 'bg-surface-container-high border border-outline-variant/30 text-on-surface hover:border-primary/40 hover:text-primary',
+        'ui-btn',
+        saved ? 'bg-accent/15 text-accent border border-accent/25' : 'ui-btn-outline',
         'disabled:opacity-40',
       ].join(' ')}
     >
@@ -203,7 +200,7 @@ function Section({
   children: React.ReactNode
 }): JSX.Element {
   return (
-    <div className="rounded-xl border border-outline-variant/20 bg-surface overflow-hidden">
+    <div className="ui-card overflow-hidden">
       {/* Header row */}
       <button
         className="w-full flex items-center gap-4 px-5 py-4 hover:bg-surface-container/30 transition-colors text-left"
@@ -711,10 +708,8 @@ function BitbucketSection({ open, onToggle }: { open: boolean; onToggle: (id: st
               onClick={() => void connect()}
               disabled={!canConnect || saving}
               className={[
-                'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all',
-                saved
-                  ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/25'
-                  : 'bg-surface-container-high border border-outline-variant/30 text-on-surface hover:border-primary/40 hover:text-primary',
+                'ui-btn',
+                saved ? 'bg-accent/15 text-accent border border-accent/25' : 'ui-btn-outline',
                 'disabled:opacity-40 disabled:cursor-not-allowed',
               ].join(' ')}
             >
@@ -934,7 +929,7 @@ function SupabaseSection({ open, onToggle }: { open: boolean; onToggle: (id: str
           type="button"
           onClick={() => void migrate()}
           disabled={migrating || !url.trim() || (!serviceKey.trim() && !keyConfigured)}
-          className="px-4 py-2 text-sm rounded-lg border border-outline-variant/30 text-on-surface hover:border-primary/40 disabled:opacity-40"
+          className="ui-btn ui-btn-outline disabled:opacity-40"
         >
           {migrating ? 'Migrando…' : 'Migrar datos locales a Supabase'}
         </button>

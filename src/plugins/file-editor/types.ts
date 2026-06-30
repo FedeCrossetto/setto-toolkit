@@ -33,6 +33,16 @@ export interface OpenFile {
   jumpToLine?: number
   /** True when file exceeded MAX_FULL_SIZE and only the last N lines were loaded */
   truncated?: boolean
+  /** True when the file doesn't look like valid UTF-8 — editing/saving may corrupt it */
+  encodingWarning?: boolean
+  /**
+   * Disk content captured when an external change was detected while this tab had
+   * unsaved edits — held here instead of overwriting `content` so the user's edits
+   * aren't silently discarded. Cleared once the conflict is resolved (reload or keep).
+   */
+  pendingExternalContent?: string
+  pendingExternalMtime?: number
+  pendingExternalSize?: number
 }
 
 /** Handle exposed by CodeEditor via ref */
@@ -95,6 +105,8 @@ export interface ReadFileResponse {
   mtime: number
   size: number
   truncated: boolean
+  /** True when the file doesn't look like valid UTF-8 text (binary, or another encoding) */
+  encodingWarning: boolean
 }
 
 export interface WriteFileResponse {

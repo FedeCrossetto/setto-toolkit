@@ -64,6 +64,7 @@ const ON_CHANNELS = new Set([
 ])
 
 const api = {
+  platform: process.platform,
   invoke: <T = unknown>(channel: string, ...args: unknown[]): Promise<T> => {
     if (!INVOKE_CHANNELS.has(channel)) throw new Error(`IPC invoke blocked: unknown channel "${channel}"`)
     return ipcRenderer.invoke(channel, ...args) as Promise<T>

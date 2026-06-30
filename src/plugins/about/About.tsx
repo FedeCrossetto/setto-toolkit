@@ -56,7 +56,7 @@ export function About(): JSX.Element {
 function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }): JSX.Element {
   const Icon = INFO_ICONS[icon] ?? Tag
   return (
-    <div className="flex items-center gap-4 px-4 py-3 bg-surface rounded-xl border border-outline-variant/15">
+    <div className="ui-card flex items-center gap-4 px-4 py-3">
       <Icon size={18} className="text-on-surface-variant/50 flex-shrink-0" />
       <span className="text-xs text-on-surface-variant/60 w-36 flex-shrink-0">{label}</span>
       <span className="text-xs text-on-surface font-medium">{value}</span>

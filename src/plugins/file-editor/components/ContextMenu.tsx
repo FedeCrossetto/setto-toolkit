@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ComponentType } from 'react'
+import { motion } from 'framer-motion'
 
 export interface MenuItem {
   label: string
@@ -31,10 +32,12 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
   const safeY = Math.min(y, window.innerHeight - items.length * 34 - 20)
 
   return (
-    <div
+    <motion.div
       ref={ref}
-      className="fixed z-[200] bg-surface-container border border-outline-variant/30 rounded-xl shadow-2xl py-1.5 min-w-[190px]"
+      className="ui-menu fixed z-[200] py-1.5 min-w-[190px]"
       style={{ left: safeX, top: safeY }}
+      initial={{ opacity: 0, scale: 0.96, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
     >
       {items.map((item, i) =>
         item.divider ? (
@@ -43,10 +46,8 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
           <button
             key={i}
             onClick={() => { item.action(); onClose() }}
-            className={`flex items-center gap-2.5 w-full px-3 py-1.5 text-[12px] text-left transition-colors ${
-              item.danger
-                ? 'text-error hover:bg-error/10'
-                : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+            className={`ui-menu-item w-full px-3 py-1.5 text-[12px] text-left ${
+              item.danger ? 'text-error hover:bg-error/10' : 'text-on-surface-variant'
             }`}
           >
             {item.icon && <item.icon size={15} className="flex-shrink-0" />}
@@ -54,6 +55,6 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
           </button>
         )
       )}
-    </div>
+    </motion.div>
   )
 }

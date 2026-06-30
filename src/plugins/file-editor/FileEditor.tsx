@@ -1,16 +1,17 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   AlertTriangle, ArrowDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Copy, Diff, Eye, EyeOff,
   FileInput, FilePlus, FileSearch, FileText, Filter, Folder, Import,
-  FolderOpen, FolderPlus, FolderSearch, History, PanelLeft, PanelLeftClose, Pause, Pencil, Play,
+  FolderOpen, FolderPlus, FolderSearch, PanelLeft, PanelLeftClose, Pause, Pencil, Play,
   RotateCcw, Save, SlidersHorizontal, SquareTerminal, Trash2, WrapText, X,
 } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
 import { useToast } from '../../core/components/Toast'
 import { dragState } from '../../core/dragState'
-import { useEditorTabs, languageIcon, detectLanguage } from './hooks/useEditorTabs'
+import { useEditorTabs, languageIcon, detectLanguage, refineLanguageFromContent } from './hooks/useEditorTabs'
 import { useFileWatcher } from './hooks/useFileWatcher'
-import { useEditorPrefs, FONT_FAMILIES, FONT_SIZE_MIN, FONT_SIZE_MAX } from './hooks/useEditorPrefs'
+import { useEditorPrefs, FONT_FAMILIES, FONT_SIZE_MIN, FONT_SIZE_MAX, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX } from './hooks/useEditorPrefs'
 import type { EditorColorScheme } from './hooks/useEditorPrefs'
 import { useAutoSave } from './hooks/useAutoSave'
 import { CodeEditor } from './components/CodeEditor'
@@ -49,7 +50,7 @@ interface TreeCallbacks {
 
 export function FileEditor(): JSX.Element {
   const { state, dispatch } = useApp()
-  const { tabs, activeId, activeTab, setActiveId, openFile, openBuffer, closeTab, updateTab, reorderTabs } = useEditorTabs()
+  const { tabs, activeId, activeTab, setActiveId, openFile, openBuffer, closeTab, updateTab, reorderTabs, isOpening } = useEditorTabs()
   const { prefs, updatePrefs } = useEditorPrefs()
   const { show: showToast } = useToast()
 
@@ -101,6 +102,7 @@ export function FileEditor(): JSX.Element {
   // Stable refs used by the keydown listener so the effect registers once and
   // never needs to re-register (saveTab is a plain function that recreates each render).
   const saveActiveRef  = useRef<() => Promise<void>>(() => Promise.resolve())
+  const saveAllRef     = useRef<() => Promise<void>>(() => Promise.resolve())
   const activeTabRef   = useRef<typeof activeTab>(null)
   const recentWritesRef = useRef(new Map<string, { at: number; content: string }>())
   const [dragOverTab, setDragOverTab] = useState<string | null>(null)
@@ -110,6 +112,13 @@ export function FileEditor(): JSX.Element {
 
   // Derived counts from active tab content
   const lineCount = useMemo(() => activeTab?.content.split('\n').length ?? 0, [activeTab?.content])
+  // Syntax-highlighting language only — intentionally decoupled from activeTab.language
+  // (which drives the icon and must stay extension-only and stable). Lets ambiguous
+  // extensions like .cfg get correct XML highlighting without ever touching the icon.
+  const highlightLanguage = useMemo(
+    () => activeTab ? refineLanguageFromContent(activeTab.language, activeTab.content) : 'text',
+    [activeTab?.language, activeTab?.content]
+  )
   const wordCount = useMemo(() => {
     const t = activeTab?.content.trim() ?? ''
     return t ? t.split(/\s+/).length : 0
@@ -203,6 +212,7 @@ export function FileEditor(): JSX.Element {
   // Keep refs current so the keydown effect (mounted once) always has fresh values.
   useEffect(() => {
     saveActiveRef.current = saveActive
+    saveAllRef.current    = saveAllDirty
     activeTabRef.current  = activeTab
   })
 
@@ -227,6 +237,11 @@ export function FileEditor(): JSX.Element {
         if (!(e.target as HTMLElement)?.closest?.('.cm-editor')) {
           void saveActiveRef.current()
         }
+      }
+      // Ctrl+Shift+S — save all dirty tabs
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        void saveAllRef.current()
       }
     }
     window.addEventListener('keydown', onKey)
@@ -296,7 +311,20 @@ export function FileEditor(): JSX.Element {
       closeTab(tab.id)
       return
     }
-    // File was modified externally — reload content automatically and notify
+    // File was modified externally. If we have no unsaved edits, it's safe to just
+    // reload — but if the tab is dirty, applying the disk version would silently
+    // discard the user's in-progress changes, so stash it for them to resolve instead.
+    if (tab.isDirty) {
+      updateTab(tab.id, {
+        hasUpdate: true,
+        isDeleted: false,
+        pendingExternalContent: event.content,
+        pendingExternalMtime: event.mtime,
+        pendingExternalSize: event.size,
+      })
+      showToast(`"${tab.name}" changed on disk — you have unsaved edits`, 'warning')
+      return
+    }
     updateTab(tab.id, {
       content: event.content,
       lastModified: event.mtime,
@@ -310,10 +338,15 @@ export function FileEditor(): JSX.Element {
   useFileWatcher({ tab: activeTab, onFileChanged })
 
   async function saveTab(tab: OpenFile): Promise<boolean> {
+    if (tab.truncated) {
+      showToast(`"${tab.name}" está mostrando solo una parte (archivo grande) — cargá el archivo completo antes de guardar para no perder el resto.`, 'error', 5000)
+      return false
+    }
+
     let targetPath = tab.path
 
     if (targetPath === null) {
-      const suggestedName = tab.name.endsWith('.txt') ? tab.name : `${tab.name}.txt`
+      const suggestedName = tab.name.includes('.') ? tab.name : `${tab.name}.txt`
       targetPath = await window.api.invoke<string | null>('editor:save-dialog', suggestedName)
       if (!targetPath) return false
     }
@@ -393,6 +426,22 @@ export function FileEditor(): JSX.Element {
 
   const toggleExpanded = (p: string): void => setExpanded((prev) => { const n = new Set(prev); n.has(p) ? n.delete(p) : n.add(p); return n })
 
+  const handleSidebarResizePointerDown = (e: React.PointerEvent): void => {
+    e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const startX = e.clientX
+    const startW = prefs.sidebarWidth
+    const onMove = (ev: PointerEvent): void => {
+      updatePrefs({ sidebarWidth: Math.max(SIDEBAR_WIDTH_MIN, Math.min(startW + (ev.clientX - startX), SIDEBAR_WIDTH_MAX)) })
+    }
+    const onUp = (): void => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+
   const handleSplitPointerDown = (e: React.PointerEvent): void => {
     e.preventDefault()
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -467,7 +516,8 @@ export function FileEditor(): JSX.Element {
     if (tab.path) {
       await handleRenameCommit(tab.path, newName.trim())
     } else {
-      updateTab(tabId, { name: newName.trim() })
+      const name = newName.trim()
+      updateTab(tabId, { name, language: detectLanguage(name) })
     }
   }
 
@@ -489,6 +539,20 @@ export function FileEditor(): JSX.Element {
           { label: 'Copiar ruta',          icon: Copy,       action: () => copyPath(tab.path!) },
           { label: 'Mostrar en el explorador', icon: FolderOpen, action: () => window.api.invoke('editor:reveal', tab.path!) },
           { divider: true, label: '', action: () => {} },
+          {
+            label: 'Eliminar', icon: Trash2, danger: true,
+            action: async () => {
+              const confirmed = await new Promise<boolean>((resolve) =>
+                setDeleteConfirm({ name: tab.name, isDir: false, resolve })
+              )
+              setDeleteConfirm(null)
+              if (!confirmed) return
+              await window.api.invoke('editor:delete', tab.path!)
+              const root = findRootPath(tab.path!)
+              markDeletedTabs(tab.path!, false)
+              if (root) await refreshFolder(root)
+            },
+          },
         ] : []),
         { label: 'Cerrar', icon: X, action: () => handleCloseTab(tab.id), danger: true },
       ],
@@ -503,6 +567,10 @@ export function FileEditor(): JSX.Element {
       items: [
         { label: 'Nuevo archivo',   icon: FilePlus,   action: createNewFile },
         { label: 'Abrir archivo…', icon: FileInput, action: openDialog },
+        ...(tabs.some((t) => t.isDirty) ? [
+          { divider: true, label: '', action: () => {} },
+          { label: 'Guardar todo', icon: Save, action: () => void saveAllDirty() },
+        ] : []),
       ],
     })
   }
@@ -545,7 +613,11 @@ export function FileEditor(): JSX.Element {
     const paths = await window.api.invoke<string[]>('editor:open-dialog')
     for (const p of paths) await openFile(p)
   }
-  const createNewFile = (): void => { newFileCount++; openBuffer(newFileCount === 1 ? 'Untitled.txt' : `Untitled-${newFileCount}.txt`, '', 'text') }
+  const createNewFile = (): void => {
+    newFileCount++
+    const file = openBuffer(newFileCount === 1 ? 'Untitled.txt' : `Untitled-${newFileCount}.txt`, '', 'text')
+    setRenamingTabId(file.id)
+  }
 
   // ── Tab actions ───────────────────────────────────────────────────────────
   const toggleWatch  = (): void => { if (activeTab) updateTab(activeTab.id, { watchActive: !activeTab.watchActive }) }
@@ -556,6 +628,16 @@ export function FileEditor(): JSX.Element {
   const saveActive = async (): Promise<void> => {
     if (!activeTab) return
     if (activeTab.path === null || activeTab.isDirty) await saveTab(activeTab)
+  }
+
+  const saveAllDirty = async (): Promise<void> => {
+    const dirty = tabs.filter((t) => t.isDirty)
+    if (dirty.length === 0) return
+    let saved = 0
+    for (const t of dirty) {
+      if (await saveTab(t)) saved++
+    }
+    if (saved > 0) showToast(`${saved} archivo${saved === 1 ? '' : 's'} guardado${saved === 1 ? '' : 's'}`, 'success', 2200)
   }
 
   const openFileAtLine = async (path: string, line: number): Promise<void> => {
@@ -570,9 +652,10 @@ export function FileEditor(): JSX.Element {
       {/* ── Left sidebar ─────────────────────────────────────────────────── */}
       <aside
         className={[
-          'flex-shrink-0 flex flex-col border-r border-outline-variant/20 bg-surface overflow-hidden transition-[width] duration-200 ease-out',
-          sidebarCollapsed ? 'w-10' : 'w-56',
+          'flex-shrink-0 flex flex-col border-r border-outline-variant/20 bg-surface overflow-hidden',
+          sidebarCollapsed ? 'w-10 transition-[width] duration-200 ease-out' : '',
         ].join(' ')}
+        style={sidebarCollapsed ? undefined : { width: prefs.sidebarWidth }}
       >
       {sidebarCollapsed ? (
         <CollapsedSidebarRail
@@ -647,20 +730,19 @@ export function FileEditor(): JSX.Element {
           </div>
 
           {selectedIds.size > 0 && (
-            <div className="mx-2 mb-1 px-2.5 py-1.5 rounded-lg flex items-center gap-2 flex-shrink-0"
-              style={{ background: 'rgb(136 124 253 / 0.12)', border: '1px solid rgb(136 124 253 / 0.25)' }}>
-              <span className="text-[10px] font-semibold text-[#887CFD]">
+            <div className="mx-2 mb-1 px-2.5 py-1.5 rounded-lg flex items-center gap-2 flex-shrink-0 bg-on-surface/[0.06] [box-shadow:inset_0_0_0_1px_rgb(var(--c-outline-variant)_/_0.3)]">
+              <span className="text-[10px] font-semibold text-on-surface">
                 {selectedIds.size}/2 seleccionados
               </span>
               {selectedIds.size === 2 && (
                 <button onClick={sendSelectedToDiff}
-                  className="flex items-center gap-1 ml-auto px-2 py-0.5 rounded-md text-[10px] font-bold text-[#887CFD] hover:bg-[#887CFD]/20 transition-colors">
+                  className="flex items-center gap-1 ml-auto px-2 py-0.5 rounded-md text-[10px] font-bold text-on-surface hover:bg-on-surface/10 transition-colors">
                   <Diff size={12} />
                   Comparar
                 </button>
               )}
               <button onClick={() => setSelectedIds(new Set())} title="Limpiar selección"
-                className="text-[#887CFD]/50 hover:text-[#887CFD] transition-colors">
+                className="text-on-surface-variant/50 hover:text-on-surface transition-colors">
                 <X size={12} />
               </button>
             </div>
@@ -722,7 +804,7 @@ export function FileEditor(): JSX.Element {
               {recents.slice(0, 8).map((r) => (
                 <button key={r.path} onClick={() => openFile(r.path)} title={r.path}
                   className="flex items-center gap-2 w-full px-3 py-1.5 text-left hover:bg-surface-container transition-colors group">
-                  <History size={13} className="text-on-surface-variant/50 flex-shrink-0" />
+                  {(() => { const Icon = languageIcon(detectLanguage(r.name)); return <Icon size={13} className="text-on-surface-variant/50 flex-shrink-0" /> })()}
                   <span className="text-[11px] text-on-surface-variant group-hover:text-on-surface truncate">{r.name}</span>
                 </button>
               ))}
@@ -732,12 +814,25 @@ export function FileEditor(): JSX.Element {
       </>)}
       </aside>
 
+      {/* Sidebar width resize handle */}
+      {!sidebarCollapsed && (
+        <div
+          onPointerDown={handleSidebarResizePointerDown}
+          className="flex-shrink-0 w-[5px] -mx-[2px] z-10 cursor-col-resize hover:bg-primary/30 transition-colors"
+          style={{ touchAction: 'none' }}
+          title="Arrastrar para redimensionar"
+        />
+      )}
+
       {/* ── Main editor area ─────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden relative" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
 
         {/* Tab bar + settings */}
-        <div className="flex items-center border-b border-outline-variant/20 bg-surface flex-shrink-0">
-          <div className="flex-1 flex items-center overflow-x-auto scrollbar-hide">
+        <div className="flex items-center border-b border-outline-variant/20 bg-surface-container-low flex-shrink-0">
+          <div
+            className="flex-1 flex items-center gap-1 overflow-x-auto scrollbar-hide px-2 py-1.5"
+            style={{ maskImage: tabs.length > 1 ? 'linear-gradient(to right, transparent 0, black 8px, black calc(100% - 8px), transparent 100%)' : undefined }}
+          >
             {tabs.map((tab) => (
               <div key={tab.id}
                 draggable
@@ -774,23 +869,20 @@ export function FileEditor(): JSX.Element {
                 }}
                 onContextMenu={(e) => handleTabContextMenu(e, tab)}
                 title={`${tab.name}${tab.path ? `\n${tab.path}` : ''}\nCtrl+click to select · Drag to reorder · Drag onto Smart Diff to compare`}
-                style={dragOverTab === tab.id ? { borderLeft: '2px solid rgb(var(--c-primary))' } : undefined}
-                className={`relative flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium cursor-grab active:cursor-grabbing whitespace-nowrap group transition-colors flex-shrink-0 rounded-t-md ${
+                className={`relative flex items-center gap-2 pl-3.5 pr-2.5 py-2 text-[13px] font-medium cursor-grab active:cursor-grabbing whitespace-nowrap group transition-all duration-150 flex-shrink-0 rounded-lg border ${
+                  dragOverTab === tab.id ? 'ring-2 ring-primary/50' : ''
+                } ${
                   selectedIds.has(tab.id)
-                    ? 'text-[#887CFD] bg-[#887CFD]/10'
+                    ? 'text-on-surface bg-on-surface/[0.08] border-outline-variant/50'
                     : activeId === tab.id
-                      ? 'text-primary bg-primary/[0.06]'
-                      : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}>
-                {(activeId === tab.id || selectedIds.has(tab.id)) && (
-                  <span aria-hidden className="absolute left-2 right-2 bottom-0 h-[2px] rounded-full"
-                    style={{ background: selectedIds.has(tab.id) ? '#887CFD' : 'var(--gradient-brand)' }} />
-                )}
-                {(() => { const Icon = languageIcon(tab.language); return <Icon size={13} /> })()}
-                <span className="max-w-[120px] truncate">{tab.name}</span>
+                      ? 'text-on-surface bg-surface border-outline-variant/40 shadow-sm'
+                      : 'text-on-surface-variant border-transparent hover:text-on-surface hover:bg-surface-container-high'}`}>
+                {(() => { const Icon = languageIcon(tab.language); return <Icon size={14} className="text-on-surface-variant/70" /> })()}
+                <span className="max-w-[140px] truncate">{tab.name}</span>
                 {tab.isDirty && <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />}
                 <button onClick={(e) => { e.stopPropagation(); void handleCloseTab(tab.id) }}
-                  className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error transition-all ml-0.5">
-                  <X size={11} />
+                  className="flex items-center justify-center w-[18px] h-[18px] rounded-md opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error hover:bg-error/10 transition-all ml-0.5">
+                  <X size={12} />
                 </button>
               </div>
             ))}
@@ -813,9 +905,18 @@ export function FileEditor(): JSX.Element {
               <SlidersHorizontal size={16} />
             </button>
 
+            <AnimatePresence>
             {settingsOpen && (
-              <div className="fixed inset-0 z-[200] flex items-center justify-end bg-black/30 backdrop-blur-sm" onClick={() => setSettingsOpen(false)}>
-                <div className="h-full w-72 bg-surface border-l border-outline-variant/30 shadow-2xl flex flex-col overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <motion.div
+                className="fixed inset-0 z-[200] flex items-center justify-end bg-black/30 backdrop-blur-sm"
+                onClick={() => setSettingsOpen(false)}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15, ease: 'easeOut' }}
+              >
+                <motion.div
+                  className="ui-card h-full w-72 rounded-none border-l border-y-0 border-r-0 flex flex-col overflow-y-auto"
+                  onClick={(e) => e.stopPropagation()}
+                  initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ duration: 0.2, ease: 'easeOut' }}
+                >
                   {/* Header */}
                   <div className="flex items-center justify-between px-4 py-3 border-b border-outline-variant/20 flex-shrink-0">
                     <div className="flex items-center gap-2">
@@ -883,13 +984,16 @@ export function FileEditor(): JSX.Element {
                   {/* Color scheme */}
                   <div className="flex flex-col gap-1.5">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Esquema de color</p>
-                    <div className="flex gap-1.5">
+                    <div className="grid grid-cols-2 gap-1.5">
                       {([
-                        { id: 'nexus',  label: 'Nexus',  colors: ['#887CFD', '#16C8C7', '#4896FE'] },
-                        { id: 'httpie', label: 'HTTPie', colors: ['#9ece6a', '#e0af68', '#bb9af7'] },
+                        { id: 'nexus',    label: 'Nexus',    colors: ['#887CFD', '#16C8C7', '#4896FE'] },
+                        { id: 'httpie',   label: 'HTTPie',   colors: ['#9ece6a', '#e0af68', '#bb9af7'] },
+                        { id: 'aurora',   label: 'Aurora',   colors: ['#8B93FF', '#FF6FA8', '#5CCFE6'] },
+                        { id: 'dracula',  label: 'Dracula',  colors: ['#FF79C6', '#BD93F9', '#50FA7B'] },
+                        { id: 'monokai',  label: 'Monokai',  colors: ['#F92672', '#A6E22E', '#66D9EF'] },
                       ] as const).map(({ id, label, colors }) => (
                         <button key={id} onClick={() => updatePrefs({ colorScheme: id })}
-                          className={`flex-1 flex flex-col gap-1.5 items-center px-2 py-2 rounded-lg border transition-all ${prefs.colorScheme === id ? 'border-primary bg-primary/10' : 'border-outline-variant/30 hover:border-outline-variant/60'}`}>
+                          className={`flex flex-col gap-1.5 items-center px-2 py-2 rounded-lg border transition-all ${prefs.colorScheme === id ? 'border-primary bg-primary/10' : 'border-outline-variant/30 hover:border-outline-variant/60'}`}>
                           <div className="flex gap-1">
                             {colors.map((c) => <span key={c} className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: c }} />)}
                           </div>
@@ -911,14 +1015,15 @@ export function FileEditor(): JSX.Element {
                         const v = parseInt(e.target.value, 10)
                         if (!isNaN(v) && v >= 100) updatePrefs({ tailLinesCount: v })
                       }}
-                      className="w-full bg-surface border border-outline-variant/30 rounded-lg px-2 py-1 text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/40"
+                      className="ui-input w-full text-xs"
                     />
                   </div>
                   </div>{/* end ghost div */}
                   </div>{/* end p-4 flex col */}
-                </div>{/* end panel */}
-              </div>
+                </motion.div>{/* end panel */}
+              </motion.div>
             )}
+            </AnimatePresence>
           </div>
         </div>
 
@@ -938,7 +1043,7 @@ export function FileEditor(): JSX.Element {
                   <span className={`font-medium ${activeTab.frozen ? 'text-on-surface-variant' : 'text-accent'}`}>{activeTab.frozen ? 'Pausado' : 'En vivo'}</span>
                 </div>
                 {/* Log filter */}
-                <div className="flex items-center gap-1.5 bg-surface-container border border-outline-variant/20 rounded-lg px-2 py-0.5">
+                <div className="ui-input flex items-center gap-1.5 px-2 py-0.5">
                   <Filter size={12} className="text-on-surface-variant/40" />
                   <input value={logFilter} onChange={(e) => setLogFilter(e.target.value)} placeholder="Filtrar líneas…"
                     className="bg-transparent text-[11px] text-on-surface outline-none placeholder:text-on-surface-variant/30 w-28" />
@@ -964,8 +1069,23 @@ export function FileEditor(): JSX.Element {
           </div>
         )}
 
+        {/* Loading bar — feedback while a (possibly large/slow) file is being read */}
+        {isOpening && (
+          <div className="h-[2px] w-full overflow-hidden bg-primary/10 flex-shrink-0">
+            <div className="h-full w-1/3 bg-primary fe-loading-bar" />
+          </div>
+        )}
+
         {/* Breadcrumb */}
         {activeTab?.path && <Breadcrumb filePath={activeTab.path} onPathCopied={() => showToast('Path copied', 'success', 2000)} />}
+
+        {/* Encoding warning — file doesn't look like valid UTF-8 */}
+        {activeTab?.encodingWarning && (
+          <div className="flex items-center gap-2 px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/25 text-xs text-amber-400 flex-shrink-0">
+            <AlertTriangle size={14} className="flex-shrink-0" />
+            Este archivo no parece ser UTF-8 válido (¿binario u otra codificación?). Editarlo y guardarlo puede corromperlo.
+          </div>
+        )}
 
         {/* Large-file truncation notice */}
         {activeTab?.truncated && (
@@ -986,6 +1106,42 @@ export function FileEditor(): JSX.Element {
           </div>
         )}
 
+        {/* External-change conflict notice — file changed on disk while we have unsaved edits */}
+        {activeTab?.hasUpdate && activeTab.pendingExternalContent !== undefined && (
+          <div className="flex items-center gap-2 px-4 py-1.5 bg-error/10 border-b border-error/25 text-xs text-error flex-shrink-0">
+            <AlertTriangle size={14} className="flex-shrink-0" />
+            Este archivo cambió en disco y tenés ediciones sin guardar.
+            <button
+              className="ml-auto underline hover:no-underline opacity-80 hover:opacity-100 transition-opacity"
+              onClick={() => {
+                updateTab(activeTab.id, {
+                  content: activeTab.pendingExternalContent!,
+                  lastModified: activeTab.pendingExternalMtime,
+                  size: activeTab.pendingExternalSize,
+                  isDirty: false,
+                  hasUpdate: false,
+                  pendingExternalContent: undefined,
+                  pendingExternalMtime: undefined,
+                  pendingExternalSize: undefined,
+                })
+              }}
+            >
+              Descartar mis cambios y recargar
+            </button>
+            <button
+              className="underline hover:no-underline opacity-80 hover:opacity-100 transition-opacity"
+              onClick={() => updateTab(activeTab.id, {
+                hasUpdate: false,
+                pendingExternalContent: undefined,
+                pendingExternalMtime: undefined,
+                pendingExternalSize: undefined,
+              })}
+            >
+              Mantener mis cambios
+            </button>
+          </div>
+        )}
+
         {/* Editor */}
         <div className="flex-1 overflow-hidden flex flex-col min-h-0">
           <div className="flex-1 overflow-hidden relative">
@@ -993,7 +1149,10 @@ export function FileEditor(): JSX.Element {
               <CodeEditor
                 key={activeTab.id}
                 content={activeTab.content}
-                language={activeTab.language}
+                // The tab's icon (activeTab.language) is purely extension-based and stable.
+                // Highlighting can be smarter about ambiguous extensions (.cfg holding XML vs
+                // ini) without that ever touching the icon — computed separately, content-aware.
+                language={highlightLanguage}
                 isDark={editorDark}
                 wordWrap={activeTab.wordWrap}
                 fontSize={prefs.fontSize}
@@ -1030,7 +1189,7 @@ export function FileEditor(): JSX.Element {
           {activeTab && (
             <div className="flex items-center gap-2.5 px-3 py-1.5 border-t border-outline-variant/15 bg-surface-container-low flex-shrink-0 text-[11px] text-on-surface-variant/70 select-none">
               {/* Language pill */}
-              <Chip tone="primary" className="uppercase tracking-wide font-semibold">{activeTab.language}</Chip>
+              <Chip tone="primary" className="uppercase tracking-wide font-semibold">{highlightLanguage}</Chip>
               <button onClick={() => editorRef.current?.openGotoLine()} title="Ir a línea (Ctrl+G)"
                 className="tabular-nums pointer-events-auto hover:text-primary transition-colors">
                 Ln {cursor.ln}, Col {cursor.col}
@@ -1042,7 +1201,9 @@ export function FileEditor(): JSX.Element {
               <span className="text-on-surface-variant/25">·</span>
               <span className="tabular-nums">{(activeTab.size / 1024).toFixed(1)} KB</span>
               <span className="text-on-surface-variant/25">·</span>
-              <span>UTF-8</span>
+              <span className={activeTab.encodingWarning ? 'text-warning font-medium' : undefined} title={activeTab.encodingWarning ? 'No parece ser UTF-8 válido' : undefined}>
+                UTF-8{activeTab.encodingWarning ? ' ⚠' : ''}
+              </span>
               {activeTab.isDirty && (
                 <span className="flex items-center gap-1 text-warning"><span className="w-1.5 h-1.5 rounded-full bg-warning" />Sin guardar</span>
               )}
@@ -1086,9 +1247,17 @@ export function FileEditor(): JSX.Element {
       {ctxMenu && <ContextMenu x={ctxMenu.x} y={ctxMenu.y} items={ctxMenu.items} onClose={() => setCtxMenu(null)} />}
 
       {/* ── Delete confirmation modal ──────────────────────────────────────── */}
+      <AnimatePresence>
       {deleteConfirm && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="w-[360px] bg-surface-container border border-outline-variant/30 rounded-2xl shadow-2xl p-5 flex flex-col gap-5">
+        <motion.div
+          className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15, ease: 'easeOut' }}
+        >
+          <motion.div
+            className="ui-card w-[360px] p-5 flex flex-col gap-5"
+            initial={{ opacity: 0, scale: 0.96, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: -6 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+          >
             <div className="flex items-start gap-3">
               <Trash2 size={22} className="text-error flex-shrink-0 mt-0.5" />
               <div>
@@ -1102,23 +1271,29 @@ export function FileEditor(): JSX.Element {
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <button
-                onClick={() => deleteConfirm.resolve(false)}
-                className="px-3 py-1.5 text-[12px] rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors"
-              >Cancel</button>
+              <button onClick={() => deleteConfirm.resolve(false)} className="ui-btn ui-btn-ghost text-[12px]">Cancel</button>
               <button
                 onClick={() => deleteConfirm.resolve(true)}
-                className="px-3 py-1.5 text-[12px] rounded-lg bg-error text-white hover:bg-error/90 transition-colors font-medium"
+                className="ui-btn text-[12px] bg-error text-white hover:bg-error/90"
               >Delete</button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* ── Save-on-close confirmation modal ──────────────────────────────── */}
+      <AnimatePresence>
       {closeConfirm && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="w-[360px] bg-surface-container border border-outline-variant/30 rounded-2xl shadow-2xl p-5 flex flex-col gap-5">
+        <motion.div
+          className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15, ease: 'easeOut' }}
+        >
+          <motion.div
+            className="ui-card w-[360px] p-5 flex flex-col gap-5"
+            initial={{ opacity: 0, scale: 0.96, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: -6 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+          >
             <div className="flex items-start gap-3">
               <Save size={22} className="text-primary flex-shrink-0 mt-0.5" />
               <div>
@@ -1131,22 +1306,17 @@ export function FileEditor(): JSX.Element {
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <button
-                onClick={() => closeConfirm.resolve('cancel')}
-                className="px-3 py-1.5 text-[12px] rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors"
-              >Cancel</button>
+              <button onClick={() => closeConfirm.resolve('cancel')} className="ui-btn ui-btn-ghost text-[12px]">Cancel</button>
               <button
                 onClick={() => closeConfirm.resolve('discard')}
-                className="px-3 py-1.5 text-[12px] rounded-lg text-error hover:bg-error/10 border border-error/30 transition-colors"
+                className="ui-btn ui-btn-outline text-[12px] text-error border-error/30 hover:bg-error/10"
               >Don't Save</button>
-              <button
-                onClick={() => closeConfirm.resolve('save')}
-                className="px-3 py-1.5 text-[12px] rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors font-medium"
-              >Save</button>
+              <button onClick={() => closeConfirm.resolve('save')} className="ui-btn ui-btn-primary text-[12px]">Save</button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -1192,7 +1362,7 @@ function FolderRoot({ folder, expanded, onToggle, onClose, cb }: {
           {isOpen ? <FolderOpen size={14} className="text-primary/70 flex-shrink-0" /> : <Folder size={14} className="text-primary/70 flex-shrink-0" />}
           {cb.renaming === folder.path
             ? <InlineInput defaultValue={folder.name} onCommit={(n) => cb.onRenameCommit(folder.path, n)} onCancel={cb.onCancel} />
-            : <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wide truncate" title={folder.path}>{folder.name}</span>
+            : <span className="text-[12px] font-semibold text-on-surface-variant uppercase tracking-wide truncate" title={folder.path}>{folder.name}</span>
           }
         </button>
         <button onClick={() => onClose(folder.path)} title="Close folder"
@@ -1210,6 +1380,9 @@ function FolderRoot({ folder, expanded, onToggle, onClose, cb }: {
             </div>
           )}
           {folder.children?.map((child) => <TreeNode key={child.path} node={child} depth={1} expanded={expanded} onToggle={onToggle} rootPath={folder.path} cb={cb} />)}
+          {folder.children?.length === 0 && cb.creating?.parentPath !== folder.path && (
+            <p className="text-[11px] text-on-surface-variant/35 italic px-5 py-2">Carpeta vacía</p>
+          )}
           {folder.truncated && <p className="text-[10px] text-on-surface-variant/35 italic px-5 py-1">Mostrando los primeros 200 archivos</p>}
         </>
       )}
@@ -1229,7 +1402,7 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
       <div onClick={() => node.isDir ? onToggle(node.path) : cb.onOpen(node.path)}
         onContextMenu={(e) => cb.onContextMenu(e, node, rootPath)}
         title={node.path}
-        className="flex items-center gap-1 py-[3px] cursor-pointer hover:bg-surface-container group transition-colors"
+        className="flex items-center gap-1 py-[4px] cursor-pointer hover:bg-surface-container group transition-colors"
         style={{ paddingLeft: `${8 + indent}px`, paddingRight: '8px' }}>
         {node.isDir
           ? (isOpen ? <ChevronDown size={13} className="text-on-surface-variant/40 flex-shrink-0" /> : <ChevronRight size={13} className="text-on-surface-variant/40 flex-shrink-0" />)
@@ -1237,11 +1410,11 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
         }
         {node.isDir
           ? (isOpen ? <FolderOpen size={13} className="text-primary/60 flex-shrink-0" /> : <Folder size={13} className="text-primary/60 flex-shrink-0" />)
-          : (() => { const Icon = languageIcon(detectLanguage(node.name)); return <Icon size={13} className="text-on-surface-variant/50 flex-shrink-0" /> })()
+          : (() => { const Icon = languageIcon(detectLanguage(node.name)); return <Icon size={15} className="text-on-surface-variant/50 flex-shrink-0" /> })()
         }
         {cb.renaming === node.path
           ? <InlineInput defaultValue={node.name} onCommit={(n) => cb.onRenameCommit(node.path, n)} onCancel={cb.onCancel} />
-          : <span className="text-[11px] text-on-surface-variant group-hover:text-on-surface truncate flex-1">{node.name}</span>
+          : <span className="text-[12px] text-on-surface-variant group-hover:text-on-surface truncate flex-1">{node.name}</span>
         }
         {node.isDir && !isOpen && (node.children?.length ?? 0) > 0 && (
           <Badge className="ml-auto group-hover:opacity-100 opacity-60">{node.children!.length}</Badge>
@@ -1303,7 +1476,7 @@ function CollapsedSidebarRail({
               className={[
                 'relative w-8 h-8 rounded-md flex items-center justify-center transition-colors flex-shrink-0',
                 isActive
-                  ? 'bg-primary/12 text-primary ring-1 ring-primary/30'
+                  ? 'bg-on-surface/[0.08] text-on-surface ring-1 ring-outline-variant/40'
                   : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container',
               ].join(' ')}
             >
@@ -1342,16 +1515,16 @@ function FileListItem({ tab, isActive, isSelected = false, savedFlash = false, o
       title={`${tab.name}${tab.path ? `\n${tab.path}` : ''}\nCtrl+click to select · Drag to reorder · Compare via context menu or Smart Diff tab`}
       className={`flex items-center gap-2 w-full max-w-full px-3 py-2 rounded-md mb-0.5 cursor-grab active:cursor-grabbing group overflow-hidden transition-[background-color,box-shadow,color] ${
         isSelected
-          ? 'bg-[#887CFD]/12 text-[#887CFD] [box-shadow:inset_0_0_0_1px_rgba(136,124,253,0.35)]'
+          ? 'bg-on-surface/[0.09] text-on-surface [box-shadow:inset_0_0_0_1px_rgb(var(--c-on-surface)_/_0.18)]'
           : isActive
-            ? 'bg-primary/12 text-primary [box-shadow:inset_0_0_0_1px_rgb(var(--c-primary)_/_0.32)]'
+            ? 'bg-on-surface/[0.07] text-on-surface [box-shadow:inset_0_0_0_1px_rgb(var(--c-outline-variant)_/_0.4)]'
             : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container/90'
       }`}>
-      {(() => { const Icon = languageIcon(tab.language); return <Icon size={15} className={`flex-shrink-0 ${isActive ? 'text-primary' : 'text-on-surface-variant/60'}`} /> })()}
+      {(() => { const Icon = languageIcon(tab.language); return <Icon size={16} className="flex-shrink-0 text-on-surface-variant/60" /> })()}
       {renaming ? (
         <InlineInput defaultValue={tab.name} onCommit={onRenameCommit} onCancel={onRenameCancel} />
       ) : (
-        <span className="text-[12px] font-medium truncate flex-1">{tab.name}</span>
+        <span className="text-[13px] font-medium truncate flex-1">{tab.name}</span>
       )}
       {tab.watchActive && !tab.frozen && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" />}
       {savedFlash
@@ -1387,9 +1560,7 @@ function EmptyState({ onOpen }: { onOpen: () => void }): JSX.Element {
         <p className="font-semibold text-on-surface text-sm">Ningún archivo abierto</p>
         <p className="text-xs text-on-surface-variant/60 mt-1">Soltá un archivo o carpeta acá, o abrí uno</p>
       </div>
-      <button onClick={onOpen}
-        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-on-primary hover:opacity-90 active:scale-95 transition-all"
-        style={{ background: 'var(--gradient-brand)' }}>
+      <button onClick={onOpen} className="ui-btn ui-btn-primary text-sm">
         <Import size={16} />Abrir archivo
       </button>
     </div>

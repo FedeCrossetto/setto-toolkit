@@ -192,8 +192,7 @@ export function SettingsPage(): JSX.Element {
 
   const provider = (settings['ai.provider'] || 'openai') as AIProvider
 
-  const inputCls =
-    'w-full bg-surface-container border border-outline-variant/30 rounded-lg px-3 py-2 text-sm text-on-surface placeholder-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-colors'
+  const inputCls = 'ui-input w-full text-sm'
 
   return (
     <div className="p-8 max-w-3xl mx-auto w-full">
@@ -405,7 +404,7 @@ export function SettingsPage(): JSX.Element {
                     <button
                       onClick={() => void testApiKey()}
                       disabled={keyTest.status === 'loading' || (!settings['ai.openai_key'].trim() && !openAIKeyConfigured)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-outline-variant/30 text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="ui-btn ui-btn-outline text-xs disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {keyTest.status === 'loading' ? <><span className="inline-block w-3 h-3 border-2 border-primary/40 border-t-primary rounded-full animate-spin" /> Validando…</> : 'Probar key'}
                     </button>
@@ -581,7 +580,7 @@ export function SettingsPage(): JSX.Element {
                 }
                 setTimeout(() => setImportMsg(null), 3000)
               }}
-              className="w-full flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-lg border border-outline-variant/30 text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors"
+              className="ui-btn ui-btn-outline w-full justify-center"
             >
               <Download size={16} />
               Exportar JSON
@@ -604,7 +603,7 @@ export function SettingsPage(): JSX.Element {
                 }
                 setTimeout(() => setImportMsg(null), 4000)
               }}
-              className="w-full flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-lg border border-outline-variant/30 text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors"
+              className="ui-btn ui-btn-outline w-full justify-center"
             >
               <Upload size={16} />
               Importar JSON
@@ -668,8 +667,7 @@ export function SettingsPage(): JSX.Element {
       <div className="flex items-center gap-4">
         <button
           onClick={handleSave}
-          className="px-6 py-2.5 rounded-lg text-sm font-semibold text-on-primary transition-all hover:opacity-90 active:scale-95"
-          style={{ background: 'var(--gradient-brand)' }}
+          className="ui-btn ui-btn-primary"
         >
           Guardar ajustes
         </button>

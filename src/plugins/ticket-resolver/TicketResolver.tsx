@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, type ComponentType } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Brain, Check, CheckCircle2, CircleAlert, ClipboardList, Code2, Copy,
   FileText, FolderOpen, Network, Pencil, Play, Plus, RotateCcw, Save, Search,
@@ -458,7 +459,7 @@ function ConfigPanel({
     finally { setSaving(false) }
   }
 
-  const inp = 'w-full bg-surface border border-outline-variant/25 rounded-lg px-3 py-2 text-[13px] text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:border-primary/60 transition-colors'
+  const inp = 'ui-input w-full text-[13px]'
   const lbl = 'block text-[11px] text-on-surface-variant/50 mb-1'
 
   const TAB_BTN = (t:ConfigTab, Icon:ComponentType<{size?:number}>, label:string) => (
@@ -545,7 +546,7 @@ function ConfigPanel({
           {saveError && (
             <div className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{saveError}</div>
           )}
-          <button onClick={()=>void save()} disabled={saving} className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-white disabled:opacity-50" style={{background:'var(--gradient-brand)'}}>
+          <button onClick={()=>void save()} disabled={saving} className="ui-btn ui-btn-primary w-full justify-center disabled:opacity-50">
             {saving?'Guardando…':'Guardar configuración'}
           </button>
         </div>
@@ -580,10 +581,10 @@ function AwaitingPanel({ plan, onExecute, onReset }: { plan:AnalysisPlan; onExec
           </div>
         )}
         <div className="flex gap-2">
-          <button onClick={onExecute} className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[12px] font-semibold text-white hover:opacity-90 transition-opacity" style={{background:'var(--gradient-brand)'}}>
+          <button onClick={onExecute} className="ui-btn ui-btn-primary">
             <Play size={13}/>Ejecutar análisis
           </button>
-          <button onClick={onReset} className="px-3 py-1.5 rounded-lg text-[11px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.04] transition-colors">Cancelar</button>
+          <button onClick={onReset} className="ui-btn ui-btn-ghost">Cancelar</button>
         </div>
       </div>
     </div>
@@ -618,8 +619,12 @@ function ApplyChangesModal({ diff, onClose }: { diff:DiffChunk[]; onClose:()=>vo
   const allOk = results?.every(r => r.status==='applied')
 
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center p-5 bg-black/55 backdrop-blur-sm">
-      <div className="bg-surface w-full max-w-2xl max-h-[88vh] flex flex-col rounded-2xl border border-outline-variant/20 shadow-2xl">
+    <AnimatePresence>
+    <motion.div className="absolute inset-0 z-40 flex items-center justify-center p-5 bg-black/55 backdrop-blur-sm"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+      <motion.div className="ui-card w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden"
+        initial={{ opacity: 0, scale: 0.96, y: 6 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 6 }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/12 flex-shrink-0">
@@ -705,23 +710,23 @@ function ApplyChangesModal({ diff, onClose }: { diff:DiffChunk[]; onClose:()=>vo
             <>
               <span className="text-[11px] text-on-surface-variant/35">{selected.size} de {diff.length} seleccionado{selected.size!==1?'s':''}</span>
               <div className="flex gap-2">
-                <button onClick={onClose} className="px-4 py-2 rounded-xl text-[12px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.04] transition-colors">Cancelar</button>
+                <button onClick={onClose} className="ui-btn ui-btn-ghost">Cancelar</button>
                 <button onClick={()=>void handleApply()} disabled={applying||selected.size===0}
-                  className="flex items-center gap-2 px-5 py-2 rounded-xl text-[12px] font-semibold text-white disabled:opacity-35 hover:opacity-90 transition-opacity"
-                  style={{background:'var(--gradient-brand)'}}>
+                  className="ui-btn ui-btn-primary disabled:opacity-35">
                   {applying ? <><Spinner size={13}/>Aplicando…</> : <><Wrench size={13}/>Aplicar {selected.size} cambio{selected.size!==1?'s':''}</>}
                 </button>
               </div>
             </>
           ) : (
             <div className="flex justify-end w-full">
-              <button onClick={onClose} className="px-5 py-2 rounded-xl text-[12px] font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors">Cerrar</button>
+              <button onClick={onClose} className="ui-btn bg-primary/10 text-primary hover:bg-primary/20">Cerrar</button>
             </div>
           )}
         </div>
 
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
+    </AnimatePresence>
   )
 }
 
@@ -771,9 +776,7 @@ function ResultsPanel({
             </div>
           </div>
           {hasDiff && (
-            <button onClick={()=>setShowApply(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-semibold text-white hover:opacity-90 transition-opacity flex-shrink-0"
-              style={{background:'var(--gradient-brand)'}}>
+            <button onClick={()=>setShowApply(true)} className="ui-btn ui-btn-primary flex-shrink-0">
               <Wrench size={13}/>Aplicar cambios
             </button>
           )}
@@ -1138,10 +1141,9 @@ export function TicketResolver(): JSX.Element {
                   onKeyDown={e=>{if(e.key==='Enter')void handleFetch()}}
                   placeholder={`${config.projectPrefix||'WIN'}-1234`}
                   autoFocus
-                  className="flex-1 bg-surface-container border border-outline-variant/25 rounded-lg px-3 py-2 text-[12px] text-on-surface placeholder-on-surface-variant/20 focus:outline-none focus:border-primary/50 transition-colors"/>
+                  className="ui-input flex-1 text-[12px]"/>
                 <button onClick={()=>void handleFetch()} disabled={!ticketInput.trim()||!isConfigured}
-                  className="px-4 py-2 rounded-lg text-[11px] font-semibold text-white disabled:opacity-35 hover:opacity-90 transition-opacity"
-                  style={{background:'var(--gradient-brand)'}}>
+                  className="ui-btn ui-btn-primary disabled:opacity-35">
                   Cargar
                 </button>
               </div>

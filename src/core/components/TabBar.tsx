@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Search, X, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
 import { useApp } from '../AppContext'
 import { getPlugin } from '../plugin-registry'
@@ -68,10 +69,10 @@ export function TabBar(): JSX.Element {
               role="tab"
               tabIndex={0}
               aria-selected={active}
-              className={`relative flex items-center gap-1.5 px-3 py-1.5 my-1.5 text-xs cursor-pointer transition-all duration-200 whitespace-nowrap group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 rounded-lg ${
+              className={`relative flex items-center gap-1.5 px-3 py-1.5 my-1.5 text-xs cursor-pointer whitespace-nowrap group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 rounded-lg ${
                 active
-                  ? 'text-primary font-semibold bg-primary/10 shadow-sm'
-                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+                  ? 'text-primary font-semibold'
+                  : 'text-on-surface-variant hover:text-on-surface'
               }`}
               onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', tabId: tab.tabId })}
               onKeyDown={(e) => {
@@ -81,15 +82,25 @@ export function TabBar(): JSX.Element {
                 }
               }}
             >
-              <PluginIcon icon={plugin.icon} size={13} />
-              <span>{plugin.name}</span>
+              {active && (
+                <motion.span
+                  layoutId="tabbar-active-pill"
+                  className="absolute inset-0 rounded-lg bg-primary/10 shadow-sm"
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                />
+              )}
+              {!active && (
+                <span className="absolute inset-0 rounded-lg bg-transparent group-hover:bg-surface-container-high transition-colors duration-150" />
+              )}
+              <PluginIcon icon={plugin.icon} size={13} className="relative" />
+              <span className="relative">{plugin.name}</span>
               {state.dirtyPlugins[tab.pluginId] && (
-                <span title="Sin guardar" className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
+                <span title="Sin guardar" className="relative w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
               )}
               {state.openTabs.length > 1 && (
                 <button
                   aria-label={`Cerrar ${plugin.name}`}
-                  className="ml-0.5 opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error transition-all"
+                  className="relative ml-0.5 opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error transition-all"
                   onClick={(e) => {
                     e.stopPropagation()
                     requestClose(tab.tabId, tab.pluginId, plugin.name)
@@ -128,39 +139,53 @@ export function TabBar(): JSX.Element {
       </div>
 
       {/* Unsaved-changes guard when closing a plugin tab */}
-      {confirmClose && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="w-[360px] bg-surface-container border border-outline-variant/30 rounded-2xl shadow-2xl p-5 flex flex-col gap-5">
-            <div className="flex items-start gap-3">
-              <AlertTriangle size={20} className="text-warning mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-semibold text-on-surface">Cambios sin guardar</p>
-                <p className="text-[12px] text-on-surface-variant mt-1">
-                  <span className="font-medium text-on-surface">"{confirmClose.pluginName}"</span> tiene archivos sin guardar.
-                  ¿Cerrar de todos modos?
-                </p>
+      <AnimatePresence>
+        {confirmClose && (
+          <motion.div
+            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <motion.div
+              className="w-[360px] ui-card p-5 flex flex-col gap-5"
+              initial={{ opacity: 0, scale: 0.96, y: 6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 6 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+            >
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="text-warning mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-on-surface">Cambios sin guardar</p>
+                  <p className="text-[12px] text-on-surface-variant mt-1">
+                    <span className="font-medium text-on-surface">"{confirmClose.pluginName}"</span> tiene archivos sin guardar.
+                    ¿Cerrar de todos modos?
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setConfirmClose(null)}
-                className="px-3 py-1.5 text-[12px] rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => {
-                  dispatch({ type: 'CLOSE_TAB', tabId: confirmClose.tabId })
-                  setConfirmClose(null)
-                }}
-                className="px-3 py-1.5 text-[12px] rounded-lg text-error hover:bg-error/10 border border-error/30 transition-colors"
-              >
-                Cerrar igualmente
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setConfirmClose(null)}
+                  className="ui-btn ui-btn-ghost"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    dispatch({ type: 'CLOSE_TAB', tabId: confirmClose.tabId })
+                    setConfirmClose(null)
+                  }}
+                  className="ui-btn px-3 py-1.5 text-[12px] rounded-lg text-error hover:bg-error/10 border border-error/30 transition-colors"
+                >
+                  Cerrar igualmente
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   )
 }
