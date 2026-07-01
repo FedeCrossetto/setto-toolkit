@@ -80,7 +80,7 @@ function expandCasa(): PagoMensual[] {
   for (const [mes, vals] of CASA_ROWS) {
     vals.forEach((monto, i) => {
       if (monto === undefined) return
-      out.push(mk(CASA_IDS[i], mes, monto))
+      out.push(mk(CASA_IDS[i]!, mes, monto)) // CASA_IDS/vals are parallel arrays of equal length
     })
   }
   return out
@@ -147,7 +147,7 @@ function expandDepto(): PagoMensual[] {
   for (const [mes, vals] of DEPTO_ROWS) {
     vals.forEach((monto, i) => {
       if (monto === undefined) return
-      out.push(mk(DEPTO_IDS[i], mes, monto))
+      out.push(mk(DEPTO_IDS[i]!, mes, monto)) // DEPTO_IDS/vals are parallel arrays of equal length
     })
   }
   return out

@@ -1,3 +1,5 @@
+import { ChevronRight } from 'lucide-react'
+
 interface BreadcrumbProps {
   filePath: string
   onPathCopied?: () => void
@@ -12,23 +14,27 @@ export function Breadcrumb({ filePath, onPathCopied }: BreadcrumbProps): JSX.Ele
   }
 
   return (
-    <div className="flex items-center px-3 py-[3px] text-[10px] border-b border-outline-variant/10 overflow-x-auto scrollbar-hide flex-shrink-0 bg-surface-container-low/40 select-none">
-      {segments.map((seg, i) => (
-        <span key={i} className="flex items-center gap-0.5 flex-shrink-0">
-          {i > 0 && <span className="text-on-surface-variant/25 mx-0.5">/</span>}
-          <button
-            onClick={() => copySegment(i)}
-            title={`Copy: ${segments.slice(0, i + 1).join('/')}`}
-            className={`px-0.5 rounded hover:text-primary transition-colors ${
-              i === segments.length - 1
-                ? 'text-on-surface-variant/70 font-medium'
-                : 'text-on-surface-variant/40 hover:text-on-surface-variant'
-            }`}
-          >
-            {seg}
-          </button>
-        </span>
-      ))}
+    <div className="flex items-center px-2 py-1 border-b border-outline-variant/10 overflow-x-auto scrollbar-hide flex-shrink-0 select-none gap-0.5"
+      style={{ background: 'rgb(var(--c-surface-container) / 0.5)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
+      {segments.map((seg, i) => {
+        const isLast = i === segments.length - 1
+        return (
+          <span key={i} className="flex items-center gap-0.5 flex-shrink-0">
+            {i > 0 && <ChevronRight size={10} className="text-on-surface-variant/25 flex-shrink-0" />}
+            <button
+              onClick={() => copySegment(i)}
+              title={`Copiar: ${segments.slice(0, i + 1).join('/')}`}
+              className={`px-1.5 py-0.5 rounded-md text-[10px] transition-all ${
+                isLast
+                  ? 'bg-primary/10 text-primary font-semibold hover:bg-primary/20'
+                  : 'text-on-surface-variant/45 hover:text-on-surface-variant hover:bg-surface-container-high'
+              }`}
+            >
+              {seg}
+            </button>
+          </span>
+        )
+      })}
     </div>
   )
 }

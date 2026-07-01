@@ -1,5 +1,6 @@
 import type { PluginHandlers, CoreServices } from '../../core/types'
 import type { IpcMain } from 'electron'
+import { registerHandler } from '../../core/ipc-handler'
 
 // Injected at build time from .env — allow end-users to skip manual setup.
 declare const __GITHUB_CLIENT_ID__: string
@@ -133,7 +134,7 @@ function getRepoSlug(repo: { slug?: string; links?: { self?: { href?: string } }
   const href = repo.links?.self?.href
   if (href) {
     const match = href.match(/\/repositories\/[^/]+\/([^/?]+)/)
-    if (match) return match[1]
+    if (match) return match[1]! // capture group is required by the regex (no trailing `?`)
   }
   return 'unknown'
 }
@@ -211,7 +212,7 @@ const BATCH = 20  // parallel file fetches
 
 /** Fallback: directly search file contents via raw GitHub URLs (bypasses search index delays). */
 async function githubTreeSearch(token: string, query: string, repoFullName: string): Promise<SearchResult[]> {
-  const [owner, repo] = repoFullName.split('/')
+  const [owner = '', repo = ''] = repoFullName.split('/')
   const queryLower = query.toLowerCase()
 
   // 1. Get repo default branch
@@ -246,7 +247,7 @@ async function githubTreeSearch(token: string, query: string, repoFullName: stri
       if (!file || !file.text.toLowerCase().includes(queryLower)) continue
       const lines = file.text.split('\n')
       for (let ln = 0; ln < lines.length && results.length < 200; ln++) {
-        if (!lines[ln].toLowerCase().includes(queryLower)) continue
+        if (!lines[ln]!.toLowerCase().includes(queryLower)) continue // bounded by ln < lines.length
         const from = Math.max(0, ln - 1)
         const to   = Math.min(lines.length - 1, ln + 2)
         results.push({
@@ -416,7 +417,7 @@ export const handlers: PluginHandlers = {
     // Starts the flow: returns the user_code to display and the device_code
     // to poll with. The renderer is responsible for polling at the given interval.
 
-    ipcMain.handle('repo-search:github-oauth-start', async () => {
+    registerHandler(ipcMain, 'repo-search:github-oauth-start', async () => {
       const clientId = settings.get('repo-search.github.client_id') || __GITHUB_CLIENT_ID__
       if (!clientId) throw new Error('NO_CLIENT_ID')
 
@@ -449,7 +450,7 @@ export const handlers: PluginHandlers = {
 
     // Polls once for the access token. Returns status so the renderer
     // can decide whether to keep polling or stop.
-    ipcMain.handle('repo-search:github-oauth-poll', async (_event, { device_code }: { device_code: string }) => {
+    registerHandler(ipcMain, 'repo-search:github-oauth-poll', async (_event, { device_code }: { device_code: string }) => {
       const clientId = settings.get('repo-search.github.client_id') || __GITHUB_CLIENT_ID__
       if (!clientId) throw new Error('NO_CLIENT_ID')
 
@@ -489,7 +490,7 @@ export const handlers: PluginHandlers = {
     })
 
 
-    ipcMain.handle('repo-search:login', async (_event, payload: {
+    registerHandler(ipcMain, 'repo-search:login', async (_event, payload: {
       provider: Provider
       token: string
       username?: string
@@ -554,7 +555,7 @@ export const handlers: PluginHandlers = {
       }
     })
 
-    ipcMain.handle('repo-search:logout', (_event, { provider }: { provider: Provider }) => {
+    registerHandler(ipcMain, 'repo-search:logout', (_event, { provider }: { provider: Provider }) => {
       settings.delete(settingKey(provider, 'username'))
       settings.delete(settingKey(provider, 'token'))
       settings.delete(settingKey(provider, 'workspace'))
@@ -563,7 +564,7 @@ export const handlers: PluginHandlers = {
       return { ok: true }
     })
 
-    ipcMain.handle('repo-search:me', (_event, { provider }: { provider: Provider }): AuthInfo => {
+    registerHandler(ipcMain, 'repo-search:me', (_event, { provider }: { provider: Provider }): AuthInfo => {
       const token = settings.get(settingKey(provider, 'token'))
       return {
         authenticated: !!token,
@@ -575,7 +576,7 @@ export const handlers: PluginHandlers = {
     })
 
     // ── GitLab OAuth Device Flow ───────────────────────────────────────────
-    ipcMain.handle('repo-search:gitlab-oauth-start', async () => {
+    registerHandler(ipcMain, 'repo-search:gitlab-oauth-start', async () => {
       const clientId = settings.get('repo-search.gitlab.client_id') || __GITLAB_CLIENT_ID__
       if (!clientId) throw new Error('NO_CLIENT_ID')
 
@@ -606,7 +607,7 @@ export const handlers: PluginHandlers = {
       }
     })
 
-    ipcMain.handle('repo-search:gitlab-oauth-poll', async (_event, { device_code }: { device_code: string }) => {
+    registerHandler(ipcMain, 'repo-search:gitlab-oauth-poll', async (_event, { device_code }: { device_code: string }) => {
       const clientId = settings.get('repo-search.gitlab.client_id') || __GITLAB_CLIENT_ID__
       if (!clientId) throw new Error('NO_CLIENT_ID')
 
@@ -648,14 +649,14 @@ export const handlers: PluginHandlers = {
     // Returns whether an OAuth client ID is available for a provider
     // (either compiled in via .env or manually saved in settings).
     // Used by the UI to skip the "enter Client ID" setup screen.
-    ipcMain.handle('repo-search:oauth-configured', (_event, { provider }: { provider: 'github' | 'gitlab' }): boolean => {
+    registerHandler(ipcMain, 'repo-search:oauth-configured', (_event, { provider }: { provider: 'github' | 'gitlab' }): boolean => {
       const fromSettings = settings.get(`repo-search.${provider}.client_id`)
       const builtIn = provider === 'github' ? __GITHUB_CLIENT_ID__ : __GITLAB_CLIENT_ID__
       return !!(fromSettings || builtIn)
     })
 
     // Returns the list of repos owned by the authenticated GitHub user
-    ipcMain.handle('repo-search:github-repos', async () => {
+    registerHandler(ipcMain, 'repo-search:github-repos', async () => {
       const token = settings.get(settingKey('github', 'token'))
       if (!token) throw new Error('NOT_AUTHENTICATED')
 
@@ -675,7 +676,7 @@ export const handlers: PluginHandlers = {
       }))
     })
 
-    ipcMain.handle('repo-search:search', async (_event, { provider, query, repo }: { provider: Provider; query: string; repo?: string }) => {
+    registerHandler(ipcMain, 'repo-search:search', async (_event, { provider, query, repo }: { provider: Provider; query: string; repo?: string }) => {
       const token = settings.get(settingKey(provider, 'token'))
       if (!token) throw new Error('NOT_AUTHENTICATED')
 
@@ -702,11 +703,11 @@ export const handlers: PluginHandlers = {
 
     // ── Search history (persisted in userData, not localStorage) ───────────
 
-    ipcMain.handle('repo-search:history-get', () => {
+    registerHandler(ipcMain, 'repo-search:history-get', () => {
       return db.readJSON<string[]>(HISTORY_FILE) ?? []
     })
 
-    ipcMain.handle('repo-search:history-save', (_event, query: string) => {
+    registerHandler(ipcMain, 'repo-search:history-save', (_event, query: string) => {
       if (typeof query !== 'string' || !query.trim()) return { ok: true }
       const history = db.readJSON<string[]>(HISTORY_FILE) ?? []
       const deduped = [query, ...history.filter((q) => q !== query)].slice(0, MAX_HISTORY)
@@ -714,7 +715,7 @@ export const handlers: PluginHandlers = {
       return { ok: true }
     })
 
-    ipcMain.handle('repo-search:history-clear', () => {
+    registerHandler(ipcMain, 'repo-search:history-clear', () => {
       db.writeJSON(HISTORY_FILE, [])
       return { ok: true }
     })

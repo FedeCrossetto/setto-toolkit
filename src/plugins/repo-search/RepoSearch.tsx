@@ -80,20 +80,20 @@ function tokenize(code: string): Token[] {
       while (j < code.length && code[j] !== q) { if (code[j] === '\\') j++; j++ }
       tokens.push({ type: 'string', text: code.slice(i, j + 1) }); i = j + 1; continue
     }
-    if (/\d/.test(code[i]) && (i === 0 || /\W/.test(code[i - 1]))) {
+    if (/\d/.test(code[i]!) && (i === 0 || /\W/.test(code[i - 1]!))) {
       let j = i
-      while (j < code.length && /[\d.]/.test(code[j])) j++
+      while (j < code.length && /[\d.]/.test(code[j]!)) j++
       tokens.push({ type: 'number', text: code.slice(i, j) }); i = j; continue
     }
-    if (/[a-zA-Z_$]/.test(code[i])) {
+    if (/[a-zA-Z_$]/.test(code[i]!)) {
       let j = i
-      while (j < code.length && /[\w$]/.test(code[j])) j++
+      while (j < code.length && /[\w$]/.test(code[j]!)) j++
       const word = code.slice(i, j)
       tokens.push({ type: KEYWORDS.has(word) ? 'keyword' : 'plain', text: word }); i = j; continue
     }
     const last = tokens[tokens.length - 1]
     if (last?.type === 'plain') last.text += code[i]
-    else tokens.push({ type: 'plain', text: code[i] })
+    else tokens.push({ type: 'plain', text: code[i]! })
     i++
   }
   return tokens
@@ -514,12 +514,12 @@ function GitHubRepoPanel({
   }, [])
 
   // Split repos into personal (owned by logged-in user) and org repos
-  const personalRepos = repos.filter((r) => r.full_name.split('/')[0].toLowerCase() === (username ?? '').toLowerCase())
-  const orgRepos = repos.filter((r) => r.full_name.split('/')[0].toLowerCase() !== (username ?? '').toLowerCase())
+  const personalRepos = repos.filter((r) => r.full_name.split('/')[0]!.toLowerCase() === (username ?? '').toLowerCase())
+  const orgRepos = repos.filter((r) => r.full_name.split('/')[0]!.toLowerCase() !== (username ?? '').toLowerCase())
 
   // Group org repos by org name
   const orgGroups = orgRepos.reduce<Record<string, GitHubRepo[]>>((acc, r) => {
-    const org = r.full_name.split('/')[0]
+    const org = r.full_name.split('/')[0]! // full_name is always "owner/repo"
     ;(acc[org] = acc[org] ?? []).push(r)
     return acc
   }, {})
@@ -857,7 +857,7 @@ export function RepoSearch(): JSX.Element {
                 <span className="flex-1">
                   <span className="font-semibold text-warning">Provider token required.</span>
                   {' '}Your Google session identifies who you are, but to search in{' '}
-                  {provider === 'github' ? 'GitHub' : provider === 'gitlab' ? 'GitLab' : 'Bitbucket'}{' '}
+                  {provider === 'github' ? 'GitHub' : 'Bitbucket'}{' '}
                   you need a{' '}
                   {provider === 'bitbucket' ? 'App Password' : 'Personal Access Token (PAT)'}.
                   <button

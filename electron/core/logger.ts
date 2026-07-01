@@ -6,6 +6,9 @@
  *   Windows  — %APPDATA%\<app>\logs\app.log
  *   macOS    — ~/Library/Logs/<app>/app.log
  *   Linux    — ~/.config/<app>/logs/app.log
+ *
+ * Rotation: once app.log exceeds MAX_LOG_BYTES it is renamed to app.log.1,
+ * app.log.1 → app.log.2, and app.log.2 is deleted. Keeps at most 3 files (~15 MB).
  */
 import fs from 'fs'
 import path from 'path'
@@ -20,6 +23,9 @@ interface LogEntry {
   msg: string
   data?: unknown
 }
+
+const MAX_LOG_BYTES = 5 * 1024 * 1024  // 5 MB per file
+const MAX_ROTATED   = 2                 // keep .1 and .2
 
 class Logger {
   private logPath: string | null = null
@@ -39,6 +45,24 @@ class Logger {
     }
   }
 
+  /** Rotate logs if the current file exceeds MAX_LOG_BYTES. */
+  private maybeRotate(logPath: string): void {
+    try {
+      const stat = fs.statSync(logPath)
+      if (stat.size < MAX_LOG_BYTES) return
+      // Shift .1 → .2, .2 → delete, app.log → .1
+      for (let i = MAX_ROTATED; i >= 1; i--) {
+        const older = `${logPath}.${i}`
+        const newer = i === MAX_ROTATED ? null : `${logPath}.${i + 1}`
+        if (fs.existsSync(older)) {
+          if (newer) fs.renameSync(older, newer)
+          else fs.unlinkSync(older)
+        }
+      }
+      fs.renameSync(logPath, `${logPath}.1`)
+    } catch { /* rotation failures are non-fatal */ }
+  }
+
   private write(level: LogLevel, ctx: string, msg: string, data?: unknown): void {
     const entry: LogEntry = { ts: new Date().toISOString(), level, ctx, msg, ...(data !== undefined ? { data } : {}) }
     const line = JSON.stringify(entry)
@@ -56,6 +80,7 @@ class Logger {
     const logPath = this.ensureLogPath()
     if (!logPath) return
     try {
+      this.maybeRotate(logPath)
       fs.appendFileSync(logPath, line + '\n', 'utf-8')
     } catch { /* ignore write errors — don't crash over logging */ }
   }

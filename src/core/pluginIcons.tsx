@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react'
+import type { IconComponent } from './types'
 import {
   ALargeSmall,
   ChartNoAxesColumnIncreasing,
@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 
 /** Maps each plugin manifest icon string to its Lucide component. */
-const PLUGIN_ICON_MAP: Record<string, ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>> = {
+const PLUGIN_ICON_MAP: Record<string, IconComponent> = {
   space_dashboard:          LayoutDashboard,
   a_large_small:            ALargeSmall,
   text_compare:             GitCompare,

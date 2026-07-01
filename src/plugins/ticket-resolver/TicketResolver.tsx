@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type ComponentType } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Brain, Check, CheckCircle2, CircleAlert, ClipboardList, Code2, Copy,
@@ -9,6 +9,7 @@ import type {
   JiraTicket, AnalysisPlan, AnalysisResult, CodeSnippet,
   HistoryEntry, Phase, AnalysisStepUI, DiffChunk, TicketComment,
 } from './types'
+import type { IconComponent } from '../../core/types'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function relativeTime(iso: string): string {
@@ -213,7 +214,7 @@ function TicketDetailCard({ ticket, skeleton, disp }: { ticket?:JiraTicket|null;
 }
 
 // ── Plan card ──────────────────────────────────────────────────────────────────
-function PlanCard({ plan, skeleton, disp }: { plan?:AnalysisPlan|null; skeleton?:boolean; disp:DisplayCfg }): JSX.Element {
+function PlanCard({ plan, skeleton }: { plan?:AnalysisPlan|null; skeleton?:boolean }): JSX.Element {
   if (skeleton || !plan) {
     return (
       <div className="bg-surface-container rounded-xl p-3">
@@ -269,7 +270,7 @@ function AnalyzingPanel({ steps }: { steps:AnalysisStepUI[] }): JSX.Element {
   const doneCount = steps.filter(s=>s.status==='done').length
   const total     = steps.length
   const pct       = total > 0 ? Math.round((doneCount/total)*100) : 0
-  const ICONS: Record<string,ComponentType<{size?:number;className?:string}>> = { search:Search, analyze:Brain }
+  const ICONS: Record<string,IconComponent> = { search:Search, analyze:Brain }
   const TITLES: Record<string,string> = { search:'Búsqueda en repositorio', analyze:'Análisis con inteligencia artificial' }
 
   return (
@@ -462,7 +463,7 @@ function ConfigPanel({
   const inp = 'ui-input w-full text-[13px]'
   const lbl = 'block text-[11px] text-on-surface-variant/50 mb-1'
 
-  const TAB_BTN = (t:ConfigTab, Icon:ComponentType<{size?:number}>, label:string) => (
+  const TAB_BTN = (t:ConfigTab, Icon:IconComponent, label:string) => (
     <button
       key={t}
       onClick={()=>setTab(t)}
@@ -743,7 +744,7 @@ function ResultsPanel({
   const hasDiff = result.diff.length > 0
 
   const SectionHeader = ({ color, icon: Icon, label, copyKey, copyText }: {
-    color:string; icon:ComponentType<{size?:number;className?:string}>; label:string; copyKey?:string; copyText?:string
+    color:string; icon:IconComponent; label:string; copyKey?:string; copyText?:string
   }) => (
     <div className={`flex items-center gap-2 px-4 py-2.5 border-b border-outline-variant/10 bg-surface-container/30`}>
       <span className={`w-1 h-4 rounded-full flex-shrink-0 ${color}`}/>
@@ -1095,7 +1096,7 @@ export function TicketResolver(): JSX.Element {
             {/* Font size quick controls */}
             <div className="flex items-center gap-0.5 border border-outline-variant/15 rounded-lg overflow-hidden">
               <button
-                onClick={()=>{ const i=FONT_SIZE_ORDER.indexOf(disp.fontSize); if(i>0) void handleDisplayChange('fontSize',FONT_SIZE_ORDER[i-1]) }}
+                onClick={()=>{ const i=FONT_SIZE_ORDER.indexOf(disp.fontSize); if(i>0) void handleDisplayChange('fontSize',FONT_SIZE_ORDER[i-1]!) }}
                 disabled={disp.fontSize==='small'}
                 title="Reducir fuente"
                 className="px-2 py-1 text-[10px] font-bold text-on-surface-variant/40 hover:text-primary hover:bg-primary/8 disabled:opacity-20 disabled:cursor-not-allowed transition-all leading-none">
@@ -1103,7 +1104,7 @@ export function TicketResolver(): JSX.Element {
               </button>
               <span className="text-[9px] text-on-surface-variant/20 px-0.5 select-none">{disp.fontSize==='small'?'S':disp.fontSize==='normal'?'M':'L'}</span>
               <button
-                onClick={()=>{ const i=FONT_SIZE_ORDER.indexOf(disp.fontSize); if(i<2) void handleDisplayChange('fontSize',FONT_SIZE_ORDER[i+1]) }}
+                onClick={()=>{ const i=FONT_SIZE_ORDER.indexOf(disp.fontSize); if(i<2) void handleDisplayChange('fontSize',FONT_SIZE_ORDER[i+1]!) }}
                 disabled={disp.fontSize==='large'}
                 title="Aumentar fuente"
                 className="px-2 py-1 text-[10px] font-bold text-on-surface-variant/40 hover:text-primary hover:bg-primary/8 disabled:opacity-20 disabled:cursor-not-allowed transition-all leading-none">
@@ -1173,7 +1174,7 @@ export function TicketResolver(): JSX.Element {
             {/* Left col */}
             <div className="w-[280px] flex-shrink-0 overflow-y-auto border-r border-outline-variant/10 flex flex-col gap-2 p-3">
               <TicketDetailCard ticket={ticket} skeleton={phase==='fetching'} disp={disp} />
-              {phase !== 'fetching' && <PlanCard plan={plan} skeleton={phase==='planning'} disp={disp} />}
+              {phase !== 'fetching' && <PlanCard plan={plan} skeleton={phase==='planning'} />}
               {snippets.length > 0 && (
                 <div className="rounded-xl border border-outline-variant/8 overflow-hidden tr-fadein">
                   <button className="flex items-center gap-1.5 w-full px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/30 hover:bg-white/[0.03] transition-colors"

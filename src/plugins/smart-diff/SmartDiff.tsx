@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, type ComponentType } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { diffLines, diffWords, type Change } from 'diff'
 import {
@@ -9,6 +9,7 @@ import {
 import { useEditorPrefs, FONT_FAMILIES, FONT_SIZE_MIN, FONT_SIZE_MAX } from '../file-editor/hooks/useEditorPrefs'
 import { useApp } from '../../core/AppContext'
 import { dragState } from '../../core/dragState'
+import type { IconComponent } from '../../core/types'
 
 interface DiffLine {
   content: string
@@ -90,7 +91,7 @@ function formatBytes(b: number): string {
   return `${(b / 1048576).toFixed(1)} MB`
 }
 
-function fileIcon(name: string): ComponentType<{ size?: number; className?: string }> {
+function fileIcon(name: string): IconComponent {
   const ext = name.split('.').pop()?.toLowerCase() ?? ''
   if (['js', 'jsx', 'ts', 'tsx'].includes(ext)) return FileCode2
   if (['py'].includes(ext))                       return Code2
@@ -107,7 +108,7 @@ function getBlocks(lines: DiffLine[], type: 'removed' | 'added'): { start: numbe
   const blocks: { start: number; count: number }[] = []
   let inBlock = false; let blockStart = 0; let blockCount = 0
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].type === type) {
+    if (lines[i]!.type === type) { // bounded by i < lines.length
       if (!inBlock) { inBlock = true; blockStart = i; blockCount = 1 }
       else blockCount++
     } else if (inBlock) {
@@ -452,8 +453,8 @@ export function SmartDiff(): JSX.Element {
     const addedLines   = right.filter((l) => l.type === 'added')
     const pairCount    = Math.min(removedLines.length, addedLines.length)
     for (let i = 0; i < pairCount; i++) {
-      const rem = removedLines[i]
-      const add = addedLines[i]
+      const rem = removedLines[i]! // bounded by pairCount = min(removedLines.length, addedLines.length)
+      const add = addedLines[i]!
       const { removedSpans, addedSpans } = buildWordDiff(rem.content, add.content)
       leftWordDiff.set(rem.lineNum, removedSpans)
       rightWordDiff.set(add.lineNum, addedSpans)

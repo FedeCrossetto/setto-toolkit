@@ -10,7 +10,13 @@ export function TitleBar(): JSX.Element {
   return (
     <div
       className="fixed top-0 left-0 right-0 h-8 z-[200] flex items-center justify-end"
-      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      style={{
+        WebkitAppRegion: 'drag',
+        background: 'rgb(var(--c-background) / 0.55)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderBottom: '1px solid rgb(var(--c-outline-variant) / 0.10)',
+      } as React.CSSProperties}
     >
       {/* macOS already has native traffic lights (left side, via titleBarStyle: 'hidden')
           — only draw our own custom min/max/close on Windows/Linux, which have none. */}

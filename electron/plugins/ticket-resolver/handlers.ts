@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import type { PluginHandlers, CoreServices } from '../../core/types'
 import type { JiraTicket, AnalysisPlan, AnalysisResult, CodeSnippet, HistoryEntry, DiffChunk } from '../../../src/plugins/ticket-resolver/types'
+import { registerHandler } from '../../core/ipc-handler'
 
 const HISTORY_FILE = 'ticket-resolver-history.json'
 
@@ -40,7 +41,7 @@ function searchRepo(repoPath: string, terms: string[], maxResults = 8): CodeSnip
         try { text = fs.readFileSync(full, 'utf-8') } catch { continue }
         const lines = text.split('\n')
         for (let i = 0; i < lines.length && results.length < maxResults; i++) {
-          if (terms.some(t => lines[i].toLowerCase().includes(t.toLowerCase()))) {
+          if (terms.some(t => lines[i]!.toLowerCase().includes(t.toLowerCase()))) { // bounded by i < lines.length
             const from = Math.max(0, i - 3)
             const to   = Math.min(lines.length - 1, i + 6)
             results.push({
@@ -66,7 +67,7 @@ export const handlers: PluginHandlers = {
   register(ipcMain: IpcMain, { db, settings, ai }: CoreServices): void {
 
     // Fetch ticket from Jira REST API v3
-    ipcMain.handle('ticket-resolver:fetch', async (_e, ticketKey: string) => {
+    registerHandler(ipcMain, 'ticket-resolver:fetch', async (_e, ticketKey: string) => {
       const jiraUrl   = settings.get('ticket-resolver.jira_url')   ?? ''
       const jiraUser  = settings.get('ticket-resolver.jira_user')  ?? ''
       const jiraToken = settings.get('ticket-resolver.jira_token') ?? ''
@@ -147,7 +148,7 @@ export const handlers: PluginHandlers = {
     })
 
     // AI call 1 — generate analysis plan (~300 tokens)
-    ipcMain.handle('ticket-resolver:plan', async (_e, ticket: JiraTicket) => {
+    registerHandler(ipcMain, 'ticket-resolver:plan', async (_e, ticket: JiraTicket) => {
       const { text } = await ai.complete([
         {
           role: 'system',
@@ -193,14 +194,14 @@ Devuelve SOLO este JSON con todos los textos en español:
     })
 
     // Search code in local repo
-    ipcMain.handle('ticket-resolver:search', (_e, searchTerms: string[]) => {
+    registerHandler(ipcMain, 'ticket-resolver:search', (_e, searchTerms: string[]) => {
       const repoPath = settings.get('ticket-resolver.repo_path') ?? ''
       if (!repoPath || !fs.existsSync(repoPath)) return [] as CodeSnippet[]
       return searchRepo(repoPath, searchTerms, 8)
     })
 
     // AI call 2 — full analysis with code context (~800-1500 tokens)
-    ipcMain.handle('ticket-resolver:analyze', async (
+    registerHandler(ipcMain, 'ticket-resolver:analyze', async (
       _e,
       ticket: JiraTicket,
       plan: AnalysisPlan,
@@ -264,12 +265,12 @@ Devuelve SOLO este JSON con TODOS los textos en español:
     })
 
     // History — get
-    ipcMain.handle('ticket-resolver:history-get', () =>
+    registerHandler(ipcMain, 'ticket-resolver:history-get', () =>
       db.readJSON<HistoryEntry[]>(HISTORY_FILE) ?? [],
     )
 
     // History — save (upsert, keep last 100)
-    ipcMain.handle('ticket-resolver:history-save', (_e, entry: HistoryEntry) => {
+    registerHandler(ipcMain, 'ticket-resolver:history-save', (_e, entry: HistoryEntry) => {
       const all = db.readJSON<HistoryEntry[]>(HISTORY_FILE) ?? []
       const idx = all.findIndex(h => h.id === entry.id)
       if (idx >= 0) { all[idx] = entry } else { all.unshift(entry) }
@@ -278,21 +279,21 @@ Devuelve SOLO este JSON con TODOS los textos en español:
     })
 
     // History — delete
-    ipcMain.handle('ticket-resolver:history-delete', (_e, id: string) => {
+    registerHandler(ipcMain, 'ticket-resolver:history-delete', (_e, id: string) => {
       const all = db.readJSON<HistoryEntry[]>(HISTORY_FILE) ?? []
       db.writeJSON(HISTORY_FILE, all.filter(h => h.id !== id))
       return { ok: true }
     })
 
     // AI usage — get / reset session stats
-    ipcMain.handle('ticket-resolver:ai-usage-get', () => ai.getSessionUsage())
-    ipcMain.handle('ticket-resolver:ai-usage-reset', () => {
+    registerHandler(ipcMain, 'ticket-resolver:ai-usage-get', () => ai.getSessionUsage())
+    registerHandler(ipcMain, 'ticket-resolver:ai-usage-reset', () => {
       ai.resetSessionUsage()
       return { ok: true }
     })
 
     // Apply AI-suggested code changes directly to repo files
-    ipcMain.handle('ticket-resolver:apply-changes', (_e, chunks: DiffChunk[]) => {
+    registerHandler(ipcMain, 'ticket-resolver:apply-changes', (_e, chunks: DiffChunk[]) => {
       const repoPath = (settings.get('ticket-resolver.repo_path') as string | null) ?? ''
       if (!repoPath) throw new Error('Ruta del repositorio no configurada — configurala en Ajustes')
       const resolvedRepo = path.resolve(repoPath)

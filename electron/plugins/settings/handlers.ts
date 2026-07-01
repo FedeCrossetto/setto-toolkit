@@ -2,6 +2,7 @@ import { dialog, safeStorage } from 'electron'
 import fs from 'fs'
 import type { PluginHandlers, CoreServices } from '../../core/types'
 import type { IpcMain } from 'electron'
+import { registerHandler } from '../../core/ipc-handler'
 
 /** Keys that are never exported even if present in the store (secrets stay local) */
 const EXPORT_BLOCKED_KEYS = new Set(['ai.openai_key', 'ai.anthropic_key'])
@@ -68,7 +69,7 @@ export const handlers: PluginHandlers = {
   pluginId: 'settings',
 
   register(ipcMain: IpcMain, { settings }: CoreServices): void {
-    ipcMain.handle('settings:get', (_event, key: string) => {
+    registerHandler(ipcMain, 'settings:get', (_event, key: string) => {
       const safe = validateKey(key)
       const value = settings.get(safe)
       // Never expose encrypted secrets in plaintext to the renderer.
@@ -79,7 +80,7 @@ export const handlers: PluginHandlers = {
       return value
     })
 
-    ipcMain.handle('settings:set', (_event, key: string, value: string) => {
+    registerHandler(ipcMain, 'settings:set', (_event, key: string, value: string) => {
       const safe = validateKey(key)
       if (typeof value !== 'string') throw new Error('Value must be a string')
       // Ignore attempts to save the sentinel back — it is not a real value.
@@ -88,13 +89,13 @@ export const handlers: PluginHandlers = {
       return { ok: true }
     })
 
-    ipcMain.handle('settings:delete', (_event, key: string) => {
+    registerHandler(ipcMain, 'settings:delete', (_event, key: string) => {
       const safe = validateKey(key)
       settings.delete(safe)
       return { ok: true }
     })
 
-    ipcMain.handle('settings:getAll', (_event, prefix?: string) => {
+    registerHandler(ipcMain, 'settings:getAll', (_event, prefix?: string) => {
       if (!prefix || typeof prefix !== 'string' || prefix.trim() === '') {
         throw new Error('settings:getAll requires a non-empty prefix')
       }
@@ -106,10 +107,10 @@ export const handlers: PluginHandlers = {
     })
 
     // ── Encryption status ──────────────────────────────────────────────────
-    ipcMain.handle('settings:encryption-available', () => safeStorage.isEncryptionAvailable())
+    registerHandler(ipcMain, 'settings:encryption-available', () => safeStorage.isEncryptionAvailable())
 
     // ── Export settings ────────────────────────────────────────────────────
-    ipcMain.handle('settings:export', async () => {
+    registerHandler(ipcMain, 'settings:export', async () => {
       const { filePath, canceled } = await dialog.showSaveDialog({
         title: 'Export Settings',
         defaultPath: `mytools-settings-${new Date().toISOString().slice(0, 10)}.json`,
@@ -128,7 +129,7 @@ export const handlers: PluginHandlers = {
     })
 
     // ── Import settings ────────────────────────────────────────────────────
-    ipcMain.handle('settings:import', async () => {
+    registerHandler(ipcMain, 'settings:import', async () => {
       const { filePaths, canceled } = await dialog.showOpenDialog({
         title: 'Import Settings',
         filters: [{ name: 'JSON', extensions: ['json'] }],
@@ -138,7 +139,7 @@ export const handlers: PluginHandlers = {
 
       let imported: Record<string, string>
       try {
-        imported = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8')) as Record<string, string>
+        imported = JSON.parse(fs.readFileSync(filePaths[0]!, 'utf-8')) as Record<string, string> // length checked above
       } catch {
         throw new Error('Invalid settings file — could not parse JSON')
       }
@@ -160,7 +161,7 @@ export const handlers: PluginHandlers = {
     })
 
     // ── Validate OpenAI API key ────────────────────────────────────────────
-    ipcMain.handle('settings:validate-openai-key', async (_event, key: string) => {
+    registerHandler(ipcMain, 'settings:validate-openai-key', async (_event, key: string) => {
       if (!key || typeof key !== 'string' || !key.startsWith('sk-')) {
         return { valid: false, error: 'Key must start with "sk-"' }
       }

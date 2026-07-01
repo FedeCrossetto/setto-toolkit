@@ -1,10 +1,10 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  AlertTriangle, ArrowDown, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Copy, Diff, Eye, EyeOff,
+  AlertTriangle, ArrowDown, CheckCircle2, ChevronDown, ChevronRight, Copy, Diff, Eye, EyeOff,
   FileInput, FilePlus, FileSearch, FileText, Filter, Folder, Import,
   FolderOpen, FolderPlus, FolderSearch, PanelLeft, PanelLeftClose, Pause, Pencil, Play,
-  RotateCcw, Save, SlidersHorizontal, SquareTerminal, Trash2, WrapText, X,
+  Save, SlidersHorizontal, SquareTerminal, Trash2, WrapText, X,
 } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
 import { useToast } from '../../core/components/Toast'
@@ -12,7 +12,6 @@ import { dragState } from '../../core/dragState'
 import { useEditorTabs, languageIcon, detectLanguage, refineLanguageFromContent } from './hooks/useEditorTabs'
 import { useFileWatcher } from './hooks/useFileWatcher'
 import { useEditorPrefs, FONT_FAMILIES, FONT_SIZE_MIN, FONT_SIZE_MAX, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX } from './hooks/useEditorPrefs'
-import type { EditorColorScheme } from './hooks/useEditorPrefs'
 import { useAutoSave } from './hooks/useAutoSave'
 import { CodeEditor } from './components/CodeEditor'
 import { Breadcrumb } from './components/Breadcrumb'
@@ -23,6 +22,17 @@ import type { FileChangedEvent, OpenFile, RecentFile, FileLanguage, FileTreeNode
 import { Badge } from '../../core/components/Badge'
 import { Chip } from '../../core/components/Chip'
 import type { MenuItem } from './components/ContextMenu'
+
+// ── Language color map ────────────────────────────────────────────────────────
+const LANG_COLORS: Partial<Record<FileLanguage, string>> = {
+  javascript: '#F7DF1E', typescript: '#3178C6',
+  json: '#FF7A00', html: '#E34F26', css: '#1572B6',
+  python: '#3776AB', rust: '#CE422B', go: '#00ADD8', java: '#ED8B00',
+  sql: '#F29111', markdown: '#083FA1', yaml: '#CB171E', xml: '#005FAD',
+  shell: '#4EAA25',
+}
+const langColor = (lang: FileLanguage): string =>
+  LANG_COLORS[lang] ?? 'rgb(var(--c-on-surface-variant) / 0.5)'
 
 let newFileCount = 0
 
@@ -96,7 +106,6 @@ export function FileEditor(): JSX.Element {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const editorRef      = useRef<EditorHandle | null>(null)
-  const settingsRef    = useRef<HTMLDivElement>(null) // kept for layout anchor only
   const restoredRef    = useRef(false)
   const dragTabRef     = useRef<string | null>(null)
   // Stable refs used by the keydown listener so the effect registers once and
@@ -405,7 +414,7 @@ export function FileEditor(): JSX.Element {
       } else {
         if (next.size >= 2) {
           const [first] = next
-          next.delete(first)
+          next.delete(first!) // size >= 2 guarantees at least one element
         }
         next.add(id)
       }
@@ -416,10 +425,11 @@ export function FileEditor(): JSX.Element {
   const sendSelectedToDiff = useCallback((): void => {
     const selected = tabs.filter((t) => selectedIds.has(t.id))
     if (selected.length !== 2) return
+    const [a, b] = selected as [typeof selected[0], typeof selected[0]] // length === 2 checked above
     dispatch({
       type: 'SEND_PAIR_TO_DIFF',
-      file1: { name: selected[0].name, path: selected[0].path, content: selected[0].content },
-      file2: { name: selected[1].name, path: selected[1].path, content: selected[1].content },
+      file1: { name: a.name, path: a.path, content: a.content },
+      file2: { name: b.name, path: b.path, content: b.content },
     })
     setSelectedIds(new Set())
   }, [tabs, selectedIds, dispatch])
@@ -534,7 +544,7 @@ export function FileEditor(): JSX.Element {
         ...(selectedIds.size === 2 && selectedIds.has(tab.id) ? [
           { label: 'Comparar 2 archivos seleccionados', icon: Diff, action: sendSelectedToDiff },
         ] : []),
-        { divider: true, label: '', icon: '', action: () => {} },
+        { divider: true, label: '', action: () => {} },
         ...(tab.path ? [
           { label: 'Copiar ruta',          icon: Copy,       action: () => copyPath(tab.path!) },
           { label: 'Mostrar en el explorador', icon: FolderOpen, action: () => window.api.invoke('editor:reveal', tab.path!) },
@@ -652,10 +662,19 @@ export function FileEditor(): JSX.Element {
       {/* ── Left sidebar ─────────────────────────────────────────────────── */}
       <aside
         className={[
-          'flex-shrink-0 flex flex-col border-r border-outline-variant/20 bg-surface overflow-hidden',
+          'flex-shrink-0 flex flex-col border-r border-outline-variant/15 overflow-hidden',
           sidebarCollapsed ? 'w-10 transition-[width] duration-200 ease-out' : '',
         ].join(' ')}
-        style={sidebarCollapsed ? undefined : { width: prefs.sidebarWidth }}
+        style={sidebarCollapsed ? {
+          background: 'rgb(var(--c-surface) / 0.8)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+        } : {
+          width: prefs.sidebarWidth,
+          background: 'rgb(var(--c-surface) / 0.78)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+        }}
       >
       {sidebarCollapsed ? (
         <CollapsedSidebarRail
@@ -804,7 +823,7 @@ export function FileEditor(): JSX.Element {
               {recents.slice(0, 8).map((r) => (
                 <button key={r.path} onClick={() => openFile(r.path)} title={r.path}
                   className="flex items-center gap-2 w-full px-3 py-1.5 text-left hover:bg-surface-container transition-colors group">
-                  {(() => { const Icon = languageIcon(detectLanguage(r.name)); return <Icon size={13} className="text-on-surface-variant/50 flex-shrink-0" /> })()}
+                  {(() => { const lang = detectLanguage(r.name); const Icon = languageIcon(lang); return <Icon size={13} className="flex-shrink-0" style={{ color: langColor(lang) }} /> })()}
                   <span className="text-[11px] text-on-surface-variant group-hover:text-on-surface truncate">{r.name}</span>
                 </button>
               ))}
@@ -818,10 +837,17 @@ export function FileEditor(): JSX.Element {
       {!sidebarCollapsed && (
         <div
           onPointerDown={handleSidebarResizePointerDown}
-          className="flex-shrink-0 w-[5px] -mx-[2px] z-10 cursor-col-resize hover:bg-primary/30 transition-colors"
+          className="flex-shrink-0 w-[5px] -mx-[2px] z-10 cursor-col-resize group transition-colors relative"
           style={{ touchAction: 'none' }}
           title="Arrastrar para redimensionar"
-        />
+        >
+          <div className="absolute inset-y-0 left-[2px] w-[1px] transition-all duration-150 group-hover:w-[3px] group-hover:left-[1px] group-active:w-[3px]"
+            style={{ background: 'linear-gradient(to bottom, transparent 0%, rgb(var(--c-primary) / 0) 20%, rgb(var(--c-primary) / 0.5) 50%, rgb(var(--c-primary) / 0) 80%, transparent 100%)' }}
+          />
+          <div className="absolute inset-y-0 left-[2px] w-[1px] opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none"
+            style={{ background: 'rgb(var(--c-primary) / 0.3)', filter: 'blur(4px)' }}
+          />
+        </div>
       )}
 
       {/* ── Main editor area ─────────────────────────────────────────────── */}
@@ -833,14 +859,21 @@ export function FileEditor(): JSX.Element {
             className="flex-1 flex items-center gap-1 overflow-x-auto scrollbar-hide px-2 py-1.5"
             style={{ maskImage: tabs.length > 1 ? 'linear-gradient(to right, transparent 0, black 8px, black calc(100% - 8px), transparent 100%)' : undefined }}
           >
+            <AnimatePresence initial={false}>
             {tabs.map((tab) => (
-              <div key={tab.id}
+              <motion.div key={tab.id}
+                layout
+                initial={{ opacity: 0, scale: 0.88, x: -8 }}
+                animate={{ opacity: 1, scale: 1, x: 0 }}
+                exit={{ opacity: 0, scale: 0.85, x: -6 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
                 draggable
                 onDragStart={(e) => {
                   dragTabRef.current = tab.id
                   dragState.set({ name: tab.name, path: tab.path, content: tab.content })
-                  e.dataTransfer.setData('text/plain', tab.name)
-                  e.dataTransfer.effectAllowed = 'copyMove'
+                  const de = e as unknown as React.DragEvent
+                  de.dataTransfer.setData('text/plain', tab.name)
+                  de.dataTransfer.effectAllowed = 'copyMove'
                 }}
                 onDragOver={(e) => {
                   if (dragTabRef.current && dragTabRef.current !== tab.id) {
@@ -869,23 +902,25 @@ export function FileEditor(): JSX.Element {
                 }}
                 onContextMenu={(e) => handleTabContextMenu(e, tab)}
                 title={`${tab.name}${tab.path ? `\n${tab.path}` : ''}\nCtrl+click to select · Drag to reorder · Drag onto Smart Diff to compare`}
-                className={`relative flex items-center gap-1.5 pl-3 pr-2 py-1.5 text-[12px] font-medium cursor-grab active:cursor-grabbing whitespace-nowrap group transition-all duration-150 flex-shrink-0 rounded-lg border ${
+                className={`relative flex items-center gap-1.5 pl-3 pr-2 py-1.5 text-[12px] font-medium cursor-grab active:cursor-grabbing whitespace-nowrap group transition-colors duration-150 flex-shrink-0 rounded-lg border ${
                   dragOverTab === tab.id ? 'ring-2 ring-primary/50' : ''
                 } ${
                   selectedIds.has(tab.id)
                     ? 'text-on-surface bg-on-surface/[0.1] border-outline-variant/50'
                     : activeId === tab.id
-                      ? 'text-on-surface bg-surface-container-high border-outline-variant/50 shadow-sm'
-                      : 'text-on-surface-variant bg-surface-container/60 border-outline-variant/15 hover:text-on-surface hover:bg-surface-container-high'}`}>
-                {(() => { const Icon = languageIcon(tab.language); return <Icon size={13} className="text-on-surface-variant/70" /> })()}
+                      ? 'text-white border-transparent'
+                      : 'text-on-surface-variant bg-surface-container/60 border-outline-variant/15 hover:text-on-surface hover:bg-surface-container-high'}`}
+                style={activeId === tab.id ? { background: 'var(--gradient-brand)', boxShadow: '0 2px 8px rgb(var(--c-primary) / 0.32)' } : undefined}>
+                {(() => { const Icon = languageIcon(tab.language); return <Icon size={13} style={{ color: langColor(tab.language) }} /> })()}
                 <span className="max-w-[120px] truncate">{tab.name}</span>
                 {tab.isDirty && <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />}
                 <button onClick={(e) => { e.stopPropagation(); void handleCloseTab(tab.id) }}
                   className="flex items-center justify-center w-4 h-4 rounded-md opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error hover:bg-error/10 transition-all ml-0.5">
                   <X size={11} />
                 </button>
-              </div>
+              </motion.div>
             ))}
+            </AnimatePresence>
           </div>
 
           {/* Quick actions */}
@@ -918,12 +953,12 @@ export function FileEditor(): JSX.Element {
                   initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ duration: 0.2, ease: 'easeOut' }}
                 >
                   {/* Header */}
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-outline-variant/20 flex-shrink-0">
+                  <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ background: 'var(--gradient-brand)' }}>
                     <div className="flex items-center gap-2">
-                      <SlidersHorizontal size={15} className="text-primary" />
-                      <span className="text-sm font-semibold text-on-surface">Ajustes del editor</span>
+                      <SlidersHorizontal size={15} className="text-white/80" />
+                      <span className="text-sm font-semibold text-white">Ajustes del editor</span>
                     </div>
-                    <button onClick={() => setSettingsOpen(false)} className="text-on-surface-variant hover:text-on-surface transition-colors">
+                    <button onClick={() => setSettingsOpen(false)} className="text-white/70 hover:text-white transition-colors">
                       <X size={16} />
                     </button>
                   </div>
@@ -1029,7 +1064,16 @@ export function FileEditor(): JSX.Element {
 
         {/* Monitoring bar — only relevant for files that exist on disk */}
         {activeTab?.path && (
-          <div className="flex items-center gap-3 px-3 py-1 border-b border-outline-variant/15 bg-surface flex-shrink-0 text-xs">
+          <div className="flex items-center gap-3 px-3 py-1 border-b flex-shrink-0 text-xs transition-colors duration-300"
+            style={activeTab.watchActive ? {
+              background: 'rgb(var(--c-accent) / 0.06)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              borderColor: 'rgb(var(--c-accent) / 0.20)',
+            } : {
+              background: 'rgb(var(--c-surface))',
+              borderColor: 'rgb(var(--c-outline-variant) / 0.15)',
+            }}>
             <button onClick={toggleWatch} title={activeTab.watchActive ? 'Dejar de monitorear' : 'Monitorear cambios del archivo'}
               className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-colors flex-shrink-0 ${activeTab.watchActive ? 'border-accent/40 text-accent bg-accent/10 font-semibold' : 'border-outline-variant/30 text-on-surface-variant hover:border-accent/30 hover:text-accent'}`}>
               {activeTab.watchActive ? <Eye size={14} /> : <EyeOff size={14} />}
@@ -1081,9 +1125,10 @@ export function FileEditor(): JSX.Element {
 
         {/* Encoding warning — file doesn't look like valid UTF-8 */}
         {activeTab?.encodingWarning && (
-          <div className="flex items-center gap-2 px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/25 text-xs text-amber-400 flex-shrink-0">
-            <AlertTriangle size={14} className="flex-shrink-0" />
-            Este archivo no parece ser UTF-8 válido (¿binario u otra codificación?). Editarlo y guardarlo puede corromperlo.
+          <div className="flex items-center gap-3 px-4 py-2 border-b border-l-[3px] flex-shrink-0 text-xs text-amber-400"
+            style={{ borderLeftColor: 'rgb(217 119 6)', borderBottomColor: 'rgba(245,158,11,0.18)', background: 'rgba(245,158,11,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
+            <AlertTriangle size={15} className="flex-shrink-0 text-amber-400" />
+            <span>Este archivo no parece ser UTF-8 válido (¿binario u otra codificación?). Editarlo y guardarlo puede corromperlo.</span>
           </div>
         )}
 
@@ -1108,11 +1153,12 @@ export function FileEditor(): JSX.Element {
 
         {/* External-change conflict notice — file changed on disk while we have unsaved edits */}
         {activeTab?.hasUpdate && activeTab.pendingExternalContent !== undefined && (
-          <div className="flex items-center gap-2 px-4 py-1.5 bg-error/10 border-b border-error/25 text-xs text-error flex-shrink-0">
-            <AlertTriangle size={14} className="flex-shrink-0" />
-            Este archivo cambió en disco y tenés ediciones sin guardar.
+          <div className="flex items-center gap-3 px-4 py-2 border-b border-l-[3px] flex-shrink-0 text-xs text-error"
+            style={{ borderLeftColor: 'rgb(var(--c-error))', borderBottomColor: 'rgb(var(--c-error) / 0.18)', background: 'rgb(var(--c-error) / 0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
+            <AlertTriangle size={15} className="flex-shrink-0" />
+            <span className="flex-1">Este archivo cambió en disco y tenés ediciones sin guardar.</span>
             <button
-              className="ml-auto underline hover:no-underline opacity-80 hover:opacity-100 transition-opacity"
+              className="underline hover:no-underline opacity-80 hover:opacity-100 transition-opacity flex-shrink-0"
               onClick={() => {
                 updateTab(activeTab.id, {
                   content: activeTab.pendingExternalContent!,
@@ -1129,7 +1175,7 @@ export function FileEditor(): JSX.Element {
               Descartar mis cambios y recargar
             </button>
             <button
-              className="underline hover:no-underline opacity-80 hover:opacity-100 transition-opacity"
+              className="underline hover:no-underline opacity-80 hover:opacity-100 transition-opacity flex-shrink-0"
               onClick={() => updateTab(activeTab.id, {
                 hasUpdate: false,
                 pendingExternalContent: undefined,
@@ -1171,11 +1217,17 @@ export function FileEditor(): JSX.Element {
               <EmptyState onOpen={openDialog} />
             )}
 
-            {/* Drag overlay */}
+            {/* Drag overlay — animated gradient border */}
             {isDragging && (
-              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 border-2 border-dashed border-primary/50 bg-primary/5 backdrop-blur-sm pointer-events-none">
-                <FileInput size={48} className="text-primary" />
-                <p className="text-sm font-medium text-primary">Soltá un archivo o carpeta para abrir</p>
+              <div
+                className="absolute inset-0 z-20 pointer-events-none"
+                style={{ padding: 2, background: 'linear-gradient(90deg, #FF7A00, #FF00D6, #5C00FF, #FF7A00)', backgroundSize: '300% 300%', animation: 'gradient-border-shift 2.5s ease infinite', borderRadius: 'inherit' }}
+              >
+                <div className="w-full h-full flex flex-col items-center justify-center gap-4 backdrop-blur-sm rounded-[inherit]"
+                  style={{ background: 'rgb(var(--c-surface) / 0.88)' }}>
+                  <FileInput size={48} className="text-primary animate-bounce" />
+                  <p className="text-sm font-semibold text-primary">Soltá un archivo o carpeta para abrir</p>
+                </div>
               </div>
             )}
           </div>
@@ -1187,25 +1239,25 @@ export function FileEditor(): JSX.Element {
 
           {/* Status bar */}
           {activeTab && (
-            <div className="flex items-center gap-2.5 px-3 py-1.5 border-t border-outline-variant/15 bg-surface-container-low flex-shrink-0 text-[11px] text-on-surface-variant/70 select-none">
+            <div className="flex items-center gap-1.5 px-3 py-1 border-t border-outline-variant/15 flex-shrink-0 select-none"
+              style={{ background: 'rgb(var(--c-surface-container) / 0.7)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
               {/* Language pill */}
-              <Chip tone="primary" className="uppercase tracking-wide font-semibold">{highlightLanguage}</Chip>
+              <Chip tone="primary" className="uppercase tracking-wide font-semibold text-[10px]">{highlightLanguage}</Chip>
               <button onClick={() => editorRef.current?.openGotoLine()} title="Ir a línea (Ctrl+G)"
-                className="tabular-nums pointer-events-auto hover:text-primary transition-colors">
-                Ln {cursor.ln}, Col {cursor.col}
+                className="tabular-nums text-[10px] px-1.5 py-0.5 rounded-md bg-surface-container/80 text-on-surface-variant/70 hover:text-primary hover:bg-surface-container-high transition-colors">
+                Ln {cursor.ln}:{cursor.col}
               </button>
-              <span className="text-on-surface-variant/25">·</span>
-              <span className="tabular-nums">{lineCount} líneas</span>
-              <span className="text-on-surface-variant/25">·</span>
-              <span className="tabular-nums">{wordCount} palabras</span>
-              <span className="text-on-surface-variant/25">·</span>
-              <span className="tabular-nums">{(activeTab.size / 1024).toFixed(1)} KB</span>
-              <span className="text-on-surface-variant/25">·</span>
-              <span className={activeTab.encodingWarning ? 'text-warning font-medium' : undefined} title={activeTab.encodingWarning ? 'No parece ser UTF-8 válido' : undefined}>
-                UTF-8{activeTab.encodingWarning ? ' ⚠' : ''}
-              </span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-surface-container/80 text-on-surface-variant/60 tabular-nums">{lineCount}L</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-surface-container/80 text-on-surface-variant/60 tabular-nums">{wordCount}W</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-surface-container/80 text-on-surface-variant/60 tabular-nums">{(activeTab.size / 1024).toFixed(1)}KB</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded-md bg-surface-container/80 tabular-nums ${activeTab.encodingWarning ? 'text-warning font-medium' : 'text-on-surface-variant/60'}`}
+                title={activeTab.encodingWarning ? 'No parece ser UTF-8 válido' : undefined}
+              >UTF-8{activeTab.encodingWarning ? '⚠' : ''}</span>
               {activeTab.isDirty && (
-                <span className="flex items-center gap-1 text-warning"><span className="w-1.5 h-1.5 rounded-full bg-warning" />Sin guardar</span>
+                <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-warning/10 text-warning border border-warning/20">
+                  <span className="w-1 h-1 rounded-full bg-warning" />Sin guardar
+                </span>
               )}
 
               {/* Actions */}
@@ -1402,15 +1454,24 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
       <div onClick={() => node.isDir ? onToggle(node.path) : cb.onOpen(node.path)}
         onContextMenu={(e) => cb.onContextMenu(e, node, rootPath)}
         title={node.path}
-        className="flex items-center gap-1 py-[3px] cursor-pointer hover:bg-surface-container group transition-colors"
+        className="relative flex items-center gap-1 py-[3px] cursor-pointer hover:bg-surface-container group transition-colors"
         style={{ paddingLeft: `${8 + indent}px`, paddingRight: '8px' }}>
+        {/* Indent guide lines — one vertical hairline per ancestor level */}
+        {Array.from({ length: depth }).map((_, d) => (
+          <span key={d} aria-hidden style={{
+            position: 'absolute', top: 0, bottom: 0, width: 1,
+            left: `${8 + d * 10 + 5}px`,
+            background: 'rgb(var(--c-outline-variant) / 0.18)',
+            pointerEvents: 'none',
+          }} />
+        ))}
         {node.isDir
           ? (isOpen ? <ChevronDown size={13} className="text-on-surface-variant/40 flex-shrink-0" /> : <ChevronRight size={13} className="text-on-surface-variant/40 flex-shrink-0" />)
           : <span className="flex-shrink-0" style={{ width: '13px' }} />
         }
         {node.isDir
           ? (isOpen ? <FolderOpen size={13} className="text-primary/60 flex-shrink-0" /> : <Folder size={13} className="text-primary/60 flex-shrink-0" />)
-          : (() => { const Icon = languageIcon(detectLanguage(node.name)); return <Icon size={13} className="text-on-surface-variant/50 flex-shrink-0" /> })()
+          : (() => { const lang = detectLanguage(node.name); const Icon = languageIcon(lang); return <Icon size={13} className="flex-shrink-0" style={{ color: langColor(lang) }} /> })()
         }
         {cb.renaming === node.path
           ? <InlineInput defaultValue={node.name} onCommit={(n) => cb.onRenameCommit(node.path, n)} onCancel={cb.onCancel} />
@@ -1473,14 +1534,10 @@ function CollapsedSidebarRail({
               onClick={() => onSelectTab(tab.id)}
               onContextMenu={(e) => onTabContextMenu(e, tab)}
               title={tab.path ? `${tab.name}\n${tab.path}` : tab.name}
-              className={[
-                'relative w-8 h-8 rounded-md flex items-center justify-center transition-colors flex-shrink-0',
-                isActive
-                  ? 'bg-on-surface/[0.08] text-on-surface ring-1 ring-outline-variant/40'
-                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container',
-              ].join(' ')}
+              className="relative w-8 h-8 rounded-md flex items-center justify-center transition-all flex-shrink-0 text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
+              style={isActive ? { background: 'var(--gradient-brand)', boxShadow: '0 2px 8px rgb(var(--c-primary) / 0.32)', color: 'white' } : undefined}
             >
-              <Icon size={15} />
+              <Icon size={15} style={isActive ? { color: 'white' } : { color: langColor(tab.language) }} />
               {tab.isDirty && (
                 <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-primary" aria-hidden />
               )}
@@ -1499,7 +1556,6 @@ function FileListItem({ tab, isActive, isSelected = false, savedFlash = false, o
   renaming: boolean; onRenameCommit: (name: string) => void; onRenameCancel: () => void
   onDragStart?: () => void; onDragEnd?: () => void
 }): JSX.Element {
-  const dir = tab.path ? tab.path.split(/[\\/]/).slice(0, -1).join('\\') : null
   return (
     <div data-tab-item
       draggable
@@ -1513,14 +1569,15 @@ function FileListItem({ tab, isActive, isSelected = false, savedFlash = false, o
       onClick={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); onCtrlClick?.() } else { onClick() } }}
       onContextMenu={onContextMenu}
       title={`${tab.name}${tab.path ? `\n${tab.path}` : ''}\nCtrl+click to select · Drag to reorder · Compare via context menu or Smart Diff tab`}
-      className={`flex items-center gap-2 w-full max-w-full px-3 py-2 rounded-md mb-0.5 cursor-grab active:cursor-grabbing group overflow-hidden transition-[background-color,box-shadow,color] ${
+      className={`flex items-center gap-2 w-full max-w-full py-2 rounded-md mb-0.5 cursor-grab active:cursor-grabbing group overflow-hidden transition-[background-color,box-shadow,color,border-color] ${
         isSelected
-          ? 'bg-on-surface/[0.09] text-on-surface [box-shadow:inset_0_0_0_1px_rgb(var(--c-on-surface)_/_0.18)]'
+          ? 'pl-3 pr-2 bg-on-surface/[0.09] text-on-surface border-l-2 border-primary/40'
           : isActive
-            ? 'bg-on-surface/[0.07] text-on-surface [box-shadow:inset_0_0_0_1px_rgb(var(--c-outline-variant)_/_0.4)]'
-            : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container/90'
-      }`}>
-      {(() => { const Icon = languageIcon(tab.language); return <Icon size={14} className="flex-shrink-0 text-on-surface-variant/60" /> })()}
+            ? 'pl-2.5 pr-2 bg-primary/[0.08] text-on-surface border-l-2 border-primary'
+            : 'pl-3 pr-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container/90 border-l-2 border-transparent'
+      }`}
+      style={isActive ? { boxShadow: '0 0 14px rgb(var(--c-primary) / 0.10), inset 0 0 0 1px rgb(var(--c-primary) / 0.12)' } : undefined}>
+      {(() => { const Icon = languageIcon(tab.language); return <Icon size={14} className="flex-shrink-0" style={{ color: langColor(tab.language) }} /> })()}
       {renaming ? (
         <InlineInput defaultValue={tab.name} onCommit={onRenameCommit} onCancel={onRenameCancel} />
       ) : (
@@ -1548,21 +1605,63 @@ function FileListItem({ tab, isActive, isSelected = false, savedFlash = false, o
 
 function EmptyState({ onOpen }: { onOpen: () => void }): JSX.Element {
   return (
-    <div className="flex flex-col items-center justify-center h-full gap-5 text-center select-none px-6">
-      {/* Icon in a soft branded halo (matches the global EmptyState) */}
-      <div className="relative">
-        <div aria-hidden className="absolute inset-0 rounded-full blur-xl" style={{ background: 'rgb(var(--c-primary) / 0.18)' }} />
-        <div className="relative w-20 h-20 rounded-3xl flex items-center justify-center bg-surface-container-high border border-outline-variant/25">
-          <FileText size={36} className="text-primary/80" strokeWidth={1.5} />
+    <motion.div
+      className="flex flex-col items-center justify-center h-full gap-6 text-center select-none px-6 relative overflow-hidden"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
+    >
+      {/* Ambient glow blobs */}
+      <div aria-hidden className="absolute pointer-events-none inset-0">
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full"
+          style={{ background: 'radial-gradient(circle, rgb(var(--c-primary) / 0.08) 0%, transparent 70%)', filter: 'blur(24px)' }} />
+        <div className="absolute bottom-1/3 left-1/2 -translate-x-1/2 translate-y-1/2 w-48 h-48 rounded-full"
+          style={{ background: 'radial-gradient(circle, rgb(var(--c-accent) / 0.06) 0%, transparent 70%)', filter: 'blur(20px)' }} />
+      </div>
+
+      {/* Icon */}
+      <motion.div className="relative" initial={{ scale: 0.85, y: 8 }} animate={{ scale: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }}>
+        <div aria-hidden className="absolute inset-[-12px] rounded-full"
+          style={{ background: 'radial-gradient(circle, rgb(var(--c-primary) / 0.14) 0%, transparent 70%)', filter: 'blur(16px)' }} />
+        <div className="relative w-24 h-24 rounded-3xl flex items-center justify-center border border-outline-variant/20"
+          style={{ background: 'linear-gradient(135deg, rgb(var(--c-surface-container-high) / 0.9) 0%, rgb(var(--c-surface-container) / 0.6) 100%)', boxShadow: '0 8px 32px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
+          <FileText size={42} className="text-primary/70" strokeWidth={1.3} />
         </div>
-      </div>
-      <div>
-        <p className="font-semibold text-on-surface text-sm">Ningún archivo abierto</p>
-        <p className="text-xs text-on-surface-variant/60 mt-1">Soltá un archivo o carpeta acá, o abrí uno</p>
-      </div>
-      <button onClick={onOpen} className="ui-btn ui-btn-primary text-sm">
-        <Import size={16} />Abrir archivo
-      </button>
-    </div>
+      </motion.div>
+
+      {/* Text */}
+      <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}>
+        <p className="font-semibold text-on-surface text-base">Ningún archivo abierto</p>
+        <p className="text-[12px] text-on-surface-variant/50 mt-1.5 leading-relaxed">
+          Soltá un archivo o carpeta acá<br />o usá los atajos para navegar
+        </p>
+      </motion.div>
+
+      {/* Action button */}
+      <motion.button
+        onClick={onOpen}
+        className="ui-btn ui-btn-primary text-sm px-5"
+        initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.18 }}
+        whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+      >
+        <Import size={15} />Abrir archivo
+      </motion.button>
+
+      {/* Keyboard shortcuts grid */}
+      <motion.div
+        className="grid grid-cols-2 gap-x-6 gap-y-2 text-[11px] text-on-surface-variant/45"
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, delay: 0.28 }}
+      >
+        {([
+          ['⌘O', 'Abrir archivo'],
+          ['⌘P', 'Quick open'],
+          ['⌘N', 'Nuevo archivo'],
+          ['⌘⇧F', 'Buscar en archivos'],
+        ] as const).map(([key, label]) => (
+          <span key={key} className="flex items-center gap-2">
+            <kbd className="bg-surface-container border border-outline-variant/25 px-1.5 py-0.5 rounded text-[10px] font-mono text-on-surface-variant/60 flex-shrink-0">{key}</kbd>
+            <span>{label}</span>
+          </span>
+        ))}
+      </motion.div>
+    </motion.div>
   )
 }

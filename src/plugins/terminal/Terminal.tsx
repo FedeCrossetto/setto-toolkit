@@ -242,7 +242,7 @@ export function Terminal(): JSX.Element {
     container.style.cssText = 'position:absolute;inset:0;padding:8px;visibility:hidden;pointer-events:none;'
     termAreaRef.current.appendChild(container)
 
-    const themeDef = TERMINAL_THEMES[p.theme] ?? TERMINAL_THEMES['dark']
+    const themeDef = TERMINAL_THEMES[p.theme] ?? TERMINAL_THEMES['dark']!
     const xterm = new XTerminal({
       theme: themeDef.theme, fontSize: p.fontSize, fontFamily: p.fontFamily,
       cursorStyle: p.cursorStyle, cursorBlink: p.cursorBlink, scrollback: p.scrollback,
@@ -417,7 +417,7 @@ export function Terminal(): JSX.Element {
 
   // ── Apply prefs to all live instances ─────────────────────────────────────
   useEffect(() => {
-    const themeDef = TERMINAL_THEMES[prefs.theme] ?? TERMINAL_THEMES['dark']
+    const themeDef = TERMINAL_THEMES[prefs.theme] ?? TERMINAL_THEMES['dark']!
     sessionsRef.current.forEach((s) => {
       s.xterm.options.theme       = themeDef.theme
       s.xterm.options.fontSize    = prefs.fontSize
@@ -447,7 +447,7 @@ export function Terminal(): JSX.Element {
     }
   }, [sidePanel, activeId])
 
-  const themeDef = TERMINAL_THEMES[prefs.theme] ?? TERMINAL_THEMES['dark']
+  const themeDef = TERMINAL_THEMES[prefs.theme] ?? TERMINAL_THEMES['dark']!
 
   // ── Deduplicate tab labels ─────────────────────────────────────────────────
   const tabLabels: Record<string, string> = (() => {
@@ -461,7 +461,7 @@ export function Terminal(): JSX.Element {
     for (const id of sessionIds) {
       const lbl = sessionsRef.current.get(id)?.shellLabel ?? 'shell'
       used[lbl] = (used[lbl] ?? 0) + 1
-      out[id]   = total[lbl] > 1 ? `${lbl} ${used[lbl]}` : lbl
+      out[id]   = (total[lbl] ?? 0) > 1 ? `${lbl} ${used[lbl]}` : lbl
     }
     return out
   })()

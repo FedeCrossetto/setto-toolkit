@@ -46,6 +46,22 @@
   border-radius: 8px;
 }
 
+/* Gastos KPI card — colored glow on hover, one class per accent color */
+.kpi-glow-primary { transition: box-shadow 200ms ease, transform 150ms ease; }
+.kpi-glow-primary:hover  { box-shadow: 0 0 0 1px rgb(var(--c-primary) / 0.35), 0 8px 24px rgb(var(--c-primary) / 0.18); transform: translateY(-1px); }
+.kpi-glow-accent  { transition: box-shadow 200ms ease, transform 150ms ease; }
+.kpi-glow-accent:hover   { box-shadow: 0 0 0 1px rgb(var(--c-accent)  / 0.35), 0 8px 24px rgb(var(--c-accent)  / 0.18); transform: translateY(-1px); }
+.kpi-glow-orange  { transition: box-shadow 200ms ease, transform 150ms ease; }
+.kpi-glow-orange:hover   { box-shadow: 0 0 0 1px rgba(251,146,60,0.35), 0 8px 24px rgba(251,146,60,0.18); transform: translateY(-1px); }
+.kpi-glow-error   { transition: box-shadow 200ms ease, transform 150ms ease; }
+.kpi-glow-error:hover    { box-shadow: 0 0 0 1px rgb(var(--c-error)   / 0.35), 0 8px 24px rgb(var(--c-error)   / 0.18); transform: translateY(-1px); }
+
+@keyframes gradient-border-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
 @keyframes cmd-palette-in {
   from { opacity: 0; transform: translateY(-8px) scale(0.98); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
@@ -195,26 +211,42 @@ html {
 
 /* ─── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgb(var(--c-outline-variant) / 0.6);
-  border-radius: 10px;
-  border: 3px solid transparent;
+  background: rgb(var(--c-outline-variant) / 0.5);
+  border-radius: 6px;
+  border: 2px solid transparent;
   background-clip: padding-box;
   transition: background-color 150ms;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--c-primary) / 0.7);
+  background: rgb(var(--c-primary) / 0.65);
+  background-clip: padding-box;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgb(var(--c-outline-variant) / 0.8);
+  background-clip: padding-box;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--c-primary) / 0.75);
   background-clip: padding-box;
 }
 
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ─── Placeholder color — respects the active token palette ─────────────── */
+::placeholder {
+  color: rgb(var(--c-on-surface-variant) / 0.45);
+}
+.dark ::placeholder {
+  color: rgb(var(--c-on-surface-variant) / 0.4);
+}
 
 /* ─── Select / Option theme-aware styling ───────────────────────────────── */
 select {
@@ -267,7 +299,7 @@ select option {
 .dark .ui-card {
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 8px 24px rgb(0 0 0 / 0.22);
 }
-.ui-card-interactive { cursor: pointer; }
+.ui-card-interactive { cursor: pointer; will-change: transform; }
 .ui-card-interactive:hover {
   border-color: rgb(var(--c-primary) / 0.35);
   box-shadow: 0 2px 4px rgb(0 0 0 / 0.06), 0 8px 24px rgb(0 0 0 / 0.08);

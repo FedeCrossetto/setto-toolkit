@@ -1,40 +1,41 @@
 import type { IpcMain } from 'electron'
 import type { PluginHandlers, CoreServices } from '../../core/types'
 import type { Servicio, PagoMensual, Credencial, QueryItem } from '../../../src/plugins/gastos/types'
+import { registerHandler } from '../../core/ipc-handler'
 
 export const handlers: PluginHandlers = {
   pluginId: 'gastos',
 
   register(ipcMain: IpcMain, { gastosStorage }: CoreServices): void {
 
-    ipcMain.handle('gastos:load', async () => gastosStorage.load())
+    registerHandler(ipcMain, 'gastos:load', async () => gastosStorage.load())
 
-    ipcMain.handle('gastos:save-servicio', async (_e, servicio: Servicio) => {
+    registerHandler(ipcMain, 'gastos:save-servicio', async (_e, servicio: Servicio) => {
       await gastosStorage.saveServicio(servicio)
       return { ok: true }
     })
 
-    ipcMain.handle('gastos:delete-servicio', async (_e, id: string) => {
+    registerHandler(ipcMain, 'gastos:delete-servicio', async (_e, id: string) => {
       await gastosStorage.deleteServicio(id)
       return { ok: true }
     })
 
-    ipcMain.handle('gastos:save-pago', async (_e, pago: PagoMensual) => {
+    registerHandler(ipcMain, 'gastos:save-pago', async (_e, pago: PagoMensual) => {
       await gastosStorage.savePago(pago)
       return { ok: true }
     })
 
-    ipcMain.handle('gastos:delete-pago', async (_e, id: string) => {
+    registerHandler(ipcMain, 'gastos:delete-pago', async (_e, id: string) => {
       await gastosStorage.deletePago(id)
       return { ok: true }
     })
 
-    ipcMain.handle('gastos:save-pagos-bulk', async (_e, pagos: PagoMensual[]) => {
+    registerHandler(ipcMain, 'gastos:save-pagos-bulk', async (_e, pagos: PagoMensual[]) => {
       await gastosStorage.savePagosBulk(pagos)
       return { ok: true }
     })
 
-    ipcMain.handle('gastos:credencial-save', async (_e, cred: Credencial) => {
+    registerHandler(ipcMain, 'gastos:credencial-save', async (_e, cred: Credencial) => {
       if (!cred || typeof cred !== 'object') throw new Error('Payload inválido')
       if (!cred.nombre?.trim()) throw new Error('El nombre es requerido')
       if (cred.nombre.length > 200) throw new Error('Nombre demasiado largo')
@@ -44,27 +45,27 @@ export const handlers: PluginHandlers = {
       return { ok: true }
     })
 
-    ipcMain.handle('gastos:credencial-delete', async (_e, id: string) => {
+    registerHandler(ipcMain, 'gastos:credencial-delete', async (_e, id: string) => {
       await gastosStorage.deleteCredencial(id)
       return { ok: true }
     })
 
-    ipcMain.handle('gastos:supabase-config-get', () => gastosStorage.getSupabasePublicConfig())
+    registerHandler(ipcMain, 'gastos:supabase-config-get', () => gastosStorage.getSupabasePublicConfig())
 
-    ipcMain.handle('gastos:supabase-config-save', (_e, payload: { url: string; serviceKey: string }) => {
+    registerHandler(ipcMain, 'gastos:supabase-config-save', (_e, payload: { url: string; serviceKey: string }) => {
       if (!payload || typeof payload.url !== 'string') throw new Error('Payload inválido')
       gastosStorage.saveSupabaseConfig(payload)
     })
 
     /** Versión global remota (mayor `updated_at` entre las 4 tablas) — usada por el botón Sync
      *  del front para decidir si hace falta un pull. */
-    ipcMain.handle('gastos:remote-version-get', async () => gastosStorage.getRemoteVersion())
+    registerHandler(ipcMain, 'gastos:remote-version-get', async () => gastosStorage.getRemoteVersion())
 
     // ── Queries handlers ────────────────────────────────────────────────────────
 
-    ipcMain.handle('queries:load', async () => gastosStorage.loadQueries())
+    registerHandler(ipcMain, 'queries:load', async () => gastosStorage.loadQueries())
 
-    ipcMain.handle('queries:save', async (_e, item: QueryItem) => {
+    registerHandler(ipcMain, 'queries:save', async (_e, item: QueryItem) => {
       if (!item || typeof item !== 'object') throw new Error('Payload inválido')
       if (!item.descripcion?.trim()) throw new Error('La descripción es requerida')
       if (item.descripcion.length > 500) throw new Error('Descripción demasiado larga (máx 500 caracteres)')
@@ -76,7 +77,7 @@ export const handlers: PluginHandlers = {
       return { ok: true }
     })
 
-    ipcMain.handle('queries:delete', async (_e, id: string) => {
+    registerHandler(ipcMain, 'queries:delete', async (_e, id: string) => {
       await gastosStorage.deleteQuery(id)
       return { ok: true }
     })

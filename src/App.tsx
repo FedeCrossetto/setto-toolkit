@@ -85,6 +85,32 @@ function AppShell(): JSX.Element {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-on-surface font-sans">
+      {/* Dot grid — very subtle texture overlay */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-0"
+        style={{
+          backgroundImage: 'radial-gradient(circle, rgb(var(--c-on-surface) / 0.045) 1px, transparent 1px)',
+          backgroundSize: '28px 28px',
+        }}
+      />
+      {/* Ambient glow — two blurred blobs behind everything, palette-aware */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div style={{
+          position: 'absolute',
+          top: '-10%', left: '-5%',
+          width: '50%', height: '60%',
+          background: 'radial-gradient(ellipse, rgb(var(--c-primary) / 0.07) 0%, transparent 70%)',
+          filter: 'blur(40px)',
+        }} />
+        <div style={{
+          position: 'absolute',
+          bottom: '-15%', right: '-5%',
+          width: '45%', height: '55%',
+          background: 'radial-gradient(ellipse, rgb(var(--c-accent) / 0.06) 0%, transparent 70%)',
+          filter: 'blur(40px)',
+        }} />
+      </div>
       <TitleBar />
       <Sidebar />
       <CommandPalette />
@@ -92,15 +118,28 @@ function AppShell(): JSX.Element {
       <GlobalSearch />
 
       {/* Main content — offset matches sidebar width */}
-      <main className={`flex-1 flex flex-col h-screen overflow-hidden transition-all duration-200 ${state.sidebarCollapsed ? 'ml-[76px]' : 'ml-[224px]'}`}>
+      <main className={`flex-1 flex flex-col h-screen overflow-hidden transition-all duration-200 ${state.sidebarCollapsed ? 'ml-[70px]' : 'ml-[172px]'}`}>
 
         {/* Floating card — sits below TitleBar, above floating StatusBar */}
+        {/* Wrapper provides the gradient top-border via padding-top trick */}
         <div
-          className="flex flex-col flex-1 overflow-hidden border border-outline-variant/30 dark:border-transparent shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.28),0_1px_4px_rgba(0,0,0,0.14)]"
           style={{
             margin: '40px 8px 44px 6px',
             borderRadius: 18,
+            padding: '1.5px 0 0 0',
+            background: 'linear-gradient(90deg, #FF7A00, #FF00D6, #5C00FF, #FF7A00)',
+            backgroundSize: '300% 300%',
+            animation: 'gradient-border-shift 6s ease infinite',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+          }}
+          className="flex flex-col flex-1 overflow-hidden dark:shadow-[0_4px_24px_rgba(0,0,0,0.28),0_1px_4px_rgba(0,0,0,0.14)]"
+        >
+        <div
+          className="flex flex-col flex-1 overflow-hidden"
+          style={{
+            borderRadius: '0 0 17px 17px',
             background: 'rgb(var(--c-surface))',
+            minHeight: 0,
           }}
         >
           <TabBar />
@@ -126,6 +165,7 @@ function AppShell(): JSX.Element {
                   <div
                     key={tab.tabId}
                     className={`absolute inset-0 w-full h-full overflow-auto ${active ? '' : 'hidden'}`}
+                    style={active ? { animation: 'fadeSlideUp 0.18s cubic-bezier(0.34,1,0.64,1) both' } : undefined}
                   >
                     <ErrorBoundary label={plugin.name}>
                       <Suspense fallback={<PluginLoadingFallback />}>
@@ -137,6 +177,7 @@ function AppShell(): JSX.Element {
               })
             )}
           </div>
+        </div>
         </div>
       </main>
 

@@ -3,6 +3,8 @@ import { loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — electron-vite v5 types require Vite 6 (BuildEnvironmentOptions) but runtime works fine with Vite 5
 export default defineConfig(({ mode }) => {
   // Load .env (and .env.local) without prefix filtering so all vars are available.
   // These are never exposed to the renderer — only injected into the main process bundle.
@@ -26,9 +28,7 @@ export default defineConfig(({ mode }) => {
       'process.env.SUPABASE_SERVICE_ROLE_KEY': JSON.stringify(env.SUPABASE_SERVICE_ROLE_KEY ?? ''),
     },
     build: {
-      lib: {
-        entry: './electron/main.ts'
-      },
+      lib: { entry: './electron/main.ts' },
       rollupOptions: {
         // `ws` is bundled (see exclude above), but it optionally requires these
         // native add-ons. They are not installed and `ws` falls back to pure JS,
@@ -39,18 +39,26 @@ export default defineConfig(({ mode }) => {
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
-    build: {
-      lib: {
-        entry: './electron/preload.ts'
-      }
-    }
+    build: { lib: { entry: './electron/preload.ts' } }
   },
   renderer: {
     root: path.resolve(__dirname),
     base: './',
     build: {
       rollupOptions: {
-        input: path.resolve(__dirname, 'index.html')
+        input: path.resolve(__dirname, 'index.html'),
+        output: {
+          manualChunks(id: string): string | undefined {
+            // Separate heavy vendor libs so each is independently cached and
+            // parsed — Electron's V8 can JIT each chunk incrementally.
+            if (id.includes('/framer-motion/')) return 'vendor-motion'
+            if (id.includes('/@codemirror/') || id.includes('/codemirror/') || id.includes('/@lezer/') || id.includes('/@replit/codemirror')) return 'vendor-codemirror'
+            if (id.includes('/react-dom/')) return 'vendor-react-dom'
+            if (id.includes('/react-icons/')) return 'vendor-react-icons'
+            if (id.includes('node_modules/')) return 'vendor'
+            return undefined
+          },
+        },
       }
     },
     resolve: {

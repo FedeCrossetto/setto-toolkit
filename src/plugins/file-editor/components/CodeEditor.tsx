@@ -418,16 +418,16 @@ const iniHighlightPlugin = ViewPlugin.fromClass(class {
         // key = value  or  key: value  or  key value (export KEY=val)
         const kvMatch = /^(\s*(?:export\s+)?)([\w.\-/\\]+)(\s*[=:]\s*)(.*)$/.exec(text)
         if (kvMatch) {
-          const keyStart   = line.from + kvMatch[1].length
-          const keyEnd     = keyStart  + kvMatch[2].length
-          const sepEnd     = keyEnd    + kvMatch[3].length
+          const keyStart   = line.from + kvMatch[1]!.length
+          const keyEnd     = keyStart  + kvMatch[2]!.length
+          const sepEnd     = keyEnd    + kvMatch[3]!.length
           const valStart   = sepEnd
           const valEnd     = line.to
 
           b.add(keyStart, keyEnd, Decoration.mark({ class: 'cm-ini-key' }))
 
           if (valStart < valEnd) {
-            const val = kvMatch[4]
+            const val = kvMatch[4]!
             // Quoted value
             if (/^["'`]/.test(val)) {
               b.add(valStart, valEnd, Decoration.mark({ class: 'cm-ini-string' }))

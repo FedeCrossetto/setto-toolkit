@@ -21,7 +21,7 @@ export function tryFormatJson(str: string): string {
 export function highlightJson(str: string): string {
   const escaped = str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   return escaped.replace(
-    /("(?:\\u[0-9a-fA-F]{4}|\\[^u]|[^\\"])*"(?:\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+    /("(?:\\u[0-9a-fA-F]{4}|\\[^u]|[^\\"])*"(?:\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
     (match) => {
       if (match.startsWith('"')) {
         if (match.endsWith(':')) return `<span class="json-key">${match.slice(0, -1)}</span>:`
@@ -77,7 +77,7 @@ function tokenize(input: string): string[] {
   const tokens: string[] = []
   let i = 0
   while (i < input.length) {
-    while (i < input.length && /\s/.test(input[i])) i++
+    while (i < input.length && /\s/.test(input[i]!)) i++
     if (i >= input.length) break
     const q = input[i]
     if (q === '"' || q === "'") {
@@ -87,7 +87,7 @@ function tokenize(input: string): string[] {
       i = j + 1
     } else {
       let j = i
-      while (j < input.length && !/\s/.test(input[j])) j++
+      while (j < input.length && !/\s/.test(input[j]!)) j++
       tokens.push(input.slice(i, j))
       i = j
     }
@@ -113,7 +113,7 @@ export function parseCurl(input: string): Partial<import('./types').ActiveReques
 
   let i = 1
   while (i < tokens.length) {
-    const t = tokens[i]
+    const t = tokens[i]! // bounded by i < tokens.length
     if (t === '-X' || t === '--request') {
       method = tokens[++i] as import('./types').HttpMethod
     } else if (t === '-H' || t === '--header') {
@@ -138,7 +138,7 @@ export function parseCurl(input: string): Partial<import('./types').ActiveReques
   // Check Authorization header → extract bearer
   const authIdx = headers.findIndex((h) => h.key.toLowerCase() === 'authorization')
   if (authIdx >= 0) {
-    const val = headers[authIdx].value
+    const val = headers[authIdx]!.value
     if (/^bearer\s/i.test(val)) { authType = 'bearer'; authToken = val.slice(7).trim(); headers.splice(authIdx, 1) }
   }
 
@@ -278,7 +278,7 @@ export function interpolateVars(str: string, vars: Record<string, string>): stri
 export function extractTemplateVars(...texts: string[]): string[] {
   const vars = new Set<string>()
   for (const t of texts) {
-    for (const m of t.matchAll(/\{\{([^}]+)\}\}/g)) vars.add(m[1].trim())
+    for (const m of t.matchAll(/\{\{([^}]+)\}\}/g)) vars.add(m[1]!.trim()) // capture group is required by the regex
   }
   return [...vars]
 }

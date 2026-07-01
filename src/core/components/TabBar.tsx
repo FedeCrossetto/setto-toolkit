@@ -71,7 +71,7 @@ export function TabBar(): JSX.Element {
               aria-selected={active}
               className={`relative flex items-center gap-1.5 px-3 py-1.5 my-1.5 text-xs cursor-pointer whitespace-nowrap group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 rounded-lg ${
                 active
-                  ? 'text-primary font-semibold'
+                  ? 'text-white font-semibold'
                   : 'text-on-surface-variant hover:text-on-surface'
               }`}
               onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', tabId: tab.tabId })}
@@ -85,7 +85,8 @@ export function TabBar(): JSX.Element {
               {active && (
                 <motion.span
                   layoutId="tabbar-active-pill"
-                  className="absolute inset-0 rounded-lg bg-primary/10 shadow-sm"
+                  className="absolute inset-0 rounded-lg shadow-sm"
+                  style={{ background: 'var(--gradient-brand)', boxShadow: '0 2px 8px rgb(var(--c-primary) / 0.35)' }}
                   transition={{ duration: 0.2, ease: 'easeOut' }}
                 />
               )}

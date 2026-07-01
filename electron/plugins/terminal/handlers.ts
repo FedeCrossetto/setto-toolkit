@@ -5,6 +5,7 @@ import { DEFAULT_PREFS } from '../../../src/plugins/terminal/types'
 import os from 'os'
 import fs from 'fs'
 import path from 'path'
+import { registerHandler } from '../../core/ipc-handler'
 
 const SESSIONS_FILE = 'terminal-sessions.json'
 const PREFS_FILE    = 'terminal-prefs.json'
@@ -53,7 +54,7 @@ export const handlers: PluginHandlers = {
     }
 
     // ── terminal:create ──────────────────────────────────────────────────────
-    ipcMain.handle('terminal:create', (event, opts: { shell?: string; cwd?: string; cols?: number; rows?: number }) => {
+    registerHandler(ipcMain, 'terminal:create', (event, opts: { shell?: string; cwd?: string; cols?: number; rows?: number }) => {
       if (!pty) {
         return {
           ok: false,
@@ -124,7 +125,7 @@ export const handlers: PluginHandlers = {
         const sessions = db.readJSON<TerminalSession[]>(SESSIONS_FILE) ?? []
         const existing = sessions.findIndex((s) => s.id === sessionId)
         if (existing >= 0) {
-          sessions[existing] = { ...sessions[existing], closedAt: now, exitCode }
+          sessions[existing] = { ...sessions[existing]!, closedAt: now, exitCode }
         } else {
           sessions.unshift({ id: sessionId, title: shell, shell, cwd, createdAt: now, closedAt: now, exitCode })
         }
@@ -157,7 +158,7 @@ export const handlers: PluginHandlers = {
     })
 
     // ── terminal:kill ────────────────────────────────────────────────────────
-    ipcMain.handle('terminal:kill', (_e, sessionId: string) => {
+    registerHandler(ipcMain, 'terminal:kill', (_e, sessionId: string) => {
       const live = liveSessions.get(sessionId)
       if (live) {
         try { live.pty.kill() } catch { /* ignore */ }
@@ -167,36 +168,36 @@ export const handlers: PluginHandlers = {
     })
 
     // ── terminal:sessions-get ────────────────────────────────────────────────
-    ipcMain.handle('terminal:sessions-get', () => {
+    registerHandler(ipcMain, 'terminal:sessions-get', () => {
       return db.readJSON<TerminalSession[]>(SESSIONS_FILE) ?? []
     })
 
     // ── terminal:session-delete ──────────────────────────────────────────────
-    ipcMain.handle('terminal:session-delete', (_e, id: string) => {
+    registerHandler(ipcMain, 'terminal:session-delete', (_e, id: string) => {
       const sessions = db.readJSON<TerminalSession[]>(SESSIONS_FILE) ?? []
       db.writeJSON(SESSIONS_FILE, sessions.filter((s) => s.id !== id))
       return { ok: true }
     })
 
     // ── terminal:prefs-get ───────────────────────────────────────────────────
-    ipcMain.handle('terminal:prefs-get', () => {
+    registerHandler(ipcMain, 'terminal:prefs-get', () => {
       return { ...DEFAULT_PREFS, ...(db.readJSON<Partial<TerminalPrefs>>(PREFS_FILE) ?? {}) }
     })
 
     // ── terminal:prefs-set ───────────────────────────────────────────────────
-    ipcMain.handle('terminal:prefs-set', (_e, prefs: Partial<TerminalPrefs>) => {
+    registerHandler(ipcMain, 'terminal:prefs-set', (_e, prefs: Partial<TerminalPrefs>) => {
       const current = db.readJSON<TerminalPrefs>(PREFS_FILE) ?? DEFAULT_PREFS
       db.writeJSON(PREFS_FILE, { ...current, ...prefs })
       return { ok: true }
     })
 
     // ── terminal:startup-get ─────────────────────────────────────────────────
-    ipcMain.handle('terminal:startup-get', () => {
+    registerHandler(ipcMain, 'terminal:startup-get', () => {
       return db.readJSON<StartupSession[]>(STARTUP_FILE) ?? []
     })
 
     // ── terminal:startup-set ─────────────────────────────────────────────────
-    ipcMain.handle('terminal:startup-set', (_e, sessions: StartupSession[]) => {
+    registerHandler(ipcMain, 'terminal:startup-set', (_e, sessions: StartupSession[]) => {
       db.writeJSON(STARTUP_FILE, sessions)
       return { ok: true }
     })
@@ -205,7 +206,7 @@ export const handlers: PluginHandlers = {
     // Reads the most recently modified Claude Code session JSONL file and
     // extracts the last assistant message's context window usage.
     // Returns a percentage (0-100) or null if unavailable.
-    ipcMain.handle('terminal:claude-usage', (): number | null => {
+    registerHandler(ipcMain, 'terminal:claude-usage', (): number | null => {
       try {
         const projectsDir = path.join(os.homedir(), '.claude', 'projects')
         if (!fs.existsSync(projectsDir)) return null

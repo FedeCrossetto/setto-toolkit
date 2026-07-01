@@ -16,7 +16,7 @@ export function EmptyState({
   mascot?: boolean
 }): JSX.Element {
   return (
-    <div className="flex flex-col items-center justify-center text-center px-6 py-12 max-w-md mx-auto">
+    <div className="flex flex-col items-center justify-center text-center px-6 py-12 max-w-md mx-auto" style={{ animation: 'fadeSlideUp 0.3s cubic-bezier(0.34,1,0.64,1) both' }}>
       {mascot && (
         <img
           src="./setto-avatar/setto-avatar.png"

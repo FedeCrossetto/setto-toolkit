@@ -17,13 +17,19 @@ export function StatusBar(): JSX.Element {
         right: 8,
         height: 28,
         borderRadius: 12,
-        background: 'rgb(var(--c-surface-container))',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.14), 0 1px 4px rgba(0,0,0,0.10)',
+        background: 'rgb(var(--c-surface-container) / 0.72)',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+        border: '1px solid rgb(var(--c-outline-variant) / 0.18)',
+        boxShadow: dirtyCount > 0
+          ? '0 4px 24px rgba(0,0,0,0.18), 0 0 0 1px rgb(var(--c-warning) / 0.25), 0 0 12px rgb(var(--c-warning) / 0.12)'
+          : '0 4px 24px rgba(0,0,0,0.18), 0 0 0 1px rgb(var(--c-primary) / 0.10)',
       }}
     >
       <div className="flex items-center gap-4 text-[10px] uppercase tracking-widest">
         <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-accent status-dot-pulse" />
+          {/* Pulse only when there's work in progress — static dot when idle */}
+          <div className={`w-1.5 h-1.5 rounded-full bg-accent ${dirtyCount > 0 ? 'status-dot-pulse' : ''}`} />
           <span className="text-accent font-bold">Listo</span>
         </div>
         {activePlugin && (

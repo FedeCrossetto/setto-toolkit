@@ -1,12 +1,12 @@
-import { useEffect, useState, type ComponentType } from 'react'
-import { Database, Lock, ShieldCheck, Tag, Wrench } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Database, Lock, ShieldCheck, Tag } from 'lucide-react'
+import type { IconComponent } from '../../core/types'
 
-const INFO_ICONS: Record<string, ComponentType<{ size?: number; className?: string }>> = {
+const INFO_ICONS: Record<string, IconComponent> = {
   category:  Tag,
   security:  ShieldCheck,
   storage:   Database,
   lock:      Lock,
-  construction: Wrench,
 }
 
 export function About(): JSX.Element {
@@ -20,9 +20,14 @@ export function About(): JSX.Element {
     <div className="p-8 max-w-2xl mx-auto w-full">
       {/* Header */}
       <div className="flex items-center gap-5 mb-10">
-        <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
-          <Wrench size={32} className="text-primary" />
-        </div>
+        <img
+          src="./setto-logo.png"
+          alt="Setto Toolkit"
+          className="h-16 w-auto flex-shrink-0 select-none"
+          draggable={false}
+          style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.25))' }}
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+        />
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-on-surface">Setto Toolkit</h1>
           <p className="text-sm text-on-surface-variant mt-0.5">
@@ -57,8 +62,8 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
   const Icon = INFO_ICONS[icon] ?? Tag
   return (
     <div className="ui-card flex items-center gap-4 px-4 py-3">
-      <Icon size={18} className="text-on-surface-variant/50 flex-shrink-0" />
-      <span className="text-xs text-on-surface-variant/60 w-36 flex-shrink-0">{label}</span>
+      <Icon size={18} className="text-on-surface-variant/65 flex-shrink-0" />
+      <span className="text-xs text-on-surface-variant/75 w-36 flex-shrink-0">{label}</span>
       <span className="text-xs text-on-surface font-medium">{value}</span>
     </div>
   )

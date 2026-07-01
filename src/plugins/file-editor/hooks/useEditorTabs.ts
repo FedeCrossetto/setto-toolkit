@@ -1,5 +1,6 @@
 import { createElement, useState, useCallback, useRef, type ComponentType } from 'react'
 import { FileCode2 } from 'lucide-react'
+import type { IconComponent } from '../../../core/types'
 import {
   SiTypescript, SiJavascript, SiHtml5, SiCss, SiYaml,
   SiMarkdown, SiPython, SiCplusplus,
@@ -62,8 +63,6 @@ export function refineLanguageFromContent(lang: FileLanguage, content: string): 
   if (firstChar === '<') return 'xml'
   return lang
 }
-
-type IconComponent = ComponentType<{ size?: number; className?: string }>
 
 /** Wraps a brand (simple-icons) glyph with a fixed brand color, keeping the same {size, className} signature as Lucide icons. */
 function brandIcon(Icon: ComponentType<{ size?: number; className?: string; color?: string }>, color?: string): IconComponent {
@@ -221,7 +220,7 @@ export function useEditorTabs() {
       if (from === -1 || to === -1 || from === to) return prev
       const next = [...prev]
       const [item] = next.splice(from, 1)
-      next.splice(to, 0, item)
+      next.splice(to, 0, item!) // from !== -1 guarantees an element existed at that index
       return next
     })
   }, [])

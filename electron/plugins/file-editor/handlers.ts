@@ -8,6 +8,8 @@ import path from 'path'
 import chokidar from 'chokidar'
 import type { FSWatcher } from 'chokidar'
 import { execFile } from 'child_process'
+import { registerHandler } from '../../core/ipc-handler'
+import { addAuthorizedRoot, assertInAuthorizedRoot, validatePath } from './path-guard'
 
 /** Run git in `cwd` and resolve stdout, or reject on non-zero exit. */
 function runGit(cwd: string, args: string[]): Promise<string> {
@@ -43,7 +45,7 @@ async function computeGitDiff(filePath: string): Promise<GitLineDiff | null> {
     } catch { return { added: [], changed: [], deleted: [] } }
   }
 
-  let out = ''
+  let out: string
   try {
     out = await runGit(dir, ['diff', '--no-color', '--unified=0', '--', filePath])
   } catch {
@@ -56,7 +58,7 @@ async function computeGitDiff(filePath: string): Promise<GitLineDiff | null> {
     const m = hunkRe.exec(line)
     if (!m) continue
     const oldCount = m[1] === undefined ? 1 : parseInt(m[1], 10)
-    const newStart = parseInt(m[2], 10)
+    const newStart = parseInt(m[2]!, 10) // group 2 is required by the regex (no trailing `?`)
     const newCount = m[3] === undefined ? 1 : parseInt(m[3], 10)
     if (newCount === 0) {
       deleted.push(newStart)               // pure deletion
@@ -77,46 +79,6 @@ const TAIL_LINES    = 2000              // lines to load for large files
 /** Active chokidar watchers keyed by absolute file path */
 const watchers = new Map<string, FSWatcher>()
 
-/**
- * Authorized root directories — populated whenever the user opens a folder via
- * dialog or passes a file via CLI. Write/delete/rename operations are restricted
- * to paths inside one of these roots.
- */
-const authorizedRoots = new Set<string>()
-
-function addAuthorizedRoot(rootPath: string): void {
-  authorizedRoots.add(path.resolve(rootPath))
-}
-
-/**
- * Verify that `targetPath` is located inside at least one authorized root.
- * Resolves symlinks via realpathSync so a symlink pointing outside the workspace
- * cannot bypass the guard. Throws if the path is not covered.
- */
-function assertInAuthorizedRoot(targetPath: string): void {
-  if (authorizedRoots.size === 0) {
-    throw new Error('No workspace is open. Open a folder first before performing write operations.')
-  }
-  // Resolve symlinks so a symlink inside the workspace pointing outside cannot bypass the guard.
-  const logical = path.resolve(targetPath)
-  let real = logical
-  try {
-    real = fs.realpathSync(logical)
-  } catch {
-    // File doesn't exist yet (e.g. new file being created) — resolve the parent
-    // directory instead so symlinks in the parent are still caught.
-    try {
-      real = path.join(fs.realpathSync(path.dirname(logical)), path.basename(logical))
-    } catch { /* parent also doesn't exist — use logical path */ }
-  }
-
-  for (const root of authorizedRoots) {
-    const rel = path.relative(root, real)
-    if (!rel.startsWith('..') && !path.isAbsolute(rel)) return
-  }
-  throw new Error(`Operation denied: path is outside any open workspace — "${real}"`)
-}
-
 function getRecentFiles(settings: CoreServices['settings']): RecentFile[] {
   return settings.getJSON<RecentFile[]>(RECENT_KEY) ?? []
 }
@@ -125,18 +87,6 @@ function addRecentFile(settings: CoreServices['settings'], file: RecentFile): vo
   const recents = getRecentFiles(settings).filter((r) => r.path !== file.path)
   recents.unshift(file)
   settings.setJSON(RECENT_KEY, recents.slice(0, MAX_RECENT))
-}
-
-/**
- * Validates and resolves a filesystem path.
- * Rejects null bytes and relative paths.
- */
-function validatePath(filePath: unknown): string {
-  if (!filePath || typeof filePath !== 'string') throw new Error('Invalid path')
-  if (filePath.includes('\0')) throw new Error('Path contains null bytes')
-  const resolved = path.resolve(filePath)
-  if (!path.isAbsolute(resolved)) throw new Error('Path must be absolute')
-  return resolved
 }
 
 const MAX_CHILDREN = 200
@@ -180,14 +130,14 @@ export const handlers: PluginHandlers = {
 
     // ── Directory reader ───────────────────────────────────────────────────
 
-    ipcMain.handle('editor:read-dir', (_e, dirPath: string) => {
+    registerHandler(ipcMain, 'editor:read-dir', (_e, dirPath: string) => {
       const safe = validatePath(dirPath)
       const stat = fs.statSync(safe)
       if (!stat.isDirectory()) throw new Error('Not a directory')
       return readDirTree(safe)
     })
 
-    ipcMain.handle('editor:open-folder-dialog', async (_e) => {
+    registerHandler(ipcMain, 'editor:open-folder-dialog', async (_e) => {
       const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'multiSelections'] })
       if (!result.canceled) {
         result.filePaths.forEach((p) => addAuthorizedRoot(p))
@@ -197,7 +147,7 @@ export const handlers: PluginHandlers = {
 
     // ── File dialog ────────────────────────────────────────────────────────
 
-    ipcMain.handle('editor:open-dialog', async (_e) => {
+    registerHandler(ipcMain, 'editor:open-dialog', async (_e) => {
       // A single "All Files" filter avoids the OS dimming out/blocking extensions that
       // aren't in a stricter filter's list (same root cause as the save-dialog .txt bug).
       const result = await dialog.showOpenDialog({
@@ -213,7 +163,7 @@ export const handlers: PluginHandlers = {
 
     // ── Read file ──────────────────────────────────────────────────────────
 
-    ipcMain.handle('editor:read-file', (_e, { path: filePath, tailLinesCount }: ReadFileRequest): ReadFileResponse => {
+    registerHandler(ipcMain, 'editor:read-file', (_e, { path: filePath, tailLinesCount }: ReadFileRequest): ReadFileResponse => {
       const safe = validatePath(filePath)
       // Authorize the file's parent so the user can save changes via Ctrl+S
       // (mirrors what open-dialog does for each selected file).
@@ -248,7 +198,7 @@ export const handlers: PluginHandlers = {
 
     // ── Write file ─────────────────────────────────────────────────────────
 
-    ipcMain.handle('editor:write-file', (_e, filePath: string, content: string) => {
+    registerHandler(ipcMain, 'editor:write-file', (_e, filePath: string, content: string) => {
       const safe = validatePath(filePath)
       assertInAuthorizedRoot(safe)
       fs.writeFileSync(safe, content, 'utf-8')
@@ -268,7 +218,7 @@ export const handlers: PluginHandlers = {
 
     // ── Save As dialog ─────────────────────────────────────────────────────
 
-    ipcMain.handle('editor:save-dialog', async (_e, defaultName: string) => {
+    registerHandler(ipcMain, 'editor:save-dialog', async (_e, defaultName: string) => {
       // A single "All Files" filter avoids macOS/Windows auto-appending an extension
       // from a stricter filter (e.g. forcing ".txt" onto "name.cs" because "cs" wasn't
       // in the active filter's extension list).
@@ -285,7 +235,7 @@ export const handlers: PluginHandlers = {
 
     // ── File watcher ───────────────────────────────────────────────────────
 
-    ipcMain.handle('editor:watch-start', (event, filePath: string) => {
+    registerHandler(ipcMain, 'editor:watch-start', (event, filePath: string) => {
       const safe = validatePath(filePath)
       if (watchers.has(safe)) return { ok: true } // already watching
 
@@ -338,7 +288,7 @@ export const handlers: PluginHandlers = {
       return { ok: true }
     })
 
-    ipcMain.handle('editor:watch-stop', (_e, filePath: string) => {
+    registerHandler(ipcMain, 'editor:watch-stop', (_e, filePath: string) => {
       const safe = validatePath(filePath)
       const watcher = watchers.get(safe)
       if (watcher) {
@@ -350,29 +300,29 @@ export const handlers: PluginHandlers = {
 
     // ── File system operations ─────────────────────────────────────────────
 
-    ipcMain.handle('editor:git-diff', (_e, filePath: string) => computeGitDiff(filePath))
+    registerHandler(ipcMain, 'editor:git-diff', (_e, filePath: string) => computeGitDiff(filePath))
 
-    ipcMain.handle('editor:reveal', (_e, filePath: string) => {
+    registerHandler(ipcMain, 'editor:reveal', (_e, filePath: string) => {
       const safe = validatePath(filePath)
       shell.showItemInFolder(safe)
       return { ok: true }
     })
 
-    ipcMain.handle('editor:create-file', (_e, filePath: string) => {
+    registerHandler(ipcMain, 'editor:create-file', (_e, filePath: string) => {
       const safe = validatePath(filePath)
       assertInAuthorizedRoot(safe)
       fs.writeFileSync(safe, '', 'utf-8')
       return { ok: true }
     })
 
-    ipcMain.handle('editor:create-dir', (_e, dirPath: string) => {
+    registerHandler(ipcMain, 'editor:create-dir', (_e, dirPath: string) => {
       const safe = validatePath(dirPath)
       assertInAuthorizedRoot(safe)
       fs.mkdirSync(safe, { recursive: true })
       return { ok: true }
     })
 
-    ipcMain.handle('editor:rename', (_e, oldPath: string, newPath: string) => {
+    registerHandler(ipcMain, 'editor:rename', (_e, oldPath: string, newPath: string) => {
       const safeOld = validatePath(oldPath)
       const safeNew = validatePath(newPath)
       assertInAuthorizedRoot(safeOld)
@@ -381,7 +331,7 @@ export const handlers: PluginHandlers = {
       return { ok: true }
     })
 
-    ipcMain.handle('editor:delete', (_e, targetPath: string) => {
+    registerHandler(ipcMain, 'editor:delete', (_e, targetPath: string) => {
       const safe = validatePath(targetPath)
       assertInAuthorizedRoot(safe)
       // Guard against accidentally deleting root or near-root paths
@@ -395,7 +345,7 @@ export const handlers: PluginHandlers = {
 
     // ── Find in files ──────────────────────────────────────────────────────
 
-    ipcMain.handle('editor:find-in-files', (_e, { dir, query, useRegex }: { dir: string; query: string; useRegex: boolean }) => {
+    registerHandler(ipcMain, 'editor:find-in-files', (_e, { dir, query, useRegex }: { dir: string; query: string; useRegex: boolean }) => {
       dir = validatePath(dir)
       const results: FindResult[] = []
       const MAX_RESULTS = 300
@@ -440,7 +390,7 @@ export const handlers: PluginHandlers = {
           if (results.length >= MAX_RESULTS) return
           if (e.name.startsWith('.') || SKIP_DIRS.has(e.name)) continue
           const p = path.join(dirPath, e.name)
-          e.isDirectory() ? walkDir(p) : searchFile(p)
+          if (e.isDirectory()) { walkDir(p) } else { searchFile(p) }
         }
       }
 
@@ -450,9 +400,9 @@ export const handlers: PluginHandlers = {
 
     // ── Recent files ───────────────────────────────────────────────────────
 
-    ipcMain.handle('editor:recent-get', () => getRecentFiles(settings))
+    registerHandler(ipcMain, 'editor:recent-get', () => getRecentFiles(settings))
 
-    ipcMain.handle('editor:recent-clear', () => {
+    registerHandler(ipcMain, 'editor:recent-clear', () => {
       settings.setJSON(RECENT_KEY, [])
       return { ok: true }
     })

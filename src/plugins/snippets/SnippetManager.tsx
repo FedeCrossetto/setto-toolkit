@@ -71,7 +71,7 @@ function parseContent(content: string): ContentBlock[] {
     if (match.index > lastIndex) {
       blocks.push({ type: 'text', value: content.slice(lastIndex, match.index) })
     }
-    blocks.push({ type: 'image', value: match[1] })
+    blocks.push({ type: 'image', value: match[1]! }) // capture group is required by the regex
     lastIndex = match.index + match[0].length
   }
   if (lastIndex < content.length) {
@@ -138,7 +138,7 @@ function ModalShell({ onClose, width = 'w-80', children }: { onClose: () => void
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function SnippetManager(): JSX.Element {
-  const { state } = useApp()
+  const { state, dispatch } = useApp()
   const { show: showToast } = useToast()
   const dark = state.theme === 'dark'
   const [snippets, setSnippets]       = useState<Snippet[]>([])
@@ -573,7 +573,6 @@ function getLangExtension(lang: SnippetLanguage) {
     case 'python':      return python()
     case 'xml':         return xml()
     case 'java':        return java()
-    case 'cpp':         return cpp()
     case 'csharp':      return cpp()
     default:            return null
   }

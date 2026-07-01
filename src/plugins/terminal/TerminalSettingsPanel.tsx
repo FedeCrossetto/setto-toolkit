@@ -76,7 +76,7 @@ export function TerminalSettingsPanel({ prefs, onChange }: Props): JSX.Element {
             'Consolas, monospace',
             '"Courier New", monospace',
           ].map((f) => (
-            <option key={f} value={f}>{f.split(',')[0].replace(/"/g, '')}</option>
+            <option key={f} value={f}>{f.split(',')[0]!.replace(/"/g, '')}</option>
           ))}
         </select>
       </div>

@@ -12,7 +12,7 @@ import {
   parseCurl, exportToCurl, parseFormPairs, serializeFormPairs,
   importCollectionFromJSON, extractTemplateVars, interpolateVars,
 } from './utils'
-import type { ActiveRequest, Collection, Environment, HttpMethod, BodyType, KeyValuePair, FormDataField } from './types'
+import type { ActiveRequest, Collection, Environment, HttpMethod, BodyType, KeyValuePair, FormDataField, HistoryEntry } from './types'
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 const METHOD_COLOR: Record<HttpMethod, string> = {
@@ -1289,7 +1289,7 @@ function EnvironmentPanel({ environments, onChange }: {
     if (activeId && activeId !== selectedId) {
       setSelectedId(activeId)
     } else if (!environments.find((e) => e.id === selectedId) && environments.length > 0) {
-      setSelectedId(environments[0].id)
+      setSelectedId(environments[0]!.id)
     }
   }, [environments]) // eslint-disable-line react-hooks/exhaustive-deps
 

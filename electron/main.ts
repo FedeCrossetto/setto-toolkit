@@ -7,12 +7,14 @@ import { AIService } from './core/services/ai.service'
 import { AuthService } from './core/services/auth.service'
 import { GastosStorageService } from './core/services/gastos-storage.service'
 import { initUpdater } from './core/services/updater.service'
+import { loadWindowState, trackWindowState } from './core/services/window-state.service'
 import { loadPlugins } from './core/plugin-loader'
 import { ipcMain } from 'electron'
 import { registerFileAssociations, getFileArgFromArgv } from './core/file-associations'
 import { logger } from './core/logger'
 
 let mainWindow: BrowserWindow | null = null
+let dbForWindowState: DatabaseService | null = null
 
 // File path queued by the OS before the renderer was ready to receive it.
 // The renderer pulls this via app:pending-file once React has mounted.
@@ -135,9 +137,12 @@ function getWindowIcon(): Electron.NativeImage | string {
 
 function createWindow(): void {
   rendererReady = false   // fresh window = renderer not ready until it calls app:pending-file
+  const savedBounds = dbForWindowState ? loadWindowState(dbForWindowState) : {}
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: savedBounds.width ?? 1400,
+    height: savedBounds.height ?? 900,
+    x: savedBounds.x,
+    y: savedBounds.y,
     minWidth: 900,
     minHeight: 600,
     frame: false,
@@ -167,6 +172,11 @@ function createWindow(): void {
     }
     return { action: 'deny' }
   })
+
+  if (dbForWindowState) trackWindowState(mainWindow, dbForWindowState)
+
+  // Restore maximized state after the window is fully created
+  if (savedBounds.maximized) mainWindow.maximize()
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
@@ -240,6 +250,7 @@ app.whenReady().then(() => {
 
   // Initialize core services
   const db = new DatabaseService()
+  dbForWindowState = db
   const settings = new SettingsService(db)
   const ai = new AIService(db, settings)
   const auth = new AuthService(db)

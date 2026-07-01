@@ -5,8 +5,7 @@ import { allPlugins } from '../plugin-registry'
 import { PluginIcon } from '../pluginIcons'
 import type { PluginManifest } from '../types'
 
-const PANEL_BG  = 'rgb(var(--c-sidebar))'
-const CORNER_R  = 16
+const PANEL_BG  = 'linear-gradient(180deg, rgb(var(--c-sidebar)) 0%, rgb(var(--c-sidebar) / 0.92) 60%, rgb(var(--c-sidebar) / 0.85) 100%)'
 
 // ── Logo ───────────────────────────────────────────────────────────────────────
 function AppLogo({ height = 56 }: { height?: number }): JSX.Element {
@@ -34,36 +33,31 @@ interface SidebarItemProps {
 }
 
 function SidebarItem({ plugin, active, collapsed, onClick }: SidebarItemProps): JSX.Element {
-  const h = collapsed ? 40 : 38
+  const h = collapsed ? 38 : 34
 
   return (
-    <div style={{ position: 'relative', marginBottom: 4 }}>
+    <div style={{ marginBottom: 2, paddingLeft: 8, paddingRight: 8 }}>
       <button
         onClick={onClick}
         title={plugin.name}
         style={{
-          height: h,
           display: 'flex',
           alignItems: 'center',
-          width: 'calc(100% - 16px)',
-          marginLeft: 8,
-          marginRight: 8,
+          width: '100%',
+          height: h,
           paddingLeft: collapsed ? 0 : 10,
           paddingRight: collapsed ? 0 : 10,
-          justifyContent: collapsed ? 'center' : undefined,
+          justifyContent: collapsed ? 'center' : 'flex-start',
           borderRadius: 12,
-          // Active = filled brand-gradient pill with a soft glow (CloudDock style)
-          background: active ? 'var(--gradient-brand)' : undefined,
-          boxShadow: active ? '0 4px 14px rgb(var(--c-primary) / 0.35)' : undefined,
-          position: 'relative',
-          zIndex: 1,
-          transition: 'background-color 180ms ease-out, color 180ms ease-out',
-          color: active ? 'rgb(var(--c-on-primary))' : 'rgba(255,255,255,0.45)',
+          border: 'none',
+          cursor: 'pointer',
+          background: active ? 'linear-gradient(90deg, #5347CE, #4896FE)' : 'transparent',
+          boxShadow: active ? '0 4px 14px rgb(var(--c-primary) / 0.40)' : 'none',
+          color: active ? '#fff' : 'rgba(255,255,255,0.45)',
+          transition: 'background 150ms ease-out, color 150ms ease-out, box-shadow 150ms ease-out',
         }}
-        className={[
-          'transition-colors duration-200',
-          !active && 'hover:!bg-white/[0.07] hover:!text-white/80',
-        ].filter(Boolean).join(' ')}
+        onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.07)' }}
+        onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
       >
         {/* Icon */}
         <PluginIcon
@@ -73,15 +67,21 @@ function SidebarItem({ plugin, active, collapsed, onClick }: SidebarItemProps): 
           style={{ color: 'inherit', transition: 'width 200ms, height 200ms, color 200ms' }}
         />
 
-        {/* Label */}
-        {!collapsed && (
-          <span
-            className="truncate text-[12px] select-none ml-3"
-            style={{ fontWeight: active ? 600 : 500, color: 'inherit' }}
-          >
-            {plugin.name}
-          </span>
-        )}
+        {/* Label — fades + collapses horizontally so the button shrinks smoothly */}
+        <span
+          className="truncate text-[12px] select-none ml-3"
+          style={{
+            fontWeight: active ? 600 : 500,
+            color: 'inherit',
+            maxWidth: collapsed ? 0 : 120,
+            opacity: collapsed ? 0 : 1,
+            overflow: 'hidden',
+            transition: 'max-width 200ms ease, opacity 150ms ease',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {plugin.name}
+        </span>
       </button>
     </div>
   )
@@ -104,9 +104,6 @@ export function Sidebar(): JSX.Element {
     state.activeTabId === pluginId ||
     state.openTabs.some(t => t.pluginId === pluginId && t.tabId === state.activeTabId)
 
-  const toggleTheme = (): void =>
-    dispatch({ type: 'SET_THEME', theme: state.theme === 'dark' ? 'light' : 'dark' })
-
   const outerW = collapsed ? 62 : 164
 
   return (
@@ -115,7 +112,7 @@ export function Sidebar(): JSX.Element {
       style={{ width: outerW, background: 'transparent' }}
     >
       <div
-        className="absolute flex flex-col"
+        className="absolute flex flex-col overflow-hidden"
         style={{
           top: 44,
           bottom: 30,
@@ -125,6 +122,15 @@ export function Sidebar(): JSX.Element {
           background: PANEL_BG,
         }}
       >
+
+        {/* Noise texture overlay — SVG turbulence, adds tactile depth to the flat panel */}
+        <svg aria-hidden className="pointer-events-none absolute inset-0 w-full h-full opacity-[0.035]" style={{ zIndex: 0 }}>
+          <filter id="sidebar-noise">
+            <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
+            <feColorMatrix type="saturate" values="0" />
+          </filter>
+          <rect width="100%" height="100%" filter="url(#sidebar-noise)" />
+        </svg>
 
         {/* ── Logo ──────────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-center mt-2 mb-1 flex-shrink-0 px-0">
@@ -146,8 +152,8 @@ export function Sidebar(): JSX.Element {
           className="relative flex flex-col flex-1 overflow-x-visible"
           style={{
             overflowY: 'auto',
-            paddingTop: CORNER_R,
-            paddingBottom: CORNER_R,
+            paddingTop: 6,
+            paddingBottom: 6,
           }}
         >
           {mainPlugins.map(plugin => (

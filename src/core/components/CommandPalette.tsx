@@ -81,11 +81,12 @@ export function CommandPalette(): JSX.Element | null {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center pt-24 bg-on-surface/20 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-start justify-center pt-24 bg-on-surface/30 backdrop-blur-md"
       onClick={() => dispatch({ type: 'CLOSE_COMMAND_PALETTE' })}
     >
       <div
-        className="cmd-palette-in w-full max-w-xl mx-4 rounded-2xl overflow-hidden border border-outline-variant/30 shadow-card-hover bg-surface"
+        className="cmd-palette-in w-full max-w-xl mx-4 rounded-2xl overflow-hidden border border-outline-variant/30 bg-surface"
+        style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.35), 0 4px 16px rgba(0,0,0,0.15)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search input */}
@@ -138,9 +139,19 @@ export function CommandPalette(): JSX.Element | null {
         {/* Footer */}
         <div className="px-4 py-2 border-t border-outline-variant/20 flex items-center justify-between gap-4 text-[10px] text-on-surface-variant uppercase tracking-wider">
           <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5"><CornerDownLeft size={11} /> Abrir</span>
-            <span className="flex items-center gap-1.5">↑↓ Navegar</span>
-            <span>ESC Cerrar</span>
+            <span className="flex items-center gap-1.5">
+              <kbd className="bg-surface-container px-1.5 py-0.5 rounded border border-outline-variant/30 normal-case tracking-normal"><CornerDownLeft size={10} /></kbd>
+              Abrir
+            </span>
+            <span className="flex items-center gap-1.5">
+              <kbd className="bg-surface-container px-1.5 py-0.5 rounded border border-outline-variant/30 normal-case tracking-normal">↑</kbd>
+              <kbd className="bg-surface-container px-1.5 py-0.5 rounded border border-outline-variant/30 normal-case tracking-normal">↓</kbd>
+              Navegar
+            </span>
+            <span className="flex items-center gap-1.5">
+              <kbd className="bg-surface-container px-1.5 py-0.5 rounded border border-outline-variant/30 normal-case tracking-normal">ESC</kbd>
+              Cerrar
+            </span>
           </div>
           <button
             type="button"

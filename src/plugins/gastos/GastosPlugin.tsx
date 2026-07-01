@@ -2,13 +2,13 @@ import { useState, useEffect, useCallback, useId, useRef, Fragment } from 'react
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Pencil, Trash2, Check, X, ChevronLeft, ChevronRight, Copy,
-  ToggleLeft, ToggleRight, TrendingUp, TrendingDown, Minus,
+  ToggleLeft, ToggleRight,
   Flame, Zap, Droplets, Wifi, Landmark, Receipt, Tv, Radio,
   Smartphone, Globe, Building2, Car, ShieldCheck, Dumbbell,
   BookOpen, CreditCard, Wrench, Utensils, Music,
-  Eye, EyeOff, Search, KeyRound, History, BarChart3, Wallet,
+  Eye, EyeOff, Search, KeyRound, History,
   RefreshCw, Loader2, Braces, FileCode2, Server, DatabaseZap, Table2, Cylinder, Package, Leaf,
-  Layers, CodeXml, Sparkles, CircleCheck, CircleAlert,
+  Layers, CodeXml, Sparkles, CircleAlert,
   type LucideIcon,
 } from 'lucide-react'
 import type { Servicio, PagoMensual, Credencial, QueryItem } from './types'
@@ -42,11 +42,11 @@ function fmt(n: number) {
 }
 
 const MESES_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-const MESES_LONG  = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
-function mesShort(mes: string) { return MESES_SHORT[parseInt(mes.split('-')[1]) - 1] }
+// "mes" is always "YYYY-MM" by app convention, so split('-') always yields 2 parts.
+function mesShort(mes: string) { return MESES_SHORT[parseInt(mes.split('-')[1]!) - 1] }
 function mesLabel(mes: string) {
-  const [y, m] = mes.split('-')
+  const [y, m] = mes.split('-') as [string, string]
   return `${MESES_SHORT[parseInt(m) - 1]} ${y}`
 }
 function monthsOfYear(year: number) {
@@ -54,12 +54,13 @@ function monthsOfYear(year: number) {
 }
 function availableYears(pagos: PagoMensual[]) {
   const cur = new Date().getFullYear()
-  const years = new Set(pagos.map((p) => parseInt(p.mes.split('-')[0])))
+  const years = new Set(pagos.map((p) => parseInt(p.mes.split('-')[0]!)))
   years.add(cur); years.add(cur - 1)
   return Array.from(years).sort((a, b) => b - a)
 }
 function prevMesStr(mes: string) {
-  const d = new Date(parseInt(mes.split('-')[0]), parseInt(mes.split('-')[1]) - 1 - 1, 1)
+  const [y, m] = mes.split('-') as [string, string]
+  const d = new Date(parseInt(y), parseInt(m) - 1 - 1, 1)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
@@ -128,7 +129,7 @@ function ServicioForm({ initial, categorias, onSave, onCancel }: {
   onSave: (s: Servicio) => void; onCancel: () => void
 }) {
   const [nombre,    setNombre]    = useState(initial?.nombre ?? '')
-  const [icon,      setIcon]      = useState(initial?.emoji ?? ICON_OPTIONS[0])
+  const [icon,      setIcon]      = useState(initial?.emoji ?? ICON_OPTIONS[0]!) // ICON_OPTIONS is a non-empty const list
   const [cuenta,    setCuenta]    = useState(initial?.numeroCuenta ?? '')
   const [categoria, setCategoria] = useState(initial?.categoria ?? '')
   const [catCustom, setCatCustom] = useState('')
@@ -345,232 +346,6 @@ function PagoForm({ servicios, initial, onSave, onCancel }: {
 
 // ── Dashboard components ──────────────────────────────────────────────────────
 
-function DeltaBadge({ delta }: { delta: number | null }) {
-  if (delta === null) return null
-  const pos = delta >= 0
-  const Icon = Math.abs(delta) < 0.1 ? Minus : pos ? TrendingUp : TrendingDown
-  return (
-    <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold ${
-      pos ? 'text-emerald-400' : 'text-rose-400'
-    }`}>
-      <Icon size={9} strokeWidth={2.5} />
-      {pos ? '+' : ''}{delta.toFixed(1)}%
-    </span>
-  )
-}
-
-function Sparkline({ data }: { data: number[] }) {
-  if (data.length < 2) return null
-  const W = 68, H = 26, pad = 2
-  const max = Math.max(...data, 1)
-  const pts = data.map((v, i) => {
-    const x = pad + (i / (data.length - 1)) * (W - pad * 2)
-    const y = H - pad - (v / max) * (H - pad * 2)
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  }).join(' ')
-  return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="shrink-0 opacity-60">
-      <polyline points={pts} fill="none" stroke="rgb(var(--c-primary))" strokeWidth="1.5"
-        strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function KpiCard({ label, value, sub, delta, sparkData }: {
-  label: string; value: string; sub?: string; delta?: number | null; sparkData?: number[]
-}) {
-  return (
-    <div className="ui-card px-4 pt-3.5 pb-3 flex flex-col gap-0">
-      <div className="mb-2 flex min-h-[26px] items-center justify-between gap-2">
-        <span className="text-[11px] text-on-surface-variant/55 font-medium leading-none">{label}</span>
-        {sparkData && sparkData.length >= 2 ? (
-          <Sparkline data={sparkData} />
-        ) : (
-          <span className="h-[26px] w-[68px] shrink-0" aria-hidden />
-        )}
-      </div>
-      <span className="text-[26px] font-bold text-on-surface tabular-nums tracking-tight leading-none">{value}</span>
-      <div className="flex items-center gap-2 mt-2 min-h-[14px]">
-        {delta !== undefined && delta !== null && <DeltaBadge delta={delta} />}
-        {sub && <span className="text-[10px] text-on-surface-variant/40 truncate">{sub}</span>}
-      </div>
-    </div>
-  )
-}
-
-/** Hex fills for SVG donut / legend (categorías) */
-const CAT_HEX: Record<string, string> = {
-  Casa: '#38bdf8', Depto: '#a78bfa', Streaming: '#fb7185',
-  Impuesto: '#fbbf24', Otro: '#94a3b8',
-}
-const DONUT_FALLBACK = ['#0ea5e9', '#2563eb', '#06b6d4', '#6366f1', '#3b82f6']
-
-function donutSegmentPath(
-  cx: number, cy: number, rOuter: number, rInner: number, a0: number, a1: number,
-) {
-  const large = a1 - a0 > Math.PI ? 1 : 0
-  const x0o = cx + rOuter * Math.cos(a0)
-  const y0o = cy + rOuter * Math.sin(a0)
-  const x1o = cx + rOuter * Math.cos(a1)
-  const y1o = cy + rOuter * Math.sin(a1)
-  const x0i = cx + rInner * Math.cos(a1)
-  const y0i = cy + rInner * Math.sin(a1)
-  const x1i = cx + rInner * Math.cos(a0)
-  const y1i = cy + rInner * Math.sin(a0)
-  return [
-    `M ${x0o} ${y0o}`,
-    `A ${rOuter} ${rOuter} 0 ${large} 1 ${x1o} ${y1o}`,
-    `L ${x0i} ${y0i}`,
-    `A ${rInner} ${rInner} 0 ${large} 0 ${x1i} ${y1i}`,
-    'Z',
-  ].join(' ')
-}
-
-function CategoryDonutCard({ servicios, pagos, year }: {
-  servicios: Servicio[]; pagos: PagoMensual[]; year: number
-}) {
-  const activoIds = new Set(servicios.filter((s) => s.activo).map((s) => s.id))
-  const pagosAnio = pagos.filter((p) => activoIds.has(p.servicioId) && p.mes.startsWith(`${year}-`))
-  const cats = Array.from(new Set(servicios.filter((s) => s.activo).map((s) => s.categoria)))
-
-  const rows = cats.map((cat) => {
-    const svcIds = new Set(servicios.filter((s) => s.activo && s.categoria === cat).map((s) => s.id))
-    const total = pagosAnio.filter((p) => svcIds.has(p.servicioId)).reduce((sum, p) => sum + p.monto, 0)
-    return { cat, total }
-  }).filter((c) => c.total > 0).sort((a, b) => b.total - a.total)
-
-  const sum = rows.reduce((s, r) => s + r.total, 0)
-  const top = rows[0]
-  const topPct = sum > 0 && top ? Math.round((top.total / sum) * 100) : 0
-
-  const cx = 100, cy = 100, rO = 78, rI = 48
-  let angle = -Math.PI / 2
-  const paths: { d: string; fill: string; key: string }[] = []
-  rows.forEach((r, i) => {
-    const sweep = (r.total / sum) * Math.PI * 2
-    const a0 = angle
-    const a1 = angle + sweep
-    const fill = CAT_HEX[r.cat] ?? DONUT_FALLBACK[i % DONUT_FALLBACK.length]
-    paths.push({ d: donutSegmentPath(cx, cy, rO, rI, a0, a1), fill, key: r.cat })
-    angle = a1
-  })
-
-  return (
-    <div className="ui-card flex min-h-[260px] flex-col overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between border-b border-outline-variant/10 px-4 py-3">
-        <span className="text-sm font-semibold text-on-surface">Por categoría</span>
-        <span className="rounded-full border border-outline-variant/15 px-2 py-0.5 text-[10px] font-medium tabular-nums text-on-surface-variant/40">
-          {year}
-        </span>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-4 py-4">
-        {rows.length === 0 || sum <= 0 ? (
-          <span className="text-xs text-on-surface-variant/40">Sin datos</span>
-        ) : (
-          <>
-            <div className="relative h-[168px] w-[168px] shrink-0">
-              <svg viewBox="0 0 200 200" className="h-full w-full drop-shadow-sm">
-                <g className="origin-center transition-transform hover:scale-[1.02]">
-                  {paths.map((p) => (
-                    <path key={p.key} d={p.d} fill={p.fill} className="stroke-surface-container" strokeWidth={2} strokeLinejoin="round" />
-                  ))}
-                </g>
-              </svg>
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-1">
-                <div className="flex max-w-[min(112px,90%)] flex-col items-center justify-center text-center leading-none">
-                  <span className="text-[20px] font-bold tabular-nums tracking-tight text-on-surface">
-                    {topPct}%
-                  </span>
-                  <span className="mt-1 max-w-full truncate text-[10px] font-medium leading-tight text-on-surface-variant/55" title={top?.cat}>
-                    {top?.cat ?? '—'}
-                  </span>
-                  <span className="mt-0.5 text-[9px] leading-tight text-on-surface-variant/38">mayor rubro</span>
-                </div>
-              </div>
-            </div>
-            <div className="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t border-outline-variant/10 pt-3">
-              {rows.map((r, i) => (
-                <div key={r.cat} className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: CAT_HEX[r.cat] ?? DONUT_FALLBACK[i % DONUT_FALLBACK.length] }} />
-                  <span className="text-[11px] text-on-surface-variant/70">{r.cat}</span>
-                  <span className="text-[10px] font-mono tabular-nums text-on-surface-variant/45">
-                    {sum > 0 ? `${Math.round((r.total / sum) * 100)}%` : '0%'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
-
-const TRAFFIC_BAR_TONES = [
-  'from-sky-500/90 to-sky-400/50',
-  'from-blue-600/85 to-blue-500/45',
-  'from-cyan-500/80 to-cyan-400/45',
-  'from-indigo-500/85 to-indigo-400/50',
-  'from-primary/80 to-primary/40',
-  'from-sky-600/75 to-violet-400/40',
-]
-
-function TopServicesTrafficCard({ servicios, pagos, year }: {
-  servicios: Servicio[]; pagos: PagoMensual[]; year: number
-}) {
-  const activoIds = new Set(servicios.filter((s) => s.activo).map((s) => s.id))
-  const top = servicios
-    .filter((s) => s.activo)
-    .map((s) => ({
-      svc: s,
-      total: pagos.filter((p) => activoIds.has(p.servicioId) && p.mes.startsWith(`${year}-`) && p.servicioId === s.id)
-        .reduce((sum, p) => sum + p.monto, 0),
-    }))
-    .filter((s) => s.total > 0)
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 6)
-
-  const max = Math.max(...top.map((s) => s.total), 1)
-
-  return (
-    <div className="ui-card flex min-h-[260px] flex-1 flex-col overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between border-b border-outline-variant/10 px-4 py-3">
-        <span className="text-sm font-semibold text-on-surface">Top gastos por servicio</span>
-        <span className="rounded-full border border-outline-variant/15 px-2 py-0.5 text-[10px] tabular-nums text-on-surface-variant/40">
-          {year}
-        </span>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col justify-center gap-3.5 overflow-y-auto px-4 py-4">
-        {top.length === 0 ? (
-          <span className="text-center text-xs text-on-surface-variant/40">Sin datos</span>
-        ) : (
-          top.map(({ svc, total }, i) => (
-            <div key={svc.id} className="flex items-start gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-surface shadow-sm">
-                <ServiceIcon icon={svc.emoji} size={14} className="text-on-surface-variant/65" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="mb-1.5 flex items-baseline justify-between gap-2">
-                  <span className="truncate text-[12px] font-medium text-on-surface/90">{svc.nombre}</span>
-                  <span className="shrink-0 font-mono text-[11px] tabular-nums font-semibold text-on-surface-variant/70">
-                    ${fmt(total)}
-                  </span>
-                </div>
-                <div className="h-[5px] overflow-hidden rounded-full bg-surface">
-                  <div
-                    className={['h-full rounded-full bg-gradient-to-r transition-all duration-500', TRAFFIC_BAR_TONES[i % TRAFFIC_BAR_TONES.length]].join(' ')}
-                    style={{ width: `${(total / max) * 100}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  )
-}
-
 function PendingBadge({ pagos, servicios }: { pagos: PagoMensual[]; servicios: Servicio[] }) {
   const activoIds = new Set(servicios.filter((s) => s.activo).map((s) => s.id))
   const pending = pagos.filter((p) => activoIds.has(p.servicioId) && !p.pagado).length
@@ -614,17 +389,18 @@ function MonthlyAreaChart({ months, totals, highlightMes, selectedMes, onSelectM
 
   function smoothPath(points: { x: number; y: number }[]) {
     if (points.length < 2) return ''
-    let d = `M ${points[0].x} ${points[0].y}`
+    let d = `M ${points[0]!.x} ${points[0]!.y}`
     for (let i = 1; i < points.length; i++) {
-      const cp = (points[i - 1].x + points[i].x) / 2
-      d += ` C ${cp} ${points[i - 1].y} ${cp} ${points[i].y} ${points[i].x} ${points[i].y}`
+      const cp = (points[i - 1]!.x + points[i]!.x) / 2
+      d += ` C ${cp} ${points[i - 1]!.y} ${cp} ${points[i]!.y} ${points[i]!.x} ${points[i]!.y}`
     }
     return d
   }
 
   const line = smoothPath(pts)
   // Extend line horizontally to both edges at the same Y as first/last point → no blank space
-  const first = pts[0], last = pts[pts.length - 1]
+  // pts always has 12 entries (one per month of monthsOfYear()), so [0] and [length-1] are safe.
+  const first = pts[0]!, last = pts[pts.length - 1]!
   const lineFull = `M 0 ${first.y} L ${first.x} ${first.y} ${line.slice(line.indexOf(' '))} L ${W} ${last.y}`
   const area = `${lineFull} L ${W} ${H} L 0 ${H} Z`
   const active   = hovered ?? selectedMes
@@ -831,9 +607,9 @@ function RecentPayments({ servicios, pagos, onEdit, mesDetalle }: {
 
 // ── Dashboard View ────────────────────────────────────────────────────────────
 
-function DashboardView({ servicios, pagos, year, onEditPago, onDeletePago }: {
+function DashboardView({ servicios, pagos, year, onEditPago }: {
   servicios: Servicio[]; pagos: PagoMensual[]; year: number
-  onEditPago: (p: PagoMensual) => void; onDeletePago: (id: string) => void
+  onEditPago: (p: PagoMensual) => void
 }) {
   const activoIds = new Set(servicios.filter((s) => s.activo).map((s) => s.id))
   const pagosReales = pagos.filter((p) => activoIds.has(p.servicioId))
@@ -890,14 +666,14 @@ function DashboardView({ servicios, pagos, year, onEditPago, onDeletePago }: {
         const totalPendiente = pendientes.reduce((s, p) => s + p.monto, 0)
         return (
           <div className="flex shrink-0 gap-3 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
-            {/* Total anual — primary blue */}
-            <div className="ui-card min-w-[148px] flex-1 p-4">
+            {/* Total anual */}
+            <div className="kpi-glow-primary min-w-[148px] flex-1 p-4 rounded-2xl" style={{ background: 'rgb(var(--c-surface-container) / 0.6)', backdropFilter: 'blur(8px)', borderTop: '2px solid rgb(var(--c-primary) / 0.7)', border: '1px solid rgb(var(--c-outline-variant) / 0.2)', borderTopWidth: 2, borderTopColor: 'rgb(var(--c-primary) / 0.7)' }}>
               <div className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60">Total Anual</div>
-              <div className="mt-1.5 text-xl font-bold tabular-nums text-on-surface">${fmt(totalAnual)}</div>
+              <div className="mt-1.5 text-xl font-bold tabular-nums" style={{ color: 'rgb(var(--c-primary))' }}>${fmt(totalAnual)}</div>
               <div className="mt-2 text-[9px] text-on-surface-variant/40">{year} · activos</div>
             </div>
             {/* Mes actual */}
-            <div className="ui-card min-w-[148px] flex-1 p-4">
+            <div className="kpi-glow-accent min-w-[148px] flex-1 p-4 rounded-2xl" style={{ background: 'rgb(var(--c-surface-container) / 0.6)', backdropFilter: 'blur(8px)', border: '1px solid rgb(var(--c-outline-variant) / 0.2)', borderTopWidth: 2, borderTopColor: 'rgb(var(--c-accent) / 0.7)' }}>
               <div className="flex items-center gap-1.5">
                 <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60">Mes Actual</span>
                 {mesDetalle && (
@@ -905,7 +681,7 @@ function DashboardView({ servicios, pagos, year, onEditPago, onDeletePago }: {
                 )}
               </div>
               <div className="mt-1.5 flex items-baseline gap-1.5">
-                <span className="text-xl font-bold tabular-nums text-on-surface">${fmt(curTotal)}</span>
+                <span className="text-xl font-bold tabular-nums" style={{ color: 'rgb(var(--c-accent))' }}>${fmt(curTotal)}</span>
                 {delta !== null && (
                   <span className={`text-[9px] font-bold ${delta > 0 ? 'text-[#f87171]' : 'text-[#a3e635]'}`}>
                     {delta > 0 ? '+' : ''}{delta.toFixed(0)}%
@@ -915,15 +691,15 @@ function DashboardView({ servicios, pagos, year, onEditPago, onDeletePago }: {
               <div className="mt-2 text-[9px] text-on-surface-variant/40">vs anterior ${fmt(prevTotal)}</div>
             </div>
             {/* Promedio */}
-            <div className="ui-card min-w-[148px] flex-1 p-4">
+            <div className="kpi-glow-orange min-w-[148px] flex-1 p-4 rounded-2xl" style={{ background: 'rgb(var(--c-surface-container) / 0.6)', backdropFilter: 'blur(8px)', border: '1px solid rgb(var(--c-outline-variant) / 0.2)', borderTopWidth: 2, borderTopColor: 'rgba(251,146,60,0.7)' }}>
               <div className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60">Promedio</div>
-              <div className="mt-1.5 text-xl font-bold tabular-nums text-on-surface">${fmt(promedio)}</div>
+              <div className="mt-1.5 text-xl font-bold tabular-nums text-[#fb923c]">${fmt(promedio)}</div>
               <div className="mt-2 text-[9px] text-on-surface-variant/40">{mesesConDatos} meses con datos</div>
             </div>
             {/* Pendientes */}
-            <div className="ui-card min-w-[148px] flex-1 p-4">
+            <div className="kpi-glow-error min-w-[148px] flex-1 p-4 rounded-2xl" style={{ background: 'rgb(var(--c-surface-container) / 0.6)', backdropFilter: 'blur(8px)', border: '1px solid rgb(var(--c-outline-variant) / 0.2)', borderTopWidth: 2, borderTopColor: 'rgb(var(--c-error) / 0.7)' }}>
               <div className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60">Pendientes</div>
-              <div className="mt-1.5 text-xl font-bold tabular-nums text-on-surface">
+              <div className="mt-1.5 text-xl font-bold tabular-nums" style={{ color: pendientes.length > 0 ? 'rgb(var(--c-error))' : 'rgb(var(--c-on-surface))' }}>
                 {pendientes.length > 0 ? `$${fmt(totalPendiente)}` : '—'}
               </div>
               <div className="mt-2 text-[9px] text-on-surface-variant/40">
@@ -993,7 +769,8 @@ function DashboardView({ servicios, pagos, year, onEditPago, onDeletePago }: {
                   </div>
                   <div className="flex flex-col gap-3.5">
                     {topItems.map((item) => {
-                      const pct = svcTotals[0]?.total > 0 ? (item.total / svcTotals[0].total) * 100 : 0
+                      const topTotal = svcTotals[0]?.total ?? 0
+                      const pct = topTotal > 0 ? (item.total / topTotal) * 100 : 0
                       return (
                         <div key={item.svc.id} className="space-y-1.5">
                           <div className="flex items-center justify-between text-[11px]">
@@ -1118,7 +895,7 @@ function TablaGastos({ servicios, pagos, year, onEditPago, onDeletePago }: {
         rows.push(`| ${s.nombre} | ${cells.join(' | ')} | $${fmt(tot)} |`)
       }
     }
-    const tc = months.map((m) => totalesMes[m] > 0 ? `**$${fmt(totalesMes[m])}**` : '-')
+    const tc = months.map((m) => (totalesMes[m] ?? 0) > 0 ? `**$${fmt(totalesMes[m]!)}**` : '-')
     rows.push(`| **TOTAL** | ${tc.join(' | ')} | **$${fmt(totalAnual)}** |`)
     return `## Gastos ${year}\n\n${h}\n${sep}\n${rows.join('\n')}`
   }
@@ -1230,8 +1007,8 @@ function TablaGastos({ servicios, pagos, year, onEditPago, onDeletePago }: {
               <td className="px-3 py-2.5 text-xs font-bold text-on-surface uppercase tracking-wide sticky left-0 bg-surface">Total</td>
               {months.map((mes) => (
                 <td key={mes} className="px-2 py-2.5 text-right">
-                  {totalesMes[mes] > 0
-                    ? <span className="text-xs font-semibold font-mono tabular-nums text-on-surface">${fmt(totalesMes[mes])}</span>
+                  {(totalesMes[mes] ?? 0) > 0
+                    ? <span className="text-xs font-semibold font-mono tabular-nums text-on-surface">${fmt(totalesMes[mes]!)}</span>
                     : <span className="text-on-surface-variant/20 text-xs">—</span>}
                 </td>
               ))}
@@ -1679,7 +1456,7 @@ const MOTOR_EDITOR: Record<string, MotorEditorTheme> = {
 }
 
 function getMotorEditor(motor: string): MotorEditorTheme {
-  return MOTOR_EDITOR[motor] ?? MOTOR_EDITOR['Otro']
+  return MOTOR_EDITOR[motor] ?? MOTOR_EDITOR['Otro']! // 'Otro' is always a defined key
 }
 
 function motorCls(motor: string) {
@@ -1689,7 +1466,7 @@ function motorCls(motor: string) {
 function QueryForm({ initial, onSave, onCancel }: {
   initial?: Partial<QueryItem>; onSave: (q: QueryItem) => void; onCancel: () => void
 }) {
-  const [motor,       setMotor]       = useState(initial?.motor ?? MOTORS[0])
+  const [motor,       setMotor]       = useState(initial?.motor ?? MOTORS[0]!) // MOTORS is a non-empty const list
   const [descripcion, setDescripcion] = useState(initial?.descripcion ?? '')
   const [query,       setQuery]       = useState(initial?.query ?? '')
   const [tagsRaw,     setTagsRaw]     = useState((initial?.tags ?? []).join(' '))
@@ -1948,8 +1725,21 @@ function friendlyGastosError(raw: string): string {
   return cleaned.length > 200 ? `${cleaned.slice(0, 200)}…` : cleaned
 }
 
-const LAST_SYNCED_KEY = 'gastos:last-synced-at'
+const LAST_SYNCED_KEY  = 'gastos:last-synced-at'
+const CACHE_KEY        = 'gastos:cached-data'
 type SyncState = 'idle' | 'pending' | 'syncing' | 'error'
+
+function saveCache(data: { servicios: Servicio[]; pagos: PagoMensual[]; credenciales: Credencial[]; queries: QueryItem[] }): void {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)) } catch { /* ignore quota errors */ }
+}
+
+function loadCache(): { servicios: Servicio[]; pagos: PagoMensual[]; credenciales: Credencial[]; queries: QueryItem[] } | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as { servicios: Servicio[]; pagos: PagoMensual[]; credenciales: Credencial[]; queries: QueryItem[] }
+  } catch { return null }
+}
 
 export function GastosPlugin() {
   const toast = useToast()
@@ -1964,6 +1754,7 @@ export function GastosPlugin() {
   const [boardView,    setBoardView]    = useState<BoardView>('dashboard')
   const [activeBoard,  setActiveBoard]  = useState<ActiveBoard>('gastos')
   const [syncState,    setSyncState]    = useState<SyncState>('idle')
+  const [offline,      setOffline]      = useState(false)
   // Escrituras que fallaron contra Supabase (red caída, proyecto pausado) — el botón
   // Sync las reintenta antes de chequear si hay que traer cambios remotos (pull).
   const pendingWritesRef = useRef<Array<() => Promise<void>>>([])
@@ -1987,9 +1778,22 @@ export function GastosPlugin() {
       const qs = await window.api.invoke<QueryItem[]>('queries:load')
       setQueries((qs ?? []).sort((a, b) => a.orden - b.orden))
       localStorage.setItem(LAST_SYNCED_KEY, new Date().toISOString())
+      setOffline(false)
+      saveCache({ servicios: serviciosSorted, pagos: relleno.length !== existentes.length ? relleno : existentes, credenciales: (data.credenciales ?? []).sort((a, b) => a.orden - b.orden), queries: (qs ?? []).sort((a, b) => a.orden - b.orden) })
     } catch (e) {
       const raw = String(e)
-      setError(friendlyGastosError(raw))
+      // Try to show cached data so the user isn't left with a blank screen
+      const cached = loadCache()
+      if (cached) {
+        setServicios(cached.servicios)
+        setPagos(cached.pagos)
+        setCredenciales(cached.credenciales)
+        setQueries(cached.queries)
+        setOffline(true)
+        setError(null)
+      } else {
+        setError(friendlyGastosError(raw))
+      }
     } finally {
       setLoading(false)
     }
@@ -2143,6 +1947,15 @@ export function GastosPlugin() {
         </div>
       )}
 
+      {/* Offline banner — datos del caché local, Supabase no disponible */}
+      {offline && (
+        <div className="shrink-0 flex items-center gap-2.5 mx-3 mt-3 px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-400 text-xs">
+          <CircleAlert size={14} className="flex-shrink-0" />
+          <span className="flex-1">Modo offline — mostrando datos de la última sesión. Revisá tu conexión y usá Sync para actualizar.</span>
+          <button onClick={() => void load()} aria-label="Reintentar" className="flex-shrink-0 font-medium hover:opacity-70 transition-opacity">Reintentar</button>
+        </div>
+      )}
+
       {/* ── Board tabs ──────────────────────────────────────────────────── */}
       <div className="flex items-center gap-0 px-4 py-2 border-b border-outline-variant/20 shrink-0">
         <SegmentedControl
@@ -2270,7 +2083,6 @@ export function GastosPlugin() {
           <DashboardView
             servicios={servicios} pagos={pagos} year={year}
             onEditPago={(p) => setPanel({ type: 'edit-pago', pago: p })}
-            onDeletePago={deletePago}
           />
         )}
         {activeBoard === 'gastos' && boardView === 'tabla' && (

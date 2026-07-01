@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowRight, Plus, Search, Sparkles, SquareStack, X } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
@@ -6,6 +6,7 @@ import { allPlugins } from '../../core/plugin-registry'
 import { PluginIcon } from '../../core/pluginIcons'
 import { Badge } from '../../core/components/Badge'
 import { detectLanguage, languageIcon } from '../file-editor/hooks/useEditorTabs'
+import type { FileLanguage } from '../file-editor/types'
 import type { PluginManifest } from '../../core/types'
 
 const ONBOARDING_DISMISSED_KEY = 'dashboard:onboarding-dismissed'
@@ -54,19 +55,38 @@ function MascotAvatar({ pluginId, icon, mascot }: {
 // Compact table-style row: mascot thumbnail + name + description on one line.
 // Replaces the old big illustrated tile — far less vertical space per tool.
 function ToolRow({ plugin, onOpen, mascot }: { plugin: PluginManifest; onOpen: () => void; mascot: 'panda' | 'setto-avatar' }): JSX.Element {
+  const ref = useRef<HTMLButtonElement>(null)
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>): void => {
+    const el = ref.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const x = (e.clientX - rect.left) / rect.width  - 0.5
+    const y = (e.clientY - rect.top)  / rect.height - 0.5
+    el.style.transform = `perspective(500px) rotateY(${x * 6}deg) rotateX(${-y * 4}deg) translateY(-1px)`
+  }
+
+  const handleMouseLeave = (): void => {
+    if (ref.current) ref.current.style.transform = ''
+  }
+
   return (
     <button
+      ref={ref}
       onClick={onOpen}
-      className="relative w-full flex items-center gap-3.5 pl-4 pr-3.5 py-3 text-left rounded-2xl backdrop-blur-sm transition-all duration-150 group overflow-hidden
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      className="relative w-full flex items-center gap-3.5 pl-4 pr-3.5 py-3 text-left rounded-2xl backdrop-blur-sm transition-[box-shadow,border-color,background-color] duration-150 group overflow-hidden
         bg-surface dark:bg-surface-container border border-outline-variant/25 dark:border-outline-variant/30
         shadow-[0_1px_2px_rgba(0,0,0,0.05)] dark:shadow-[0_2px_6px_rgba(0,0,0,0.18)]
-        hover:-translate-y-[1px] hover:bg-surface-container-high hover:shadow-[0_8px_16px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_10px_22px_rgba(0,0,0,0.3)] hover:border-primary/25"
+        hover:bg-surface-container-high hover:shadow-[0_8px_16px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_10px_22px_rgba(0,0,0,0.3)] hover:border-primary/25"
+      style={{ willChange: 'transform', transformStyle: 'preserve-3d' }}
     >
       <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[3px] bg-primary/0 group-hover:bg-primary/50 transition-colors" />
       <MascotAvatar pluginId={plugin.id} icon={plugin.icon} mascot={mascot} />
       <div className="min-w-0 flex-1 flex flex-col gap-0.5">
         <p className="text-[14px] font-semibold text-on-surface leading-tight">{plugin.name}</p>
-        <p className="text-[11.5px] text-on-surface-variant/50 truncate">{plugin.description}</p>
+        <p className="text-[11.5px] text-on-surface-variant/70 truncate">{plugin.description}</p>
       </div>
       <ArrowRight
         size={16}
@@ -155,9 +175,19 @@ function ToolGrid({ tools, openTool, mascot }: {
             </div>
 
             {/* Compact rows — each its own subtly-floating mini card, not a glued table */}
-            <div className="flex flex-col gap-2">
+            <motion.div
+              className="flex flex-col gap-2"
+              initial="hidden"
+              animate="visible"
+              variants={{ visible: { transition: { staggerChildren: 0.055 } } }}
+            >
               {plugins.map((plugin) => (
-                <ToolRow key={plugin.id} plugin={plugin} onOpen={() => openTool(plugin.id)} mascot={mascot} />
+                <motion.div
+                  key={plugin.id}
+                  variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: 'easeOut' } } }}
+                >
+                  <ToolRow plugin={plugin} onOpen={() => openTool(plugin.id)} mascot={mascot} />
+                </motion.div>
               ))}
 
               {/* Add plugin row — only in the last section */}
@@ -175,7 +205,7 @@ function ToolGrid({ tools, openTool, mascot }: {
                   </p>
                 </div>
               )}
-            </div>
+            </motion.div>
           </div>
         )
       })}
@@ -187,11 +217,16 @@ function ToolGrid({ tools, openTool, mascot }: {
 function Card({ children, className = '', noPad = false }: { children: React.ReactNode; className?: string; noPad?: boolean }): JSX.Element {
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl backdrop-blur-sm transition-all duration-200
-        dark:shadow-[0_2px_8px_rgba(0,0,0,0.25)] shadow-[0_1px_3px_rgba(0,0,0,0.06)]
-        hover:-translate-y-[2px] dark:hover:shadow-[0_14px_30px_rgba(0,0,0,0.35)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.1)]
+      className={`relative overflow-hidden rounded-2xl transition-all duration-200
+        shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.25)]
+        hover:-translate-y-[2px] hover:shadow-[0_8px_20px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_14px_30px_rgba(0,0,0,0.35)]
         ${noPad ? '' : 'p-4'} ${className}`}
-      style={{ background: 'rgb(var(--c-surface))', border: '1px solid rgb(var(--c-outline-variant) / 0.35)' }}
+      style={{
+        background: 'rgb(var(--c-surface) / 0.75)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: '1px solid rgb(var(--c-outline-variant) / 0.30)',
+      }}
     >
       {children}
     </div>
@@ -398,12 +433,12 @@ function ActivityCard({ recents, onOpen }: { recents: RecentEntry[]; onOpen: (pa
   // Most common language among recent files — a different kind of metric (mode, not a count)
   const topLanguage = useMemo(() => {
     if (recents.length === 0) return null
-    const counts = new Map<string, number>()
+    const counts = new Map<FileLanguage, number>()
     for (const r of recents) {
       const lang = detectLanguage(r.name)
       counts.set(lang, (counts.get(lang) ?? 0) + 1)
     }
-    const [lang] = Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]
+    const [lang] = Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]! // recents.length > 0 guarantees a non-empty map
     return lang
   }, [recents])
 
@@ -478,7 +513,7 @@ export function Dashboard(): JSX.Element {
   // Optional personalization — only if the user actually signed in with Google somewhere in the app
   useEffect(() => {
     window.api.invoke<{ name: string } | null>('auth:google-user').then((u) => {
-      if (u?.name) setUserName(u.name.split(' ')[0])
+      if (u?.name) setUserName(u.name.split(' ')[0]!)
     }).catch(() => { /* ignore */ })
   }, [])
 

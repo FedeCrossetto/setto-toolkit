@@ -1,5 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type ComponentType } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { CheckCircle2, CircleAlert, Info, TriangleAlert, X } from 'lucide-react'
+import type { IconComponent } from '../types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -28,7 +29,7 @@ export function useToast(): ToastContextValue {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const ICON: Record<ToastType, ComponentType<{ size?: number; className?: string }>> = {
+const ICON: Record<ToastType, IconComponent> = {
   success: CheckCircle2,
   error:   CircleAlert,
   warning: TriangleAlert,
@@ -88,9 +89,15 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
         'relative flex items-start gap-3 pl-5 pr-4 py-3 rounded-xl border shadow-xl text-sm font-medium overflow-hidden',
         'transition-all duration-300 ease-out',
         COLOR[toast.type],
-        visible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-6',
+        visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3',
       ].join(' ')}
-      style={{ minWidth: '260px', maxWidth: '400px' }}
+      style={{
+        minWidth: '260px',
+        maxWidth: '400px',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.28), 0 2px 8px rgba(0,0,0,0.14)',
+      }}
     >
       {/* Left accent stripe */}
       <span aria-hidden className={`absolute left-0 top-0 bottom-0 w-1 ${ACCENT[toast.type]}`} />

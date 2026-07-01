@@ -6,16 +6,13 @@ import type { IpcMain } from 'electron'
 import type { PluginHandlers, CoreServices } from '../../core/types'
 import type { Collection, HttpRequest, HistoryEntry, Environment, HttpResponse, FormDataField } from '../../../src/plugins/api-tester/types'
 import { randomUUID } from 'crypto'
+import { registerHandler } from '../../core/ipc-handler'
+import { interpolate, sanitizeHeader, assertNotPrivateHost, isPrivateAddress } from './request-utils'
 
 const COLLECTIONS_FILE = 'api-tester-collections.json'
 const HISTORY_FILE     = 'api-tester-history.json'
 const ENVS_FILE        = 'api-tester-environments.json'
 const MAX_HISTORY      = 50
-
-/** Replace {{varName}} tokens in a string using the active environment */
-function interpolate(str: string, vars: Record<string, string>): string {
-  return str.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? `{{${k}}}`)
-}
 
 const MULTIPART_BOUNDARY = '----SettoBoundary'
 
@@ -58,28 +55,6 @@ function buildFormDataBody(
 }
 
 
-// ── SSRF guard ────────────────────────────────────────────────────────────────
-
-const PRIVATE_IP_PATTERNS = [
-  /^127\./,                          // loopback
-  /^0\.0\.0\.0$/,                    // unspecified
-  /^10\./,                           // RFC 1918
-  /^172\.(1[6-9]|2\d|3[01])\./,     // RFC 1918
-  /^192\.168\./,                     // RFC 1918
-  /^169\.254\./,                     // link-local / AWS metadata
-  /^::1$/,                           // IPv6 loopback
-  /^fc00:/i,                         // IPv6 ULA
-  /^fe80:/i,                         // IPv6 link-local
-]
-
-function assertNotPrivateHost(urlObj: URL): void {
-  const host = urlObj.hostname.toLowerCase()
-  if (host === 'localhost') throw new Error('SSRF: requests to localhost are not allowed')
-  if (PRIVATE_IP_PATTERNS.some((re) => re.test(host))) {
-    throw new Error(`SSRF: requests to private/internal addresses are not allowed (${host})`)
-  }
-}
-
 /**
  * DNS rebinding guard: resolves the hostname to its actual IP and re-checks.
  * Prevents attacks where a public DNS name resolves to a private IP.
@@ -95,7 +70,7 @@ async function assertNotPrivateDns(urlObj: URL): Promise<void> {
         err ? reject(err) : resolve({ address, family })
       )
     )
-    if (PRIVATE_IP_PATTERNS.some((re) => re.test(address))) {
+    if (isPrivateAddress(address)) {
       throw new Error(`SSRF: hostname "${host}" resolves to a private address (${address})`)
     }
   } catch (err) {
@@ -103,12 +78,6 @@ async function assertNotPrivateDns(urlObj: URL): Promise<void> {
     // DNS resolution failure — let the request proceed and fail naturally
   }
 }
-
-/** Strip CR/LF characters from a header name or value to prevent HTTP header injection */
-function sanitizeHeader(value: string): string {
-  return value.replace(/[\r\n]/g, '')
-}
-
 
 // ── HTTP executor (Node http/https — works on all Electron versions, ──────────
 //    gives real error codes like ECONNREFUSED instead of "fetch failed") ───────
@@ -180,16 +149,16 @@ export const handlers: PluginHandlers = {
 
     // ── Collections ────────────────────────────────────────────────────────
 
-    ipcMain.handle('api-tester:collections-get', () => {
+    registerHandler(ipcMain, 'api-tester:collections-get', () => {
       return db.readJSON<Collection[]>(COLLECTIONS_FILE) ?? []
     })
 
-    ipcMain.handle('api-tester:collections-save', (_e, collections: Collection[]) => {
+    registerHandler(ipcMain, 'api-tester:collections-save', (_e, collections: Collection[]) => {
       db.writeJSON(COLLECTIONS_FILE, collections)
       return { ok: true }
     })
 
-    ipcMain.handle('api-tester:collection-create', (_e, name: string) => {
+    registerHandler(ipcMain, 'api-tester:collection-create', (_e, name: string) => {
       const collections = db.readJSON<Collection[]>(COLLECTIONS_FILE) ?? []
       const col: Collection = {
         id: randomUUID(), name, requests: [],
@@ -201,13 +170,13 @@ export const handlers: PluginHandlers = {
       return col
     })
 
-    ipcMain.handle('api-tester:collection-delete', (_e, collectionId: string) => {
+    registerHandler(ipcMain, 'api-tester:collection-delete', (_e, collectionId: string) => {
       const collections = db.readJSON<Collection[]>(COLLECTIONS_FILE) ?? []
       db.writeJSON(COLLECTIONS_FILE, collections.filter((c) => c.id !== collectionId))
       return { ok: true }
     })
 
-    ipcMain.handle('api-tester:request-save', (_e, request: HttpRequest) => {
+    registerHandler(ipcMain, 'api-tester:request-save', (_e, request: HttpRequest) => {
       const collections = db.readJSON<Collection[]>(COLLECTIONS_FILE) ?? []
       const col = collections.find((c) => c.id === request.collectionId)
       if (!col) throw new Error(`Collection ${request.collectionId} not found`)
@@ -223,7 +192,7 @@ export const handlers: PluginHandlers = {
       return col
     })
 
-    ipcMain.handle('api-tester:request-delete', (_e, collectionId: string, requestId: string) => {
+    registerHandler(ipcMain, 'api-tester:request-delete', (_e, collectionId: string, requestId: string) => {
       const collections = db.readJSON<Collection[]>(COLLECTIONS_FILE) ?? []
       const col = collections.find((c) => c.id === collectionId)
       if (col) {
@@ -236,22 +205,22 @@ export const handlers: PluginHandlers = {
 
     // ── Environments ───────────────────────────────────────────────────────
 
-    ipcMain.handle('api-tester:environments-get', () => {
+    registerHandler(ipcMain, 'api-tester:environments-get', () => {
       return db.readJSON<Environment[]>(ENVS_FILE) ?? []
     })
 
-    ipcMain.handle('api-tester:environments-save', (_e, envs: Environment[]) => {
+    registerHandler(ipcMain, 'api-tester:environments-save', (_e, envs: Environment[]) => {
       db.writeJSON(ENVS_FILE, envs)
       return { ok: true }
     })
 
     // ── History ────────────────────────────────────────────────────────────
 
-    ipcMain.handle('api-tester:history-get', () => {
+    registerHandler(ipcMain, 'api-tester:history-get', () => {
       return db.readJSON<HistoryEntry[]>(HISTORY_FILE) ?? []
     })
 
-    ipcMain.handle('api-tester:history-clear', () => {
+    registerHandler(ipcMain, 'api-tester:history-clear', () => {
       db.writeJSON(HISTORY_FILE, [])
       return { ok: true }
     })
@@ -260,7 +229,7 @@ export const handlers: PluginHandlers = {
     // Executes a user script in a sandboxed vm context.
     // The script receives a `pm` object with environment get/set and optional response data.
 
-    ipcMain.handle('api-tester:run-script', (_e, payload: {
+    registerHandler(ipcMain, 'api-tester:run-script', (_e, payload: {
       script: string
       envVars: Record<string, string>
       response?: { status: number; body: string; headers: Record<string, string> }
@@ -315,7 +284,7 @@ export const handlers: PluginHandlers = {
 
     // ── Execute ────────────────────────────────────────────────────────────
 
-    ipcMain.handle('api-tester:execute', async (_e, payload: {
+    registerHandler(ipcMain, 'api-tester:execute', async (_e, payload: {
       request: HttpRequest
       envVars: Record<string, string>
       timeoutMs?: number
