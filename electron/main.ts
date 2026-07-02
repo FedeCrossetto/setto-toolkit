@@ -13,6 +13,11 @@ import { ipcMain } from 'electron'
 import { registerFileAssociations, getFileArgFromArgv } from './core/file-associations'
 import { logger } from './core/logger'
 
+// E2E tests pass --user-data-dir so each run gets an isolated profile.
+// Must run before app.ready — after that the path is locked in.
+const userDataArg = process.argv.find((a) => a.startsWith('--user-data-dir='))
+if (userDataArg) app.setPath('userData', userDataArg.slice('--user-data-dir='.length))
+
 let mainWindow: BrowserWindow | null = null
 let dbForWindowState: DatabaseService | null = null
 
@@ -173,6 +178,18 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
+  // Block in-window navigation away from the app (e.g. a dragged link or injected redirect)
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const devServer = process.env['ELECTRON_RENDERER_URL']
+    if (devServer && url.startsWith(devServer)) return
+    if (url.startsWith('file://')) return
+    event.preventDefault()
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') shell.openExternal(url)
+    } catch { /* invalid URL — drop it */ }
+  })
+
   if (dbForWindowState) trackWindowState(mainWindow, dbForWindowState)
 
   // Restore maximized state after the window is fully created
@@ -284,6 +301,15 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('app:version', () => app.getVersion())
+
+  // Renderer-side errors (async handlers, unhandled rejections) get logged to app.log
+  // so packaged-build failures are visible via Settings → Exportar logs.
+  ipcMain.on('app:renderer-error', (_e, payload: { kind?: string; message?: string; stack?: string }) => {
+    const kind    = typeof payload?.kind === 'string' ? payload.kind.slice(0, 50) : 'unknown'
+    const message = typeof payload?.message === 'string' ? payload.message.slice(0, 2000) : 'sin mensaje'
+    const stack   = typeof payload?.stack === 'string' ? payload.stack.slice(0, 4000) : ''
+    logger.error('renderer', `[${kind}] ${message}`, stack)
+  })
 
   // Renderer pulls this once mounted. Calling this signals that React is up and listening,
   // so subsequent open-file events can be pushed directly without queueing.

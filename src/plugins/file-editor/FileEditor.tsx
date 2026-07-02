@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  AlertTriangle, ArrowDown, CheckCircle2, ChevronDown, ChevronRight, Copy, Diff, Eye, EyeOff,
+  AlertTriangle, ArrowDown, ArrowUpRight, CheckCircle2, ChevronRight, Copy, Diff, Eye, EyeOff,
   FileInput, FilePlus, FileSearch, FileText, Filter, Folder, Import,
   FolderOpen, FolderPlus, FolderSearch, PanelLeft, PanelLeftClose, Pause, Pencil, Play,
   Save, SlidersHorizontal, SquareTerminal, Trash2, WrapText, X,
@@ -18,9 +18,12 @@ import { Breadcrumb } from './components/Breadcrumb'
 import { ContextMenu } from './components/ContextMenu'
 import { QuickOpen } from './components/QuickOpen'
 import { FindInFiles } from './components/FindInFiles'
+import { ImagePreview, isImagePath } from './components/ImagePreview'
+import { MarkdownPreview } from './components/MarkdownPreview'
 import type { FileChangedEvent, OpenFile, RecentFile, FileLanguage, FileTreeNode, EditorHandle, WriteFileResponse, GitLineDiff } from './types'
 import { Badge } from '../../core/components/Badge'
 import { Chip } from '../../core/components/Chip'
+import { Tooltip } from '../../core/components/Tooltip'
 import type { MenuItem } from './components/ContextMenu'
 
 // ── Language color map ────────────────────────────────────────────────────────
@@ -39,8 +42,10 @@ let newFileCount = 0
 // ── Session persistence ───────────────────────────────────────────────────────
 const SESSION_KEY = 'file-editor:session'
 type SavedTab =
-  | { path: string; name: string }
+  | { path: string; name: string; dirtyContent?: string }
   | { path: null; name: string; content: string; language: FileLanguage }
+/** Cap for persisting unsaved edits per file — avoids blowing the localStorage quota */
+const MAX_DIRTY_PERSIST = 1024 * 1024
 interface SavedSession { tabs: SavedTab[]; activePath: string | null; activeName: string | null }
 
 // ── Path helpers ──────────────────────────────────────────────────────────────
@@ -99,10 +104,28 @@ export function FileEditor(): JSX.Element {
     tabId: string; name: string; resolve: (r: 'save' | 'discard' | 'cancel') => void
   } | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{
-    name: string; isDir: boolean; resolve: (confirmed: boolean) => void
+    name: string; isDir: boolean; permanent?: boolean; resolve: (confirmed: boolean) => void
   } | null>(null)
 
+  /** Delete via OS trash; if trash is unavailable, ask again before hard-deleting. */
+  const deleteWithFallback = async (targetPath: string, name: string, isDir: boolean): Promise<boolean> => {
+    const res = await window.api.invoke<{ ok: boolean; trashFailed?: boolean }>('editor:delete', targetPath)
+    if (res.ok) return true
+    const confirmed = await new Promise<boolean>((resolve) =>
+      setDeleteConfirm({ name, isDir, permanent: true, resolve })
+    )
+    setDeleteConfirm(null)
+    if (!confirmed) return false
+    await window.api.invoke('editor:delete-permanent', targetPath)
+    return true
+  }
+
   const [savedFlash, setSavedFlash] = useState(false)
+  const [zenMode, setZenMode] = useState(false)
+  // Paths de archivos abiertos con cambios git sin commitear (dot amber en "Abiertos")
+  const [gitModifiedPaths, setGitModifiedPaths] = useState<Set<string>>(new Set())
+  const [selection, setSelection] = useState<{ chars: number; lines: number }>({ chars: 0, lines: 0 })
+  const [mdPreview, setMdPreview] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const editorRef      = useRef<EditorHandle | null>(null)
@@ -184,6 +207,10 @@ export function FileEditor(): JSX.Element {
             return { tab: openBuffer(saved.name, saved.content, saved.language), path: null as null, name: saved.name }
           }
           const tab = await openFile(saved.path)
+          // Re-apply unsaved edits captured before the last close/crash
+          if (tab && saved.dirtyContent !== undefined && saved.dirtyContent !== tab.content) {
+            updateTab(tab.id, { content: saved.dirtyContent, isDirty: true })
+          }
           return { tab, path: saved.path, name: null }
         })
       )
@@ -207,7 +234,11 @@ export function FileEditor(): JSX.Element {
       const session: SavedSession = {
         tabs: tabs.map((t) => t.path === null
           ? { path: null, name: t.name, content: t.content, language: t.language }
-          : { path: t.path, name: t.name }),
+          : {
+              path: t.path, name: t.name,
+              // Persist unsaved edits so a crash or accidental close never loses work
+              ...(t.isDirty && t.content.length <= MAX_DIRTY_PERSIST ? { dirtyContent: t.content } : {}),
+            }),
         activePath: activeTab?.path ?? null,
         activeName: activeTab?.name ?? null,
       }
@@ -252,6 +283,11 @@ export function FileEditor(): JSX.Element {
         e.preventDefault()
         void saveAllRef.current()
       }
+      // Ctrl+Shift+Z — zen mode: solo el código, sin sidebar/breadcrumb/status bar
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        setZenMode((v) => !v)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -259,6 +295,25 @@ export function FileEditor(): JSX.Element {
 
   // ── Filter → CodeEditor ───────────────────────────────────────────────────
   useEffect(() => { editorRef.current?.setFilter(logFilter) }, [logFilter])
+
+  // ── Git status por archivo abierto (dot en el listado "Abiertos") ─────────
+  useEffect(() => {
+    const paths = tabs.filter((t) => t.path !== null).map((t) => t.path!)
+    if (paths.length === 0) { setGitModifiedPaths(new Set()); return }
+    let cancelled = false
+    void (async () => {
+      const modified = new Set<string>()
+      await Promise.all(paths.map(async (p) => {
+        try {
+          const diff = await window.api.invoke<GitLineDiff | null>('editor:git-diff', p)
+          if (diff && (diff.added.length > 0 || diff.changed.length > 0 || diff.deleted.length > 0)) modified.add(p)
+        } catch { /* archivo fuera de un repo git */ }
+      }))
+      if (!cancelled) setGitModifiedPaths(modified)
+    })()
+    return () => { cancelled = true }
+    // Recalcular al abrir/cerrar tabs y después de cada guardado (lastModified cambia)
+  }, [tabs.map((t) => `${t.path}:${t.lastModified}`).join('|')])
 
   // ── Git diff gutter — recompute on tab switch and after save/external change ─
   useEffect(() => {
@@ -490,7 +545,7 @@ export function FileEditor(): JSX.Element {
           )
           setDeleteConfirm(null)
           if (!confirmed) return
-          await window.api.invoke('editor:delete', node.path)
+          if (!await deleteWithFallback(node.path, node.name, node.isDir)) return
           markDeletedTabs(node.path, node.isDir)
           refreshFolder(rootPath)
         },
@@ -557,7 +612,7 @@ export function FileEditor(): JSX.Element {
               )
               setDeleteConfirm(null)
               if (!confirmed) return
-              await window.api.invoke('editor:delete', tab.path!)
+              if (!await deleteWithFallback(tab.path!, tab.name, false)) return
               const root = findRootPath(tab.path!)
               markDeletedTabs(tab.path!, false)
               if (root) await refreshFolder(root)
@@ -664,6 +719,7 @@ export function FileEditor(): JSX.Element {
         className={[
           'flex-shrink-0 flex flex-col border-r border-outline-variant/15 overflow-hidden',
           sidebarCollapsed ? 'w-10 transition-[width] duration-200 ease-out' : '',
+          zenMode ? 'hidden' : '',
         ].join(' ')}
         style={sidebarCollapsed ? {
           background: 'rgb(var(--c-surface) / 0.8)',
@@ -722,29 +778,52 @@ export function FileEditor(): JSX.Element {
           onContextMenu={handleOpenFilesPanelContextMenu}
         >
           <div className="flex items-center justify-between px-2.5 pt-2.5 pb-1 flex-shrink-0 gap-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/55 whitespace-nowrap">Abiertos</span>
-            <div className="flex items-center gap-0.5 rounded-lg bg-surface-container/60 p-0.5">
-              <button onClick={createNewFile} title="Nuevo archivo (Ctrl+T)"
-                className="p-1 rounded-md text-on-surface-variant/70 hover:text-accent hover:bg-accent/10 transition-colors">
-                <FilePlus size={15} />
-              </button>
-              <button onClick={openDialog} title="Abrir archivo"
-                className="p-1 rounded-md text-on-surface-variant/70 hover:text-secondary hover:bg-secondary/10 transition-colors">
-                <Import size={15} />
-              </button>
-              {folders.length === 0 && (
-                <button onClick={openFolderDialog} title="Abrir carpeta"
-                  className="p-1 rounded-md text-on-surface-variant/70 hover:text-warning hover:bg-warning/10 transition-colors">
-                  <FolderOpen size={15} />
-                </button>
+            <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/55 whitespace-nowrap">
+              Abiertos
+              {tabs.length > 0 && (
+                <span className="text-[9px] font-bold px-1.5 py-px rounded-full bg-surface-container text-on-surface-variant/70 tabular-nums normal-case tracking-normal">
+                  {tabs.length}
+                </span>
               )}
-              <button
-                onClick={() => setSidebarCollapsed(true)}
-                title="Colapsar barra lateral"
-                className="p-1 rounded-md text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container-high transition-colors border-l border-outline-variant/20 ml-0.5 pl-1"
-              >
-                <PanelLeftClose size={15} />
-              </button>
+              {tabs.some((t) => t.isDirty) && (
+                <span
+                  className="text-[9px] font-bold px-1.5 py-px rounded-full bg-warning/15 text-warning tabular-nums normal-case tracking-normal"
+                  title="Archivos sin guardar"
+                >
+                  {tabs.filter((t) => t.isDirty).length}●
+                </span>
+              )}
+            </span>
+            <div className="flex items-center gap-0.5 rounded-lg bg-surface-container/60 p-0.5">
+              <Tooltip label="Nuevo archivo" shortcut="Ctrl+T">
+                <button onClick={createNewFile} aria-label="Nuevo archivo"
+                  className="p-1 rounded-md text-on-surface-variant/70 hover:text-accent hover:bg-accent/10 transition-colors">
+                  <FilePlus size={15} />
+                </button>
+              </Tooltip>
+              <Tooltip label="Abrir archivo" shortcut="Ctrl+O">
+                <button onClick={openDialog} aria-label="Abrir archivo"
+                  className="p-1 rounded-md text-on-surface-variant/70 hover:text-secondary hover:bg-secondary/10 transition-colors">
+                  <Import size={15} />
+                </button>
+              </Tooltip>
+              {folders.length === 0 && (
+                <Tooltip label="Abrir carpeta">
+                  <button onClick={openFolderDialog} aria-label="Abrir carpeta"
+                    className="p-1 rounded-md text-on-surface-variant/70 hover:text-warning hover:bg-warning/10 transition-colors">
+                    <FolderOpen size={15} />
+                  </button>
+                </Tooltip>
+              )}
+              <Tooltip label="Colapsar barra lateral">
+                <button
+                  onClick={() => setSidebarCollapsed(true)}
+                  aria-label="Colapsar barra lateral"
+                  className="p-1 rounded-md text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container-high transition-colors border-l border-outline-variant/20 ml-0.5 pl-1"
+                >
+                  <PanelLeftClose size={15} />
+                </button>
+              </Tooltip>
             </div>
           </div>
 
@@ -769,9 +848,18 @@ export function FileEditor(): JSX.Element {
 
           <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-1 px-2">
             {tabs.length === 0 ? (
-              <p className="text-[11px] text-on-surface-variant/50 text-center pt-4 px-3">
-                No hay archivos abiertos.<br />Soltá un archivo o carpeta acá.
-              </p>
+              <div className="flex flex-col items-center gap-2.5 pt-5 px-3 text-center select-none">
+                <div className="relative">
+                  <div aria-hidden className="absolute inset-[-6px] rounded-full blur-lg" style={{ background: 'rgb(var(--c-primary) / 0.10)' }} />
+                  <div className="relative w-10 h-10 rounded-xl flex items-center justify-center bg-surface-container border border-outline-variant/20">
+                    <FileText size={18} className="text-primary/60" strokeWidth={1.5} />
+                  </div>
+                </div>
+                <p className="text-[11px] text-on-surface-variant/50 leading-relaxed">
+                  No hay archivos abiertos.<br />Soltá un archivo acá o presioná
+                  {' '}<kbd className="text-[9px] px-1 py-px rounded border border-outline-variant/25 bg-surface-container font-mono">Ctrl+T</kbd>
+                </p>
+              </div>
             ) : (
               tabs.map((tab) => (
                 <div
@@ -798,6 +886,7 @@ export function FileEditor(): JSX.Element {
                     tab={tab} isActive={activeId === tab.id}
                     isSelected={selectedIds.has(tab.id)}
                     savedFlash={savedFlash && activeId === tab.id}
+                    gitModified={tab.path !== null && gitModifiedPaths.has(tab.path)}
                     onClick={() => { setSelectedIds(new Set()); setActiveId(tab.id) }}
                     onCtrlClick={() => toggleSelection(tab.id)}
                     onClose={() => { setSelectedIds((p) => { const n = new Set(p); n.delete(tab.id); return n }); void handleCloseTab(tab.id) }}
@@ -818,13 +907,25 @@ export function FileEditor(): JSX.Element {
         {/* RECENT */}
         {recents.length > 0 && folders.length === 0 && (
           <div className="border-t border-outline-variant/15 flex-shrink-0">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50 px-3 pt-3 pb-1.5">Recientes</p>
+            <div className="flex items-center justify-between px-3 pt-3 pb-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Recientes</p>
+              <Tooltip label="Limpiar recientes">
+                <button
+                  onClick={() => { void window.api.invoke('editor:recent-clear').then(() => setRecents([])) }}
+                  aria-label="Limpiar recientes"
+                  className="p-0.5 rounded text-on-surface-variant/35 hover:text-error hover:bg-error/10 transition-colors"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </Tooltip>
+            </div>
             <div className="overflow-y-auto max-h-36 pb-2">
               {recents.slice(0, 8).map((r) => (
                 <button key={r.path} onClick={() => openFile(r.path)} title={r.path}
                   className="flex items-center gap-2 w-full px-3 py-1.5 text-left hover:bg-surface-container transition-colors group">
                   {(() => { const lang = detectLanguage(r.name); const Icon = languageIcon(lang); return <Icon size={13} className="flex-shrink-0" style={{ color: langColor(lang) }} /> })()}
-                  <span className="text-[11px] text-on-surface-variant group-hover:text-on-surface truncate">{r.name}</span>
+                  <span className="text-[11px] text-on-surface-variant group-hover:text-on-surface truncate flex-1">{r.name}</span>
+                  <ArrowUpRight size={11} className="flex-shrink-0 text-primary opacity-0 group-hover:opacity-70 transition-opacity" />
                 </button>
               ))}
             </div>
@@ -834,7 +935,7 @@ export function FileEditor(): JSX.Element {
       </aside>
 
       {/* Sidebar width resize handle */}
-      {!sidebarCollapsed && (
+      {!sidebarCollapsed && !zenMode && (
         <div
           onPointerDown={handleSidebarResizePointerDown}
           className="flex-shrink-0 w-[5px] -mx-[2px] z-10 cursor-col-resize group transition-colors relative"
@@ -854,7 +955,7 @@ export function FileEditor(): JSX.Element {
       <div className="flex-1 flex flex-col overflow-hidden relative" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
 
         {/* Tab bar + settings */}
-        <div className="flex items-center border-b border-outline-variant/20 bg-surface-container-low flex-shrink-0">
+        <div className={`flex items-center border-b border-outline-variant/20 bg-surface-container-low flex-shrink-0 ${zenMode ? 'hidden' : ''}`}>
           <div
             className="flex-1 flex items-center gap-1 overflow-x-auto scrollbar-hide px-2 py-1.5"
             style={{ maskImage: tabs.length > 1 ? 'linear-gradient(to right, transparent 0, black 8px, black calc(100% - 8px), transparent 100%)' : undefined }}
@@ -925,20 +1026,34 @@ export function FileEditor(): JSX.Element {
 
           {/* Quick actions */}
           <div className="flex items-center gap-0.5 px-2 flex-shrink-0">
-            <button onClick={() => setQuickOpen(true)} title="Apertura rápida (Ctrl+P)"
-              className="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors">
-              <FolderSearch size={15} />
-            </button>
-            <button onClick={() => setShowFind((v) => !v)} title="Buscar en archivos (Ctrl+Shift+F)"
-              className={`p-1.5 rounded-lg transition-colors ${showFind ? 'text-primary bg-primary/10' : 'text-on-surface-variant hover:text-primary hover:bg-surface-container'}`}>
-              <FileSearch size={15} />
-            </button>
+            {activeTab?.language === 'markdown' && (
+              <Tooltip label={mdPreview ? 'Ocultar preview' : 'Preview de Markdown'}>
+                <button onClick={() => setMdPreview((v) => !v)} aria-label="Preview de Markdown"
+                  className={`p-1.5 rounded-lg transition-colors ${mdPreview ? 'text-primary bg-primary/10' : 'text-on-surface-variant hover:text-primary hover:bg-surface-container'}`}>
+                  <Eye size={15} />
+                </button>
+              </Tooltip>
+            )}
+            <Tooltip label="Apertura rápida" shortcut="Ctrl+P">
+              <button onClick={() => setQuickOpen(true)} aria-label="Apertura rápida"
+                className="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors">
+                <FolderSearch size={15} />
+              </button>
+            </Tooltip>
+            <Tooltip label="Buscar en archivos" shortcut="Ctrl+Shift+F">
+              <button onClick={() => setShowFind((v) => !v)} aria-label="Buscar en archivos"
+                className={`p-1.5 rounded-lg transition-colors ${showFind ? 'text-primary bg-primary/10' : 'text-on-surface-variant hover:text-primary hover:bg-surface-container'}`}>
+                <FileSearch size={15} />
+              </button>
+            </Tooltip>
 
             {/* Settings trigger — opens full modal to avoid overflow-hidden clipping */}
-            <button onClick={() => setSettingsOpen(true)} title="Ajustes del editor"
-              className={`p-1.5 rounded-lg transition-colors ${settingsOpen ? 'text-primary bg-primary/10' : 'text-on-surface-variant hover:text-primary hover:bg-surface-container'}`}>
-              <SlidersHorizontal size={16} />
-            </button>
+            <Tooltip label="Ajustes del editor">
+              <button onClick={() => setSettingsOpen(true)} aria-label="Ajustes del editor"
+                className={`p-1.5 rounded-lg transition-colors ${settingsOpen ? 'text-primary bg-primary/10' : 'text-on-surface-variant hover:text-primary hover:bg-surface-container'}`}>
+                <SlidersHorizontal size={16} />
+              </button>
+            </Tooltip>
 
             <AnimatePresence>
             {settingsOpen && (
@@ -1121,7 +1236,7 @@ export function FileEditor(): JSX.Element {
         )}
 
         {/* Breadcrumb */}
-        {activeTab?.path && <Breadcrumb filePath={activeTab.path} onPathCopied={() => showToast('Path copied', 'success', 2000)} />}
+        {activeTab?.path && !zenMode && <Breadcrumb filePath={activeTab.path} onPathCopied={() => showToast('Path copied', 'success', 2000)} />}
 
         {/* Encoding warning — file doesn't look like valid UTF-8 */}
         {activeTab?.encodingWarning && (
@@ -1191,28 +1306,40 @@ export function FileEditor(): JSX.Element {
         {/* Editor */}
         <div className="flex-1 overflow-hidden flex flex-col min-h-0">
           <div className="flex-1 overflow-hidden relative">
-            {activeTab ? (
-              <CodeEditor
-                key={activeTab.id}
-                content={activeTab.content}
-                // The tab's icon (activeTab.language) is purely extension-based and stable.
-                // Highlighting can be smarter about ambiguous extensions (.cfg holding XML vs
-                // ini) without that ever touching the icon — computed separately, content-aware.
-                language={highlightLanguage}
-                isDark={editorDark}
-                wordWrap={activeTab.wordWrap}
-                fontSize={prefs.fontSize}
-                fontFamily={prefs.fontFamily}
-                gitDiff={gitDiff}
-                minimap={prefs.minimap}
-                colorScheme={prefs.colorScheme}
-                onChange={(val) => { updateTab(activeTab.id, { content: val, isDirty: true }) }}
-                onCursorChange={(ln, col) => setCursor({ ln, col })}
-                onSaveShortcut={() => { void saveActive() }}
-                onNewFileShortcut={createNewFile}
-                onRenameShortcut={() => setRenamingTabId(activeTab.id)}
-                editorRef={editorRef}
-              />
+            {activeTab && isImagePath(activeTab.path) ? (
+              <ImagePreview key={activeTab.id} path={activeTab.path!} />
+            ) : activeTab ? (
+              <div className="flex h-full">
+                <div className={mdPreview && activeTab.language === 'markdown' ? 'w-1/2 border-r border-outline-variant/20 min-w-0' : 'flex-1 min-w-0'}>
+                  <CodeEditor
+                    key={activeTab.id}
+                    content={activeTab.content}
+                    // The tab's icon (activeTab.language) is purely extension-based and stable.
+                    // Highlighting can be smarter about ambiguous extensions (.cfg holding XML vs
+                    // ini) without that ever touching the icon — computed separately, content-aware.
+                    language={highlightLanguage}
+                    isDark={editorDark}
+                    wordWrap={activeTab.wordWrap}
+                    fontSize={prefs.fontSize}
+                    fontFamily={prefs.fontFamily}
+                    gitDiff={gitDiff}
+                    minimap={prefs.minimap}
+                    colorScheme={prefs.colorScheme}
+                    onChange={(val) => { updateTab(activeTab.id, { content: val, isDirty: true }) }}
+                    onCursorChange={(ln, col) => setCursor({ ln, col })}
+                    onSelectionChange={(chars, lines) => setSelection({ chars, lines })}
+                    onSaveShortcut={() => { void saveActive() }}
+                    onNewFileShortcut={createNewFile}
+                    onRenameShortcut={() => setRenamingTabId(activeTab.id)}
+                    editorRef={editorRef}
+                  />
+                </div>
+                {mdPreview && activeTab.language === 'markdown' && (
+                  <div className="w-1/2 min-w-0 bg-surface">
+                    <MarkdownPreview content={activeTab.content} />
+                  </div>
+                )}
+              </div>
             ) : (
               <EmptyState onOpen={openDialog} />
             )}
@@ -1232,13 +1359,46 @@ export function FileEditor(): JSX.Element {
             )}
           </div>
 
+          {/* Zen mode — pill flotante para salir */}
+          <AnimatePresence>
+            {zenMode && (
+              <motion.button
+                onClick={() => setZenMode(false)}
+                className="absolute top-3 right-3 z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold text-on-surface-variant/60 hover:text-on-surface border border-outline-variant/25 transition-colors"
+                style={{ background: 'rgb(var(--c-surface-container) / 0.85)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+                initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15 }}
+              >
+                Zen
+                <kbd className="text-[9px] px-1 py-px rounded border border-outline-variant/30 bg-surface font-mono">Ctrl+⇧+Z</kbd>
+              </motion.button>
+            )}
+          </AnimatePresence>
+
+          {/* Flash de guardado — checkmark con spring */}
+          <AnimatePresence>
+            {savedFlash && (
+              <motion.div
+                className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold pointer-events-none"
+                style={{ background: 'rgb(var(--c-accent) / 0.12)', border: '1px solid rgb(var(--c-accent) / 0.3)', color: 'rgb(var(--c-accent))', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+                initial={{ opacity: 0, scale: 0.7, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+              >
+                <CheckCircle2 size={13} />
+                Guardado
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Find in files panel */}
           {showFind && (
             <FindInFiles folders={folders} openTabs={tabs} onOpenAt={openFileAtLine} onClose={() => setShowFind(false)} />
           )}
 
           {/* Status bar */}
-          {activeTab && (
+          {activeTab && !zenMode && (
             <div className="flex items-center gap-1.5 px-3 py-1 border-t border-outline-variant/15 flex-shrink-0 select-none"
               style={{ background: 'rgb(var(--c-surface-container) / 0.7)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
               {/* Language pill */}
@@ -1247,6 +1407,11 @@ export function FileEditor(): JSX.Element {
                 className="tabular-nums text-[10px] px-1.5 py-0.5 rounded-md bg-surface-container/80 text-on-surface-variant/70 hover:text-primary hover:bg-surface-container-high transition-colors">
                 Ln {cursor.ln}:{cursor.col}
               </button>
+              {selection.chars > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary tabular-nums">
+                  {selection.chars} car.{selection.lines > 1 ? ` · ${selection.lines} líneas` : ''}
+                </span>
+              )}
               <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-surface-container/80 text-on-surface-variant/60 tabular-nums">{lineCount}L</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-surface-container/80 text-on-surface-variant/60 tabular-nums">{wordCount}W</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-surface-container/80 text-on-surface-variant/60 tabular-nums">{(activeTab.size / 1024).toFixed(1)}KB</span>
@@ -1313,13 +1478,21 @@ export function FileEditor(): JSX.Element {
             <div className="flex items-start gap-3">
               <Trash2 size={22} className="text-error flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-on-surface">¿Eliminar {deleteConfirm.isDir ? 'carpeta' : 'archivo'}?</p>
-                <p className="text-[12px] text-on-surface-variant mt-1">
-                  <span className="font-medium text-on-surface">"{deleteConfirm.name}"</span>
-                  {deleteConfirm.isDir ? ' y todo su contenido se van a eliminar' : ' se va a eliminar'}
-                  {' '}permanentemente.
+                <p className="text-sm font-semibold text-on-surface">
+                  {deleteConfirm.permanent ? '¿Eliminar permanentemente?' : `¿Eliminar ${deleteConfirm.isDir ? 'carpeta' : 'archivo'}?`}
                 </p>
-                <p className="text-[11px] text-error/70 mt-1">Esta acción no se puede deshacer.</p>
+                <p className="text-[12px] text-on-surface-variant mt-1">
+                  {deleteConfirm.permanent ? (
+                    <>No se pudo mover <span className="font-medium text-on-surface">"{deleteConfirm.name}"</span> a la papelera. Si continuás, se borra definitivamente.</>
+                  ) : (
+                    <>
+                      <span className="font-medium text-on-surface">"{deleteConfirm.name}"</span>
+                      {deleteConfirm.isDir ? ' y todo su contenido se van a mover' : ' se va a mover'}
+                      {' '}a la papelera.
+                    </>
+                  )}
+                </p>
+                {deleteConfirm.permanent && <p className="text-[11px] text-error/70 mt-1">Esta acción no se puede deshacer.</p>}
               </div>
             </div>
             <div className="flex justify-end gap-2">
@@ -1410,7 +1583,7 @@ function FolderRoot({ folder, expanded, onToggle, onClose, cb }: {
       <div className="flex items-center gap-1 px-2 py-1 group cursor-pointer hover:bg-surface-container transition-colors"
         onContextMenu={(e) => cb.onContextMenu(e, folder, folder.path)}>
         <button onClick={() => onToggle(folder.path)} className="flex items-center gap-1.5 flex-1 min-w-0 text-left">
-          {isOpen ? <ChevronDown size={13} className="text-on-surface-variant/50 flex-shrink-0" /> : <ChevronRight size={13} className="text-on-surface-variant/50 flex-shrink-0" />}
+          <ChevronRight size={13} className="text-on-surface-variant/50 flex-shrink-0 transition-transform duration-150" style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }} />
           {isOpen ? <FolderOpen size={14} className="text-primary/70 flex-shrink-0" /> : <Folder size={14} className="text-primary/70 flex-shrink-0" />}
           {cb.renaming === folder.path
             ? <InlineInput defaultValue={folder.name} onCommit={(n) => cb.onRenameCommit(folder.path, n)} onCancel={cb.onCancel} />
@@ -1466,7 +1639,7 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
           }} />
         ))}
         {node.isDir
-          ? (isOpen ? <ChevronDown size={13} className="text-on-surface-variant/40 flex-shrink-0" /> : <ChevronRight size={13} className="text-on-surface-variant/40 flex-shrink-0" />)
+          ? <ChevronRight size={13} className="text-on-surface-variant/40 flex-shrink-0 transition-transform duration-150" style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }} />
           : <span className="flex-shrink-0" style={{ width: '13px' }} />
         }
         {node.isDir
@@ -1549,8 +1722,8 @@ function CollapsedSidebarRail({
   )
 }
 
-function FileListItem({ tab, isActive, isSelected = false, savedFlash = false, onClick, onCtrlClick, onClose, onSave, onContextMenu, renaming, onRenameCommit, onRenameCancel, onDragStart: onDragStartProp, onDragEnd: onDragEndProp }: {
-  tab: OpenFile; isActive: boolean; isSelected?: boolean; savedFlash?: boolean
+function FileListItem({ tab, isActive, isSelected = false, savedFlash = false, gitModified = false, onClick, onCtrlClick, onClose, onSave, onContextMenu, renaming, onRenameCommit, onRenameCancel, onDragStart: onDragStartProp, onDragEnd: onDragEndProp }: {
+  tab: OpenFile; isActive: boolean; isSelected?: boolean; savedFlash?: boolean; gitModified?: boolean
   onClick: () => void; onCtrlClick?: () => void; onClose: () => void; onSave: () => void
   onContextMenu: (e: React.MouseEvent) => void
   renaming: boolean; onRenameCommit: (name: string) => void; onRenameCancel: () => void
@@ -1584,6 +1757,9 @@ function FileListItem({ tab, isActive, isSelected = false, savedFlash = false, o
         <span className="text-[12px] font-medium truncate flex-1">{tab.name}</span>
       )}
       {tab.watchActive && !tab.frozen && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" />}
+      {gitModified && !tab.isDirty && (
+        <span title="Cambios git sin commitear" className="w-1.5 h-1.5 rounded-full bg-warning/80 flex-shrink-0" />
+      )}
       {savedFlash
         ? <CheckCircle2 size={12} className="text-green-400 flex-shrink-0" style={{ animation: 'fe-saved-pop 0.2s ease both' }} />
         : tab.isDirty && <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />}

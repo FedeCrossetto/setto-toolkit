@@ -169,7 +169,12 @@ function AppShell(): JSX.Element {
                   >
                     <ErrorBoundary label={plugin.name}>
                       <Suspense fallback={<PluginLoadingFallback />}>
-                        <Component />
+                        {/* Fade que corre recién cuando el chunk lazy resuelve — sin esto el
+                            plugin aparece de golpe porque la animación del tab ya terminó
+                            mientras se mostraba el skeleton */}
+                        <div className="h-full w-full" style={{ animation: 'fadeSlideUp 0.25s cubic-bezier(0.34,1,0.64,1) both' }}>
+                          <Component />
+                        </div>
                       </Suspense>
                     </ErrorBoundary>
                   </div>

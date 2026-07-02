@@ -66,7 +66,16 @@ export function GlobalSearch(): JSX.Element | null {
   const noResults  = result && result.matches === 0 && query.trim().length > 0
 
   return (
-    <div className="fixed top-10 right-4 z-[250] flex items-center gap-1.5 px-3 py-2 bg-surface-container border border-outline-variant/30 rounded-2xl shadow-2xl">
+    <div
+      className="fixed top-10 right-4 z-[250] flex items-center gap-1.5 px-3 py-2 border border-outline-variant/25 rounded-2xl"
+      style={{
+        background: 'rgb(var(--c-surface-container) / 0.85)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        boxShadow: '0 16px 40px rgba(0,0,0,0.28), 0 4px 12px rgba(0,0,0,0.14)',
+        animation: 'fadeSlideUp 0.15s ease-out',
+      }}
+    >
 
       {/* Search icon */}
       <Search size={15} className="text-on-surface-variant/50 flex-shrink-0" />

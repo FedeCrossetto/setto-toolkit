@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { EditorView, basicSetup } from 'codemirror'
 import { EditorState, RangeSetBuilder, Compartment } from '@codemirror/state'
 import { HighlightStyle, StreamLanguage, syntaxHighlighting } from '@codemirror/language'
-import { ViewPlugin, Decoration, keymap, gutter, GutterMarker } from '@codemirror/view'
+import { ViewPlugin, Decoration, WidgetType, keymap, gutter, GutterMarker } from '@codemirror/view'
 import type { DecorationSet, ViewUpdate } from '@codemirror/view'
 import { gotoLine } from '@codemirror/search'
 import { showMinimap } from '@replit/codemirror-minimap'
@@ -451,6 +451,56 @@ const iniHighlightPlugin = ViewPlugin.fromClass(class {
     return b.finish()
   }
 }, { decorations: (v) => v.decorations })
+
+// ── Color swatches (CSS/SCSS/HTML) ────────────────────────────────────────────
+// Muestra un cuadradito con el color al lado de cada valor hex/rgb/hsl.
+const COLOR_RE = /#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b|\b(?:rgb|hsl)a?\(\s*[\d.,%\s/]+\)/g
+
+class ColorSwatchWidget extends WidgetType {
+  constructor(private readonly color: string) { super() }
+  override eq(other: ColorSwatchWidget): boolean { return other.color === this.color }
+  override toDOM(): HTMLElement {
+    const el = document.createElement('span')
+    el.className = 'cm-color-swatch'
+    el.style.backgroundColor = this.color
+    return el
+  }
+  override ignoreEvent(): boolean { return true }
+}
+
+function buildColorSwatches(view: EditorView): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>()
+  for (const { from, to } of view.visibleRanges) {
+    const text = view.state.doc.sliceString(from, to)
+    for (const m of text.matchAll(COLOR_RE)) {
+      const start = from + (m.index ?? 0)
+      builder.add(start, start, Decoration.widget({ widget: new ColorSwatchWidget(m[0]), side: -1 }))
+    }
+  }
+  return builder.finish()
+}
+
+const colorSwatchPlugin = [
+  ViewPlugin.fromClass(class {
+    decorations: DecorationSet
+    constructor(view: EditorView) { this.decorations = buildColorSwatches(view) }
+    update(u: ViewUpdate): void {
+      if (u.docChanged || u.viewportChanged) this.decorations = buildColorSwatches(u.view)
+    }
+  }, { decorations: (v) => v.decorations }),
+  EditorView.theme({
+    '.cm-color-swatch': {
+      display: 'inline-block',
+      width: '0.85em', height: '0.85em',
+      borderRadius: '3px',
+      border: '1px solid rgba(128,128,128,0.4)',
+      marginRight: '4px',
+      verticalAlign: 'middle',
+    },
+  }),
+]
+
+const SWATCH_LANGUAGES = new Set(['css', 'html'])
 
 // ── Log line coloring ─────────────────────────────────────────────────────────
 const LOG_LEVELS = [
@@ -972,6 +1022,7 @@ interface CodeEditorProps {
   colorScheme?: EditorColorScheme
   onChange?: (value: string) => void
   onCursorChange?: (line: number, col: number) => void
+  onSelectionChange?: (chars: number, lines: number) => void
   onSaveShortcut?: () => void
   onNewFileShortcut?: () => void
   onRenameShortcut?: () => void
@@ -982,7 +1033,7 @@ export function CodeEditor({
   content, language, isDark, readOnly = false, wordWrap = true,
   initialLine, fontSize = 13, fontFamily = 'SF Mono', gitDiff = null, minimap = false,
   colorScheme = 'nexus',
-  onChange, onCursorChange, onSaveShortcut, onNewFileShortcut, onRenameShortcut, editorRef,
+  onChange, onCursorChange, onSelectionChange, onSaveShortcut, onNewFileShortcut, onRenameShortcut, editorRef,
 }: CodeEditorProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef      = useRef<EditorView | null>(null)
@@ -1037,6 +1088,14 @@ export function CodeEditor({
         const line = u.state.doc.lineAt(pos)
         onCursorChange(line.number, pos - line.from + 1)
       }
+      if (u.selectionSet && onSelectionChange) {
+        const { from, to } = u.state.selection.main
+        if (from === to) onSelectionChange(0, 0)
+        else {
+          const lines = u.state.doc.lineAt(to).number - u.state.doc.lineAt(from).number + 1
+          onSelectionChange(to - from, lines)
+        }
+      }
     })
 
     const extensions = [
@@ -1051,6 +1110,7 @@ export function CodeEditor({
       ...themeExts,
       wordWrap ? EditorView.lineWrapping : [],
       language === 'log' ? [logLineTheme, logColorPlugin] : [],
+      SWATCH_LANGUAGES.has(language) ? colorSwatchPlugin : [],
       filterCompartment.current.of([]),
       gitCompartment.current.of(buildGitGutter(gitDiff)),
       minimap ? showMinimap.compute([], () => ({

@@ -63,7 +63,14 @@ export function KeyboardShortcutsModal(): JSX.Element | null {
         role="dialog"
         aria-modal="true"
         aria-labelledby="kbd-shortcuts-title"
-        className="w-full max-w-lg rounded-2xl border border-outline-variant/25 shadow-card-hover bg-surface overflow-hidden"
+        className="w-full max-w-lg rounded-2xl border border-outline-variant/25 overflow-hidden"
+        style={{
+          background: 'rgb(var(--c-surface) / 0.85)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.32), 0 4px 16px rgba(0,0,0,0.16)',
+          animation: 'fadeSlideUp 0.18s ease-out',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 px-5 py-4 border-b border-outline-variant/15">

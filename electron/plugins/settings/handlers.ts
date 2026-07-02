@@ -1,5 +1,6 @@
-import { dialog, safeStorage } from 'electron'
+import { app, dialog, safeStorage } from 'electron'
 import fs from 'fs'
+import path from 'path'
 import type { PluginHandlers, CoreServices } from '../../core/types'
 import type { IpcMain } from 'electron'
 import { registerHandler } from '../../core/ipc-handler'
@@ -125,6 +126,21 @@ export const handlers: PluginHandlers = {
       }
 
       fs.writeFileSync(filePath, JSON.stringify(exportData, null, 2), 'utf-8')
+      return { ok: true, filePath }
+    })
+
+    // ── Export logs (for diagnostics) ──────────────────────────────────────
+    registerHandler(ipcMain, 'settings:export-logs', async () => {
+      const logPath = path.join(app.getPath('logs'), 'app.log')
+      if (!fs.existsSync(logPath)) return { ok: false, error: 'No hay logs para exportar' }
+
+      const { filePath, canceled } = await dialog.showSaveDialog({
+        title: 'Exportar logs',
+        defaultPath: `setto-logs-${new Date().toISOString().slice(0, 10)}.log`,
+        filters: [{ name: 'Log', extensions: ['log', 'txt'] }],
+      })
+      if (canceled || !filePath) return { ok: false, canceled: true }
+      fs.copyFileSync(logPath, filePath)
       return { ok: true, filePath }
     })
 

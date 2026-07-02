@@ -196,12 +196,33 @@ export const handlers: PluginHandlers = {
       return { content, mtime, size, truncated, encodingWarning }
     })
 
+    // ── Read image as data URL (renderer CSP blocks file:// URLs) ─────────
+    registerHandler(ipcMain, 'editor:read-image', (_e, filePath: string) => {
+      const safe = validatePath(filePath)
+      assertInAuthorizedRoot(safe)
+      const stat = fs.statSync(safe)
+      const MAX_IMAGE_SIZE = 20 * 1024 * 1024
+      if (stat.size > MAX_IMAGE_SIZE) throw new Error('Imagen demasiado grande para previsualizar (máx. 20MB)')
+      const ext = path.extname(safe).toLowerCase().slice(1)
+      const mime = ext === 'svg' ? 'image/svg+xml' : ext === 'jpg' ? 'image/jpeg' : `image/${ext}`
+      const data = fs.readFileSync(safe).toString('base64')
+      return { dataUrl: `data:${mime};base64,${data}`, size: stat.size }
+    })
+
     // ── Write file ─────────────────────────────────────────────────────────
 
     registerHandler(ipcMain, 'editor:write-file', (_e, filePath: string, content: string) => {
       const safe = validatePath(filePath)
       assertInAuthorizedRoot(safe)
-      fs.writeFileSync(safe, content, 'utf-8')
+      // Atomic write: temp file + rename so a crash mid-write never truncates the original
+      const tmp = `${safe}.${process.pid}.tmp`
+      try {
+        fs.writeFileSync(tmp, content, 'utf-8')
+        fs.renameSync(tmp, safe)
+      } catch (err) {
+        try { fs.unlinkSync(tmp) } catch { /* temp may not exist */ }
+        throw err
+      }
       const stat = fs.statSync(safe)
       addRecentFile(settings, {
         path: safe,
@@ -311,7 +332,8 @@ export const handlers: PluginHandlers = {
     registerHandler(ipcMain, 'editor:create-file', (_e, filePath: string) => {
       const safe = validatePath(filePath)
       assertInAuthorizedRoot(safe)
-      fs.writeFileSync(safe, '', 'utf-8')
+      // 'wx' flag: fail if the file already exists instead of truncating it to empty
+      fs.writeFileSync(safe, '', { encoding: 'utf-8', flag: 'wx' })
       return { ok: true }
     })
 
@@ -327,6 +349,8 @@ export const handlers: PluginHandlers = {
       const safeNew = validatePath(newPath)
       assertInAuthorizedRoot(safeOld)
       assertInAuthorizedRoot(safeNew)
+      // renameSync silently overwrites an existing target on POSIX — refuse instead
+      if (fs.existsSync(safeNew)) throw new Error(`Ya existe un archivo llamado "${path.basename(safeNew)}"`)
       fs.renameSync(safeOld, safeNew)
       return { ok: true }
     })
@@ -337,10 +361,22 @@ export const handlers: PluginHandlers = {
       // Guard against accidentally deleting root or near-root paths
       const parts = safe.split(path.sep).filter(Boolean)
       if (parts.length < 2) throw new Error('Refusing to delete a root or near-root path')
+      // Move to the OS trash so the user can recover. If trash is unavailable we do
+      // NOT silently hard-delete — the renderer asks the user and retries with force.
+      return shell.trashItem(safe)
+        .then(() => ({ ok: true as const, trashed: true }))
+        .catch(() => ({ ok: false as const, trashFailed: true }))
+    })
+
+    registerHandler(ipcMain, 'editor:delete-permanent', (_e, targetPath: string) => {
+      const safe = validatePath(targetPath)
+      assertInAuthorizedRoot(safe)
+      const parts = safe.split(path.sep).filter(Boolean)
+      if (parts.length < 2) throw new Error('Refusing to delete a root or near-root path')
       const stat = fs.statSync(safe)
       if (stat.isDirectory()) fs.rmSync(safe, { recursive: true, force: true })
       else fs.unlinkSync(safe)
-      return { ok: true }
+      return { ok: true as const }
     })
 
     // ── Find in files ──────────────────────────────────────────────────────

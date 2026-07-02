@@ -441,7 +441,6 @@ export function ApiLab(): JSX.Element {
     setTimeout(() => setBeautified(false), 1500)
   }
 
-  const isOk = response && response.status < 400
   const formattedBody = response ? tryFormatJson(response.body) : ''
   const activeEnv = environments.find((e) => e.isActive)
   const activeEnvName = activeEnv?.name
@@ -717,7 +716,11 @@ export function ApiLab(): JSX.Element {
             {status !== 'loading' && response && (
               <div className="flex items-center gap-3">
                 {/* Status pill */}
-                <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg ${isOk ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-error/15 text-error border border-error/20'}`}>
+                <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg ${
+                  response.status < 300 ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                  : response.status < 400 ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/20'
+                  : response.status < 500 ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                  : 'bg-error/15 text-error border border-error/20'}`}>
                   <span className="w-1.5 h-1.5 rounded-full inline-block flex-shrink-0" style={{ background: 'currentColor' }} />
                   {response.status} {response.statusText}
                 </span>

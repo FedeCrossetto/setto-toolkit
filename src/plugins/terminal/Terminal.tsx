@@ -505,16 +505,17 @@ export function Terminal(): JSX.Element {
                   height: 30,
                   cursor: isEditing ? 'default' : 'pointer',
                   background: isActive
-                    ? 'rgb(var(--c-primary) / 0.12)'
+                    ? 'var(--gradient-brand)'
                     : 'rgb(var(--c-surface-container))',
                   color: isExited
                     ? 'rgb(var(--c-on-surface-variant) / 0.4)'
                     : isActive
-                      ? 'rgb(var(--c-primary-light))'
+                      ? '#fff'
                       : 'rgb(var(--c-on-surface-variant))',
                   border: isActive
-                    ? '1px solid rgb(var(--c-primary) / 0.3)'
+                    ? '1px solid transparent'
                     : '1px solid rgb(var(--c-outline-variant) / 0.5)',
+                  boxShadow: isActive ? '0 2px 8px rgb(var(--c-primary) / 0.32)' : undefined,
                   maxWidth: 180,
                   minWidth: 72,
                 }}
@@ -530,7 +531,7 @@ export function Terminal(): JSX.Element {
                     onBlur={commitRename}
                     onClick={(e) => e.stopPropagation()}
                     className="bg-transparent outline-none text-[12px] font-medium min-w-0 flex-1"
-                    style={{ color: 'rgb(var(--c-primary-light))', width: 80 }}
+                    style={{ color: '#fff', width: 80 }}
                   />
                 ) : (
                   <span className="text-[12px] font-medium truncate flex-1">{label}</span>
@@ -800,7 +801,9 @@ export function Terminal(): JSX.Element {
             style={{
               width: 340,
               borderLeft: '1px solid rgba(255,255,255,0.07)',
-              background: 'rgb(var(--c-surface))',
+              background: 'rgb(var(--c-surface) / 0.82)',
+              backdropFilter: 'blur(14px)',
+              WebkitBackdropFilter: 'blur(14px)',
               borderRadius: '0 0 12px 0',
             }}
           >

@@ -3,7 +3,7 @@ import { contextBridge, ipcRenderer, webFrame } from 'electron'
 /** Channels the renderer may invoke (request → main) */
 const INVOKE_CHANNELS = new Set([
   'settings:get', 'settings:set', 'settings:delete', 'settings:getAll',
-  'settings:export', 'settings:import', 'settings:encryption-available', 'settings:validate-openai-key',
+  'settings:export', 'settings:import', 'settings:export-logs', 'settings:encryption-available', 'settings:validate-openai-key',
   'repo-search:login', 'repo-search:logout', 'repo-search:me', 'repo-search:search',
   'repo-search:history-get', 'repo-search:history-save', 'repo-search:history-clear',
   'repo-search:github-oauth-start', 'repo-search:github-oauth-poll',
@@ -11,9 +11,9 @@ const INVOKE_CHANNELS = new Set([
   'repo-search:gitlab-oauth-start', 'repo-search:gitlab-oauth-poll',
   'repo-search:oauth-configured',
   'editor:read-dir', 'editor:open-folder-dialog', 'editor:open-dialog',
-  'editor:read-file', 'editor:write-file', 'editor:save-dialog',
+  'editor:read-file', 'editor:read-image', 'editor:write-file', 'editor:save-dialog',
   'editor:watch-start', 'editor:watch-stop', 'editor:reveal',
-  'editor:create-file', 'editor:create-dir', 'editor:rename', 'editor:delete',
+  'editor:create-file', 'editor:create-dir', 'editor:rename', 'editor:delete', 'editor:delete-permanent',
   'editor:find-in-files', 'editor:recent-get', 'editor:recent-clear', 'editor:git-diff',
   'app:version', 'app:pending-file',
   'auth:google-user', 'auth:google-start', 'auth:google-logout',
@@ -47,6 +47,7 @@ const INVOKE_CHANNELS = new Set([
 /** Channels the renderer may send (fire-and-forget → main) */
 const SEND_CHANNELS = new Set([
   'window:minimize', 'window:maximize', 'window:close',
+  'app:renderer-error',
   'page:find', 'page:find-stop',
   'editor:authorize-root',
   'terminal:input', 'terminal:resize',

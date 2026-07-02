@@ -1725,7 +1725,8 @@ function friendlyGastosError(raw: string): string {
   return cleaned.length > 200 ? `${cleaned.slice(0, 200)}…` : cleaned
 }
 
-const LAST_SYNCED_KEY  = 'gastos:last-synced-at'
+const LAST_SYNCED_KEY    = 'gastos:last-synced-at'
+const PENDING_WRITES_KEY = 'gastos:pending-writes'
 const CACHE_KEY        = 'gastos:cached-data'
 type SyncState = 'idle' | 'pending' | 'syncing' | 'error'
 
@@ -1757,7 +1758,28 @@ export function GastosPlugin() {
   const [offline,      setOffline]      = useState(false)
   // Escrituras que fallaron contra Supabase (red caída, proyecto pausado) — el botón
   // Sync las reintenta antes de chequear si hay que traer cambios remotos (pull).
-  const pendingWritesRef = useRef<Array<() => Promise<void>>>([])
+  // Persisten en localStorage como {channel, args} para sobrevivir reinicios de la app.
+  const pendingWritesRef = useRef<Array<{ channel: string; args: unknown[] }>>([])
+
+  const persistPending = (): void => {
+    try {
+      if (pendingWritesRef.current.length === 0) localStorage.removeItem(PENDING_WRITES_KEY)
+      else localStorage.setItem(PENDING_WRITES_KEY, JSON.stringify(pendingWritesRef.current))
+    } catch { /* quota */ }
+  }
+
+  // Restaurar cola pendiente de una sesión anterior
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PENDING_WRITES_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as Array<{ channel: string; args: unknown[] }>
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        pendingWritesRef.current = parsed
+        setSyncState('pending')
+      }
+    } catch { /* corrupt queue — drop it */ }
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1801,13 +1823,14 @@ export function GastosPlugin() {
 
   useEffect(() => { void load() }, [load])
 
-  /** Ejecuta una escritura contra Supabase; si falla, la encola para reintentar con Sync. */
-  async function withPendingFallback(description: string, fn: () => Promise<void>): Promise<boolean> {
+  /** Ejecuta una escritura contra Supabase; si falla, la encola (persistida) para reintentar con Sync. */
+  async function withPendingFallback(description: string, channel: string, ...args: unknown[]): Promise<boolean> {
     try {
-      await fn()
+      await window.api.invoke(channel, ...args)
       return true
     } catch (e) {
-      pendingWritesRef.current.push(fn)
+      pendingWritesRef.current.push({ channel, args })
+      persistPending()
       setSyncState('pending')
       toast.show(`No se pudo guardar (${description}) — quedó pendiente, se reintenta con Sync. ${friendlyGastosError(String(e))}`, 'error', 7000)
       return false
@@ -1820,9 +1843,20 @@ export function GastosPlugin() {
     setSyncState('syncing')
     try {
       if (pendingWritesRef.current.length > 0) {
-        const queue = pendingWritesRef.current
+        // Reintentar en orden; si una falla, conservar esa y las siguientes en la cola
+        const queue = [...pendingWritesRef.current]
+        for (let i = 0; i < queue.length; i++) {
+          const w = queue[i]!
+          try {
+            await window.api.invoke(w.channel, ...w.args)
+          } catch (e) {
+            pendingWritesRef.current = queue.slice(i)
+            persistPending()
+            throw e
+          }
+        }
         pendingWritesRef.current = []
-        for (const retry of queue) await retry()
+        persistPending()
         await load()
         toast.show('Cambios pendientes sincronizados', 'success', 4000)
         setSyncState('idle')
@@ -1847,33 +1881,33 @@ export function GastosPlugin() {
   }
 
   async function saveServicio(s: Servicio) {
-    const ok = await withPendingFallback('servicio', () => window.api.invoke('gastos:save-servicio', s))
+    const ok = await withPendingFallback('servicio', 'gastos:save-servicio', s)
     if (ok) { await load(); setPanel({ type: 'closed' }) }
   }
 
   async function deleteServicio(id: string) {
     if (!confirm('¿Eliminar servicio y todos sus pagos?')) return
-    const ok = await withPendingFallback('eliminar servicio', () => window.api.invoke('gastos:delete-servicio', id))
+    const ok = await withPendingFallback('eliminar servicio', 'gastos:delete-servicio', id)
     if (ok) await load()
   }
 
   async function toggleActivo(svc: Servicio) {
-    const ok = await withPendingFallback('servicio', () => window.api.invoke('gastos:save-servicio', { ...svc, activo: !svc.activo }))
+    const ok = await withPendingFallback('servicio', 'gastos:save-servicio', { ...svc, activo: !svc.activo })
     if (ok) await load()
   }
 
   async function savePago(p: PagoMensual) {
-    const ok = await withPendingFallback('pago', () => window.api.invoke('gastos:save-pago', p))
+    const ok = await withPendingFallback('pago', 'gastos:save-pago', p)
     if (ok) { await load(); setPanel({ type: 'closed' }) }
   }
 
   async function deletePago(id: string) {
-    const ok = await withPendingFallback('eliminar pago', () => window.api.invoke('gastos:delete-pago', id))
+    const ok = await withPendingFallback('eliminar pago', 'gastos:delete-pago', id)
     if (ok) await load()
   }
 
   async function saveCredencial(c: Credencial) {
-    const ok = await withPendingFallback('credencial', () => window.api.invoke('gastos:credencial-save', c))
+    const ok = await withPendingFallback('credencial', 'gastos:credencial-save', c)
     if (ok) {
       await load(); setPanel({ type: 'closed' })
       toast.show(
@@ -1888,7 +1922,7 @@ export function GastosPlugin() {
 
   async function deleteCredencial(id: string) {
     if (!confirm('¿Eliminar esta credencial?')) return
-    const ok = await withPendingFallback('eliminar credencial', () => window.api.invoke('gastos:credencial-delete', id))
+    const ok = await withPendingFallback('eliminar credencial', 'gastos:credencial-delete', id)
     if (ok) await load()
   }
 
@@ -1899,18 +1933,18 @@ export function GastosPlugin() {
     )) return
     const incoming = buildHistoricoPagos()
     const merged = mergePagosImport(pagos, incoming)
-    const ok = await withPendingFallback('importar histórico', () => window.api.invoke('gastos:save-pagos-bulk', merged))
+    const ok = await withPendingFallback('importar histórico', 'gastos:save-pagos-bulk', merged)
     if (ok) await load()
   }
 
   async function saveQuery(q: QueryItem) {
-    const ok = await withPendingFallback('query', () => window.api.invoke('queries:save', q))
+    const ok = await withPendingFallback('query', 'queries:save', q)
     if (ok) { await load(); setPanel({ type: 'closed' }) }
   }
 
   async function deleteQuery(id: string) {
     if (!confirm('¿Eliminar esta query?')) return
-    const ok = await withPendingFallback('eliminar query', () => window.api.invoke('queries:delete', id))
+    const ok = await withPendingFallback('eliminar query', 'queries:delete', id)
     if (ok) await load()
   }
 

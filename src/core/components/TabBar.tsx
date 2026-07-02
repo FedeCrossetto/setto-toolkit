@@ -69,7 +69,7 @@ export function TabBar(): JSX.Element {
               role="tab"
               tabIndex={0}
               aria-selected={active}
-              className={`relative flex items-center gap-1.5 px-3 py-1.5 my-1.5 text-xs cursor-pointer whitespace-nowrap group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 rounded-lg ${
+              className={`relative flex items-center gap-1.5 px-3 py-1.5 my-1.5 text-xs cursor-pointer whitespace-nowrap group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 rounded-lg transition-colors duration-200 ${
                 active
                   ? 'text-white font-semibold'
                   : 'text-on-surface-variant hover:text-on-surface'

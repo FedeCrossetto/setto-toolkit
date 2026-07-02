@@ -34,3 +34,7 @@ supabase/seed/generated/
 out/
 release/
 tsconfig.*.tsbuildinfo
+
+# Playwright
+test-results/
+playwright-report/

@@ -6,6 +6,19 @@ import { allPlugins } from '../plugin-registry'
 import { PluginIcon } from '../pluginIcons'
 import type { PluginManifest } from '../types'
 
+function HighlightMatch({ text, query }: { text: string; query: string }): JSX.Element {
+  if (!query.trim()) return <>{text}</>
+  const idx = text.toLowerCase().indexOf(query.toLowerCase())
+  if (idx === -1) return <>{text}</>
+  return (
+    <>
+      {text.slice(0, idx)}
+      <span className="text-primary font-bold bg-primary/15 rounded-sm px-0.5">{text.slice(idx, idx + query.length)}</span>
+      {text.slice(idx + query.length)}
+    </>
+  )
+}
+
 export function CommandPalette(): JSX.Element | null {
   const { state, dispatch } = useApp()
   const [query, setQuery] = useState('')
@@ -85,8 +98,13 @@ export function CommandPalette(): JSX.Element | null {
       onClick={() => dispatch({ type: 'CLOSE_COMMAND_PALETTE' })}
     >
       <div
-        className="cmd-palette-in w-full max-w-xl mx-4 rounded-2xl overflow-hidden border border-outline-variant/30 bg-surface"
-        style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.35), 0 4px 16px rgba(0,0,0,0.15)' }}
+        className="cmd-palette-in w-full max-w-xl mx-4 rounded-2xl overflow-hidden border border-outline-variant/25"
+        style={{
+          background: 'rgb(var(--c-surface) / 0.85)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.35), 0 4px 16px rgba(0,0,0,0.16)',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search input */}
@@ -126,8 +144,8 @@ export function CommandPalette(): JSX.Element | null {
                     <PluginIcon icon={plugin.icon} size={16} className="text-primary" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-sm font-medium text-on-surface truncate">{plugin.name}</div>
-                    <div className="text-xs text-on-surface-variant truncate">{plugin.description}</div>
+                    <div className="text-sm font-medium text-on-surface truncate"><HighlightMatch text={plugin.name} query={query} /></div>
+                    <div className="text-xs text-on-surface-variant truncate"><HighlightMatch text={plugin.description} query={query} /></div>
                   </div>
                   <ArrowRight size={14} className={`ml-auto flex-shrink-0 transition-opacity ${isSel ? 'text-primary opacity-100' : 'text-on-surface-variant opacity-0'}`} />
                 </button>

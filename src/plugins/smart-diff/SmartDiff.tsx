@@ -185,6 +185,7 @@ function CodePane({
   wordDiffMap: Map<number, React.ReactNode>
 }): JSX.Element {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [dragOver, setDragOver] = useState(false)
   const isLeft = side === 'original'
   const monoFont = `'${fontFamily}', 'JetBrains Mono', 'Fira Code', monospace`
 
@@ -229,15 +230,31 @@ function CodePane({
 
   return (
     <div
-      className={`flex-1 flex flex-col min-w-0 overflow-hidden ${isLeft ? '' : 'border-l border-outline-variant/15'}`}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={handleDrop}
+      className={`relative flex-1 flex flex-col min-w-0 overflow-hidden ${isLeft ? '' : 'border-l border-outline-variant/15'}`}
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => { setDragOver(false); handleDrop(e) }}
     >
+      {/* Drag-over feedback — borde gradiente animado, mismo patrón que el File Editor */}
+      {dragOver && (
+        <div
+          className="absolute inset-0 z-20 pointer-events-none"
+          style={{ padding: 2, background: 'linear-gradient(90deg, #FF7A00, #FF00D6, #5C00FF, #FF7A00)', backgroundSize: '300% 300%', animation: 'gradient-border-shift 2.5s ease infinite' }}
+        >
+          <div className="w-full h-full flex items-center justify-center backdrop-blur-sm"
+            style={{ background: 'rgb(var(--c-surface) / 0.85)' }}>
+            <p className="text-sm font-semibold text-primary">Soltá el archivo en {isLeft ? 'Original' : 'Modificado'}</p>
+          </div>
+        </div>
+      )}
       {/* Pane header */}
       <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant/15 flex-shrink-0"
         style={{ background: headerBg }}>
-        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: dotColor }} />
-        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: labelColor }}>
+        <span
+          className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
+          style={{ color: labelColor, background: `${dotColor}14`, border: `1px solid ${dotColor}30` }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: dotColor }} />
           {isLeft ? 'Original' : 'Modified'}
         </span>
         <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileInput} />

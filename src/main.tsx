@@ -13,6 +13,20 @@ import './styles/globals.css'
   applyPaletteImmediate()
 })()
 
+// Capture renderer-side errors into the main-process log (app.log) so failures
+// in packaged builds leave a trace. ErrorBoundary only covers render errors —
+// this catches async handlers, event listeners, and unhandled promise rejections.
+const reportRendererError = (kind: string, message: string, stack?: string): void => {
+  try { window.api.send('app:renderer-error', { kind, message, stack: stack?.slice(0, 4000) }) } catch { /* preload unavailable */ }
+}
+window.addEventListener('error', (e) => {
+  reportRendererError('error', e.message, e.error instanceof Error ? e.error.stack : undefined)
+})
+window.addEventListener('unhandledrejection', (e) => {
+  const r = e.reason
+  reportRendererError('unhandledrejection', r instanceof Error ? r.message : String(r), r instanceof Error ? r.stack : undefined)
+})
+
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <App />

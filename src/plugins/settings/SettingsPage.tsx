@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { motion } from 'framer-motion'
 import {
   Check, CheckCircle2, ChevronDown, CircleAlert, Download,
   Eye, EyeOff, Lock, Moon, Sun, Upload,
@@ -19,17 +20,16 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: () => void 
       aria-checked={enabled}
       onClick={onChange}
       className={[
-        'relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-lg p-1',
+        'relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full p-1',
         'transition-colors duration-200 ease-in-out focus:outline-none',
         enabled ? 'bg-primary' : 'bg-outline-variant/30',
       ].join(' ')}
+      style={enabled ? { boxShadow: '0 0 12px rgb(var(--c-primary) / 0.35)' } : undefined}
     >
-      <span
-        className={[
-          'pointer-events-none inline-block h-5 w-5 rounded-md bg-white shadow-sm',
-          'transform transition-transform duration-200 ease-in-out',
-          enabled ? 'translate-x-5' : 'translate-x-0',
-        ].join(' ')}
+      <motion.span
+        className="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm"
+        animate={{ x: enabled ? 20 : 0 }}
+        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
       />
     </button>
   )
@@ -58,9 +58,12 @@ const ANTHROPIC_MODELS = ['claude-haiku-4-5-20251001', 'claude-sonnet-4-5-202510
 type AIProvider = 'openai' | 'anthropic' | 'ollama'
 
 function SectionHeader({ icon: Icon, label, accent = 'text-primary' }: { icon: LucideIcon; label: string; accent?: string }): JSX.Element {
+  const tint = accent === 'text-secondary' ? 'bg-secondary/12' : accent === 'text-accent' ? 'bg-accent/12' : 'bg-primary/12'
   return (
-    <h2 className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-widest mb-3 ${accent}`}>
-      <Icon size={14} />
+    <h2 className={`flex items-center gap-2.5 text-xs font-semibold uppercase tracking-widest mb-3 ${accent}`}>
+      <span className={`w-7 h-7 rounded-lg flex items-center justify-center ${tint}`}>
+        <Icon size={14} />
+      </span>
       {label}
     </h2>
   )
@@ -218,7 +221,7 @@ export function SettingsPage(): JSX.Element {
       {/* Appearance */}
       <section className="mb-8">
         <SectionHeader icon={Palette} label="Apariencia" />
-        <div className="bg-surface rounded-xl border border-outline-variant/20 px-6">
+        <div className="rounded-xl border border-outline-variant/20 px-6" style={{ background: 'rgb(var(--c-surface) / 0.72)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
           <SettingRow label="Tema" description="Elegí entre interfaz clara u oscura.">
             <div className="flex gap-2">
               {(['light', 'dark'] as const).map((t) => (
@@ -387,7 +390,7 @@ export function SettingsPage(): JSX.Element {
       {/* AI Section */}
       <section className="mb-8">
         <SectionHeader icon={Bot} label="Servicio de IA" />
-        <div className="bg-surface rounded-xl border border-outline-variant/20 px-6">
+        <div className="rounded-xl border border-outline-variant/20 px-6" style={{ background: 'rgb(var(--c-surface) / 0.72)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
 
           {/* Provider selector */}
           <SettingRow label="Proveedor" description="Qué servicio de IA usar para el análisis de Smart Diff.">
@@ -535,7 +538,7 @@ export function SettingsPage(): JSX.Element {
       {/* Integrations Section */}
       <section className="mb-8">
         <SectionHeader icon={Plug} label="Integraciones" accent="text-secondary" />
-        <div className="bg-surface rounded-xl border border-outline-variant/20 px-6">
+        <div className="rounded-xl border border-outline-variant/20 px-6" style={{ background: 'rgb(var(--c-surface) / 0.72)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
 
           {/* GitHub OAuth App Client ID */}
           <SettingRow
@@ -596,7 +599,7 @@ export function SettingsPage(): JSX.Element {
       {/* Backup / Restore */}
       <section className="mb-8">
         <SectionHeader icon={Archive} label="Copia y restauración" />
-        <div className="bg-surface rounded-xl border border-outline-variant/20 px-6">
+        <div className="rounded-xl border border-outline-variant/20 px-6" style={{ background: 'rgb(var(--c-surface) / 0.72)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
           <SettingRow
             label="Exportar ajustes"
             description="Guarda los ajustes no sensibles (modelos, workspace, alias) en un archivo JSON. Las API keys nunca se exportan."
@@ -638,6 +641,28 @@ export function SettingsPage(): JSX.Element {
             >
               <Upload size={16} />
               Importar JSON
+            </button>
+          </SettingRow>
+
+          <SettingRow
+            label="Exportar logs"
+            description="Guarda el archivo de log de la app para diagnóstico. Útil para reportar un problema."
+          >
+            <button
+              onClick={async () => {
+                try {
+                  const res = await window.api.invoke<{ ok: boolean; canceled?: boolean; error?: string }>('settings:export-logs')
+                  if (res.ok) setImportMsg({ ok: true, text: 'Logs exportados.' })
+                  else if (!res.canceled) setImportMsg({ ok: false, text: res.error ?? 'Falló la exportación de logs' })
+                } catch (e) {
+                  setImportMsg({ ok: false, text: e instanceof Error ? e.message : 'Falló la exportación de logs' })
+                }
+                setTimeout(() => setImportMsg(null), 3000)
+              }}
+              className="ui-btn ui-btn-outline w-full justify-center"
+            >
+              <Download size={16} />
+              Exportar logs
             </button>
           </SettingRow>
 

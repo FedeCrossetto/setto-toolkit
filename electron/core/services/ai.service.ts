@@ -102,12 +102,33 @@ export class AIService {
     this.db.writeEncryptedJSON(CACHE_FILE, this.cache)
   }
 
+  /**
+   * fetch with retry for transient failures: network errors, 429 and 5xx.
+   * Exponential backoff (500ms → 1.5s → 4.5s), max 3 retries. 4xx (except 429)
+   * fail immediately — they're caller errors, retrying won't help.
+   */
+  private async fetchWithRetry(url: string, init: RequestInit, maxRetries = 3): Promise<Response> {
+    let lastError: Error = new Error('unreachable')
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 500 * 3 ** (attempt - 1)))
+      try {
+        const response = await fetch(url, init)
+        if (response.ok || (response.status < 500 && response.status !== 429)) return response
+        lastError = new Error(`HTTP ${response.status}`)
+        if (attempt === maxRetries) return response
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err))
+      }
+    }
+    throw lastError
+  }
+
   private async completeOpenAI(messages: AIMessage[]): Promise<string> {
     const apiKey = this.settings.get('ai.openai_key') ?? ''
     if (!apiKey) throw new Error('NO_API_KEY')
 
     const model = this.settings.get('ai.model') ?? 'gpt-4o-mini'
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await this.fetchWithRetry('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({ model, messages, max_tokens: 1000 }),
@@ -141,7 +162,7 @@ export class AIService {
     const body: Record<string, unknown> = { model, max_tokens: 1000, messages: userMessages }
     if (systemMsg) body.system = systemMsg
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await this.fetchWithRetry('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

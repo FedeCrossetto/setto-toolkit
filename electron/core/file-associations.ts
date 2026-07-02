@@ -72,9 +72,9 @@ function reg(keyPath: string, valueName: string | null, data: string): void {
  */
 export function getFileArgFromArgv(argv: string[]): string | null {
   // In packaged builds argv[0] is the app exe, argv[1] is the file.
-  // In dev mode argv[0] is electron, argv[1] is the compiled main script (.js).
-  // We only want args that match one of our registered extensions.
-  const candidates = argv.slice(1).filter(
+  // In dev/E2E argv[0] is electron and argv[1] is the compiled main script (.js) —
+  // skip it or the app would "open" its own entry point as a document.
+  const candidates = argv.slice(app.isPackaged ? 1 : 2).filter(
     (a) => !a.startsWith('-') && !a.startsWith('--') &&
            EXTENSIONS.some((ext) => a.toLowerCase().endsWith(ext))
   )

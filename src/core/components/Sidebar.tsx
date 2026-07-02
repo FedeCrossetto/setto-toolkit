@@ -69,14 +69,16 @@ function SidebarItem({ plugin, active, collapsed, onClick }: SidebarItemProps): 
 
         {/* Label — fades + collapses horizontally so the button shrinks smoothly */}
         <span
-          className="truncate text-[12px] select-none ml-3"
+          className="truncate text-[12px] select-none"
           style={{
             fontWeight: active ? 600 : 500,
             color: 'inherit',
+            // marginLeft dinámico: con ml fijo el span descentraba el ícono en modo colapsado
+            marginLeft: collapsed ? 0 : 12,
             maxWidth: collapsed ? 0 : 120,
             opacity: collapsed ? 0 : 1,
             overflow: 'hidden',
-            transition: 'max-width 200ms ease, opacity 150ms ease',
+            transition: 'max-width 200ms ease, opacity 150ms ease, margin-left 200ms ease',
             whiteSpace: 'nowrap',
           }}
         >

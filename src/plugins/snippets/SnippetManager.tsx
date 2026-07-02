@@ -478,7 +478,8 @@ export function SnippetManager(): JSX.Element {
                 ) : (
                   visible.map((s) => (
                     <button key={s.id} onClick={() => { setSelected(s); setEditing(false) }}
-                      className={`w-full text-left px-3 py-2.5 transition-colors border-b border-outline-variant/10 ${selected?.id === s.id ? 'bg-primary/10' : 'hover:bg-surface-container'}`}>
+                      className={`w-full text-left px-3 py-2.5 transition-all border-b border-outline-variant/10 border-l-2 ${selected?.id === s.id ? 'bg-primary/[0.08] border-l-primary' : 'border-l-transparent hover:bg-surface-container hover:border-l-primary/30'}`}
+                      style={selected?.id === s.id ? { boxShadow: 'inset 0 0 20px rgb(var(--c-primary) / 0.04)' } : undefined}>
                       <div className="flex items-start gap-1.5">
                         {s.pinned && <Pin size={12} className="text-primary/60 flex-shrink-0 mt-0.5" />}
                         <p className={`text-[12px] font-medium truncate flex-1 ${selected?.id === s.id ? 'text-primary' : 'text-on-surface'}`}>{s.title || 'Untitled'}</p>
@@ -606,7 +607,20 @@ function SnippetViewer({ content, language, dark }: { content: string; language:
     return () => view.destroy()
   }, [content, language, dark])
 
-  return <div ref={ref} className="h-full overflow-hidden" />
+  return (
+    <div className="h-full flex flex-col overflow-hidden rounded-xl border border-outline-variant/20">
+      {/* Header estilo editor: nombre del lenguaje + dots decorativos */}
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-outline-variant/15 flex-shrink-0 bg-surface-container/60">
+        <span className="flex gap-1">
+          <span className="w-2 h-2 rounded-full bg-error/40" />
+          <span className="w-2 h-2 rounded-full bg-warning/40" />
+          <span className="w-2 h-2 rounded-full bg-accent/40" />
+        </span>
+        <span className={`ml-auto text-[10px] font-bold uppercase tracking-wider ${LANG_COLOR[language]}`}>{language}</span>
+      </div>
+      <div ref={ref} className="flex-1 overflow-hidden" />
+    </div>
+  )
 }
 
 // ── Mixed Content Viewer ──────────────────────────────────────────────────────
