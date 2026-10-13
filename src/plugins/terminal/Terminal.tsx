@@ -8,7 +8,8 @@ import { useApp } from '../../core/AppContext'
 import { useTerminalPrefs } from './hooks/useTerminalPrefs'
 import { SessionHistoryPanel } from './SessionHistoryPanel'
 import { TerminalSettingsPanel } from './TerminalSettingsPanel'
-import { TERMINAL_THEMES } from './themes'
+import { resolveTerminalTheme } from './themes'
+import { presetCodeThemes, useAppearance } from '../../core/hooks/useThemePalette'
 import '@xterm/xterm/css/xterm.css'
 
 type SidePanel = 'history' | 'settings' | null
@@ -26,7 +27,7 @@ interface SessionEntry {
 
 const SHELL_OPTIONS = [
   { label: 'PowerShell',      cmd: 'powershell.exe', icon: '⚡' },
-  { label: 'Command Prompt',  cmd: 'cmd.exe',         icon: '>' },
+  { label: 'Símbolo del sistema', cmd: 'cmd.exe',     icon: '>' },
   { label: 'PowerShell Core', cmd: 'pwsh.exe',        icon: '⚡' },
   { label: 'Git Bash',        cmd: 'C:\\Program Files\\Git\\bin\\bash.exe', icon: '$' },
 ]
@@ -40,53 +41,59 @@ function isNodePtySetupError(msg: string | null): boolean {
 /** Pasos para compilar node-pty (Windows + rebuild). */
 function TerminalPtySetupSteps(): JSX.Element {
   return (
-    <div
-      className="mt-1 max-w-md space-y-3 rounded-lg px-3 py-3 text-left"
-      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-    >
-      <p className="text-[12px] font-semibold" style={{ color: 'rgb(var(--c-on-surface))' }}>
+    <div className="ui-card shadow-none mt-1 max-w-md space-y-3 px-3 py-3 text-left">
+      <p className="t-footnote font-semibold text-on-surface">
         Cómo hacer que funcione
       </p>
-      <ol className="list-decimal space-y-2 pl-4 text-[11px] leading-snug" style={{ color: 'rgba(255,255,255,0.75)' }}>
+      <ol className="list-decimal space-y-2 pl-4 t-footnote text-on-surface-variant">
         <li>
-          <strong className="text-white/90">Windows:</strong> instalá{' '}
+          <strong className="text-on-surface">Windows:</strong> instalá{' '}
           <strong>Python 3</strong> (en el instalador marcá <em>Add to PATH</em>) y las{' '}
           <strong>Visual Studio Build Tools</strong> con la carga{' '}
           <strong>«Desktop development with C++»</strong> (no hace falta Visual Studio completo).
         </li>
         <li>
           Abrí una terminal en la <strong>carpeta raíz del repo</strong> y ejecutá:{' '}
-          <code
-            className="rounded px-1.5 py-0.5 font-mono text-[10px]"
-            style={{ background: 'rgba(255,255,255,0.1)' }}
-          >
+          <code className="rounded px-1.5 py-px font-mono t-caption bg-on-surface/[0.06] text-on-surface">
             npm run rebuild
           </code>
           {' '}
-          (recompila <code className="font-mono text-[10px]">node-pty</code> para tu Node/Electron).
+          (recompila <code className="font-mono t-caption">node-pty</code> para tu Node/Electron).
         </li>
         <li>
-          Cerrá la app y volvé a ejecutar <code className="rounded px-1 font-mono text-[10px]" style={{ background: 'rgba(255,255,255,0.1)' }}>npm run dev</code> o abrí el ejecutable de nuevo.
+          Cerrá la app y volvé a ejecutar <code className="rounded px-1 font-mono t-caption bg-on-surface/[0.06] text-on-surface">npm run dev</code> o abrí el ejecutable de nuevo.
         </li>
       </ol>
-      <p className="text-[10px] leading-snug" style={{ color: 'rgba(255,255,255,0.4)' }}>
+      <p className="t-caption text-on-surface-variant/70">
         Si no usás el Terminal integrado, podés ignorar esto: el resto de la app funciona sin <code className="font-mono">node-pty</code>.
       </p>
     </div>
   )
 }
 
-function Row({ label, value, color }: { label: string; value: string; color?: string }): JSX.Element {
+function Row({ label, value, className }: { label: string; value: string; className?: string }): JSX.Element {
   return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-[11px]" style={{ color: 'rgb(var(--c-on-surface-variant))' }}>{label}</span>
-      <span className="text-[11px] font-medium" style={{ color: color ?? 'rgb(var(--c-on-surface))' }}>{value}</span>
+    <div className="flex items-center justify-between gap-4 t-footnote">
+      <span className="text-on-surface-variant">{label}</span>
+      <span className={`font-medium tabular-nums ${className ?? 'text-on-surface'}`}>{value}</span>
     </div>
   )
 }
 
+/** Token class for the Claude context-usage level. */
+function usageTone(pct: number): { text: string; bg: string } {
+  if (pct >= 80) return { text: '!text-error', bg: 'bg-error' }
+  if (pct >= 50) return { text: '!text-warning', bg: 'bg-warning' }
+  return { text: '!text-success', bg: 'bg-success' }
+}
+
 export function Terminal(): JSX.Element {
   const { state, dispatch } = useApp()
+  // Tema completo de la app (Nord, Catppuccin…): con "Sistema" la terminal usa su pareja.
+  const appearance = useAppearance()
+  const presetTerminal = presetCodeThemes(appearance, state.theme === 'dark')?.terminal ?? null
+  const presetTerminalRef = useRef(presetTerminal)
+  presetTerminalRef.current = presetTerminal
   const { prefs, savePrefs, loading: prefsLoading } = useTerminalPrefs()
   const [sidePanel, setSidePanel]       = useState<SidePanel>(null)
   const [sessionIds, setSessionIds]     = useState<string[]>([])
@@ -228,7 +235,7 @@ export function Terminal(): JSX.Element {
     }>('terminal:create', { cols, rows, shell, cwd })
 
     if (!result.ok || !result.sessionId) {
-      setErrorMsg(result.error ?? 'Failed to start terminal session')
+      setErrorMsg(result.error ?? 'No se pudo iniciar la sesión de terminal')
       setStarting(false)
       return
     }
@@ -242,7 +249,7 @@ export function Terminal(): JSX.Element {
     container.style.cssText = 'position:absolute;inset:0;padding:8px;visibility:hidden;pointer-events:none;'
     termAreaRef.current.appendChild(container)
 
-    const themeDef = TERMINAL_THEMES[p.theme] ?? TERMINAL_THEMES['dark']!
+    const themeDef = resolveTerminalTheme(p.theme, presetTerminalRef.current)
     const xterm = new XTerminal({
       theme: themeDef.theme, fontSize: p.fontSize, fontFamily: p.fontFamily,
       cursorStyle: p.cursorStyle, cursorBlink: p.cursorBlink, scrollback: p.scrollback,
@@ -283,7 +290,7 @@ export function Terminal(): JSX.Element {
     const offExit = window.api.on('terminal:exit', (payload: unknown) => {
       const p2 = payload as { sessionId: string; exitCode: number | null }
       if (p2.sessionId === sessionId) {
-        xterm.writeln(`\r\n\x1b[2m[Process exited with code ${p2.exitCode ?? 0}]\x1b[0m`)
+        xterm.writeln(`\r\n\x1b[2m[El proceso terminó con código ${p2.exitCode ?? 0}]\x1b[0m`)
         const entry = sessionsRef.current.get(sessionId)
         if (entry) entry.exited = true
         setExitedIds((prev) => new Set([...prev, sessionId]))
@@ -416,18 +423,25 @@ export function Terminal(): JSX.Element {
   }, [])
 
   // ── Apply prefs to all live instances ─────────────────────────────────────
+  // Also re-applied when the app switches light/dark, so "Sistema" and the surface-tinted
+  // backgrounds follow along. rAF: let the palette tokens land on :root first.
+  const [resolvedTheme, setResolvedTheme] = useState(() => resolveTerminalTheme(prefs.theme, presetTerminal))
   useEffect(() => {
-    const themeDef = TERMINAL_THEMES[prefs.theme] ?? TERMINAL_THEMES['dark']!
-    sessionsRef.current.forEach((s) => {
-      s.xterm.options.theme       = themeDef.theme
-      s.xterm.options.fontSize    = prefs.fontSize
-      s.xterm.options.fontFamily  = prefs.fontFamily
-      s.xterm.options.cursorStyle = prefs.cursorStyle
-      s.xterm.options.cursorBlink = prefs.cursorBlink
-      try { s.fitAddon.fit() } catch { /* ignore */ }
+    const raf = requestAnimationFrame(() => {
+      const themeDef = resolveTerminalTheme(prefs.theme, presetTerminal)
+      setResolvedTheme(themeDef)
+      sessionsRef.current.forEach((s) => {
+        s.xterm.options.theme       = themeDef.theme
+        s.xterm.options.fontSize    = prefs.fontSize
+        s.xterm.options.fontFamily  = prefs.fontFamily
+        s.xterm.options.cursorStyle = prefs.cursorStyle
+        s.xterm.options.cursorBlink = prefs.cursorBlink
+        try { s.fitAddon.fit() } catch { /* ignore */ }
+      })
+      if (termAreaRef.current) termAreaRef.current.style.background = themeDef.background
     })
-    if (termAreaRef.current) termAreaRef.current.style.background = themeDef.background
-  }, [prefs.theme, prefs.fontSize, prefs.fontFamily, prefs.cursorStyle, prefs.cursorBlink])
+    return () => cancelAnimationFrame(raf)
+  }, [prefs.theme, prefs.fontSize, prefs.fontFamily, prefs.cursorStyle, prefs.cursorBlink, state.theme, presetTerminal, appearance])
 
   // ── Auto-refresh usage every 30s while Claude is running ──────────────────
   useEffect(() => {
@@ -447,7 +461,7 @@ export function Terminal(): JSX.Element {
     }
   }, [sidePanel, activeId])
 
-  const themeDef = TERMINAL_THEMES[prefs.theme] ?? TERMINAL_THEMES['dark']!
+  const themeDef = resolvedTheme
 
   // ── Deduplicate tab labels ─────────────────────────────────────────────────
   const tabLabels: Record<string, string> = (() => {
@@ -467,25 +481,13 @@ export function Terminal(): JSX.Element {
   })()
 
   return (
-    <div
-      className="flex flex-col h-full overflow-hidden"
-      style={{ borderRadius: 12, border: '1px solid rgba(255,255,255,0.07)' }}
-    >
+    <div className="flex flex-col h-full overflow-hidden bg-surface">
 
       {/* ── Tab bar ───────────────────────────────────────────────────────── */}
-      <div
-        className="flex items-center flex-shrink-0 gap-1.5 px-2"
-        style={{
-          height: 44,
-          minHeight: 44,
-          borderBottom: '1px solid rgba(255,255,255,0.07)',
-          background: 'rgb(var(--c-surface))',
-          borderRadius: '12px 12px 0 0',
-        }}
-      >
+      <div className="flex items-stretch flex-shrink-0 h-9 hairline-b bg-sidebar/40">
         {/* Session tabs — scrollable, NO picker button inside here */}
         <div
-          className="flex items-center flex-1 min-w-0 gap-1 overflow-x-auto"
+          className="flex items-stretch flex-1 min-w-0 overflow-x-auto"
           style={{ scrollbarWidth: 'none' }}
         >
           {sessionIds.map((id) => {
@@ -499,28 +501,19 @@ export function Terminal(): JSX.Element {
               <div
                 key={id}
                 onClick={() => handleTabClick(id, baseLabel)}
-                title={isActive && !isEditing ? 'Click to rename' : undefined}
-                className="group flex items-center gap-1.5 px-2.5 flex-shrink-0 rounded-lg select-none transition-all"
+                title={isActive && !isEditing ? 'Clic para renombrar' : undefined}
+                className={`group flex items-center gap-1.5 pl-3 pr-1.5 flex-shrink-0 select-none hairline-r t-footnote transition-colors ${
+                  isActive ? 'bg-surface font-medium' : 'hover:bg-on-surface/[0.04]'
+                } ${
+                  isExited ? 'text-on-surface-variant/50' : isActive ? 'text-on-surface' : 'text-on-surface-variant'
+                }`}
                 style={{
-                  height: 30,
                   cursor: isEditing ? 'default' : 'pointer',
-                  background: isActive
-                    ? 'var(--gradient-brand)'
-                    : 'rgb(var(--c-surface-container))',
-                  color: isExited
-                    ? 'rgb(var(--c-on-surface-variant) / 0.4)'
-                    : isActive
-                      ? '#fff'
-                      : 'rgb(var(--c-on-surface-variant))',
-                  border: isActive
-                    ? '1px solid transparent'
-                    : '1px solid rgb(var(--c-outline-variant) / 0.5)',
-                  boxShadow: isActive ? '0 2px 8px rgb(var(--c-primary) / 0.32)' : undefined,
-                  maxWidth: 180,
-                  minWidth: 72,
+                  maxWidth: 200,
+                  minWidth: 96,
                 }}
               >
-                <SquareTerminal size={11} className="flex-shrink-0 opacity-60" />
+                <SquareTerminal size={12} className="flex-shrink-0 opacity-60" />
 
                 {isEditing ? (
                   <input
@@ -530,24 +523,26 @@ export function Terminal(): JSX.Element {
                     onKeyDown={handleRenameKey}
                     onBlur={commitRename}
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-transparent outline-none text-[12px] font-medium min-w-0 flex-1"
-                    style={{ color: '#fff', width: 80 }}
+                    aria-label="Nombre de la sesión"
+                    className="bg-surface text-on-surface outline-none t-footnote min-w-0 flex-1 rounded px-1 shadow-[0_0_0_2px_rgb(var(--c-primary)/0.5)]"
+                    style={{ width: 90 }}
                   />
                 ) : (
-                  <span className="text-[12px] font-medium truncate flex-1">{label}</span>
+                  <span className="truncate flex-1">{label}</span>
                 )}
 
                 {isExited && !isEditing && (
-                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'rgb(var(--c-outline))' }} />
+                  <span title="El proceso terminó" className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-on-surface-variant/50" />
                 )}
 
                 {!isEditing && (
                   <button
                     onClick={(e) => { e.stopPropagation(); void closeTab(id) }}
-                    className="opacity-0 group-hover:opacity-100 flex-shrink-0 w-4 h-4 rounded flex items-center justify-center transition-all hover:bg-black/[0.1]"
-                    style={{ color: 'rgb(var(--c-on-surface-variant))' }}
+                    title="Cerrar sesión"
+                    aria-label="Cerrar sesión"
+                    className="opacity-0 group-hover:opacity-100 flex-shrink-0 w-4 h-4 rounded flex items-center justify-center transition-opacity text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.08]"
                   >
-                    <X size={9} />
+                    <X size={11} />
                   </button>
                 )}
               </div>
@@ -572,22 +567,18 @@ export function Terminal(): JSX.Element {
             setShellPickerOpen(true)
           }}
           disabled={starting}
-          title="New terminal session"
-          className="flex items-center gap-0.5 px-2 h-7 rounded-lg transition-colors disabled:opacity-40 flex-shrink-0"
-          style={{
-            color: 'rgb(var(--c-on-surface-variant))',
-            background: 'rgb(var(--c-surface-container))',
-            border: '1px solid rgb(var(--c-outline-variant) / 0.5)',
-          }}
+          title="Nueva sesión (Ctrl+T)"
+          aria-label="Nueva sesión"
+          className="ui-btn ui-btn-ghost ui-btn-sm self-center mx-1 !px-1.5 !gap-0.5 flex-shrink-0"
         >
           {starting
-            ? <RefreshCw size={11} className="animate-spin" />
-            : <><Plus size={11} /><ChevronDown size={10} /></>
+            ? <RefreshCw size={13} className="animate-spin" />
+            : <><Plus size={14} /><ChevronDown size={11} /></>
           }
         </button>
 
         {/* Right: Claude buttons + Send to Diff + History + Settings */}
-        <div className="flex items-center flex-shrink-0 gap-1">
+        <div className="flex items-center flex-shrink-0 gap-0.5 pr-2 pl-1 hairline-l">
 
           {/* ── Button 1: Launch Claude with full permissions ───────────── */}
           <button
@@ -606,14 +597,10 @@ export function Terminal(): JSX.Element {
               // Fetch usage after Claude has had time to start
               setTimeout(() => refreshUsage(), 5000)
             }}
-            title="Launch Claude Code (full permissions)"
-            className="flex items-center gap-1 px-2 h-7 rounded-lg text-[11px] font-semibold transition-colors flex-shrink-0"
-            style={{
-              color: 'rgb(var(--c-on-primary))',
-              background: 'linear-gradient(135deg, rgb(var(--c-primary)), rgb(var(--c-secondary)))',
-            }}
+            title="Abrir Claude Code (con todos los permisos)"
+            className="ui-btn ui-btn-ghost ui-btn-sm !gap-1 flex-shrink-0"
           >
-            <Bot size={12} />
+            <Bot size={14} />
             Claude
           </button>
 
@@ -626,15 +613,11 @@ export function Terminal(): JSX.Element {
                 window.api.send('terminal:input', { sessionId: activeId, data: '\x03' })
               }
             }}
-            title="Send Ctrl+C (interrupt / exit Claude)"
-            className="flex items-center justify-center w-7 h-7 rounded-lg transition-colors flex-shrink-0"
-            style={{
-              color: 'rgb(var(--c-error))',
-              background: 'rgb(var(--c-surface-container))',
-              border: '1px solid rgb(var(--c-error) / 0.3)',
-            }}
+            title="Enviar Ctrl+C (interrumpir o salir de Claude)"
+            aria-label="Enviar Ctrl+C"
+            className="ui-btn ui-btn-ghost ui-btn-icon flex-shrink-0"
           >
-            <StopCircle size={12} />
+            <StopCircle size={14} />
           </button>
 
           {/* ── Button 2: Claude context usage % ───────────────────────── */}
@@ -645,19 +628,10 @@ export function Terminal(): JSX.Element {
                 refreshUsage()
                 setUsageOpen((o) => !o)
               }}
-              title="Claude context window usage (click to refresh)"
-              className="flex items-center gap-1 px-2 h-7 rounded-lg text-[11px] font-medium transition-colors"
-              style={{
-                color: claudeUsagePct === null
-                  ? 'rgb(var(--c-on-surface-variant))'
-                  : claudeUsagePct >= 80 ? 'rgb(var(--c-error))'
-                  : claudeUsagePct >= 50 ? '#f59e0b'
-                  : 'rgb(74 222 128)',
-                background: 'rgb(var(--c-surface-container))',
-                border: '1px solid rgb(var(--c-outline-variant) / 0.5)',
-              }}
+              title="Uso de la ventana de contexto de Claude (clic para actualizar)"
+              className={`ui-btn ui-btn-ghost ui-btn-sm !gap-1 tabular-nums ${claudeUsagePct === null ? '' : usageTone(claudeUsagePct).text}`}
             >
-              <Activity size={11} />
+              <Activity size={13} />
               {claudeUsagePct !== null ? `${claudeUsagePct}%` : '—'}
             </button>
 
@@ -665,28 +639,28 @@ export function Terminal(): JSX.Element {
             <AnimatePresence>
               {usageOpen && claudeUsagePct !== null && (
                 <motion.div
-                  className="ui-card absolute right-0 top-full mt-1 z-[9999] py-3 px-4 min-w-[220px]"
-                  initial={{ opacity: 0, scale: 0.96, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: -4 }}
-                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                  className="mac-popover hairline absolute right-0 top-full mt-1 z-[9999] py-3 px-4 min-w-[240px]"
+                  initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}
+                  transition={{ duration: 0.12, ease: 'easeOut' }}
                 >
-                  <div className="text-[10px] font-semibold uppercase tracking-widest mb-1 text-on-surface-variant">
-                    Claude Context Window
+                  <div className="t-footnote font-semibold text-on-surface mb-0.5">
+                    Ventana de contexto de Claude
                   </div>
-                  <div className="text-[10px] mb-2.5 text-on-surface-variant/60">
-                    Porcentaje de contexto usado — dato real de /usage
+                  <div className="t-caption mb-2.5 text-on-surface-variant">
+                    Porcentaje de contexto usado (dato real de /usage)
                   </div>
                   {(() => {
                     const pct = claudeUsagePct
-                    const barColor = pct >= 80 ? 'rgb(var(--c-error))' : pct >= 50 ? '#f59e0b' : 'rgb(74 222 128)'
+                    const tone = usageTone(pct)
                     const remaining = 100 - pct
                     return (
                       <>
-                        <div className="w-full rounded-full mb-3" style={{ height: 5, background: 'rgb(var(--c-outline-variant) / 0.4)' }}>
-                          <div className="rounded-full h-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, background: barColor }} />
+                        <div className="w-full rounded-full mb-3 bg-on-surface/[0.08]" style={{ height: 4 }}>
+                          <div className={`rounded-full h-full transition-all ${tone.bg}`} style={{ width: `${Math.min(pct, 100)}%` }} />
                         </div>
                         <div className="flex flex-col gap-1.5">
-                          <Row label="Context used"      value={`${pct}%`}       color={barColor} />
-                          <Row label="Context remaining" value={`${remaining}%`} color={remaining <= 20 ? 'rgb(var(--c-error))' : undefined} />
+                          <Row label="Contexto usado"      value={`${pct}%`}       className={tone.text} />
+                          <Row label="Contexto disponible" value={`${remaining}%`} className={remaining <= 20 ? 'text-error' : undefined} />
                         </div>
                       </>
                     )
@@ -712,9 +686,9 @@ export function Terminal(): JSX.Element {
                 const label = (customNames[activeId] || entry.shellLabel) + '-output'
                 dispatch({ type: 'SEND_TO_DIFF', name: label, path: null, content })
               }}
-              title="Send output to Smart Diff"
-              className="p-1.5 rounded-lg transition-colors"
-              style={{ color: 'rgb(var(--c-on-surface-variant))', background: 'transparent', border: '1px solid transparent' }}
+              title="Enviar la salida a Smart Diff"
+              aria-label="Enviar la salida a Smart Diff"
+              className="ui-btn ui-btn-ghost ui-btn-icon"
             >
               <GitCompare size={14} />
             </button>
@@ -723,13 +697,10 @@ export function Terminal(): JSX.Element {
             <button
               key={panel}
               onClick={() => setSidePanel((p) => p === panel ? null : panel)}
-              title={panel === 'history' ? 'Session history' : 'Terminal settings'}
-              className="p-1.5 rounded-lg transition-colors"
-              style={{
-                color: sidePanel === panel ? 'rgb(var(--c-primary-light))' : 'rgb(var(--c-on-surface-variant))',
-                background: sidePanel === panel ? 'rgb(var(--c-primary) / 0.1)' : 'transparent',
-                border: `1px solid ${sidePanel === panel ? 'rgb(var(--c-primary) / 0.3)' : 'transparent'}`,
-              }}
+              title={panel === 'history' ? 'Historial de sesiones' : 'Ajustes de la terminal'}
+              aria-label={panel === 'history' ? 'Historial de sesiones' : 'Ajustes de la terminal'}
+              aria-pressed={sidePanel === panel}
+              className={`ui-btn ui-btn-ghost ui-btn-icon ${sidePanel === panel ? '!bg-on-surface/[0.08] !text-on-surface' : ''}`}
             >
               {panel === 'history' ? <History size={14} /> : <Settings size={14} />}
             </button>
@@ -738,34 +709,34 @@ export function Terminal(): JSX.Element {
       </div>
 
       {/* ── Content ───────────────────────────────────────────────────────── */}
-      <div className="flex-1 relative overflow-hidden flex" style={{ borderRadius: '0 0 12px 12px' }}>
+      <div className="flex-1 relative overflow-hidden flex">
 
         {/* Terminal area */}
         <div
           ref={termAreaRef}
           className="flex-1 relative overflow-hidden"
-          style={{ background: themeDef.background, borderRadius: sidePanel ? 0 : '0 0 12px 12px' }}
+          style={{ background: themeDef.background }}
           onClick={() => {
             if (activeId) sessionsRef.current.get(activeId)?.xterm.focus()
           }}
         >
           {sessionIds.length === 0 && !starting && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 overflow-y-auto px-4 py-6">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 overflow-y-auto px-4 py-6 bg-surface">
               {errorMsg ? (
                 <>
-                  <AlertTriangle size={28} style={{ color: '#f87171' }} />
+                  <AlertTriangle size={28} className="text-error" strokeWidth={1.6} />
                   <div className="flex w-full max-w-lg flex-col items-center gap-2">
-                    <div className="text-[13px] text-center font-medium" style={{ color: '#f87171' }}>
+                    <div className="t-headline text-center text-on-surface">
                       {isNodePtySetupError(errorMsg)
                         ? 'No se pudo iniciar la consola (falta el módulo nativo)'
                         : 'No se pudo iniciar la sesión'}
                     </div>
-                    <div className="text-[11px] text-center leading-relaxed" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                    <div className="t-footnote text-center text-on-surface-variant font-mono">
                       {errorMsg}
                     </div>
                     {isNodePtySetupError(errorMsg) && <TerminalPtySetupSteps />}
                     {!isNodePtySetupError(errorMsg) && (
-                      <p className="text-[10px] text-center" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                      <p className="t-caption text-center text-on-surface-variant/70">
                         Revisá la ruta del shell y el directorio de trabajo en el panel de ajustes del Terminal (ícono engranaje).
                       </p>
                     )}
@@ -773,20 +744,24 @@ export function Terminal(): JSX.Element {
                   <button
                     type="button"
                     onClick={() => { void createSession() }}
-                    className="ui-btn ui-btn-primary mt-2 text-[12px] py-1.5"
+                    className="ui-btn ui-btn-primary mt-2"
                   >
                     Reintentar
                   </button>
                 </>
               ) : (
                 <>
-                  <SquareTerminal size={28} style={{ color: 'rgba(255,255,255,0.15)' }} />
-                  <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.3)' }}>No active session</span>
+                  <SquareTerminal size={32} className="text-on-surface-variant/40" strokeWidth={1.4} />
+                  <span className="t-body text-on-surface-variant">No hay ninguna sesión abierta</span>
                   <button
-                    onClick={() => setShellPickerOpen(true)}
-                    className="ui-btn ui-btn-primary text-[12px] py-1.5"
+                    onClick={() => {
+                      const rect = pickerBtnRef.current?.getBoundingClientRect()
+                      if (rect) setPickerPos({ top: rect.bottom + 4, left: Math.max(8, rect.right - 220) })
+                      setShellPickerOpen(true)
+                    }}
+                    className="ui-btn ui-btn-primary"
                   >
-                    <Plus size={12} /> New Session
+                    <Plus size={14} /> Nueva sesión
                   </button>
                 </>
               )}
@@ -797,15 +772,8 @@ export function Terminal(): JSX.Element {
         {/* Side panel */}
         {sidePanel && (
           <div
-            className="flex-shrink-0 overflow-hidden flex flex-col"
-            style={{
-              width: 340,
-              borderLeft: '1px solid rgba(255,255,255,0.07)',
-              background: 'rgb(var(--c-surface) / 0.82)',
-              backdropFilter: 'blur(14px)',
-              WebkitBackdropFilter: 'blur(14px)',
-              borderRadius: '0 0 12px 0',
-            }}
+            className="flex-shrink-0 overflow-hidden flex flex-col hairline-l bg-sidebar/40"
+            style={{ width: 340 }}
           >
             {sidePanel === 'history' && (
               <SessionHistoryPanel onNewSession={() => { setSidePanel(null); void createSession() }} />
@@ -823,11 +791,11 @@ export function Terminal(): JSX.Element {
           <motion.div
             className="ui-menu z-[9999]"
             style={{ position: 'fixed', top: pickerPos.top, left: pickerPos.left, minWidth: 220 }}
-            initial={{ opacity: 0, scale: 0.96, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: -4 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
+            initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.1, ease: 'easeOut' }}
           >
-            <div className="px-3 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">
-              New Session
+            <div className="t-section px-2 pt-1 pb-1">
+              Nueva sesión
             </div>
             {SHELL_OPTIONS.map((opt) => (
               <button
@@ -837,15 +805,14 @@ export function Terminal(): JSX.Element {
                   setShellPickerOpen(false)
                   void createSession(opt.cmd)
                 }}
-                className="ui-menu-item w-full px-3 py-2.5 text-[13px] text-left text-on-surface"
+                className="ui-menu-item w-full text-left group/item"
               >
-                <span className="text-[11px] w-4 text-center font-mono text-on-surface-variant">
+                <span className="t-caption w-4 text-center font-mono opacity-60">
                   {opt.icon}
                 </span>
                 {opt.label}
               </button>
             ))}
-            <div className="h-1.5" />
           </motion.div>
         )}
       </AnimatePresence>

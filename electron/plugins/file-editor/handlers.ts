@@ -1,7 +1,10 @@
 import type { IpcMain } from 'electron'
 import { BrowserWindow, shell } from 'electron'
 import type { PluginHandlers, CoreServices } from '../../core/types'
-import type { RecentFile, ReadFileRequest, ReadFileResponse, FileChangedEvent, FileTreeNode, FindResult } from '../../../src/plugins/file-editor/types'
+import type {
+  RecentFile, ReadFileRequest, ReadFileResponse, FileChangedEvent, FileTreeNode, FindResult,
+  WriteFileOptions, EolKind, HistoryEntry, ReplaceInFilesRequest, ReplaceInFilesResponse, ReplaceFilePreview,
+} from '../../../src/plugins/file-editor/types'
 import { dialog, app } from 'electron'
 import fs from 'fs'
 import path from 'path'
@@ -10,6 +13,23 @@ import type { FSWatcher } from 'chokidar'
 import { execFile } from 'child_process'
 import { registerHandler } from '../../core/ipc-handler'
 import { addAuthorizedRoot, assertInAuthorizedRoot, validatePath } from './path-guard'
+import { decodeFile, decodeBytes, detectEncoding, encodeFile, encodeText, isEolKind, isFileEncoding, looksBinary } from './encoding'
+import { addSnapshot, listSnapshots, readSnapshot, lineDelta } from './history'
+import { buildMatcher, replaceInText } from './replace'
+
+/** EOL used when a file has no line breaks yet (the renderer applies its own pref for new buffers). */
+const PLATFORM_EOL: EolKind = process.platform === 'win32' ? 'crlf' : 'lf'
+
+/** Where local history snapshots live: <userData>/editor-history */
+const historyBase = (): string => path.join(app.getPath('userData'), 'editor-history')
+
+/** Read a text file decoding its real encoding (cp1252, UTF-16…) — null when it looks binary. */
+function readTextFile(filePath: string): string | null {
+  const bytes = fs.readFileSync(filePath)
+  const enc = detectEncoding(bytes)
+  if (looksBinary(bytes, enc)) return null
+  return decodeBytes(bytes, enc)
+}
 
 /** Run git in `cwd` and resolve stdout, or reject on non-zero exit. */
 function runGit(cwd: string, args: string[]): Promise<string> {
@@ -40,7 +60,7 @@ async function computeGitDiff(filePath: string): Promise<GitLineDiff | null> {
     await runGit(dir, ['ls-files', '--error-unmatch', filePath])
   } catch {
     try {
-      const lineCount = fs.readFileSync(filePath, 'utf8').split('\n').length
+      const lineCount = (readTextFile(filePath) ?? '').split('\n').length
       return { added: Array.from({ length: lineCount }, (_, i) => i + 1), changed: [], deleted: [] }
     } catch { return { added: [], changed: [], deleted: [] } }
   }
@@ -171,12 +191,13 @@ export const handlers: PluginHandlers = {
       const stat = fs.statSync(safe)
       const size = stat.size
       const mtime = stat.mtimeMs
-      let content = fs.readFileSync(safe, 'utf-8')
+      // Detect the real encoding (BOM / valid UTF-8 / Windows-1252) and EOL so saving
+      // writes the file back exactly as it was. Content is normalized to \n (CodeMirror does that anyway).
+      const decoded = decodeFile(fs.readFileSync(safe), PLATFORM_EOL)
+      let content = decoded.content
       let truncated = false
-      // Node's 'utf-8' decoding never throws — invalid byte sequences become U+FFFD
-      // (the replacement char). Their presence means this likely isn't valid UTF-8
-      // text (binary file, or a different encoding like Windows-1252/UTF-16).
-      const encodingWarning = content.includes('�')
+      // Only binary-looking files (NUL bytes) still get a warning: other encodings are handled now.
+      const encodingWarning = decoded.binary
 
       // tailLinesCount = -1 → load full file regardless of size
       const forceAll = tailLinesCount === -1
@@ -193,7 +214,7 @@ export const handlers: PluginHandlers = {
         openedAt: new Date().toISOString(),
       })
 
-      return { content, mtime, size, truncated, encodingWarning }
+      return { content, mtime, size, truncated, encodingWarning, encoding: decoded.encoding, eol: decoded.eol, eolMixed: decoded.eolMixed }
     })
 
     // ── Read image as data URL (renderer CSP blocks file:// URLs) ─────────
@@ -211,17 +232,30 @@ export const handlers: PluginHandlers = {
 
     // ── Write file ─────────────────────────────────────────────────────────
 
-    registerHandler(ipcMain, 'editor:write-file', (_e, filePath: string, content: string) => {
+    registerHandler(ipcMain, 'editor:write-file', (_e, filePath: string, content: string, opts?: WriteFileOptions) => {
       const safe = validatePath(filePath)
       assertInAuthorizedRoot(safe)
+      if (typeof content !== 'string') throw new Error('Contenido inválido')
+      // Encode first: an unmappable char (e.g. "漢" in Windows-1252) throws here, before touching disk.
+      // Without opts this behaves like before (UTF-8, content written as-is).
+      const encoding = isFileEncoding(opts?.encoding) ? opts.encoding : 'utf8'
+      const data = isEolKind(opts?.eol)
+        ? encodeFile(content, { encoding, eol: opts.eol })
+        : encodeText(content, encoding)
+      let previous: Buffer | null = null
+      try { previous = fs.readFileSync(safe) } catch { /* new file */ }
       // Atomic write: temp file + rename so a crash mid-write never truncates the original
       const tmp = `${safe}.${process.pid}.tmp`
       try {
-        fs.writeFileSync(tmp, content, 'utf-8')
+        fs.writeFileSync(tmp, data)
         fs.renameSync(tmp, safe)
       } catch (err) {
         try { fs.unlinkSync(tmp) } catch { /* temp may not exist */ }
         throw err
+      }
+      // Local history: keep what was on disk before this save (best-effort, never fails the save)
+      if (previous && previous.length > 0 && !previous.equals(data)) {
+        try { addSnapshot(historyBase(), safe, previous, { autosave: opts?.autosave === true }) } catch { /* ignore */ }
       }
       const stat = fs.statSync(safe)
       addRecentFile(settings, {
@@ -269,9 +303,8 @@ export const handlers: PluginHandlers = {
       watcher.on('change', () => {
         try {
           const stat = fs.statSync(safe)
-          const content = stat.size > MAX_FULL_SIZE
-            ? tailLines(fs.readFileSync(safe, 'utf-8'), TAIL_LINES)
-            : fs.readFileSync(safe, 'utf-8')
+          const decoded = decodeFile(fs.readFileSync(safe), PLATFORM_EOL).content
+          const content = stat.size > MAX_FULL_SIZE ? tailLines(decoded, TAIL_LINES) : decoded
 
           const payload: FileChangedEvent = {
             path: safe,
@@ -408,7 +441,9 @@ export const handlers: PluginHandlers = {
         if (results.length >= MAX_RESULTS) return
         try {
           if (fs.statSync(filePath).size > MAX_FILE_SIZE) return
-          const lines = fs.readFileSync(filePath, 'utf-8').split('\n')
+          const text = readTextFile(filePath)
+          if (text === null) return   // binary
+          const lines = text.split(/\r?\n|\r/)
           const name = path.basename(filePath)
           lines.forEach((line, i) => {
             if (results.length >= MAX_RESULTS) return
@@ -432,6 +467,102 @@ export const handlers: PluginHandlers = {
 
       walkDir(dir)
       return results
+    })
+
+    // ── Replace in files ───────────────────────────────────────────────────
+    // Same filters/limits as find-in-files. dryRun (default) → preview only. Each file
+    // keeps its own encoding and line separators (even mixed ones); binary/large files are skipped.
+
+    registerHandler(ipcMain, 'editor:replace-in-files', (_e, req: ReplaceInFilesRequest): ReplaceInFilesResponse => {
+      const root = validatePath(req?.root)
+      const MAX_FILES = 300
+      const MAX_FILE_SIZE = 5 * 1024 * 1024
+      const useRegex = !!req.useRegex
+      const replacement = typeof req.replacement === 'string' ? req.replacement : ''
+      const matcher = buildMatcher(req.query, useRegex)
+      const dryRun = req.dryRun !== false
+      if (!dryRun) assertInAuthorizedRoot(root)
+      const only = Array.isArray(req.paths) ? new Set(req.paths.map((p) => path.resolve(String(p)))) : null
+
+      const res: ReplaceInFilesResponse = { files: [], totalMatches: 0, written: 0, errors: [], limited: false }
+
+      const processFile = (filePath: string): void => {
+        if (only && !only.has(filePath)) return
+        let bytes: Buffer
+        try {
+          if (fs.statSync(filePath).size > MAX_FILE_SIZE) return
+          bytes = fs.readFileSync(filePath)
+        } catch { return }
+        const encoding = detectEncoding(bytes)
+        if (looksBinary(bytes, encoding)) return
+        const r = replaceInText(decodeBytes(bytes, encoding), matcher, replacement, useRegex)
+        if (r.count === 0) return
+        if (res.files.length >= MAX_FILES) { res.limited = true; return }
+        if (!dryRun) {
+          const tmp = `${filePath}.${process.pid}.tmp`
+          try {
+            assertInAuthorizedRoot(filePath)
+            const data = encodeText(r.output, encoding)   // separators are still the original ones
+            fs.writeFileSync(tmp, data)
+            fs.renameSync(tmp, filePath)
+            try { addSnapshot(historyBase(), filePath, bytes) } catch { /* best-effort */ }
+            res.written++
+          } catch (err) {
+            try { fs.unlinkSync(tmp) } catch { /* temp may not exist */ }
+            res.errors.push({ path: filePath, message: (err as Error).message })
+            return
+          }
+        }
+        const preview: ReplaceFilePreview = { path: filePath, name: path.basename(filePath), count: r.count, samples: r.samples }
+        res.files.push(preview)
+        res.totalMatches += r.count
+      }
+
+      const walkDir = (dirPath: string): void => {
+        if (res.limited) return
+        let entries: fs.Dirent[]
+        try { entries = fs.readdirSync(dirPath, { withFileTypes: true }) } catch { return }
+        for (const e of entries) {
+          if (res.limited) return
+          if (e.name.startsWith('.') || SKIP_DIRS.has(e.name)) continue
+          const p = path.join(dirPath, e.name)
+          if (e.isDirectory()) walkDir(p)
+          else if (e.isFile()) processFile(p)
+        }
+      }
+
+      walkDir(root)
+      return res
+    })
+
+    // ── Local history ──────────────────────────────────────────────────────
+
+    registerHandler(ipcMain, 'editor:history-list', (_e, filePath: string, current?: string) => {
+      const safe = validatePath(filePath)
+      const base = historyBase()
+      return listSnapshots(base, safe).map((entry): HistoryEntry => {
+        if (typeof current !== 'string') return entry
+        try {
+          const text = decodeFile(readSnapshot(base, safe, entry.id), PLATFORM_EOL).content
+          // added = lines the current buffer has that this version doesn't
+          return { ...entry, ...lineDelta(text, current) }
+        } catch { return entry }
+      })
+    })
+
+    registerHandler(ipcMain, 'editor:history-read', (_e, filePath: string, id: string) => {
+      const safe = validatePath(filePath)
+      const d = decodeFile(readSnapshot(historyBase(), safe, String(id)), PLATFORM_EOL)
+      return { content: d.content, encoding: d.encoding, eol: d.eol }
+    })
+
+    // Restore = hand the content back so the renderer loads it into the tab as unsaved
+    // changes. Nothing is written to disk here.
+    registerHandler(ipcMain, 'editor:history-restore', (_e, filePath: string, id: string) => {
+      const safe = validatePath(filePath)
+      assertInAuthorizedRoot(safe)
+      const d = decodeFile(readSnapshot(historyBase(), safe, String(id)), PLATFORM_EOL)
+      return { content: d.content, encoding: d.encoding, eol: d.eol }
     })
 
     // ── Recent files ───────────────────────────────────────────────────────

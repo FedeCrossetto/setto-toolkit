@@ -5,8 +5,8 @@ const About = lazy(() => import('./About').then((m) => ({ default: m.About })))
 
 export const aboutPlugin: PluginManifest = {
   id: 'about',
-  name: 'About',
-  description: 'App version and information',
+  name: 'Acerca de',
+  description: 'Versión e información de la app',
   icon: 'info',
   component: About,
   keywords: ['about', 'version', 'info'],

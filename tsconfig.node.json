@@ -3,7 +3,12 @@
   "include": [
     "electron.vite.config.*",
     "electron/**/*",
-    "src/plugins/**/types.ts"
+    "src/plugins/**/types.ts",
+    "src/plugins/credentials/csv.ts",
+    "src/plugins/credentials/strength.ts",
+    "src/plugins/credentials/offline-queue.ts",
+    "src/core/clip-utils.ts",
+    "src/plugins/captures/naming.ts"
   ],
   "compilerOptions": {
     "composite": true,

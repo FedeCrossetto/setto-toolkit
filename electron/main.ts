@@ -6,20 +6,34 @@ import { SettingsService } from './core/services/settings.service'
 import { AIService } from './core/services/ai.service'
 import { AuthService } from './core/services/auth.service'
 import { GastosStorageService } from './core/services/gastos-storage.service'
+import { SyncService } from './core/services/sync.service'
 import { initUpdater } from './core/services/updater.service'
 import { loadWindowState, trackWindowState } from './core/services/window-state.service'
 import { loadPlugins } from './core/plugin-loader'
 import { ipcMain } from 'electron'
 import { registerFileAssociations, getFileArgFromArgv } from './core/file-associations'
 import { logger } from './core/logger'
+import { setupQuickCapture, teardownQuickCapture } from './core/quick-capture'
+import { registerNotifications } from './core/notifications'
+import { registerSnippetPicker, teardownSnippetPicker } from './core/snippet-picker'
+import { registerClipboardHistory, teardownClipboardHistory } from './core/clipboard-history'
+import { registerClipboardActions, teardownClipboardActions } from './core/clipboard-actions'
+import { registerCaptureScheme } from './plugins/captures/handlers'
 
 // E2E tests pass --user-data-dir so each run gets an isolated profile.
 // Must run before app.ready — after that the path is locked in.
 const userDataArg = process.argv.find((a) => a.startsWith('--user-data-dir='))
 if (userDataArg) app.setPath('userData', userDataArg.slice('--user-data-dir='.length))
 
+// Protocolo de las imágenes del módulo Capturas: tiene que registrarse antes de app.ready.
+registerCaptureScheme()
+
 let mainWindow: BrowserWindow | null = null
 let dbForWindowState: DatabaseService | null = null
+let settingsRef: SettingsService | null = null
+let syncService: SyncService | null = null
+// true desde que el usuario pidió salir (bandeja → Salir, actualización): ahí sí se cierra.
+let quitting = false
 
 // File path queued by the OS before the renderer was ready to receive it.
 // The renderer pulls this via app:pending-file once React has mounted.
@@ -61,9 +75,12 @@ process.on('unhandledRejection', (reason) => {
   logger.error('main', 'Unhandled promise rejection', reason instanceof Error ? reason.message : String(reason))
 })
 
-// Windows taskbar / Jump List: must match package.json `build.appId` or the shell keeps a stale/generic icon.
+// Windows taskbar / Jump List / notificaciones: la app instalada usa `build.appId`.
+// La copia de desarrollo (electron.exe de node_modules) usa OTRO id: si comparten el
+// mismo, Windows asocia la app instalada al acceso "Electron" y muestra su ícono.
+const APP_USER_MODEL_ID = app.isPackaged ? 'com.devtoolkit.app' : 'com.devtoolkit.app.dev'
 if (process.platform === 'win32') {
-  app.setAppUserModelId('com.devtoolkit.app')
+  app.setAppUserModelId(APP_USER_MODEL_ID)
 }
 
 // macOS: Finder double-click / "Open with" fires this event instead of populating argv.
@@ -153,7 +170,7 @@ function createWindow(): void {
     frame: false,
     titleBarStyle: 'hidden',
     // Neutro claro: evita filtrado azulado en bordes con tema light; el contenido oscuro cubre en dark.
-    backgroundColor: '#ffffff',
+    backgroundColor: '#F4F4F5', // igual al fondo de la pantalla de apertura (index.html)
     show: false,
     autoHideMenuBar: true,
     icon: getWindowIcon(),
@@ -199,6 +216,18 @@ function createWindow(): void {
     mainWindow?.show()
   })
 
+  // Ajustes → "Al cerrar, seguir en la bandeja": la X oculta la ventana (los avisos
+  // y los atajos globales siguen funcionando); Salir desde la bandeja cierra de verdad.
+  mainWindow.on('close', (e) => {
+    if (!quitting && settingsRef?.get('app.close_to_tray') === '1') {
+      e.preventDefault()
+      mainWindow?.hide()
+    }
+  })
+  // Sin la ventana principal no tiene sentido mantener el selector de snippets vivo
+  // (además impediría que se dispare window-all-closed).
+  mainWindow.on('closed', () => teardownSnippetPicker())
+
   // Fallback: show the window after 3 s even if ready-to-show hasn't fired yet.
   // Prevents an invisible window when the renderer has a startup error.
   setTimeout(() => { if (mainWindow && !mainWindow.isVisible()) mainWindow.show() }, 3000)
@@ -221,6 +250,14 @@ function createWindow(): void {
     mainWindow?.webContents.send('page:found', result)
   })
 
+  // Watchdog: si la interfaz no respondió en 25 s (carga colgada), recargar una vez.
+  setTimeout(() => {
+    if (!rendererReady && mainWindow && !mainWindow.isDestroyed()) {
+      logger.warn('main', 'renderer not ready after 25s — reloading')
+      mainWindow.webContents.reload()
+    }
+  }, 25_000)
+
   if (process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -230,8 +267,18 @@ function createWindow(): void {
 
 // Windows taskbar identity (must be set before app is ready)
 if (process.platform === 'win32') {
-  app.setAppUserModelId('com.devtoolkit.app')
+  app.setAppUserModelId(APP_USER_MODEL_ID)
 }
+
+// Si el servicio de red de Chromium se cae mientras la ventana todavía está cargando,
+// la carga queda colgada para siempre (sin did-fail-load). Recargar cuando se reinicia.
+app.on('child-process-gone', (_e, details) => {
+  if (details.type !== 'Utility' || !/network/i.test(details.serviceName ?? details.name ?? '')) return
+  logger.warn('main', 'network service gone', { reason: details.reason })
+  if (!rendererReady && mainWindow && !mainWindow.isDestroyed()) {
+    setTimeout(() => { if (!rendererReady && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reload() }, 800)
+  }
+})
 
 app.whenReady().then(() => {
   // ── Content Security Policy ─────────────────────────────────────────────
@@ -245,7 +292,7 @@ app.whenReady().then(() => {
     `script-src 'self'${cspScriptExtra}`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https:",
+    "img-src 'self' data: blob: https: setto-capture:",
     `connect-src 'self' https://api.openai.com https://api.bitbucket.org https://api.github.com${cspConnectExtra}`,
     "frame-src 'none'",
     "object-src 'none'",
@@ -269,6 +316,7 @@ app.whenReady().then(() => {
   const db = new DatabaseService()
   dbForWindowState = db
   const settings = new SettingsService(db)
+  settingsRef = settings
   const ai = new AIService(db, settings)
   const auth = new AuthService(db)
   const gastosStorage = new GastosStorageService(db, settings)
@@ -335,8 +383,25 @@ app.whenReady().then(() => {
 
   createWindow()
 
+  // Instalar una actualización cierra la ventana: no debe quedar escondida en la bandeja.
+  // (Registrado antes que el handler del updater para correr primero.)
+  ipcMain.on('updater:install', () => { quitting = true })
+
   // Init auto-updater (no-op in dev mode)
   initUpdater(() => mainWindow)
+
+  // Global quick capture (Ctrl+Shift+Space) + tray icon
+  setupQuickCapture(() => mainWindow, getWindowIcon())
+
+  // Notificaciones nativas + selector global de snippets (Ctrl+Alt+V)
+  registerNotifications(ipcMain, () => mainWindow, getWindowIcon())
+  registerSnippetPicker(ipcMain, getWindowIcon())
+  registerClipboardHistory(ipcMain, () => settings.get('app.clipboard_history') !== '0')
+  registerClipboardActions(ipcMain)
+
+  // Sincronización opcional de Notas y Snippets con Supabase (Ajustes → Sincronización)
+  syncService = new SyncService(db, settings, gastosStorage, () => mainWindow)
+  syncService.register(ipcMain)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -346,3 +411,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
+
+app.on('before-quit', () => { quitting = true })
+
+app.on('will-quit', () => { teardownQuickCapture(); teardownSnippetPicker(); teardownClipboardHistory(); teardownClipboardActions(); syncService?.stop() })

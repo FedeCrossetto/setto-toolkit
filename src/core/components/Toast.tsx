@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { CheckCircle2, CircleAlert, Info, TriangleAlert, X } from 'lucide-react'
-import type { IconComponent } from '../types'
+import { toastMotion } from '../motion'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -29,92 +30,55 @@ export function useToast(): ToastContextValue {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const ICON: Record<ToastType, IconComponent> = {
+const ICON: Record<ToastType, typeof Info> = {
   success: CheckCircle2,
   error:   CircleAlert,
   warning: TriangleAlert,
   info:    Info,
 }
 
-const COLOR: Record<ToastType, string> = {
-  success: 'text-emerald-400 border-emerald-500/25 bg-emerald-500/10',
-  error:   'text-error  border-error/20  bg-error/8',
-  warning: 'text-yellow-400 border-yellow-400/20 bg-yellow-400/8',
-  info:    'text-primary border-primary/20 bg-primary/8',
-}
-
 const ICON_COLOR: Record<ToastType, string> = {
-  success: 'text-emerald-400',
+  success: 'text-success',
   error:   'text-error',
-  warning: 'text-yellow-400',
+  warning: 'text-warning',
   info:    'text-primary',
 }
 
-const ACCENT: Record<ToastType, string> = {
-  success: 'bg-emerald-400',
-  error:   'bg-error',
-  warning: 'bg-yellow-400',
-  info:    'bg-primary',
+const ICON_BG: Record<ToastType, string> = {
+  success: 'bg-success/[0.12]',
+  error:   'bg-error/[0.12]',
+  warning: 'bg-warning/[0.14]',
+  info:    'bg-primary/10',
 }
 
 // ── Single toast item ─────────────────────────────────────────────────────────
 
 function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: string) => void }): JSX.Element {
-  const [visible, setVisible] = useState(false)
-
-  // Fade-in on mount
+  // Auto-dismiss (la salida la anima AnimatePresence en el contenedor)
   useEffect(() => {
-    const t = setTimeout(() => setVisible(true), 10)
-    return () => clearTimeout(t)
-  }, [])
-
-  // Auto-dismiss
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setVisible(false)
-      setTimeout(() => onDismiss(toast.id), 300)
-    }, toast.durationMs)
+    const t = setTimeout(() => onDismiss(toast.id), toast.durationMs)
     return () => clearTimeout(t)
   }, [toast, onDismiss])
 
-  const handleDismiss = (): void => {
-    setVisible(false)
-    setTimeout(() => onDismiss(toast.id), 300)
-  }
+  const handleDismiss = (): void => onDismiss(toast.id)
 
+  const Icon = ICON[toast.type]
   return (
     <div
       role="alert"
-      className={[
-        'relative flex items-start gap-3 pl-5 pr-4 py-3 rounded-xl border shadow-xl text-sm font-medium overflow-hidden',
-        'transition-all duration-300 ease-out',
-        COLOR[toast.type],
-        visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3',
-      ].join(' ')}
-      style={{
-        minWidth: '260px',
-        maxWidth: '400px',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.28), 0 2px 8px rgba(0,0,0,0.14)',
-      }}
+      className="flex items-center gap-2.5 pl-2 pr-2 py-1.5 rounded-full bg-surface hairline shadow-2xl t-body text-on-surface"
+      style={{ minWidth: 220, maxWidth: 400 }}
     >
-      {/* Left accent stripe */}
-      <span aria-hidden className={`absolute left-0 top-0 bottom-0 w-1 ${ACCENT[toast.type]}`} />
-      {(() => { const Icon = ICON[toast.type]; return <Icon size={18} className={`flex-shrink-0 mt-px ${ICON_COLOR[toast.type]}`} /> })()}
-      <span
-        className={[
-          'flex-1 leading-snug',
-          toast.type === 'success' ? 'text-emerald-100' : 'text-on-surface',
-        ].join(' ')}
-      >
-        {toast.message}
+      <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${ICON_BG[toast.type]}`}>
+        <Icon size={15} weight="fill" className={ICON_COLOR[toast.type]} />
       </span>
+      <span className="flex-1 leading-snug font-medium pr-1">{toast.message}</span>
       <button
         onClick={handleDismiss}
-        className="flex-shrink-0 text-on-surface-variant/40 hover:text-on-surface transition-colors mt-px"
+        aria-label="Cerrar"
+        className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-on-surface-variant/60 hover:text-on-surface hover:bg-on-surface/[0.06] transition-colors"
       >
-        <X size={14} />
+        <X size={13} />
       </button>
     </div>
   )
@@ -140,16 +104,18 @@ export function ToastProvider({ children }: { children: ReactNode }): JSX.Elemen
     <ToastContext.Provider value={{ show }}>
       {children}
 
-      {/* Toast portal — fixed bottom-right */}
+      {/* Toasts — arriba a la derecha */}
       <div
         aria-live="polite"
-        className="fixed bottom-8 right-6 z-[9999] flex flex-col gap-2 items-end pointer-events-none"
+        className="fixed top-14 right-4 z-[9999] flex flex-col gap-2 items-end pointer-events-none"
       >
-        {toasts.map((t) => (
-          <div key={t.id} className="pointer-events-auto">
-            <ToastCard toast={t} onDismiss={dismiss} />
-          </div>
-        ))}
+        <AnimatePresence initial={false}>
+          {toasts.map((t) => (
+            <motion.div key={t.id} {...toastMotion} className="pointer-events-auto">
+              <ToastCard toast={t} onDismiss={dismiss} />
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </ToastContext.Provider>
   )

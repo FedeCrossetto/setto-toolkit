@@ -8,7 +8,7 @@ interface Props {
 
 function formatDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleString(undefined, {
+    return new Date(iso).toLocaleString('es-AR', {
       month: 'short', day: 'numeric',
       hour: '2-digit', minute: '2-digit',
     })
@@ -21,10 +21,10 @@ function duration(start: string, end?: string): string {
   try {
     const ms = new Date(end ?? new Date().toISOString()).getTime() - new Date(start).getTime()
     const s = Math.floor(ms / 1000)
-    if (s < 60) return `${s}s`
+    if (s < 60) return `${s} s`
     const m = Math.floor(s / 60)
-    if (m < 60) return `${m}m ${s % 60}s`
-    return `${Math.floor(m / 60)}h ${m % 60}m`
+    if (m < 60) return `${m} min ${s % 60} s`
+    return `${Math.floor(m / 60)} h ${m % 60} min`
   } catch {
     return '—'
   }
@@ -52,94 +52,74 @@ export function SessionHistoryPanel({ onNewSession }: Props): JSX.Element {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07] flex-shrink-0">
-        <span className="text-[13px] font-semibold text-on-surface">Session History</span>
+      <div className="flex items-center justify-between px-3 h-10 hairline-b flex-shrink-0">
+        <span className="t-headline text-on-surface">Historial</span>
         <div className="flex items-center gap-1">
-          <button
-            onClick={load}
-            className="p-1.5 rounded-md hover:bg-white/[0.07] transition-colors"
-            style={{ color: 'rgba(255,255,255,0.4)' }}
-            title="Refresh"
-          >
+          <button onClick={load} className="ui-btn ui-btn-ghost ui-btn-icon" title="Actualizar" aria-label="Actualizar">
             <RefreshCw size={13} />
           </button>
-          <button
-            onClick={onNewSession}
-            className="ui-btn ui-btn-primary text-[12px] py-1.5"
-          >
+          <button onClick={onNewSession} className="ui-btn ui-btn-outline ui-btn-sm">
             <Terminal size={12} />
-            New Session
+            Nueva sesión
           </button>
         </div>
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto px-3 py-2">
+      <div className="flex-1 overflow-y-auto px-2 py-2">
         {loading ? (
-          <div className="flex items-center justify-center h-32 text-[12px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
-            Loading…
+          <div className="flex items-center justify-center h-32 t-footnote text-on-surface-variant">
+            Cargando…
           </div>
         ) : sessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 gap-2">
-            <Terminal size={24} style={{ color: 'rgba(255,255,255,0.15)' }} />
-            <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.3)' }}>No sessions yet</span>
+            <Terminal size={22} className="text-on-surface-variant/40" strokeWidth={1.5} />
+            <span className="t-footnote text-on-surface-variant">Todavía no hay sesiones</span>
           </div>
         ) : (
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col">
             {sessions.map((s) => (
               <div
                 key={s.id}
-                className="group flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/[0.05] transition-colors"
+                className="group flex items-center gap-3 px-2.5 py-2 rounded-md hover:bg-on-surface/[0.05] transition-colors"
               >
                 {/* Status dot */}
                 <div
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{
-                    background: !s.closedAt
-                      ? 'rgb(var(--c-primary-light))'
+                  title={!s.closedAt ? 'Activa' : s.exitCode === 0 ? 'Terminó bien' : s.exitCode == null ? 'Cerrada' : `Salió con código ${s.exitCode}`}
+                  className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                    !s.closedAt
+                      ? 'bg-primary'
                       : s.exitCode === 0
-                        ? '#4ade80'
+                        ? 'bg-success'
                         : s.exitCode == null
-                          ? 'rgba(255,255,255,0.3)'
-                          : '#f87171',
-                  }}
+                          ? 'bg-on-surface-variant/40'
+                          : 'bg-error'
+                  }`}
                 />
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-[13px] font-medium truncate text-on-surface">
+                    <span className="t-body font-medium truncate text-on-surface">
                       {s.shell.split(/[/\\]/).pop() ?? s.shell}
                     </span>
-                    {!s.closedAt && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(var(--c-primary-light-rgb),0.15)', color: 'rgb(var(--c-primary-light))' }}>
-                        active
-                      </span>
-                    )}
+                    {!s.closedAt && <span className="ui-badge ui-badge-primary">activa</span>}
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[11px] truncate" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                      {s.cwd}
-                    </span>
+                  <div className="t-caption truncate text-on-surface-variant mt-0.5" title={s.cwd}>
+                    {s.cwd}
                   </div>
-                  <div className="flex items-center gap-3 mt-0.5">
-                    <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                      {formatDate(s.createdAt)}
-                    </span>
-                    {s.closedAt && (
-                      <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                        {duration(s.createdAt, s.closedAt)}
-                      </span>
-                    )}
+                  <div className="flex items-center gap-3 mt-0.5 t-caption text-on-surface-variant/70 tabular-nums">
+                    <span>{formatDate(s.createdAt)}</span>
+                    {s.closedAt && <span>{duration(s.createdAt, s.closedAt)}</span>}
                   </div>
                 </div>
 
                 {/* Delete */}
                 <button
                   onClick={() => deleteSession(s.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-white/[0.1] transition-all"
-                  style={{ color: 'rgba(255,255,255,0.4)' }}
-                  title="Delete"
+                  className="ui-btn ui-btn-ghost ui-btn-icon opacity-0 group-hover:opacity-100"
+                  title="Eliminar del historial"
+                  aria-label="Eliminar del historial"
                 >
                   <Trash2 size={13} />
                 </button>

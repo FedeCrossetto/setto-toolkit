@@ -4,6 +4,7 @@ import path from 'path'
 import type { PluginHandlers, CoreServices } from '../../core/types'
 import type { IpcMain } from 'electron'
 import { registerHandler } from '../../core/ipc-handler'
+import { testConnection, TESTABLE_CONNECTIONS, type TestableConnection } from './connection-tests'
 
 /** Keys that are never exported even if present in the store (secrets stay local) */
 const EXPORT_BLOCKED_KEYS = new Set(['ai.openai_key', 'ai.anthropic_key'])
@@ -36,6 +37,10 @@ const ALLOWED_KEYS = new Set([
   'repo-search.github.org',        // optional org filter for GitHub searches
   'repo-search.gitlab.client_id',  // public — needed for GitLab OAuth Device Flow
   'dashboard.mascot',              // 'panda' | 'setto-avatar'
+  'app.close_to_tray',             // '1' = cerrar la ventana la deja en la bandeja
+  'app.notifications',             // '0' = sin notificaciones del sistema (default: activadas)
+  'snippets.auto_paste',           // '0' = el selector global sólo copia (default: pega)
+  'app.clipboard_history',         // '0' = sin historial del portapapeles (default: activado)
   'ticket-resolver.jira_url',
   'ticket-resolver.jira_user',
   'ticket-resolver.jira_token',
@@ -191,6 +196,30 @@ export const handlers: PluginHandlers = {
       } catch (err) {
         return { valid: false, error: err instanceof Error ? err.message : 'Network error' }
       }
+    })
+
+    // ── Connection tests (Conexiones) ──────────────────────────────────────
+    // `values` lets the UI test unsaved form values; secrets are never returned or logged.
+    registerHandler(ipcMain, 'settings:test-connection', async (_event, id: string, values?: Record<string, string>) => {
+      if (!TESTABLE_CONNECTIONS.has(id as TestableConnection)) throw new Error(`Unknown connection: "${String(id)}"`)
+      const safeValues = values && typeof values === 'object' && !Array.isArray(values)
+        ? Object.fromEntries(Object.entries(values).filter(([, v]) => typeof v === 'string')) as Record<string, string>
+        : undefined
+      return testConnection(id as TestableConnection, safeValues, (k) => settings.get(k))
+    })
+
+    // Where the Supabase URL in use comes from (same precedence as gastos-storage).
+    registerHandler(ipcMain, 'settings:supabase-source', () => {
+      if (settings.get('gastos.supabase_url')?.trim()) return { source: 'settings' as const }
+      try {
+        const p = path.join(process.cwd(), 'gastos-supabase.local.json')
+        if (fs.existsSync(p)) {
+          const data = JSON.parse(fs.readFileSync(p, 'utf8')) as { url?: unknown }
+          if (typeof data?.url === 'string' && data.url.trim()) return { source: 'local-file' as const }
+        }
+      } catch { /* ignore unreadable file */ }
+      if (typeof process.env.SUPABASE_URL === 'string' && process.env.SUPABASE_URL.trim()) return { source: 'env' as const }
+      return { source: 'none' as const }
     })
   }
 }

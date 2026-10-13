@@ -4,6 +4,12 @@ export type FileLanguage =
   | 'csharp' | 'cpp' | 'java' | 'python' | 'css' | 'shell'
   | 'rust' | 'go'
 
+/** Codificación de un archivo en disco (se preserva al guardar) */
+export type FileEncoding = 'utf8' | 'utf8bom' | 'utf16le' | 'utf16be' | 'windows1252'
+/** Fin de línea en disco — el contenido en memoria siempre usa `
+` */
+export type EolKind = 'crlf' | 'lf'
+
 export interface OpenFile {
   /** Unique tab key — nanoid */
   id: string
@@ -33,8 +39,14 @@ export interface OpenFile {
   jumpToLine?: number
   /** True when file exceeded MAX_FULL_SIZE and only the last N lines were loaded */
   truncated?: boolean
-  /** True when the file doesn't look like valid UTF-8 — editing/saving may corrupt it */
+  /** True when the file looks binary (NUL bytes) — editing/saving may corrupt it */
   encodingWarning?: boolean
+  /** Codificación con la que se guarda (la detectada al abrir, o la elegida por el usuario) */
+  encoding?: FileEncoding
+  /** Fin de línea con el que se guarda */
+  eol?: EolKind
+  /** El archivo tenía CRLF y LF mezclados al abrirlo (se unifica al guardar) */
+  eolMixed?: boolean
   /**
    * Disk content captured when an external change was detected while this tab had
    * unsaved edits — held here instead of overwriting `content` so the user's edits
@@ -55,6 +67,10 @@ export interface EditorHandle {
   setFilter: (text: string) => void
   /** Focus the editor and open CodeMirror's "go to line" panel */
   openGotoLine: () => void
+  /** Scroll container of the editor (log mode uses it to pause "Seguir" when the user scrolls up) */
+  getScrollDOM?: () => HTMLElement | null
+  /** Move to previous/next ERROR line (log mode, F8 / Shift+F8). False if none */
+  gotoLogError?: (dir: 1 | -1) => boolean
 }
 
 /** A single find-in-files match */
@@ -105,8 +121,60 @@ export interface ReadFileResponse {
   mtime: number
   size: number
   truncated: boolean
-  /** True when the file doesn't look like valid UTF-8 text (binary, or another encoding) */
+  /** True when the file looks binary (NUL bytes in the first 8 KB) */
   encodingWarning: boolean
+  encoding: FileEncoding
+  eol: EolKind
+  eolMixed: boolean
+}
+
+/** Opciones opcionales de editor:write-file. Sin ellas se escribe UTF-8 tal cual. */
+export interface WriteFileOptions {
+  encoding?: FileEncoding
+  eol?: EolKind
+  /** Guardado automático: el historial agrupa versiones cercanas */
+  autosave?: boolean
+}
+
+/** Una versión guardada en el historial local */
+export interface HistoryEntry {
+  id: string
+  /** epoch ms del momento del snapshot */
+  ts: number
+  size: number
+  /** Líneas que el contenido actual tiene y esta versión no (solo si se pidió comparar) */
+  added?: number
+  removed?: number
+}
+
+export interface ReplaceInFilesRequest {
+  root: string
+  query: string
+  replacement: string
+  useRegex: boolean
+  /** Si se indica, solo se tocan estos archivos (los tildados en la vista previa) */
+  paths?: string[]
+  /** true → no escribe, solo devuelve la vista previa */
+  dryRun?: boolean
+}
+
+export interface ReplaceFilePreview {
+  path: string
+  name: string
+  count: number
+  /** Primeras líneas afectadas: antes/después */
+  samples: Array<{ lineNumber: number; before: string; after: string }>
+}
+
+export interface ReplaceInFilesResponse {
+  files: ReplaceFilePreview[]
+  totalMatches: number
+  /** Archivos efectivamente escritos (0 en dryRun) */
+  written: number
+  /** Archivos que no se pudieron escribir, con motivo */
+  errors: Array<{ path: string; message: string }>
+  /** Se alcanzó el límite de archivos/coincidencias */
+  limited: boolean
 }
 
 export interface WriteFileResponse {

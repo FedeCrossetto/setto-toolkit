@@ -6,8 +6,9 @@ const SnippetManager = lazy(() => import('./SnippetManager').then((m) => ({ defa
 export const snippetsPlugin: PluginManifest = {
   id: 'snippets',
   name: 'Snippets',
-  description: 'Store and reuse code snippets, commands, and templates',
-  icon: 'format_ink_highlighter',
+  description: 'Biblioteca de scripts, comandos y queries reutilizables',
+  icon: 'snippets',
+  section: 'personal',
   component: SnippetManager,
-  keywords: ['snippet', 'code', 'template', 'clipboard', 'reuse', 'command', 'shortcut'],
+  keywords: ['snippet', 'script', 'código', 'comando', 'query', 'sql', 'powershell', 'plantilla', 'portapapeles'],
 }

@@ -6,8 +6,10 @@ const ApiLab = lazy(() => import('./ApiLab').then((m) => ({ default: m.ApiLab })
 export const apiLabPlugin: PluginManifest = {
   id: 'api-tester',
   name: 'API Lab',
-  description: 'Test HTTP APIs and integrations without leaving the app.',
-  icon: 'rocket_launch',
+  description: 'Probá APIs HTTP sin salir de la app',
+  icon: 'api',
+  section: 'dev',
+  defaultDisabled: true,
   component: ApiLab,
   keywords: ['api', 'http', 'rest', 'postman', 'request', 'endpoint', 'integration'],
 }

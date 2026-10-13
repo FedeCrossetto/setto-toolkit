@@ -62,8 +62,8 @@ export function GoogleAuthWidget({ collapsed, onSignIn }: GoogleAuthWidgetProps)
           onClick={() => setShowMenu((s) => !s)}
           title={collapsed ? `${user.name}\n${user.email}` : undefined}
           className={[
-            'flex items-center w-full rounded-2xl transition-colors duration-150',
-            'hover:bg-white/[0.06] text-on-surface-variant hover:text-on-surface',
+            'flex items-center w-full rounded-[var(--radius-md)] transition-colors duration-150',
+            'hover:bg-on-surface/[0.06] text-on-surface-variant hover:text-on-surface',
             collapsed ? 'justify-center h-11' : 'gap-2.5 px-3 h-11',
           ].join(' ')}
         >
@@ -71,12 +71,12 @@ export function GoogleAuthWidget({ collapsed, onSignIn }: GoogleAuthWidgetProps)
             src={user.picture}
             alt={user.name}
             referrerPolicy="no-referrer"
-            className="w-7 h-7 rounded-full flex-shrink-0 ring-1 ring-white/10"
+            className="w-7 h-7 rounded-full flex-shrink-0 hairline"
           />
           {!collapsed && (
             <div className="flex-1 min-w-0 text-left">
-              <div className="text-[12px] font-semibold truncate text-on-surface leading-tight">{user.name}</div>
-              <div className="text-[10px] text-on-surface-variant/60 truncate leading-tight">{user.email}</div>
+              <div className="t-footnote font-semibold truncate text-on-surface">{user.name}</div>
+              <div className="t-caption text-on-surface-variant truncate">{user.email}</div>
             </div>
           )}
           {!collapsed && (
@@ -87,19 +87,19 @@ export function GoogleAuthWidget({ collapsed, onSignIn }: GoogleAuthWidgetProps)
         {showMenu && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-            <div className="absolute bottom-full left-0 mb-1 z-50 w-48 bg-surface-container-high rounded-xl border border-outline-variant/20 shadow-xl overflow-hidden py-1">
+            <div className="ui-menu absolute bottom-full left-0 mb-1 z-50 w-52">
               {collapsed && (
-                <div className="px-3 py-2 border-b border-outline-variant/15 mb-1">
-                  <div className="text-[12px] font-semibold text-on-surface truncate">{user.name}</div>
-                  <div className="text-[10px] text-on-surface-variant/60 truncate">{user.email}</div>
+                <div className="px-2.5 py-1.5 hairline-b mb-1">
+                  <div className="t-footnote font-semibold text-on-surface truncate">{user.name}</div>
+                  <div className="t-caption text-on-surface-variant truncate">{user.email}</div>
                 </div>
               )}
               <button
                 onClick={handleSignOut}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-error hover:bg-error/10 transition-colors"
+                className="ui-menu-item w-full"
               >
                 <LogOut size={14} />
-                Sign out
+                Cerrar sesión
               </button>
             </div>
           </>
@@ -114,27 +114,27 @@ export function GoogleAuthWidget({ collapsed, onSignIn }: GoogleAuthWidgetProps)
       <button
         onClick={handleSignIn}
         disabled={loading}
-        title={collapsed ? 'Sign in with Google' : undefined}
+        title={collapsed ? 'Iniciar sesión con Google' : undefined}
         className={[
-          'flex items-center w-full rounded-2xl transition-colors duration-150',
-          'text-on-surface-variant/60 hover:text-on-surface hover:bg-white/[0.04]',
+          'flex items-center w-full rounded-[var(--radius-md)] transition-colors duration-150',
+          'text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.06]',
           'disabled:opacity-50 disabled:cursor-wait',
           collapsed ? 'justify-center h-11' : 'gap-3 px-1 h-10',
         ].join(' ')}
       >
         {loading
-          ? <span className="inline-block w-5 h-5 border-2 border-primary/50 border-t-primary rounded-full animate-spin flex-shrink-0" />
+          ? <span className="inline-block w-5 h-5 border-2 border-on-surface/15 border-t-on-surface-variant rounded-full animate-spin flex-shrink-0" />
           : <GoogleIcon />
         }
         {!collapsed && (
-          <span className="text-[13px] font-medium truncate">
-            {loading ? 'Opening browser…' : 'Sign in with Google'}
+          <span className="t-body font-medium truncate">
+            {loading ? 'Abriendo el navegador…' : 'Iniciar sesión con Google'}
           </span>
         )}
       </button>
 
       {error && !collapsed && (
-        <p className="text-[10px] text-error px-1 leading-snug">{error}</p>
+        <p className="t-caption text-error px-1">{error}</p>
       )}
     </div>
   )

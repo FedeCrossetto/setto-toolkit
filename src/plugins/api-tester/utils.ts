@@ -244,7 +244,7 @@ export function importCollectionFromJSON(raw: string): import('./types').Collect
 
       return {
         id: randomUUID(), collectionId: colId,
-        name: (item.name as string) ?? 'Untitled',
+        name: (item.name as string) ?? 'Sin título',
         method, url, headers,
         params: params.length ? params : [newKV()],
         body, auth,
@@ -259,7 +259,7 @@ export function importCollectionFromJSON(raw: string): import('./types').Collect
 
     return {
       id: colId,
-      name: (info.name as string) ?? 'Imported Collection',
+      name: (info.name as string) ?? 'Colección importada',
       requests,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

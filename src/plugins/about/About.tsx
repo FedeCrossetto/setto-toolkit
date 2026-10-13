@@ -1,70 +1,64 @@
 import { useEffect, useState } from 'react'
-import { Database, Lock, ShieldCheck, Tag } from 'lucide-react'
-import type { IconComponent } from '../../core/types'
-
-const INFO_ICONS: Record<string, IconComponent> = {
-  category:  Tag,
-  security:  ShieldCheck,
-  storage:   Database,
-  lock:      Lock,
-}
+import { Keyboard, Settings } from 'lucide-react'
+import { useApp } from '../../core/AppContext'
 
 export function About(): JSX.Element {
-  const [version, setVersion] = useState<string>('...')
+  const { dispatch } = useApp()
+  const [version, setVersion] = useState<string>('…')
 
   useEffect(() => {
-    window.api.invoke<string>('app:version').then(setVersion).catch(() => setVersion('—'))
+    let alive = true
+    Promise.resolve()
+      .then(() => window.api.invoke<string>('app:version'))
+      .then((v) => { if (alive) setVersion(v) })
+      .catch(() => { if (alive) setVersion('—') })
+    return () => { alive = false }
   }, [])
 
   return (
-    <div className="p-8 max-w-2xl mx-auto w-full">
-      {/* Header */}
-      <div className="flex items-center gap-5 mb-10">
+    <div className="relative min-h-full w-full flex items-center justify-center px-8 py-10">
+      {/* Halo de marca muy suave detrás del logo */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.07] dark:opacity-[0.10]"
+        style={{
+          background: 'var(--gradient-brand)',
+          maskImage: 'radial-gradient(320px 260px at 50% 38%, black, transparent 70%)',
+          WebkitMaskImage: 'radial-gradient(320px 260px at 50% 38%, black, transparent 70%)',
+        }}
+      />
+      <div className="relative flex flex-col items-center text-center max-w-md">
         <img
-          src="./setto-logo.png"
-          alt="Setto Toolkit"
-          className="h-16 w-auto flex-shrink-0 select-none"
+          src="./setto-logo-lg.png"
+          alt=""
+          width={112}
+          height={112}
+          className="w-28 h-28 rounded-[26px] select-none object-cover shadow-lg"
           draggable={false}
-          style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.25))' }}
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
         />
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-on-surface">Setto Toolkit</h1>
-          <p className="text-sm text-on-surface-variant mt-0.5">
-            Versión <span className="font-mono text-primary">{version}</span>
-          </p>
+        <h1 className="t-title1 text-on-surface mt-6">Setto Toolkit</h1>
+        <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-surface hairline shadow-sm px-2.5 py-[3px] t-caption font-medium text-on-surface-variant tabular-nums">
+          <span className="w-1.5 h-1.5 rounded-full bg-brand" aria-hidden />
+          Versión {version}
+        </span>
+
+        <p className="t-callout text-on-surface-variant mt-6 max-w-sm">
+          Tu espacio de trabajo diario: notas, scripts, gastos y herramientas de desarrollo.
+          Todo queda guardado en tu equipo; las claves se cifran con el almacén seguro del sistema.
+        </p>
+
+        <div className="flex items-center gap-2 mt-7">
+          <button className="ui-btn ui-btn-outline" onClick={() => dispatch({ type: 'OPEN_KEYBOARD_SHORTCUTS' })}>
+            <Keyboard size={14} /> Atajos de teclado
+          </button>
+          <button className="ui-btn ui-btn-dark" onClick={() => dispatch({ type: 'OPEN_TAB', pluginId: 'settings' })}>
+            <Settings size={14} /> Ajustes
+          </button>
         </div>
+
+        <p className="t-caption text-on-surface-variant/70 mt-10">Electron · React · TypeScript</p>
       </div>
-
-      {/* Info cards */}
-      <div className="space-y-3">
-        <InfoRow icon="category" label="Arquitectura" value="Electron + React + TypeScript" />
-        <InfoRow icon="security" label="Seguridad del renderer" value="Sandbox · Aislamiento de contexto · Allowlist de IPC" />
-        <InfoRow icon="storage" label="Almacenamiento" value="Solo local — directorio userData" />
-        <InfoRow icon="lock" label="Secretos" value="Cifrados con safeStorage del SO" />
-      </div>
-
-      {/* Divider */}
-      <div className="my-8 border-t border-outline-variant/15" />
-
-      {/* Description */}
-      <p className="text-sm text-on-surface-variant leading-relaxed">
-        Setto Toolkit es un espacio de trabajo modular para desarrolladores pensado para las tareas
-        del día a día — testing de APIs, comparación de código con análisis por IA, búsqueda en
-        repositorios de Bitbucket y GitHub, y un editor de archivos liviano. Todos los datos quedan
-        localmente en tu equipo.
-      </p>
-    </div>
-  )
-}
-
-function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }): JSX.Element {
-  const Icon = INFO_ICONS[icon] ?? Tag
-  return (
-    <div className="ui-card flex items-center gap-4 px-4 py-3">
-      <Icon size={18} className="text-on-surface-variant/65 flex-shrink-0" />
-      <span className="text-xs text-on-surface-variant/75 w-36 flex-shrink-0">{label}</span>
-      <span className="text-xs text-on-surface font-medium">{value}</span>
     </div>
   )
 }

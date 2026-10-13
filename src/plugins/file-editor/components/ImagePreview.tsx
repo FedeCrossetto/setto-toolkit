@@ -58,21 +58,16 @@ export function ImagePreview({ path }: { path: string }): JSX.Element {
         <img
           src={dataUrl}
           alt={path.split(/[/\\]/).pop() ?? 'imagen'}
-          className="max-w-full max-h-full object-contain rounded shadow-lg"
+          className="max-w-full max-h-full object-contain rounded shadow-md"
           style={{ animation: 'fadeSlideUp 0.2s ease-out' }}
           onLoad={(e) => setDims({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
         />
       </div>
-      <div className="flex items-center gap-2 px-3 py-1.5 border-t border-outline-variant/15 flex-shrink-0 select-none"
-        style={{ background: 'rgb(var(--c-surface-container) / 0.7)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
+      <div className="flex items-center gap-3 px-3 h-6 hairline-t bg-sidebar/40 flex-shrink-0 select-none t-caption text-on-surface-variant tabular-nums">
         {dims && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-surface-container/80 text-on-surface-variant/70 tabular-nums">
-            {dims.w} × {dims.h}px
-          </span>
+          <span>{dims.w} × {dims.h} px</span>
         )}
-        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-surface-container/80 text-on-surface-variant/60 tabular-nums">
-          {(size / 1024).toFixed(1)}KB
-        </span>
+        <span>{(size / 1024).toFixed(1)} KB</span>
       </div>
     </div>
   )

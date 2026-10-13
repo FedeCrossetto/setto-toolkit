@@ -6,9 +6,9 @@ const GastosPlugin = lazy(() => import('./GastosPlugin').then((m) => ({ default:
 export const gastosPlugin: PluginManifest = {
   id: 'gastos',
   name: 'Gastos',
-  description: 'Gastos mensuales, servicios, credenciales y queries (Supabase)',
-  icon: 'chart_no_axes_column_increasing',
+  description: 'Gastos fijos y variables, presupuesto y resumen mensual',
+  icon: 'wallet',
+  section: 'personal',
   component: GastosPlugin,
   keywords: ['notes', 'tables', 'gastos', 'expenses', 'impuestos', 'servicios', 'pagos', 'facturas', 'metrogas', 'edesur', 'aysa'],
-  section: 'personal',
 }

@@ -21,7 +21,7 @@ function HighlightMatch({ text, query }: { text: string; query: string }): JSX.E
   return (
     <>
       {text.slice(0, idx)}
-      <span className="text-primary font-bold bg-primary/15 rounded-sm px-0.5">{text.slice(idx, idx + query.length)}</span>
+      <span className="text-on-surface font-semibold underline decoration-primary/60 underline-offset-2">{text.slice(idx, idx + query.length)}</span>
       {text.slice(idx + query.length)}
     </>
   )
@@ -79,42 +79,37 @@ export function QuickOpen({ folders, openTabs = [], onOpen, onClose }: QuickOpen
 
   return (
     <motion.div
-      className="fixed inset-0 z-[100] flex items-start justify-center pt-[12vh] bg-black/40 backdrop-blur-md"
+      className="fixed inset-0 z-[100] flex items-start justify-center pt-[12vh] bg-black/15 dark:bg-black/35"
       onMouseDown={onClose}
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.15, ease: 'easeOut' }}
     >
       <motion.div
-        className="w-[540px] max-h-[65vh] overflow-hidden flex flex-col rounded-2xl border border-outline-variant/25"
-        style={{
-          background: 'rgb(var(--c-surface) / 0.82)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.32), 0 4px 16px rgba(0,0,0,0.16)',
-        }}
+        className="mac-popover hairline w-[540px] max-h-[65vh] overflow-hidden flex flex-col"
         onMouseDown={(e) => e.stopPropagation()}
-        initial={{ opacity: 0, scale: 0.96, y: -8 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 0.18, ease: 'easeOut' }}
+        initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.14, ease: 'easeOut' }}
       >
         {/* Input */}
-        <div className="flex items-center gap-2.5 px-4 py-3 border-b border-outline-variant/15">
-          <Search size={18} className="text-primary/70 flex-shrink-0" />
+        <div className="flex items-center gap-2.5 px-4 py-3 hairline-b">
+          <Search size={16} className="text-on-surface-variant flex-shrink-0" />
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKey}
             placeholder="Buscar archivos por nombre…"
-            className="flex-1 bg-transparent text-sm text-on-surface outline-none placeholder:text-on-surface-variant/35"
+            aria-label="Buscar archivos por nombre"
+            className="flex-1 bg-transparent t-callout text-on-surface outline-none placeholder:text-on-surface-variant/50"
           />
-          <kbd className="text-[10px] text-on-surface-variant/40 border border-outline-variant/30 px-1.5 py-0.5 rounded bg-surface-container/60">Esc</kbd>
+          <kbd className="t-caption text-on-surface-variant hairline px-1.5 rounded bg-on-surface/[0.04]">Esc</kbd>
         </div>
 
         {/* Results */}
         <div ref={listRef} className="overflow-y-auto flex-1">
           {filtered.length === 0 ? (
-            <p className="text-center text-sm text-on-surface-variant/40 py-10">
+            <p className="text-center t-body text-on-surface-variant py-10">
               {allFiles.length === 0
-                ? 'Abrí una carpeta o archivo para usar Quick Open'
+                ? 'Abrí una carpeta o un archivo para usar la apertura rápida'
                 : `Sin coincidencias para "${query}"`}
             </p>
           ) : (
@@ -126,18 +121,16 @@ export function QuickOpen({ folders, openTabs = [], onOpen, onClose }: QuickOpen
                 <button
                   key={f.path}
                   onClick={() => open(i)}
-                  className={`flex items-center gap-3 w-full px-4 py-2.5 text-left transition-colors border-l-2 ${
-                    isSel ? 'border-primary bg-primary/[0.07]' : 'border-transparent hover:bg-surface-container-high'
+                  className={`flex items-center gap-3 w-[calc(100%-12px)] mx-1.5 px-2.5 py-1.5 rounded-md text-left transition-colors ${
+                    isSel ? 'bg-primary/15' : 'hover:bg-on-surface/[0.05]'
                   }`}
                 >
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${isSel ? 'bg-primary/15' : 'bg-surface-container/60'}`}>
-                    <Icon size={14} />
-                  </div>
+                  <Icon size={15} className="flex-shrink-0 text-on-surface-variant" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[12px] font-medium text-on-surface truncate">
+                    <p className="t-body font-medium text-on-surface truncate">
                       <HighlightMatch text={f.name} query={query} />
                     </p>
-                    <p className="text-[10px] text-on-surface-variant/45 truncate">
+                    <p className="t-caption text-on-surface-variant truncate">
                       <HighlightMatch text={f.display} query={query} />
                     </p>
                   </div>
@@ -147,10 +140,10 @@ export function QuickOpen({ folders, openTabs = [], onOpen, onClose }: QuickOpen
           )}
         </div>
 
-        <div className="px-4 py-2 border-t border-outline-variant/10 flex items-center gap-4 text-[10px] text-on-surface-variant/35">
-          <span className="flex items-center gap-1"><kbd className="bg-surface-container px-1 py-0.5 rounded border border-outline-variant/20 text-[9px]">↑↓</kbd> navegar</span>
-          <span className="flex items-center gap-1"><kbd className="bg-surface-container px-1 py-0.5 rounded border border-outline-variant/20 text-[9px]">↵</kbd> abrir</span>
-          <span className="flex items-center gap-1"><kbd className="bg-surface-container px-1 py-0.5 rounded border border-outline-variant/20 text-[9px]">Esc</kbd> cerrar</span>
+        <div className="px-4 py-2 hairline-t mt-1 flex items-center gap-4 t-caption text-on-surface-variant">
+          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/[0.04] px-1 rounded">↑↓</kbd> navegar</span>
+          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/[0.04] px-1 rounded">↵</kbd> abrir</span>
+          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/[0.04] px-1 rounded">Esc</kbd> cerrar</span>
           <span className="ml-auto">{filtered.length} archivos</span>
         </div>
       </motion.div>

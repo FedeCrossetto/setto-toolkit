@@ -1,587 +1,547 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
-import { motion } from 'framer-motion'
-import { ArrowRight, Plus, Search, Sparkles, SquareStack, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  ArrowRight, CalendarDays, Code2, Copy, CornerDownLeft, FileCode2, NotebookPen, Pin, Plus, Search, Sparkles, TrendingDown, TrendingUp, Wallet,
+} from 'lucide-react'
 import { useApp } from '../../core/AppContext'
-import { allPlugins } from '../../core/plugin-registry'
-import { PluginIcon } from '../../core/pluginIcons'
-import { Badge } from '../../core/components/Badge'
+import { EmptyState } from '../../core/components/EmptyState'
+import { Skeleton } from '../../core/components/Skeleton'
+import { SegmentedControl } from '../../core/components/SegmentedControl'
+import { useToast } from '../../core/components/Toast'
+import { OPEN_PALETTE_EVENT } from '../../core/components/CommandPalette'
 import { detectLanguage, languageIcon } from '../file-editor/hooks/useEditorTabs'
-import type { FileLanguage } from '../file-editor/types'
-import type { PluginManifest } from '../../core/types'
+import { getMonthSummary, type GastosMonthSummary } from '../gastos/summary'
+import { fmtMoney, mesLong } from '../gastos/format'
+import { DeltaPill } from '../../core/components/Form'
+import type { IconComponent } from '../../core/types'
+import type { Snippet } from '../snippets/types'
 
-const ONBOARDING_DISMISSED_KEY = 'dashboard:onboarding-dismissed'
-const SECURE_SET_SENTINEL = '__CONFIGURED__'
+// ── Contracts consumed (owned by other modules) ──────────────────────────────
+interface NoteMeta { id: string; title: string; preview: string; updatedAt: number; pinned: boolean }
+interface RecentEntry { path: string; name: string; openedAt: string }
 
-// ── Mascot thumbnails — small avatar per plugin, two mascot sets to choose from ─
-const MASCOT_IMAGES: Record<string, { panda: string; setto: string }> = {
-  'smart-diff':      { panda: './panda-avatar/panda-compare-files.png', setto: './setto-avatar/setto-avatar-difference.png' },
-  'repo-search':     { panda: './panda-avatar/panda-search.png',        setto: './setto-avatar/setto-avatar-search.png' },
-  'api-tester':      { panda: './panda-avatar/panda-request.png',       setto: './setto-avatar/setto-avatar-api.png' },
-  'file-editor':     { panda: './panda-avatar/panda1.png',              setto: './setto-avatar/setto-avatar.png' },
-  'snippets':        { panda: './panda-avatar/panda-snippet.png',       setto: './setto-avatar/setto-avatar-snippet.png' },
-  'settings':        { panda: './panda-avatar/panda-settings.png',      setto: './setto-avatar/setto-avatar-settings.png' },
-  'ticket-resolver': { panda: './panda-avatar/panda-ticket.png',        setto: './setto-avatar/setto-avatar-ticket.png' },
-  'terminal':        { panda: './panda-avatar/panda-console.png',       setto: './setto-avatar/setto-avatar-console.png' },
-  'gastos':          { panda: './panda-avatar/panda-snippet.png',       setto: './setto-avatar/setto-avatar-snippet.png' },
+/** IPC that never throws synchronously (the preload throws on unknown channels). */
+async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
+  return window.api.invoke<T>(channel, ...args)
 }
-const DEFAULT_MASCOT = { panda: './panda-avatar/panda1.png', setto: './setto-avatar/setto-avatar.png' }
 
-// ── MascotAvatar — mascot thumbnail with a graceful fallback to the plain icon ─
-function MascotAvatar({ pluginId, icon, mascot }: {
-  pluginId: string; icon: string; mascot: 'panda' | 'setto-avatar'
+type Loadable<T> = { status: 'loading' } | { status: 'ready'; data: T } | { status: 'error' }
+
+function useLoad<T>(loader: () => Promise<T>, deps: unknown[]): [Loadable<T>, () => void] {
+  const [state, setState] = useState<Loadable<T>>({ status: 'loading' })
+  const [tick, setTick] = useState(0)
+  const loaderRef = useRef(loader)
+  loaderRef.current = loader
+  useEffect(() => {
+    let alive = true
+    loaderRef.current()
+      .then((data) => { if (alive) setState({ status: 'ready', data }) })
+      .catch(() => { if (alive) setState({ status: 'error' }) })
+    return () => { alive = false }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick, ...deps])
+  return [state, useCallback(() => setTick((t) => t + 1), [])]
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function greeting(now = new Date()): string {
+  const h = now.getHours()
+  if (h >= 5 && h < 13) return 'Buen día'
+  if (h >= 13 && h < 20) return 'Buenas tardes'
+  return 'Buenas noches'
+}
+
+function longDate(now = new Date()): string {
+  const s = now.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function relTime(ms: number): string {
+  const mins = Math.max(0, Math.round((Date.now() - ms) / 60000))
+  if (mins < 1) return 'ahora'
+  if (mins < 60) return `hace ${mins} min`
+  const hrs = Math.round(mins / 60)
+  if (hrs < 24) return `hace ${hrs} h`
+  const days = Math.round(hrs / 24)
+  if (days < 7) return `hace ${days} d`
+  return new Date(ms).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
+}
+
+const looksLikeExpense = (text: string): boolean => /^\s*(\$|\d)/.test(text)
+
+// ── Widget shell ─────────────────────────────────────────────────────────────
+function Widget({ title, icon: Icon, action, children, className = '' }: {
+  title: string
+  icon: IconComponent
+  action?: ReactNode
+  children: ReactNode
+  className?: string
 }): JSX.Element {
-  const [imgError, setImgError] = useState(false)
-  const src = (MASCOT_IMAGES[pluginId] ?? DEFAULT_MASCOT)[mascot === 'panda' ? 'panda' : 'setto']
+  return (
+    <section className={`ui-card flex flex-col min-h-[240px] ${className}`}>
+      <header className="flex items-center gap-2.5 pl-4 pr-3 pt-3.5 pb-2.5">
+        <span className="w-7 h-7 rounded-lg flex items-center justify-center bg-selected text-primary flex-shrink-0">
+          <Icon size={15} />
+        </span>
+        <h2 className="t-headline text-on-surface flex-1 min-w-0 truncate">{title}</h2>
+        {action}
+      </header>
+      <div className="flex-1 flex flex-col gap-0.5 px-2 pb-2">{children}</div>
+    </section>
+  )
+}
+
+function ListSkeleton({ rows = 4 }: { rows?: number }): JSX.Element {
+  return (
+    <div className="flex flex-col gap-3 px-2 py-2">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex flex-col gap-1.5">
+          <Skeleton className="h-3.5" style={{ width: `${70 - i * 8}%` }} />
+          <Skeleton className="h-2.5" style={{ width: `${45 - i * 4}%` }} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function Row({ title, subtitle, meta, icon, onClick, trailing }: {
+  title: string
+  subtitle?: string
+  meta?: string
+  icon?: ReactNode
+  onClick: () => void
+  trailing?: ReactNode
+}): JSX.Element {
+  return (
+    <div className="group flex items-center rounded-lg hover:bg-on-surface/[0.03] dark:hover:bg-on-surface/[0.05] transition-colors">
+      <button onClick={onClick} className="flex-1 min-w-0 flex items-center gap-3 px-2.5 py-2.5 text-left">
+        {icon}
+        <span className="flex-1 min-w-0">
+          <span className="block t-body font-medium text-on-surface truncate">{title}</span>
+          {subtitle && <span className="block t-footnote text-on-surface-variant truncate">{subtitle}</span>}
+        </span>
+        {meta && <span className="t-caption text-on-surface-variant/80 flex-shrink-0 tabular-nums">{meta}</span>}
+      </button>
+      {trailing}
+    </div>
+  )
+}
+
+// ── Quick capture ────────────────────────────────────────────────────────────
+type CaptureMode = 'note' | 'expense' | 'snippet'
+
+function QuickCapture({ enabled, onNoteCreated }: {
+  enabled: Record<CaptureMode, boolean>
+  onNoteCreated: () => void
+}): JSX.Element {
+  const { dispatch } = useApp()
+  const toast = useToast()
+  const [text, setText] = useState('')
+  const [mode, setMode] = useState<CaptureMode>(enabled.note ? 'note' : enabled.expense ? 'expense' : 'snippet')
+  const [busy, setBusy] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const options = ([
+    { value: 'note', label: 'Nota' },
+    { value: 'expense', label: 'Gasto' },
+    { value: 'snippet', label: 'Snippet' },
+  ] as const).filter((o) => enabled[o.value])
+
+  const trimmed = text.trim()
+  const suggestExpense = mode === 'note' && enabled.expense && looksLikeExpense(trimmed)
+
+  const saveExpense = (): void => {
+    dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'gastos', action: 'quick-add', payload: { text: trimmed } })
+    setText('')
+  }
+
+  const submit = async (as: CaptureMode = mode): Promise<void> => {
+    if (!trimmed || busy) return
+    if (as === 'expense') { saveExpense(); return }
+    if (as === 'snippet') {
+      dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'snippets', action: 'new', payload: { content: trimmed } })
+      setText('')
+      return
+    }
+    setBusy(true)
+    try {
+      await invoke('notes:write', null, trimmed)
+      toast.show('Nota guardada', 'success')
+      setText('')
+      onNoteCreated()
+    } catch {
+      toast.show('No se pudo guardar la nota', 'error')
+    } finally {
+      setBusy(false)
+      inputRef.current?.focus()
+    }
+  }
+
+  const search = (): void => {
+    window.dispatchEvent(new CustomEvent(OPEN_PALETTE_EVENT, { detail: { query: trimmed } }))
+  }
+
+  const placeholder = mode === 'expense'
+    ? 'Ej.: 4500 súper, ayer'
+    : mode === 'snippet'
+      ? 'Pegá un comando o un fragmento de código…'
+      : 'Escribí una nota, un gasto o buscá…'
 
   return (
-    <div className="relative w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-on-surface/[0.05] border border-outline-variant/20">
-      {imgError ? (
-        <PluginIcon icon={icon} size={20} className="text-on-surface-variant/70" />
-      ) : (
-        <img
-          key={src}
-          src={src}
-          alt=""
-          draggable={false}
-          className="w-full h-full object-contain scale-110"
-          onError={() => setImgError(true)}
+    <div className="ui-card p-2 flex flex-col gap-2 shadow-md">
+      <div className="flex items-center gap-2 rounded-lg bg-on-surface/[0.04] dark:bg-on-surface/[0.06] focus-within:bg-surface focus-within:ring-2 focus-within:ring-primary/25 transition-colors pl-3 pr-1.5 py-1.5">
+        <Sparkles size={16} className="text-primary flex-shrink-0" />
+        <input
+          ref={inputRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); search(); return }
+            if (e.key === 'Enter') { e.preventDefault(); void submit() }
+          }}
+          placeholder={placeholder}
+          aria-label="Captura rápida"
+          className="flex-1 min-w-0 bg-transparent outline-none text-on-surface px-1 py-2"
+          style={{ fontSize: 15 }}
         />
+        {options.length > 1 && (
+          <SegmentedControl<CaptureMode> value={mode} onChange={setMode} options={[...options]} />
+        )}
+      </div>
+      {(trimmed || suggestExpense) && (
+        <div className="flex flex-wrap items-center gap-2 px-1 pb-0.5" style={{ animation: 'fadeIn 0.12s ease both' }}>
+          <button onClick={() => void submit()} disabled={busy} className="ui-btn ui-btn-primary ui-btn-sm">
+            <CornerDownLeft size={12} />
+            {mode === 'note' ? 'Guardar nota' : mode === 'expense' ? 'Cargar gasto' : 'Crear snippet'}
+          </button>
+          {suggestExpense && (
+            <button onClick={saveExpense} className="ui-btn ui-btn-outline ui-btn-sm">
+              <Wallet size={12} />
+              Guardar como gasto
+            </button>
+          )}
+          <button onClick={search} className="ui-btn ui-btn-ghost ui-btn-sm ml-auto">
+            <Search size={12} />
+            Buscar «{trimmed.length > 24 ? `${trimmed.slice(0, 24)}…` : trimmed}»
+            <span className="text-on-surface-variant/70">Ctrl+Enter</span>
+          </button>
+        </div>
       )}
     </div>
   )
 }
 
-// ── ToolRow ───────────────────────────────────────────────────────────────────
-// Compact table-style row: mascot thumbnail + name + description on one line.
-// Replaces the old big illustrated tile — far less vertical space per tool.
-function ToolRow({ plugin, onOpen, mascot }: { plugin: PluginManifest; onOpen: () => void; mascot: 'panda' | 'setto-avatar' }): JSX.Element {
-  const ref = useRef<HTMLButtonElement>(null)
+// ── Widgets ──────────────────────────────────────────────────────────────────
+function NotesWidget({ notes, onRetry }: { notes: Loadable<NoteMeta[]>; onRetry: () => void }): JSX.Element {
+  const { dispatch } = useApp()
+  const openToday = (): void => dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'notes', action: 'today' })
+  return (
+    <Widget
+      title="Notas recientes"
+      icon={NotebookPen}
+      action={
+        <button onClick={openToday} className="ui-btn ui-btn-ghost ui-btn-sm">
+          <CalendarDays size={12} /> Nota de hoy
+        </button>
+      }
+    >
+      {notes.status === 'loading' && <ListSkeleton />}
+      {notes.status === 'error' && (
+        <EmptyState compact icon={NotebookPen} title="No pudimos leer tus notas" action={<button className="ui-btn ui-btn-outline ui-btn-sm" onClick={onRetry}>Reintentar</button>} />
+      )}
+      {notes.status === 'ready' && (notes.data.length === 0 ? (
+        <EmptyState
+          compact
+          icon={NotebookPen}
+          title="Todavía no hay notas"
+          description="Escribí arriba y apretá Enter."
+          action={<button className="ui-btn ui-btn-outline ui-btn-sm" onClick={() => dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'notes', action: 'new', payload: {} })}><Plus size={12} /> Nueva nota</button>}
+        />
+      ) : (
+        notes.data.slice(0, 5).map((n) => (
+          <Row
+            key={n.id}
+            title={n.title || 'Sin título'}
+            subtitle={n.preview || undefined}
+            meta={relTime(n.updatedAt)}
+            icon={n.pinned ? <Pin size={12} className="text-on-surface-variant flex-shrink-0" /> : undefined}
+            onClick={() => dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'notes', action: 'open', payload: n.id })}
+          />
+        ))
+      ))}
+    </Widget>
+  )
+}
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>): void => {
-    const el = ref.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const x = (e.clientX - rect.left) / rect.width  - 0.5
-    const y = (e.clientY - rect.top)  / rect.height - 0.5
-    el.style.transform = `perspective(500px) rotateY(${x * 6}deg) rotateX(${-y * 4}deg) translateY(-1px)`
-  }
+function pickSnippets(all: Snippet[]): Snippet[] {
+  const pinned = all.filter((s) => s.pinned)
+  const recent = all
+    .filter((s) => !s.pinned && s.lastUsedAt)
+    .sort((a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0))
+  const rest = all
+    .filter((s) => !s.pinned && !s.lastUsedAt)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  return [...pinned, ...recent, ...rest].slice(0, 6)
+}
 
-  const handleMouseLeave = (): void => {
-    if (ref.current) ref.current.style.transform = ''
+function SnippetsWidget({ snippets, onUsed }: { snippets: Loadable<Snippet[]>; onUsed: () => void }): JSX.Element {
+  const { dispatch } = useApp()
+  const toast = useToast()
+
+  const openSnippet = (s: Snippet): void =>
+    dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'snippets', action: 'open', payload: s.id })
+
+  const use = async (s: Snippet): Promise<void> => {
+    // Snippets with {{variables}} need the form in the Snippets module.
+    if (s.content.includes('{{')) { openSnippet(s); return }
+    try {
+      await navigator.clipboard.writeText(s.content)
+      toast.show(`Copiado: ${s.title}`, 'success', 2200)
+      invoke('snippets:mark-used', s.id).then(onUsed).catch(() => { /* optional */ })
+    } catch {
+      toast.show('No se pudo copiar al portapapeles', 'error')
+    }
   }
 
   return (
-    <button
-      ref={ref}
-      onClick={onOpen}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      className="relative w-full flex items-center gap-3.5 pl-4 pr-3.5 py-3 text-left rounded-2xl backdrop-blur-sm transition-[box-shadow,border-color,background-color] duration-150 group overflow-hidden
-        bg-surface dark:bg-surface-container border border-outline-variant/25 dark:border-outline-variant/30
-        shadow-[0_1px_2px_rgba(0,0,0,0.05)] dark:shadow-[0_2px_6px_rgba(0,0,0,0.18)]
-        hover:bg-surface-container-high hover:shadow-[0_8px_16px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_10px_22px_rgba(0,0,0,0.3)] hover:border-primary/25"
-      style={{ willChange: 'transform', transformStyle: 'preserve-3d' }}
+    <Widget
+      title="Snippets"
+      icon={Code2}
+      action={
+        <button onClick={() => dispatch({ type: 'OPEN_TAB', pluginId: 'snippets' })} className="ui-btn ui-btn-ghost ui-btn-sm">
+          Ver todos <ArrowRight size={12} />
+        </button>
+      }
     >
-      <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[3px] bg-primary/0 group-hover:bg-primary/50 transition-colors" />
-      <MascotAvatar pluginId={plugin.id} icon={plugin.icon} mascot={mascot} />
-      <div className="min-w-0 flex-1 flex flex-col gap-0.5">
-        <p className="text-[14px] font-semibold text-on-surface leading-tight">{plugin.name}</p>
-        <p className="text-[11.5px] text-on-surface-variant/70 truncate">{plugin.description}</p>
+      {snippets.status === 'loading' && <ListSkeleton />}
+      {snippets.status === 'error' && <EmptyState compact icon={Code2} title="No pudimos cargar los snippets" />}
+      {snippets.status === 'ready' && (snippets.data.length === 0 ? (
+        <EmptyState
+          compact
+          icon={Code2}
+          title="Sin snippets todavía"
+          description="Guardá los comandos que usás seguido."
+          action={<button className="ui-btn ui-btn-outline ui-btn-sm" onClick={() => dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'snippets', action: 'new', payload: {} })}><Plus size={12} /> Nuevo snippet</button>}
+        />
+      ) : (
+        pickSnippets(snippets.data).map((s) => {
+          const hasVars = s.content.includes('{{')
+          return (
+            <Row
+              key={s.id}
+              title={s.title}
+              subtitle={s.description || s.content.split('\n')[0]}
+              icon={s.pinned ? <Pin size={12} className="text-on-surface-variant flex-shrink-0" /> : undefined}
+              meta={hasVars ? 'Completar' : undefined}
+              onClick={() => void use(s)}
+              trailing={
+                !hasVars ? (
+                  <span className="pr-2 text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity" aria-hidden>
+                    <Copy size={13} />
+                  </span>
+                ) : undefined
+              }
+            />
+          )
+        })
+      ))}
+    </Widget>
+  )
+}
+
+function ExpensesWidget({ summary }: { summary: Loadable<GastosMonthSummary | null> }): JSX.Element {
+  const { dispatch } = useApp()
+  const quickAdd = (): void => dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'gastos', action: 'quick-add', payload: {} })
+  const s = summary.status === 'ready' ? summary.data : null
+
+  return (
+    <Widget
+      title={s ? `Gastos de ${(mesLong(s.mes).split(' ')[0] ?? '').toLowerCase()}` : 'Gastos del mes'}
+      icon={Wallet}
+      action={<button onClick={quickAdd} className="ui-btn ui-btn-ghost ui-btn-sm"><Plus size={12} /> Gasto</button>}
+    >
+      {summary.status === 'loading' && (
+        <div className="px-2 py-2 flex flex-col gap-3">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-3 w-56" />
+          <Skeleton className="h-2 w-full mt-3" />
+        </div>
+      )}
+      {(summary.status === 'error' || (summary.status === 'ready' && !s)) && (
+        <EmptyState
+          compact
+          icon={Wallet}
+          title="Gastos no está configurado"
+          description="Configurá Supabase en Conexiones para ver el resumen del mes."
+          action={<button className="ui-btn ui-btn-outline ui-btn-sm" onClick={() => dispatch({ type: 'OPEN_TAB', pluginId: 'connections' })}>Ir a Conexiones</button>}
+        />
+      )}
+      {s && <ExpensesSummary s={s} onOpen={() => dispatch({ type: 'OPEN_TAB', pluginId: 'gastos' })} />}
+    </Widget>
+  )
+}
+
+function ExpensesSummary({ s, onOpen }: { s: GastosMonthSummary; onOpen: () => void }): JSX.Element {
+  const diff = s.previousTotal > 0 ? (s.total - s.previousTotal) / s.previousTotal : null
+  const budgetPct = s.presupuesto && s.presupuesto > 0 ? s.total / s.presupuesto : null
+  const over = budgetPct !== null && budgetPct > 1
+  return (
+    <button onClick={onOpen} className="text-left px-2.5 py-2 flex flex-col gap-4 rounded-lg hover:bg-on-surface/[0.03] dark:hover:bg-on-surface/[0.05] transition-colors">
+      <div className="flex flex-col gap-1.5">
+        <div className="t-display text-on-surface tabular-nums">{fmtMoney(s.total)}</div>
+        <div className="flex items-center gap-2 t-footnote text-on-surface-variant min-w-0">
+          {diff === null
+            ? 'Sin datos del mes anterior'
+            : <>
+                <DeltaPill tone={diff > 0 ? 'warning' : 'success'}>
+                  {diff > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                  {diff > 0 ? '+' : ''}{Math.round(diff * 100)}%
+                </DeltaPill>
+                <span className="truncate">vs. mes anterior ({fmtMoney(s.previousTotal)})</span>
+              </>}
+        </div>
       </div>
-      <ArrowRight
-        size={16}
-        className="text-on-surface-variant/25 group-hover:text-primary group-hover:translate-x-0.5 transition-all flex-shrink-0"
-      />
+
+      {budgetPct !== null && s.presupuesto !== null && (
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between t-footnote text-on-surface-variant">
+            <span>Presupuesto {fmtMoney(s.presupuesto)}</span>
+            <span className={`tabular-nums font-medium ${over ? 'text-error' : 'text-on-surface'}`}>{Math.round(budgetPct * 100)}%</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-on-surface/[0.07] overflow-hidden">
+            <div
+              className={`h-full rounded-full ${over ? 'bg-error' : budgetPct > 0.85 ? 'bg-warning' : 'bg-primary'}`}
+              style={{ width: `${Math.min(100, budgetPct * 100)}%`, transition: 'width 300ms var(--ease-mac)' }}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="Fijos" value={fmtMoney(s.fijos)} />
+        <Stat label="Variables" value={fmtMoney(s.variables)} />
+        <Stat
+          label="Pendientes"
+          value={s.pendientesCount === 0 ? 'Ninguno' : `${s.pendientesCount} · ${fmtMoney(s.pendientes)}`}
+          tone={s.pendientesCount > 0 ? 'warning' : undefined}
+        />
+      </div>
     </button>
   )
 }
 
-// ── Onboarding banner ─────────────────────────────────────────────────────────
-function OnboardingBanner({ onDismiss, onGoToSettings }: {
-  onDismiss: () => void
-  onGoToSettings: () => void
-}): JSX.Element {
+function Stat({ label, value, tone }: { label: string; value: string; tone?: 'warning' }): JSX.Element {
   return (
-    <div className="relative flex items-start gap-4 px-5 py-4 rounded-2xl border border-primary/20 bg-primary/5">
-      <Sparkles size={22} className="text-primary flex-shrink-0 mt-0.5" />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-on-surface">Activá las funciones de IA</p>
-        <p className="text-xs text-on-surface-variant mt-0.5 leading-relaxed">
-          Agregá tu API key de OpenAI en Ajustes para habilitar el análisis semántico de Smart Diff y otras herramientas con IA.
-        </p>
-        <button
-          onClick={onGoToSettings}
-          className="mt-2.5 text-xs font-semibold text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
-        >
-          <span>Ir a Ajustes</span>
-          <ArrowRight size={12} />
-        </button>
-      </div>
-      <button
-        onClick={onDismiss}
-        title="Dismiss"
-        className="flex-shrink-0 text-on-surface-variant/40 hover:text-on-surface transition-colors"
-      >
-        <X size={16} />
-      </button>
+    <div className="rounded-lg bg-on-surface/[0.04] dark:bg-on-surface/[0.06] px-3 py-2.5 min-w-0">
+      <div className="t-caption text-on-surface-variant">{label}</div>
+      <div className={`t-callout font-semibold tabular-nums truncate mt-0.5 ${tone === 'warning' ? 'text-warning' : 'text-on-surface'}`}>{value}</div>
     </div>
   )
 }
 
-// ── Section labels ────────────────────────────────────────────────────────────
-const SECTION_LABELS: Record<string, string> = {
-  __default__: 'Herramientas de desarrollo',
-  personal:    'Personal',
-}
-
-// ── ToolGrid — groups plugins by section ─────────────────────────────────────
-function ToolGrid({ tools, openTool, mascot }: {
-  tools: PluginManifest[]
-  openTool: (id: string) => void
-  mascot: 'panda' | 'setto-avatar'
-}): JSX.Element {
-  // Group by section key, preserving registry order within each group
-  const groups = new Map<string, PluginManifest[]>()
-  for (const p of tools) {
-    const key = p.section ?? '__default__'
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key)!.push(p)
-  }
-
-  // Render __default__ first, then named sections in insertion order
-  const orderedKeys = [
-    '__default__',
-    ...Array.from(groups.keys()).filter((k) => k !== '__default__'),
-  ].filter((k) => groups.has(k))
-
+function RecentFilesWidget({ recents }: { recents: Loadable<RecentEntry[]> }): JSX.Element {
+  const { dispatch } = useApp()
   return (
-    <div className="space-y-6">
-      {orderedKeys.map((sectionKey) => {
-        const label   = SECTION_LABELS[sectionKey] ?? sectionKey
-        const plugins = groups.get(sectionKey)!
-        const isPersonal = sectionKey !== '__default__'
-        const isLastSection = sectionKey === orderedKeys[orderedKeys.length - 1]
-
+    <Widget title="Archivos recientes" icon={FileCode2}>
+      {recents.status === 'loading' && <ListSkeleton rows={3} />}
+      {(recents.status === 'error' || (recents.status === 'ready' && recents.data.length === 0)) && (
+        <EmptyState compact icon={FileCode2} title="Sin archivos recientes" description="Los archivos que abras en el editor aparecen acá." />
+      )}
+      {recents.status === 'ready' && recents.data.slice(0, 6).map((r) => {
+        const LangIcon = languageIcon(detectLanguage(r.name))
+        const dir = r.path.slice(0, Math.max(0, r.path.length - r.name.length - 1))
         return (
-          <div key={sectionKey}>
-            <div className="flex items-center gap-2.5 mb-2.5">
-              <h2 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">
-                {label}
-              </h2>
-              <Badge>{plugins.length}</Badge>
-              {isPersonal && (
-                <div className="flex-1 h-px bg-outline-variant/20" />
-              )}
-            </div>
-
-            {/* Compact rows — each its own subtly-floating mini card, not a glued table */}
-            <motion.div
-              className="flex flex-col gap-2"
-              initial="hidden"
-              animate="visible"
-              variants={{ visible: { transition: { staggerChildren: 0.055 } } }}
-            >
-              {plugins.map((plugin) => (
-                <motion.div
-                  key={plugin.id}
-                  variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: 'easeOut' } } }}
-                >
-                  <ToolRow plugin={plugin} onOpen={() => openTool(plugin.id)} mascot={mascot} />
-                </motion.div>
-              ))}
-
-              {/* Add plugin row — only in the last section */}
-              {isLastSection && (
-                <div
-                  className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-on-surface-variant/40"
-                  style={{ background: 'rgb(var(--c-surface-container) / 0.4)', border: '1px dashed rgb(var(--c-outline-variant) / 0.25)' }}
-                >
-                  <div className="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center border border-outline-variant/20 flex-shrink-0">
-                    <Plus size={14} />
-                  </div>
-                  <p className="text-[12px] flex-1">
-                    Agregar plugin — soltá una carpeta en{' '}
-                    <code className="bg-surface-container px-1 py-0.5 rounded text-primary/70 text-[10px]">src/plugins/</code>
-                  </p>
-                </div>
-              )}
-            </motion.div>
-          </div>
+          <Row
+            key={r.path}
+            title={r.name}
+            subtitle={dir}
+            meta={relTime(new Date(r.openedAt).getTime())}
+            icon={<span className="w-4 flex justify-center text-on-surface-variant flex-shrink-0"><LangIcon size={14} /></span>}
+            onClick={() => dispatch({ type: 'OPEN_IN_EDITOR', path: r.path })}
+          />
         )
       })}
-    </div>
+    </Widget>
   )
 }
 
-// ── Card shell — shared glass surface used across every bento card ────────────
-function Card({ children, className = '', noPad = false }: { children: React.ReactNode; className?: string; noPad?: boolean }): JSX.Element {
-  return (
-    <div
-      className={`relative overflow-hidden rounded-2xl transition-all duration-200
-        shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.25)]
-        hover:-translate-y-[2px] hover:shadow-[0_8px_20px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_14px_30px_rgba(0,0,0,0.35)]
-        ${noPad ? '' : 'p-4'} ${className}`}
-      style={{
-        background: 'rgb(var(--c-surface) / 0.75)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        border: '1px solid rgb(var(--c-outline-variant) / 0.30)',
-      }}
-    >
-      {children}
-    </div>
-  )
-}
-
-// ── DonutCard — replaces the old Resumen + Command Palette cards with a single
-// modern donut chart (section breakdown) + compact KPI rows below it.
-// Same arc-path technique as the "Por categoría" donut in Gastos — real pie slices
-// (not a stroke-dasharray ring), one color per section, gap stroke between slices.
-function donutSegmentPath(cx: number, cy: number, rOuter: number, rInner: number, a0: number, a1: number): string {
-  const large = a1 - a0 > Math.PI ? 1 : 0
-  const x0o = cx + rOuter * Math.cos(a0), y0o = cy + rOuter * Math.sin(a0)
-  const x1o = cx + rOuter * Math.cos(a1), y1o = cy + rOuter * Math.sin(a1)
-  const x0i = cx + rInner * Math.cos(a1), y0i = cy + rInner * Math.sin(a1)
-  const x1i = cx + rInner * Math.cos(a0), y1i = cy + rInner * Math.sin(a0)
-  return [
-    `M ${x0o} ${y0o}`, `A ${rOuter} ${rOuter} 0 ${large} 1 ${x1o} ${y1o}`,
-    `L ${x0i} ${y0i}`, `A ${rInner} ${rInner} 0 ${large} 0 ${x1i} ${y1i}`, 'Z',
-  ].join(' ')
-}
-
-const DONUT_COLORS = ['rgb(var(--c-primary))', 'rgb(var(--c-accent))', 'rgb(var(--c-secondary))', 'rgb(var(--c-primary-light))']
-
-function DonutCard({ tools, openTabCount, recentCount }: { tools: PluginManifest[]; openTabCount: number; recentCount: number }): JSX.Element {
-  const sections = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const t of tools) {
-      const key = t.section ?? 'Desarrollo'
-      map.set(key, (map.get(key) ?? 0) + 1)
-    }
-    return Array.from(map.entries()).map(([label, count], i) => ({
-      label, count,
-      pct: tools.length ? (count / tools.length) * 100 : 0,
-      color: DONUT_COLORS[i % DONUT_COLORS.length],
-    }))
-  }, [tools])
-
-  const cx = 100, cy = 100, rOuter = 92, rInner = 56
-  let angle = -Math.PI / 2
-  const slices = sections.map((s) => {
-    const sweep = (s.pct / 100) * Math.PI * 2
-    const d = donutSegmentPath(cx, cy, rOuter, rInner, angle, angle + sweep)
-    angle += sweep
-    return { ...s, d }
-  })
-
-  return (
-    <Card className="flex flex-col gap-4">
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/60">Resumen</span>
-
-      <div className="relative w-[164px] h-[164px] mx-auto">
-        <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-sm">
-          {slices.map((s) => (
-            <path key={s.label} d={s.d} fill={s.color} className="stroke-surface-container" strokeWidth={2} strokeLinejoin="round" />
-          ))}
-        </svg>
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="flex flex-col items-center">
-            <span className="text-[26px] font-bold text-on-surface tabular-nums leading-none">{tools.length}</span>
-            <span className="text-[8.5px] text-on-surface-variant/45 uppercase tracking-[0.12em] mt-1.5">herramientas</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 border-t border-outline-variant/10 pt-3">
-        {sections.map((s) => (
-          <div key={s.label} className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
-            <span className="text-[11px] text-on-surface-variant/70">{s.label}</span>
-            <span className="text-[10px] font-mono tabular-nums text-on-surface-variant/45">{Math.round(s.pct)}%</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-col gap-2 pt-3 border-t border-outline-variant/10">
-        {[
-          { icon: SquareStack, value: openTabCount, label: 'Pestañas abiertas' },
-          { icon: Search,      value: recentCount,  label: 'Archivos recientes' },
-        ].map((s) => (
-          <div key={s.label} className="flex items-center gap-2.5">
-            <s.icon size={13} className="text-on-surface-variant/50 flex-shrink-0" />
-            <span className="text-[11.5px] text-on-surface-variant/70 flex-1">{s.label}</span>
-            <span className="text-[13px] font-semibold text-on-surface tabular-nums">{s.value}</span>
-          </div>
-        ))}
-      </div>
-    </Card>
-  )
-}
-
-interface RecentEntry { path: string; name: string; openedAt: string }
-
-// ── ConnectionsCard — real status of every integration the Connections plugin
-// manages (same settings keys + auth checks it uses), not a placeholder list.
-type ConnStatus = 'connected' | 'partial' | 'disconnected'
-interface ConnEntry { label: string; status: ConnStatus }
-
-async function checkOAuthProvider(provider: 'github' | 'gitlab' | 'bitbucket', clientIdKey?: string): Promise<ConnStatus> {
-  const [me, cid] = await Promise.all([
-    window.api.invoke<{ authenticated: boolean } | null>('repo-search:me', { provider }),
-    clientIdKey ? window.api.invoke<string | null>('settings:get', clientIdKey) : Promise.resolve(null),
-  ])
-  if (me?.authenticated) return 'connected'
-  return cid ? 'partial' : 'disconnected'
-}
-
-function useConnectionsStatus(): ConnEntry[] | null {
-  const [entries, setEntries] = useState<ConnEntry[] | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    Promise.all([
-      window.api.invoke<string | null>('settings:get', 'ai.openai_key').then((v): ConnStatus => v === SECURE_SET_SENTINEL ? 'connected' : 'disconnected'),
-      window.api.invoke<string | null>('settings:get', 'ai.anthropic_key').then((v): ConnStatus => v === SECURE_SET_SENTINEL ? 'connected' : 'disconnected'),
-      window.api.invoke<string | null>('settings:get', 'ai.ollama_url').then((v): ConnStatus => v ? 'connected' : 'disconnected'),
-      checkOAuthProvider('github', 'repo-search.github.client_id'),
-      checkOAuthProvider('gitlab', 'repo-search.gitlab.client_id'),
-      checkOAuthProvider('bitbucket'),
-      Promise.all([
-        window.api.invoke<string | null>('settings:get', 'ticket-resolver.jira_url'),
-        window.api.invoke<string | null>('settings:get', 'ticket-resolver.jira_user'),
-        window.api.invoke<string | null>('settings:get', 'ticket-resolver.jira_token'),
-      ]).then(([url, user, tok]): ConnStatus => {
-        const tokOk = tok === SECURE_SET_SENTINEL
-        if (url && user && tokOk) return 'connected'
-        return (url || user) ? 'partial' : 'disconnected'
-      }),
-    ]).then(([openai, anthropic, ollama, github, gitlab, bitbucket, jira]) => {
-      if (cancelled) return
-      setEntries([
-        { label: 'OpenAI',    status: openai },
-        { label: 'Anthropic', status: anthropic },
-        { label: 'Ollama',    status: ollama },
-        { label: 'GitHub',    status: github },
-        { label: 'GitLab',    status: gitlab },
-        { label: 'Bitbucket', status: bitbucket },
-        { label: 'Jira',      status: jira },
-      ])
-    }).catch(() => { if (!cancelled) setEntries([]) })
-    return () => { cancelled = true }
-  }, [])
-
-  return entries
-}
-
-const CONN_STATUS_DOT: Record<ConnStatus, string> = {
-  connected: 'bg-emerald-400',
-  partial: 'bg-warning',
-  disconnected: 'bg-on-surface-variant/25',
-}
-
-function ConnectionsCard({ onOpen }: { onOpen: () => void }): JSX.Element {
-  const entries = useConnectionsStatus()
-  const connectedCount = entries?.filter((e) => e.status === 'connected').length ?? 0
-
-  return (
-    <Card noPad className="flex flex-col">
-      {/* Bold brand-gradient header — the one deliberately "loud" card on the dashboard,
-          using the active theme's own gradient so it never clashes with a custom palette. */}
-      <button onClick={onOpen} className="relative flex items-center justify-between gap-3 px-4 py-3.5 overflow-hidden text-left group" style={{ background: 'var(--gradient-brand)' }}>
-        <div aria-hidden className="absolute -top-8 -left-6 w-32 h-32 rounded-full bg-white/10 blur-2xl pointer-events-none" />
-        <span className="relative text-[11px] font-semibold uppercase tracking-wide text-white/85">Conexiones</span>
-        <span className="relative text-[11px] font-bold text-white flex items-center gap-1">
-          {entries ? `${connectedCount}/${entries.length}` : '…'}
-          <ArrowRight size={12} className="opacity-80 group-hover:translate-x-0.5 transition-transform" />
-        </span>
-      </button>
-
-      <div className="p-4">
-        {!entries ? (
-          <p className="text-[11px] text-on-surface-variant/35 py-2">Verificando…</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {entries.map((e) => (
-              <div key={e.label} className="flex items-center gap-2">
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${CONN_STATUS_DOT[e.status]}`} />
-                <span className="text-[11.5px] text-on-surface-variant/75 flex-1">{e.label}</span>
-                <span className="text-[10px] text-on-surface-variant/40">
-                  {e.status === 'connected' ? 'Conectado' : e.status === 'partial' ? 'Parcial' : 'Sin configurar'}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </Card>
-  )
-}
-
-// ── ActivityCard — recent files + 7-day mini activity bars + top language ─────
-// Folds what used to be three separate cards (list / heatmap / kpi) into one,
-// so the dashboard reads as a few important cards instead of many small ones.
-function ActivityCard({ recents, onOpen }: { recents: RecentEntry[]; onOpen: (path: string) => void }): JSX.Element {
-  const relTime = (iso: string): string => {
-    const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
-    if (mins < 1) return 'ahora'
-    if (mins < 60) return `hace ${mins}m`
-    const hrs = Math.round(mins / 60)
-    if (hrs < 24) return `hace ${hrs}h`
-    return `hace ${Math.round(hrs / 24)}d`
-  }
-
-  // Most common language among recent files — a different kind of metric (mode, not a count)
-  const topLanguage = useMemo(() => {
-    if (recents.length === 0) return null
-    const counts = new Map<FileLanguage, number>()
-    for (const r of recents) {
-      const lang = detectLanguage(r.name)
-      counts.set(lang, (counts.get(lang) ?? 0) + 1)
-    }
-    const [lang] = Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]! // recents.length > 0 guarantees a non-empty map
-    return lang
-  }, [recents])
-
-  return (
-    <Card className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/60">Actividad reciente</span>
-        {topLanguage && (() => {
-          const Icon = languageIcon(topLanguage)
-          return (
-            <span
-              className="flex items-center gap-1.5 text-[10px] text-on-surface-variant/60 px-2 py-1 rounded-full bg-on-surface/[0.05]"
-              title="Lenguaje más abierto recientemente"
-            >
-              <Icon size={12} /> {topLanguage}
-            </span>
-          )
-        })()}
-      </div>
-
-      {recents.length === 0 ? (
-        <p className="text-[11.5px] text-on-surface-variant/40 py-6 text-center">Sin actividad todavía</p>
-      ) : (
-        <div className="flex flex-col">
-          {recents.slice(0, 4).map((r) => (
-            <button
-              key={r.path}
-              onClick={() => onOpen(r.path)}
-              className="flex items-center gap-2 py-1.5 text-left hover:bg-surface-container-high/60 rounded-lg px-1.5 -mx-1.5 transition-colors group"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-primary/60 flex-shrink-0 group-hover:bg-primary transition-colors" />
-              <span className="text-[12px] text-on-surface-variant truncate flex-1 group-hover:text-on-surface">{r.name}</span>
-              <span className="text-[10px] text-on-surface-variant/40 flex-shrink-0 tabular-nums">{relTime(r.openedAt)}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </Card>
-  )
-}
-
-// ── Dashboard ─────────────────────────────────────────────────────────────────
+// ── Dashboard ────────────────────────────────────────────────────────────────
 export function Dashboard(): JSX.Element {
-  const { dispatch, state } = useApp()
-  const tools = allPlugins.filter((p) => p.id !== 'dashboard' && p.id !== 'about' && !state.disabledPlugins.includes(p.id))
-  const openTool = (id: string): void => dispatch({ type: 'OPEN_TAB', pluginId: id })
-
-  const [showOnboarding, setShowOnboarding] = useState(false)
-  const [recents, setRecents] = useState<RecentEntry[]>([])
+  const { state } = useApp()
+  const active = state.activeTabId === 'dashboard'
+  const isOn = (id: string): boolean => !state.disabledPlugins.includes(id)
   const [userName, setUserName] = useState<string | null>(null)
-  const [mascot, setMascot] = useState<'panda' | 'setto-avatar'>('setto-avatar')
-
-  // Real recent-file activity (file-editor's recents) — powers the activity list + heatmap
-  useEffect(() => {
-    window.api.invoke<RecentEntry[]>('editor:recent-get').then(setRecents).catch(() => { /* ignore */ })
-  }, [])
-
-  // Load mascot preference on mount + listen for live changes from Settings tab
-  useEffect(() => {
-    window.api.invoke<string | null>('settings:get', 'dashboard.mascot').then((v) => {
-      if (v !== null) setMascot(v === 'panda' ? 'panda' : 'setto-avatar')
-    }).catch(() => { /* ignore */ })
-
-    const handler = (e: Event): void => {
-      const val = (e as CustomEvent<string>).detail
-      setMascot(val === 'panda' ? 'panda' : 'setto-avatar')
-    }
-    window.addEventListener('mascot-change', handler)
-    return () => window.removeEventListener('mascot-change', handler)
-  }, [])
-
-  // Optional personalization — only if the user actually signed in with Google somewhere in the app
-  useEffect(() => {
-    window.api.invoke<{ name: string } | null>('auth:google-user').then((u) => {
-      if (u?.name) setUserName(u.name.split(' ')[0]!)
-    }).catch(() => { /* ignore */ })
-  }, [])
+  const [now, setNow] = useState(() => new Date())
+  const [stamp, setStamp] = useState(0)
 
   useEffect(() => {
-    const dismissed = localStorage.getItem(ONBOARDING_DISMISSED_KEY) === 'true'
-    if (dismissed) return
-    // Check if any AI provider is configured
-    Promise.all([
-      window.api.invoke<string | null>('settings:get', 'ai.provider'),
-      window.api.invoke<string | null>('settings:get', 'ai.openai_key'),
-      window.api.invoke<string | null>('settings:get', 'ai.anthropic_key'),
-      window.api.invoke<string | null>('settings:get', 'ai.ollama_url'),
-    ]).then(([providerVal, openaiVal, anthropicVal, ollamaVal]) => {
-      const provider = providerVal ?? 'openai'
-      const configured =
-        (provider === 'openai'    && openaiVal    === SECURE_SET_SENTINEL) ||
-        (provider === 'anthropic' && anthropicVal === SECURE_SET_SENTINEL) ||
-        (provider === 'ollama'    && !!ollamaVal)
-      setShowOnboarding(!configured)
-    }).catch(() => { /* ignore */ })
+    invoke<{ name?: string } | null>('auth:google-user')
+      .then((u) => { if (u?.name) setUserName(u.name.split(' ')[0] ?? null) })
+      .catch(() => { /* not signed in */ })
   }, [])
 
-  const dismissOnboarding = (): void => {
-    localStorage.setItem(ONBOARDING_DISMISSED_KEY, 'true')
-    setShowOnboarding(false)
-  }
+  // Refresh widgets each time Inicio comes back to the front (tabs stay mounted).
+  const firstRun = useRef(true)
+  useEffect(() => {
+    if (!active) return
+    setNow(new Date())
+    if (firstRun.current) { firstRun.current = false; return }
+    setStamp((n) => n + 1)
+  }, [active])
 
-  const openFile = (path: string): void => dispatch({ type: 'OPEN_IN_EDITOR', path })
+  const [notes, reloadNotes] = useLoad(async () => {
+    const list = await invoke<NoteMeta[]>('notes:list')
+    return [...list].sort((a, b) => b.updatedAt - a.updatedAt)
+  }, [stamp])
+  const [snippets, reloadSnippets] = useLoad(async () => {
+    const res = await invoke<{ snippets: Snippet[] }>('snippets:load')
+    return res?.snippets ?? []
+  }, [stamp])
+  const [summary] = useLoad(() => getMonthSummary(), [stamp])
+  const [recents] = useLoad(async () => (await invoke<RecentEntry[]>('editor:recent-get')) ?? [], [stamp])
+
+  const capture = useMemo(() => ({
+    note: isOn('notes'), expense: isOn('gastos'), snippet: isOn('snippets'),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [state.disabledPlugins])
+
+  const widgets = [
+    isOn('notes') && <NotesWidget key="notes" notes={notes} onRetry={reloadNotes} />,
+    isOn('gastos') && <ExpensesWidget key="gastos" summary={summary} />,
+    isOn('snippets') && <SnippetsWidget key="snippets" snippets={snippets} onUsed={reloadSnippets} />,
+    isOn('file-editor') && <RecentFilesWidget key="files" recents={recents} />,
+  ].filter(Boolean)
 
   return (
-    <div className="p-8 max-w-7xl mx-auto w-full space-y-5">
-      {/* Header — title + slim search pill (replaces the old big promo card) */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          {userName && <p className="text-xs font-semibold text-primary/80 mb-1">Hola, {userName}</p>}
-          <h1 className="text-[26px] font-bold tracking-tight text-on-surface">
-            <span className="brand-gradient-text">Setto</span> Toolkit
-          </h1>
-        </div>
-        <motion.button
-          type="button"
-          onClick={() => dispatch({ type: 'TOGGLE_COMMAND_PALETTE' })}
-          className="flex items-center gap-2.5 rounded-xl px-4 py-2.5 bg-surface-container/70 border border-outline-variant/20 flex-shrink-0"
-          whileHover={{ borderColor: 'rgb(var(--c-primary) / 0.4)' }}
-          transition={{ duration: 0.15 }}
-        >
-          <Search size={15} className="text-on-surface-variant/60" />
-          <span className="text-[12.5px] text-on-surface-variant/50 hidden sm:inline">Buscar…</span>
-          <kbd className="px-1.5 py-0.5 rounded-md text-[10px] font-mono text-on-surface-variant/50 border border-outline-variant/30 bg-surface-container/60">Ctrl K</kbd>
-        </motion.button>
-      </div>
+    <div className="relative min-h-full">
+      {/* Toque de marca: halo muy suave detrás del encabezado */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[280px] opacity-[0.08] dark:opacity-[0.12]"
+        style={{
+          background: 'var(--gradient-brand)',
+          maskImage: 'radial-gradient(55% 100% at 25% 0%, black, transparent 75%)',
+          WebkitMaskImage: 'radial-gradient(55% 100% at 25% 0%, black, transparent 75%)',
+        }}
+      />
+      <div className="relative px-8 py-7 max-w-[1120px] mx-auto w-full flex flex-col gap-6">
+        <header className="flex flex-col gap-2 pt-2">
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-surface/80 hairline shadow-sm px-2.5 py-[3px] t-caption font-medium text-on-surface-variant">
+            <span className="w-1.5 h-1.5 rounded-full bg-brand" aria-hidden />
+            {longDate(now)}
+          </span>
+          <h1 className="t-display text-on-surface">{greeting(now)}{userName ? `, ${userName}` : ''}</h1>
+          <p className="t-callout text-on-surface-variant">Esto es lo que tenés a mano hoy.</p>
+        </header>
 
-      {/* Onboarding banner */}
-      {showOnboarding && (
-        <OnboardingBanner
-          onDismiss={dismissOnboarding}
-          onGoToSettings={() => { dismissOnboarding(); openTool('settings') }}
-        />
+      {(capture.note || capture.expense || capture.snippet) && (
+        <QuickCapture enabled={capture} onNoteCreated={reloadNotes} />
       )}
 
-      {/* Two columns: tool list (main) · metrics sidebar — tools no longer span the full width */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5 items-start">
-        <ToolGrid tools={tools} openTool={openTool} mascot={mascot} />
-        <div className="flex flex-col gap-5">
-          <DonutCard tools={tools} openTabCount={state.openTabs.length} recentCount={recents.length} />
-          <ConnectionsCard onOpen={() => openTool('connections')} />
-          <ActivityCard recents={recents} onOpen={openFile} />
-        </div>
+      {widgets.length > 0 ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">{widgets}</div>
+      ) : (
+        <EmptyState icon={NotebookPen} title="Nada para mostrar" description="Activá Notas, Snippets o Gastos en Ajustes → Módulos." />
+      )}
       </div>
     </div>
   )

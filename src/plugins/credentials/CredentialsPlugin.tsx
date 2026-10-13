@@ -1,0 +1,649 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import {
+  ChevronDown, CloudCheck, CloudOff, CloudUpload, Download, FileUp, KeyRound, Lock, LockOpen, MoreHorizontal,
+  Plus, RefreshCw, Search, ShieldAlert, ShieldCheck, Star, TriangleAlert, X,
+} from 'lucide-react'
+import { EmptyState } from '../../core/components/EmptyState'
+import { listItemMotion, shouldAnimateList } from '../../core/motion'
+import { SegmentedControl } from '../../core/components/SegmentedControl'
+import { usePluginIntent } from '../../core/AppContext'
+import { useToast } from '../../core/components/Toast'
+import { useConfirm } from '../../core/components/Modal'
+import type { Credential, CredentialDraft, CredentialsListResult, LockStatus, PasswordAudit, SecretResult } from './types'
+import {
+  absoluteUrl, copyToClipboard, credentialsApi, displayHost, filterCredentials, groupCredentials,
+  invalidateCredentials, loadCredentialList, loadLocalCredentialList, relativeTime, type CredentialGroup,
+} from './data'
+import { Avatar } from './components/Avatar'
+import { CredentialEditor, CredentialView, type WithSecret } from './components/CredentialDetail'
+import { PinPrompt } from './components/PinPrompt'
+import { SecuritySheet } from './components/SecuritySheet'
+import { ImportSheet } from './components/ImportSheet'
+
+type Filter = 'all' | 'fav' | 'recent' | 'risk'
+
+const RETRY_MS = 60_000
+const RECENT_MAX = 15
+
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err)
+}
+
+function isTyping(el: EventTarget | null): boolean {
+  const t = el as HTMLElement | null
+  return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+
+export function CredentialsPlugin(): JSX.Element {
+  const { show: toast } = useToast()
+  const confirm = useConfirm()
+  const rootRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  const [data, setData]             = useState<CredentialsListResult | null>(null)
+  const [loading, setLoading]       = useState(true)
+  const [fatal, setFatal]           = useState<string | null>(null)
+  const [audit, setAudit]           = useState<PasswordAudit | null>(null)
+  const [lock, setLock]             = useState<LockStatus | null>(null)
+  const [search, setSearch]         = useState('')
+  const [filter, setFilter]         = useState<Filter>('all')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [editing, setEditing]       = useState<null | 'new' | string>(null)
+  const [pendingOpen, setPendingOpen] = useState<string | null>(null)
+  const [folded, setFolded]         = useState<Record<string, boolean>>({})
+  const [pinOpen, setPinOpen]       = useState(false)
+  const [securityOpen, setSecurityOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [menuOpen, setMenuOpen]     = useState(false)
+  const pinResolver = useRef<((ok: boolean) => void) | null>(null)
+
+  const items = useMemo(() => data?.items ?? [], [data])
+  const favorites = useMemo(() => new Set(data?.favorites ?? []), [data])
+  const usedAt = useMemo(() => data?.usedAt ?? {}, [data])
+
+  const refreshAudit = useCallback(() => {
+    credentialsApi.audit().then(setAudit).catch(() => undefined)
+  }, [])
+
+  const load = useCallback(async (force = false): Promise<void> => {
+    setLoading(true)
+    try {
+      const r = await loadCredentialList(force)
+      setData(r)
+      setFatal(null)
+      refreshAudit()
+    } catch (err) {
+      setFatal(errorText(err))
+    } finally {
+      setLoading(false)
+    }
+  }, [refreshAudit])
+
+  useEffect(() => {
+    // Local-first: paint the local copy right away, then sync.
+    loadLocalCredentialList()
+      .then((r) => { setData((cur) => cur ?? r); refreshAudit() })
+      .catch(() => undefined)
+    void load(true)
+    credentialsApi.lockStatus().then(setLock).catch(() => undefined)
+  }, [load, refreshAudit])
+
+  // Retry while offline / with pending writes: every minute and when the window regains focus.
+  const needsSync = !!data && (data.status !== 'synced' || data.pendingCount > 0)
+  useEffect(() => {
+    if (!needsSync) return
+    const t = setInterval(() => { void load(true) }, RETRY_MS)
+    const onFocus = (): void => { void load(true) }
+    window.addEventListener('focus', onFocus)
+    return () => { clearInterval(t); window.removeEventListener('focus', onFocus) }
+  }, [needsSync, load])
+
+  usePluginIntent('credentials', (intent) => {
+    if (intent.action === 'open' && typeof intent.payload === 'string') setPendingOpen(intent.payload)
+  })
+
+  useEffect(() => {
+    if (!pendingOpen || !data) return
+    if (items.some((c) => c.id === pendingOpen)) {
+      setSearch('')
+      setFilter('all')
+      setEditing(null)
+      setSelectedId(pendingOpen)
+      requestAnimationFrame(() => {
+        listRef.current?.querySelector(`[data-id="${CSS.escape(pendingOpen)}"]`)?.scrollIntoView({ block: 'nearest' })
+      })
+    }
+    setPendingOpen(null)
+  }, [pendingOpen, data, items])
+
+  // ── Derived lists ─────────────────────────────────────────────────────────
+  const reusedOf = useMemo(() => {
+    const m = new Map<string, string[]>()
+    for (const g of audit?.reused ?? []) for (const id of g) m.set(id, g.filter((x) => x !== id))
+    return m
+  }, [audit])
+  const weakSet = useMemo(() => new Set(audit?.weak ?? []), [audit])
+  const riskCount = useMemo(() => items.filter((c) => weakSet.has(c.id) || reusedOf.has(c.id)).length, [items, weakSet, reusedOf])
+
+  const groups = useMemo((): CredentialGroup[] => {
+    const found = filterCredentials(items, search)
+    if (filter === 'recent') {
+      const list = found.filter((c) => usedAt[c.id]).sort((a, b) => (usedAt[b.id] ?? 0) - (usedAt[a.id] ?? 0)).slice(0, RECENT_MAX)
+      return list.length ? [{ key: 'Usadas recientemente', items: list }] : []
+    }
+    if (filter === 'risk') {
+      const byName = (a: Credential, b: Credential): number => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
+      const reused = found.filter((c) => reusedOf.has(c.id)).sort(byName)
+      const weak = found.filter((c) => weakSet.has(c.id) && !reusedOf.has(c.id)).sort(byName)
+      return [
+        ...(reused.length ? [{ key: 'Contraseña repetida', items: reused }] : []),
+        ...(weak.length ? [{ key: 'Contraseña débil', items: weak }] : []),
+      ]
+    }
+    return groupCredentials(filter === 'fav' ? found.filter((c) => favorites.has(c.id)) : found)
+  }, [items, search, filter, usedAt, favorites, reusedOf, weakSet])
+
+  const visible = useMemo(() => groups.flatMap((g) => (folded[g.key] ? [] : g.items)), [groups, folded])
+  const rowMotion = listItemMotion(shouldAnimateList(visible.length))
+  const selected = items.find((c) => c.id === selectedId) ?? null
+  const nameOf = useCallback((id: string) => items.find((c) => c.id === id)?.nombre, [items])
+  const categories = useMemo(() => [...new Set(items.map((c) => c.categoria?.trim()).filter((x): x is string => !!x))].sort(), [items])
+
+  // ── Secrets / lock ────────────────────────────────────────────────────────
+  const requireUnlock = useCallback((): Promise<boolean> => new Promise((resolve) => {
+    pinResolver.current?.(false)
+    pinResolver.current = resolve
+    setPinOpen(true)
+  }), [])
+
+  const onPinDone = (ok: boolean): void => {
+    setPinOpen(false)
+    pinResolver.current?.(ok)
+    pinResolver.current = null
+    credentialsApi.lockStatus().then(setLock).catch(() => undefined)
+  }
+
+  const withSecret: WithSecret = useCallback(async <T,>(fn: () => Promise<SecretResult<T>>) => {
+    try {
+      let r = await fn()
+      if (!r.ok) {
+        if (!(await requireUnlock())) return null
+        r = await fn()
+      }
+      return r.ok ? r : null
+    } catch (err) {
+      toast(errorText(err), 'error', 4000)
+      return null
+    }
+  }, [requireUnlock, toast])
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+  const setUsed = (id: string, ts: number): void => {
+    setData((d) => (d ? { ...d, usedAt: { ...d.usedAt, [id]: ts } } : d))
+  }
+
+  const copyPassword = useCallback(async (c: Credential): Promise<boolean> => {
+    if (!c.hasPassword) { toast('Esta credencial no tiene contraseña guardada', 'warning'); return false }
+    const r = await withSecret(() => credentialsApi.copyPassword(c.id))
+    if (!r) return false
+    setUsed(c.id, r.usedAt)
+    toast('Contraseña copiada. Se borra del portapapeles en 30 s', 'success', 3000)
+    return true
+  }, [withSecret, toast])
+
+  const copyUser = useCallback(async (c: Credential): Promise<void> => {
+    if (!c.usuario) { toast('Esta credencial no tiene usuario', 'warning'); return }
+    try {
+      await copyToClipboard(c.usuario)
+      toast('Usuario copiado', 'success', 1800)
+      credentialsApi.markUsed(c.id).then((ts) => setUsed(c.id, ts)).catch(() => undefined)
+    } catch {
+      toast('No se pudo copiar al portapapeles', 'error')
+    }
+  }, [toast])
+
+  const openAndCopy = useCallback(async (c: Credential): Promise<void> => {
+    if (!c.url) return
+    if (await copyPassword(c)) window.open(absoluteUrl(c.url), '_blank', 'noopener')
+  }, [copyPassword])
+
+  const toggleFavorite = async (c: Credential): Promise<void> => {
+    try {
+      const favs = await credentialsApi.toggleFavorite(c.id)
+      setData((d) => (d ? { ...d, favorites: favs } : d))
+    } catch (err) {
+      toast(errorText(err), 'error')
+    }
+  }
+
+  const save = async (draft: CredentialDraft): Promise<boolean> => {
+    const isNew = editing === 'new'
+    try {
+      const r = await credentialsApi.save(draft)
+      invalidateCredentials()
+      setSelectedId(draft.id)
+      setEditing(null)
+      if (r.queued) toast('Guardada en esta computadora. Se sube a Supabase cuando haya conexión', 'warning', 4500)
+      else toast(isNew ? 'Credencial creada' : 'Cambios guardados', 'success', 2200)
+      void load(true)
+      return true
+    } catch (err) {
+      toast(`No se pudo guardar: ${errorText(err)}`, 'error', 6000)
+      return false
+    }
+  }
+
+  const remove = useCallback(async (c: Credential): Promise<void> => {
+    const ok = await confirm({
+      title: `¿Eliminar «${c.nombre}»?`,
+      message: 'Se borra el usuario y la contraseña guardados. Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar',
+      destructive: true,
+    })
+    if (!ok) return
+    const idx = visible.findIndex((x) => x.id === c.id)
+    try {
+      const r = await credentialsApi.remove(c.id)
+      invalidateCredentials()
+      const next = visible[idx + 1] ?? visible[idx - 1]
+      setSelectedId(next && next.id !== c.id ? next.id : null)
+      await load(true)
+      if (r.queued) toast('Eliminada en esta computadora. Se borra de Supabase cuando haya conexión', 'warning', 4500)
+    } catch (err) {
+      toast(`No se pudo eliminar: ${errorText(err)}`, 'error', 6000)
+    }
+  }, [confirm, visible, load, toast])
+
+  const exportCsv = async (): Promise<void> => {
+    setMenuOpen(false)
+    const ok = await confirm({
+      title: '¿Exportar todas las contraseñas sin cifrar?',
+      message: (
+        <>
+          El archivo CSV va a tener <strong>todas tus contraseñas en texto plano</strong>: cualquiera que lo abra puede leerlas.
+          Guardalo en un lugar seguro y borralo apenas lo uses.
+        </>
+      ),
+      confirmLabel: 'Exportar igual',
+      destructive: true,
+    })
+    if (!ok) return
+    const r = await withSecret(() => credentialsApi.exportCsv())
+    if (r && !r.canceled) toast(`Exportadas ${r.count ?? 0} credenciales`, 'success', 3000)
+  }
+
+  const moveSelection = useCallback((delta: number): void => {
+    if (!visible.length) return
+    const idx = visible.findIndex((c) => c.id === selectedId)
+    const next = visible[idx < 0 ? 0 : Math.min(visible.length - 1, Math.max(0, idx + delta))]
+    if (!next) return
+    setSelectedId(next.id)
+    setEditing(null)
+    requestAnimationFrame(() => {
+      const el = listRef.current?.querySelector<HTMLElement>(`[data-id="${CSS.escape(next.id)}"]`)
+      el?.scrollIntoView({ block: 'nearest' })
+      if (listRef.current?.contains(document.activeElement)) el?.focus()
+    })
+  }, [visible, selectedId])
+
+  // ── Keyboard ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      const root = rootRef.current
+      if (!root || root.offsetParent === null) return // our tab is hidden
+      if (pinOpen || securityOpen || importOpen || e.defaultPrevented) return
+      const target = e.target as Node | null
+      const inside = !target || target === document.body || root.contains(target)
+      if (!inside) return // modals / other portals
+      const mod = e.ctrlKey || e.metaKey
+      const k = e.key.toLowerCase()
+
+      if (mod && !e.shiftKey && !e.altKey && k === 'f') {
+        e.preventDefault()
+        searchRef.current?.focus()
+        searchRef.current?.select()
+        return
+      }
+      if (editing) return
+      const inSearch = e.target === searchRef.current
+      if (isTyping(e.target) && !inSearch) return
+
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        moveSelection(e.key === 'ArrowDown' ? 1 : -1)
+        return
+      }
+      if (e.key === 'Enter' && !mod) {
+        // From the search box, Enter acts on the first result if the selection was filtered out.
+        const targetItem = inSearch && !visible.some((c) => c.id === selectedId) ? visible[0] : selected
+        if (!targetItem) return
+        // Let focused buttons/links outside the list do their own thing.
+        const el = e.target as HTMLElement | null
+        if (!inSearch && el && (el.tagName === 'BUTTON' || el.tagName === 'A') && !listRef.current?.contains(el)) return
+        e.preventDefault()
+        setSelectedId(targetItem.id)
+        void copyPassword(targetItem)
+        return
+      }
+      if (inSearch) return
+      if (mod && k === 'c' && selected && !window.getSelection()?.toString()) {
+        e.preventDefault()
+        void copyPassword(selected)
+      } else if (mod && k === 'b' && selected) {
+        e.preventDefault()
+        void copyUser(selected)
+      } else if (!mod && !e.altKey && k === 'n') {
+        e.preventDefault()
+        setEditing('new')
+      } else if (e.key === 'Delete' && selected) {
+        e.preventDefault()
+        void remove(selected)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [editing, selected, selectedId, visible, pinOpen, securityOpen, importOpen, moveSelection, copyPassword, copyUser, remove])
+
+  // Close the "more" menu on outside click.
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = (): void => setMenuOpen(false)
+    window.addEventListener('mousedown', close)
+    window.addEventListener('blur', close)
+    return () => { window.removeEventListener('mousedown', close); window.removeEventListener('blur', close) }
+  }, [menuOpen])
+
+  const filterOptions = [
+    { value: 'all' as const, label: 'Todas' },
+    { value: 'fav' as const, label: 'Favoritas' },
+    { value: 'recent' as const, label: 'Recientes' },
+    { value: 'risk' as const, label: 'En riesgo', ...(riskCount ? { count: riskCount } : {}) },
+  ]
+
+  const emptyText = items.length === 0
+    ? 'Todavía no guardaste credenciales.'
+    : search ? 'Sin resultados.'
+    : filter === 'fav' ? 'Marcá credenciales con la estrella para verlas acá.'
+    : filter === 'recent' ? 'Las que copies van a aparecer acá.'
+    : filter === 'risk' ? 'Ninguna contraseña débil ni repetida.'
+    : 'Sin resultados.'
+
+  return (
+    <div ref={rootRef} className="flex h-full overflow-hidden bg-background">
+      {/* ── List ────────────────────────────────────────────────────────── */}
+      <aside className="w-80 flex-shrink-0 flex flex-col bg-surface hairline-r overflow-hidden">
+        <div className="px-3 pt-4 pb-2 flex-shrink-0 space-y-2.5">
+          <div className="flex items-center gap-1.5 pl-1.5">
+            <h2 className="t-headline text-on-surface">Credenciales</h2>
+            <span className="t-caption font-medium tabular-nums text-on-surface-variant/70">{items.length}</span>
+            {lock?.pinEnabled && (
+              <button
+                onClick={() => {
+                  if (lock.unlocked) credentialsApi.lock().then(setLock).catch(() => undefined)
+                  else void requireUnlock()
+                }}
+                className="ui-btn ui-btn-ghost ui-btn-icon rounded-lg text-on-surface-variant"
+                title={lock.unlocked ? 'Desbloqueadas — clic para bloquear' : 'Bloqueadas — clic para desbloquear'}
+                aria-label={lock.unlocked ? 'Bloquear' : 'Desbloquear'}
+              >
+                {lock.unlocked ? <LockOpen size={14} /> : <Lock size={14} />}
+              </button>
+            )}
+            <div className="ml-auto relative">
+              <button
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => setMenuOpen((v) => !v)}
+                className="ui-btn ui-btn-ghost ui-btn-icon rounded-lg"
+                title="Más opciones"
+                aria-label="Más opciones"
+                aria-expanded={menuOpen}
+              >
+                <MoreHorizontal size={16} />
+              </button>
+              {menuOpen && (
+                <div className="ui-menu absolute right-0 top-full mt-1 z-50 w-56 p-1" onMouseDown={(e) => e.stopPropagation()} role="menu">
+                  <button role="menuitem" className="ui-menu-item w-full" onClick={() => { setMenuOpen(false); setImportOpen(true) }}>
+                    <FileUp size={14} /> Importar CSV…
+                  </button>
+                  <button role="menuitem" className="ui-menu-item w-full" onClick={() => void exportCsv()} disabled={!items.length}>
+                    <Download size={14} /> Exportar CSV…
+                  </button>
+                  <button role="menuitem" className="ui-menu-item w-full" onClick={() => { setMenuOpen(false); setSecurityOpen(true) }}>
+                    <ShieldCheck size={14} /> Seguridad…
+                  </button>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => setEditing('new')}
+              className="ui-btn ui-btn-primary ui-btn-icon rounded-lg"
+              title="Nueva credencial (N)"
+              aria-label="Nueva credencial"
+            >
+              <Plus size={15} weight="bold" />
+            </button>
+          </div>
+          <div className="ui-input flex items-center gap-2 h-8 pl-2.5">
+            <Search size={14} className="text-on-surface-variant/70 flex-shrink-0" />
+            <input
+              ref={searchRef}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Escape' && search) { e.preventDefault(); setSearch('') } }}
+              placeholder="Buscar por nombre, usuario, sitio…"
+              aria-label="Buscar credenciales"
+              className="flex-1 min-w-0 bg-transparent t-body text-on-surface outline-none"
+            />
+            {search ? (
+              <button onClick={() => setSearch('')} aria-label="Limpiar búsqueda" className="text-on-surface-variant hover:text-on-surface pr-2">
+                <X size={13} />
+              </button>
+            ) : (
+              <span className="t-caption text-on-surface-variant/60 pr-2">Ctrl+F</span>
+            )}
+          </div>
+          <SegmentedControl
+            options={filterOptions}
+            value={filter}
+            onChange={setFilter}
+            className="w-full [&>button]:flex-1 [&>button]:justify-center [&>button]:px-1.5"
+          />
+        </div>
+
+        <motion.div layoutScroll ref={listRef} className="flex-1 overflow-y-auto px-2 pb-3" role="listbox" aria-label="Credenciales">
+          {fatal && !data ? (
+            <div className="px-3 py-8 text-center flex flex-col items-center gap-2">
+              <p className="t-body font-medium text-on-surface">No se pudieron cargar las credenciales</p>
+              <p className="t-caption text-on-surface-variant break-words">{fatal}</p>
+              <button onClick={() => void load(true)} className="ui-btn ui-btn-outline ui-btn-sm mt-1">
+                <RefreshCw size={12} /> Reintentar
+              </button>
+            </div>
+          ) : loading && !data ? (
+            <p className="t-footnote text-on-surface-variant px-3 py-6 text-center">Cargando…</p>
+          ) : groups.length === 0 ? (
+            <p className="t-footnote text-on-surface-variant px-3 py-6 text-center">{emptyText}</p>
+          ) : (
+            groups.map((g) => (
+              <div key={g.key}>
+                <button
+                  type="button"
+                  onClick={() => setFolded((f) => ({ ...f, [g.key]: !f[g.key] }))}
+                  aria-expanded={!folded[g.key]}
+                  className="w-full flex items-center gap-1 px-2.5 pt-3 pb-1.5 t-section hover:text-on-surface-variant transition-colors"
+                >
+                  <ChevronDown size={11} weight="bold" className={`transition-transform duration-150 ${folded[g.key] ? '-rotate-90' : ''}`} />
+                  <span className="truncate">{g.key}</span>
+                  <span className="ml-auto font-medium tabular-nums">{g.items.length}</span>
+                </button>
+                {!folded[g.key] && (
+                  <div className="relative flex flex-col gap-0.5">
+                    <AnimatePresence initial={false} mode="popLayout">
+                    {g.items.map((c) => (
+                      <motion.div key={c.id} {...rowMotion}>
+                      <CredentialRow
+                        c={c}
+                        active={c.id === selectedId}
+                        favorite={favorites.has(c.id)}
+                        risk={reusedOf.has(c.id) ? 'Contraseña repetida' : weakSet.has(c.id) ? 'Contraseña débil' : undefined}
+                        subtitle={filter === 'recent' ? relativeTime(usedAt[c.id]) : undefined}
+                        onSelect={() => { if (c.id !== selectedId || editing) { setSelectedId(c.id); setEditing(null) } }}
+                        onToggleFavorite={() => void toggleFavorite(c)}
+                      />
+                      </motion.div>
+                    ))}
+                    </AnimatePresence>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </motion.div>
+
+        <SyncFooter data={data} loading={loading} onRetry={() => void load(true)} />
+      </aside>
+
+      {/* ── Detail ──────────────────────────────────────────────────────── */}
+      <main className="flex-1 min-w-0 overflow-y-auto">
+        {editing ? (
+          <div className="max-w-[720px] mx-auto px-6 py-6">
+            <CredentialEditor
+              key={editing}
+              initial={editing === 'new' ? null : items.find((c) => c.id === editing) ?? null}
+              categories={categories}
+              nextOrden={items.reduce((m, c) => Math.max(m, c.orden), 0) + 1}
+              nameOf={nameOf}
+              onCancel={() => setEditing(null)}
+              onSave={save}
+            />
+          </div>
+        ) : selected ? (
+          <div className="max-w-[720px] mx-auto px-6 py-6">
+            <CredentialView
+              key={selected.id}
+              c={selected}
+              favorite={favorites.has(selected.id)}
+              usedAt={usedAt[selected.id]}
+              score={audit?.scores[selected.id]}
+              reusedWith={(reusedOf.get(selected.id) ?? []).map((id) => nameOf(id) ?? '').filter(Boolean)}
+              weak={weakSet.has(selected.id)}
+              withSecret={withSecret}
+              onEdit={() => setEditing(selected.id)}
+              onDelete={() => void remove(selected)}
+              onToggleFavorite={() => void toggleFavorite(selected)}
+              onCopyPassword={() => void copyPassword(selected)}
+              onCopyUser={() => void copyUser(selected)}
+              onOpenAndCopy={() => void openAndCopy(selected)}
+            />
+          </div>
+        ) : (
+          <div className="h-full flex items-center justify-center">
+            <EmptyState
+              icon={KeyRound}
+              title={items.length ? 'Elegí una credencial' : 'Sin credenciales guardadas'}
+              description={items.length
+                ? '↑/↓ para moverte · Enter copia la contraseña · Ctrl+B copia el usuario'
+                : 'Guardá tus usuarios y contraseñas, cifrados en esta computadora. También podés importarlos desde un CSV.'}
+              action={!items.length ? (
+                <div className="flex gap-2">
+                  <button onClick={() => setEditing('new')} className="ui-btn ui-btn-primary"><Plus size={14} /> Nueva credencial</button>
+                  <button onClick={() => setImportOpen(true)} className="ui-btn ui-btn-outline"><FileUp size={14} /> Importar CSV</button>
+                </div>
+              ) : undefined}
+            />
+          </div>
+        )}
+      </main>
+
+      <PinPrompt open={pinOpen} onDone={onPinDone} />
+      <SecuritySheet open={securityOpen} status={lock} onClose={() => setSecurityOpen(false)} onChange={setLock} />
+      <ImportSheet
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => { invalidateCredentials(); void load(true) }}
+      />
+    </div>
+  )
+}
+
+// ── List row ─────────────────────────────────────────────────────────────────
+
+function CredentialRow({
+  c, active, favorite, risk, subtitle, onSelect, onToggleFavorite,
+}: {
+  c: Credential
+  active: boolean
+  favorite: boolean
+  risk?: string
+  subtitle?: string
+  onSelect: () => void
+  onToggleFavorite: () => void
+}): JSX.Element {
+  return (
+    <div
+      data-id={c.id}
+      role="option"
+      aria-selected={active}
+      tabIndex={active ? 0 : -1}
+      onClick={onSelect}
+      className={`group w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left cursor-default transition-colors duration-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 ${
+        active ? 'bg-selected' : 'hover:bg-on-surface/[0.03] dark:hover:bg-white/[0.04]'
+      }`}
+    >
+      <Avatar name={c.nombre} url={c.url} size={30} />
+      <span className="flex-1 min-w-0">
+        <span className={`block text-[13px] leading-[18px] truncate ${active ? 'font-semibold text-on-surface' : 'font-medium text-on-surface/90'}`}>{c.nombre}</span>
+        <span className="block t-footnote text-on-surface-variant/80 truncate">{subtitle || c.usuario || displayHost(c.url) || '—'}</span>
+      </span>
+      {c.pending && (
+        <span title="Pendiente de sincronizar" className="text-warning flex-shrink-0"><CloudUpload size={13} /></span>
+      )}
+      {risk && (
+        <span title={risk} className="text-warning flex-shrink-0"><ShieldAlert size={13} /></span>
+      )}
+      <button
+        type="button"
+        tabIndex={-1}
+        onClick={(e) => { e.stopPropagation(); onToggleFavorite() }}
+        className={`flex-shrink-0 p-0.5 rounded transition-opacity ${favorite ? 'text-primary opacity-100' : 'text-on-surface-variant opacity-0 group-hover:opacity-70 hover:!opacity-100'}`}
+        title={favorite ? 'Quitar de favoritas' : 'Marcar como favorita'}
+        aria-label={favorite ? 'Quitar de favoritas' : 'Marcar como favorita'}
+      >
+        <Star size={13} weight={favorite ? 'fill' : 'regular'} />
+      </button>
+    </div>
+  )
+}
+
+// ── Sync status ──────────────────────────────────────────────────────────────
+
+function SyncFooter({ data, loading, onRetry }: { data: CredentialsListResult | null; loading: boolean; onRetry: () => void }): JSX.Element | null {
+  if (!data) return null
+  const pending = data.pendingCount
+  const view = data.status === 'synced'
+    ? { icon: CloudCheck, tone: 'text-success', text: 'Sincronizado', sub: data.syncedAt ? relativeTime(data.syncedAt) : '' }
+    : data.status === 'offline'
+      ? { icon: CloudOff, tone: 'text-on-surface-variant', text: 'Sin conexión — mostrando copia local', sub: data.syncedAt ? `Última sincronización: ${relativeTime(data.syncedAt)}` : 'Nunca se sincronizó' }
+      : { icon: TriangleAlert, tone: 'text-error', text: 'Error al sincronizar', sub: data.error ?? '' }
+  const Icon = loading ? RefreshCw : view.icon
+  return (
+    <div className="px-3.5 py-2.5 hairline-t flex items-center gap-2 flex-shrink-0" title={data.error}>
+      <Icon size={14} className={`${loading ? 'text-on-surface-variant animate-spin' : view.tone} flex-shrink-0`} />
+      <div className="flex-1 min-w-0">
+        <p className="t-caption font-medium text-on-surface truncate">{loading ? 'Sincronizando…' : view.text}</p>
+        <p className="t-caption text-on-surface-variant/80 truncate">
+          {pending ? `${pending} ${pending === 1 ? 'cambio pendiente' : 'cambios pendientes'}` : view.sub}
+        </p>
+      </div>
+      {(data.status !== 'synced' || pending > 0) && (
+        <button onClick={onRetry} disabled={loading} className="ui-btn ui-btn-ghost ui-btn-icon rounded-lg" title="Reintentar ahora" aria-label="Reintentar sincronización">
+          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+        </button>
+      )}
+    </div>
+  )
+}

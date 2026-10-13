@@ -10,6 +10,7 @@ import { useEditorPrefs, FONT_FAMILIES, FONT_SIZE_MIN, FONT_SIZE_MAX } from '../
 import { useApp } from '../../core/AppContext'
 import { dragState } from '../../core/dragState'
 import type { IconComponent } from '../../core/types'
+import { Toggle } from '../../core/components/Form'
 
 interface DiffLine {
   content: string
@@ -20,8 +21,9 @@ interface DiffLine {
 interface FileInfo { name: string; size: number }
 
 // ── Diff colors ───────────────────────────────────────────────────────────────
-const ADDED_COLOR   = '#4ade80'  // green-400
-const REMOVED_COLOR = '#f87171'  // red-400
+// Token-based (follow the palette in light & dark): rgb(var(--c-success|error) / alpha)
+const ADDED   = (a = 1): string => `rgb(var(--c-success) / ${a})`
+const REMOVED = (a = 1): string => `rgb(var(--c-error) / ${a})`
 
 // ── Word-level diff ───────────────────────────────────────────────────────────
 /**
@@ -40,13 +42,13 @@ function buildWordDiff(
   changes.forEach((ch, i) => {
     if (ch.removed) {
       removedSpans.push(
-        <mark key={i} style={{ background: REMOVED_COLOR + '40', borderRadius: '2px', padding: '0 1px' }}>
+        <mark key={i} style={{ background: REMOVED(0.25), borderRadius: '2px', padding: '0 1px' }}>
           {ch.value}
         </mark>
       )
     } else if (ch.added) {
       addedSpans.push(
-        <mark key={i} style={{ background: ADDED_COLOR + '40', borderRadius: '2px', padding: '0 1px' }}>
+        <mark key={i} style={{ background: ADDED(0.25), borderRadius: '2px', padding: '0 1px' }}>
           {ch.value}
         </mark>
       )
@@ -146,20 +148,20 @@ function OverviewRuler({
     <div
       ref={rulerRef}
       onClick={handleClick}
-      className="w-3.5 flex-shrink-0 relative cursor-pointer bg-surface-container-low border-x border-outline-variant/15 select-none"
-      title="Click to jump"
+      className="w-3.5 flex-shrink-0 relative cursor-pointer bg-sidebar/40 border-x border-hairline select-none"
+      title="Clic para saltar"
     >
       {removedBlocks.map((b, i) => (
         <div key={`r${i}`} className="absolute left-0 w-1/2 rounded-sm"
-          style={{ backgroundColor: REMOVED_COLOR + 'b3', top: `${(b.start / totalLeft) * 100}%`, height: `${Math.max(0.4, (b.count / totalLeft) * 100)}%`, minHeight: '2px' }}
+          style={{ backgroundColor: REMOVED(0.7), top: `${(b.start / totalLeft) * 100}%`, height: `${Math.max(0.4, (b.count / totalLeft) * 100)}%`, minHeight: '2px' }}
         />
       ))}
       {addedBlocks.map((b, i) => (
         <div key={`a${i}`} className="absolute right-0 w-1/2 rounded-sm"
-          style={{ backgroundColor: ADDED_COLOR + 'b3', top: `${(b.start / totalRight) * 100}%`, height: `${Math.max(0.4, (b.count / totalRight) * 100)}%`, minHeight: '2px' }}
+          style={{ backgroundColor: ADDED(0.7), top: `${(b.start / totalRight) * 100}%`, height: `${Math.max(0.4, (b.count / totalRight) * 100)}%`, minHeight: '2px' }}
         />
       ))}
-      <div className="absolute inset-x-0 bg-on-surface/10 border-y border-outline-variant/30 pointer-events-none"
+      <div className="absolute inset-x-0 bg-on-surface/10 border-y border-hairline pointer-events-none"
         style={{ top: `${indicatorTop}%`, height: `${indicatorH}%` }}
       />
     </div>
@@ -224,48 +226,36 @@ function CodePane({
     e.target.value = ''
   }
 
-  const headerBg    = isLeft ? 'rgba(248,113,113,0.04)' : `${ADDED_COLOR}0a`
-  const dotColor    = isLeft ? REMOVED_COLOR : ADDED_COLOR
-  const labelColor  = isLeft ? REMOVED_COLOR + 'bb' : ADDED_COLOR + 'bb'
+  const dotColor    = isLeft ? REMOVED() : ADDED()
 
   return (
     <div
-      className={`relative flex-1 flex flex-col min-w-0 overflow-hidden ${isLeft ? '' : 'border-l border-outline-variant/15'}`}
+      className={`relative flex-1 flex flex-col min-w-0 overflow-hidden ${isLeft ? '' : 'hairline-l'}`}
       onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
       onDragLeave={() => setDragOver(false)}
       onDrop={(e) => { setDragOver(false); handleDrop(e) }}
     >
-      {/* Drag-over feedback — borde gradiente animado, mismo patrón que el File Editor */}
+      {/* Drag-over feedback */}
       {dragOver && (
-        <div
-          className="absolute inset-0 z-20 pointer-events-none"
-          style={{ padding: 2, background: 'linear-gradient(90deg, #FF7A00, #FF00D6, #5C00FF, #FF7A00)', backgroundSize: '300% 300%', animation: 'gradient-border-shift 2.5s ease infinite' }}
-        >
-          <div className="w-full h-full flex items-center justify-center backdrop-blur-sm"
-            style={{ background: 'rgb(var(--c-surface) / 0.85)' }}>
-            <p className="text-sm font-semibold text-primary">Soltá el archivo en {isLeft ? 'Original' : 'Modificado'}</p>
-          </div>
+        <div className="absolute inset-2 z-20 pointer-events-none rounded-lg border-2 border-dashed border-primary/60 bg-surface/90 flex items-center justify-center">
+          <p className="t-callout font-medium text-on-surface">Soltá el archivo en {isLeft ? 'Original' : 'Modificado'}</p>
         </div>
       )}
       {/* Pane header */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant/15 flex-shrink-0"
-        style={{ background: headerBg }}>
-        <span
-          className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
-          style={{ color: labelColor, background: `${dotColor}14`, border: `1px solid ${dotColor}30` }}
-        >
+      <div className="flex items-center gap-2 px-3 h-8 hairline-b bg-sidebar/40 flex-shrink-0">
+        <span className="flex items-center gap-1.5 t-footnote font-medium text-on-surface">
           <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: dotColor }} />
-          {isLeft ? 'Original' : 'Modified'}
+          {isLeft ? 'Original' : 'Modificado'}
         </span>
         <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileInput} />
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-0.5">
           {value && (
-            <button onClick={onClear} title="Clear" className="text-on-surface-variant/35 hover:text-error transition-colors">
+            <button onClick={onClear} title="Vaciar" aria-label="Vaciar" className="ui-btn ui-btn-ghost ui-btn-icon">
               <X size={13} />
             </button>
           )}
-          <button onClick={() => fileInputRef.current?.click()} title="Open file"
-            className="text-on-surface-variant/35 hover:text-primary transition-colors">
+          <button onClick={() => fileInputRef.current?.click()} title="Abrir archivo" aria-label="Abrir archivo"
+            className="ui-btn ui-btn-ghost ui-btn-icon">
             <FolderOpen size={14} />
           </button>
         </div>
@@ -278,22 +268,22 @@ function CodePane({
             <tbody>
               {lines.map((line, i) => (
                 <tr key={i} style={{
-                  backgroundColor: line.type === 'removed' ? REMOVED_COLOR + '12' :
-                                   line.type === 'added'   ? ADDED_COLOR   + '12' : undefined,
+                  backgroundColor: line.type === 'removed' ? REMOVED(0.07) :
+                                   line.type === 'added'   ? ADDED(0.07) : undefined,
                 }}>
-                  <td className="w-10 text-right pr-3 select-none border-r text-[11px] align-top py-0"
+                  <td className="w-10 text-right pr-3 select-none border-r t-footnote align-top py-0"
                     style={{
-                      color: line.type === 'removed' ? REMOVED_COLOR + '80' :
-                             line.type === 'added'   ? ADDED_COLOR   + '80' : 'rgb(100 100 130 / 0.5)',
-                      borderColor: line.type === 'removed' ? REMOVED_COLOR + '30' :
-                                   line.type === 'added'   ? ADDED_COLOR   + '30' : 'rgb(83 71 206 / 0.1)',
-                      backgroundColor: line.type === 'removed' ? REMOVED_COLOR + '18' :
-                                       line.type === 'added'   ? ADDED_COLOR   + '18' : undefined,
+                      color: line.type === 'removed' ? REMOVED(0.5) :
+                             line.type === 'added'   ? ADDED(0.5) : 'rgb(var(--c-on-surface-variant) / 0.55)',
+                      borderColor: line.type === 'removed' ? REMOVED(0.19) :
+                                   line.type === 'added'   ? ADDED(0.19) : 'var(--hairline)',
+                      backgroundColor: line.type === 'removed' ? REMOVED(0.09) :
+                                       line.type === 'added'   ? ADDED(0.09) : undefined,
                     }}>
                     {line.lineNum}
                   </td>
                   <td className="px-4 py-0 whitespace-pre-wrap break-all align-top"
-                    style={{ color: line.type === 'unchanged' ? 'rgb(var(--color-on-surface) / 0.55)' : undefined }}>
+                    style={{ color: line.type === 'unchanged' ? 'rgb(var(--c-on-surface) / 0.75)' : 'rgb(var(--c-on-surface))' }}>
                     {wordDiffMap.get(line.lineNum) ?? line.content ?? '\u00a0'}
                   </td>
                 </tr>
@@ -305,8 +295,9 @@ function CodePane({
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={isLeft ? 'Paste original code, or drag & drop a file…' : 'Paste modified code, or drag & drop a file…'}
-          className="flex-1 bg-surface-container-low resize-none p-4 text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none"
+          placeholder={isLeft ? 'Pegá el código original o arrastrá un archivo…' : 'Pegá el código modificado o arrastrá un archivo…'}
+          aria-label={isLeft ? 'Código original' : 'Código modificado'}
+          className="flex-1 bg-surface resize-none p-4 text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none"
           style={{ fontFamily: monoFont, fontSize: `${fontSize}px`, lineHeight: '1.7' }}
           spellCheck={false}
         />
@@ -323,26 +314,27 @@ function FileCard({ label, dotColor, info, onClear }: {
     <div className="px-3 py-2.5">
       <div className="flex items-center gap-1.5 mb-1.5">
         <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: dotColor }} />
-        <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/50">{label}</span>
+        <span className="t-section">{label}</span>
       </div>
       {info ? (
-        <div className="ui-card flex items-center gap-2 px-2 py-1.5 group">
-          {(() => { const Icon = fileIcon(info.name); return <Icon size={14} className="text-on-surface-variant/50 flex-shrink-0" /> })()}
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-on-surface/[0.05] group">
+          {(() => { const Icon = fileIcon(info.name); return <Icon size={14} className="text-on-surface-variant flex-shrink-0" /> })()}
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-medium text-on-surface truncate">{info.name}</p>
-            <p className="text-[10px] text-on-surface-variant/45">{formatBytes(info.size)}</p>
+            <p className="t-footnote font-medium text-on-surface truncate">{info.name}</p>
+            <p className="t-caption text-on-surface-variant">{formatBytes(info.size)}</p>
           </div>
           <button
             onClick={onClear}
-            title="Remove file"
-            className="opacity-0 group-hover:opacity-100 text-on-surface-variant/40 hover:text-error transition-all flex-shrink-0"
+            title="Quitar archivo"
+            aria-label="Quitar archivo"
+            className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-on-surface transition-opacity flex-shrink-0"
           >
             <X size={13} />
           </button>
         </div>
       ) : (
-        <div className="px-2 py-1.5 rounded-lg border border-dashed border-outline-variant/20 text-[10px] text-on-surface-variant/30 text-center">
-          No file loaded
+        <div className="px-2 py-1.5 rounded-md border border-dashed border-hairline-strong t-caption text-on-surface-variant text-center">
+          Sin archivo
         </div>
       )}
     </div>
@@ -482,53 +474,53 @@ export function SmartDiff(): JSX.Element {
     <div className="flex h-full overflow-hidden">
 
       {/* ── Sidebar (collapsible — same pattern as File Editor) ───────────── */}
-      <aside className={`flex-shrink-0 flex flex-col border-r border-outline-variant/20 bg-surface overflow-hidden transition-[width] duration-200 ${sidebarCollapsed ? 'w-8' : 'w-52'}`}>
+      <aside className={`flex-shrink-0 flex flex-col hairline-r bg-sidebar/40 overflow-hidden transition-[width] duration-200 ${sidebarCollapsed ? 'w-9' : 'w-56'}`}>
         {sidebarCollapsed ? (
-          <button type="button" onClick={() => setSidebarCollapsed(false)} title="Expand sidebar"
-            className="flex-1 flex flex-col items-center justify-center gap-3 hover:bg-surface-container transition-colors w-full min-h-0 py-4">
-            <ChevronRight size={13} className="text-on-surface-variant/40 flex-shrink-0" />
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/35 select-none"
+          <button type="button" onClick={() => setSidebarCollapsed(false)} title="Expandir barra lateral" aria-label="Expandir barra lateral"
+            className="flex-1 flex flex-col items-center justify-center gap-3 hover:bg-on-surface/[0.05] transition-colors w-full min-h-0 py-4">
+            <ChevronRight size={13} className="text-on-surface-variant flex-shrink-0" />
+            <span className="t-section select-none"
               style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}>
-              Compare
+              Comparar
             </span>
           </button>
         ) : (
           <>
-            <div className="flex items-center justify-between px-3 pt-3 pb-2 flex-shrink-0 gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 truncate">Compare files</span>
-              <button type="button" onClick={() => setSidebarCollapsed(true)} title="Collapse sidebar"
-                className="text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-surface-container rounded-lg p-0.5 transition-colors flex-shrink-0">
+            <div className="flex items-center justify-between px-3 h-10 hairline-b flex-shrink-0 gap-2">
+              <span className="t-section truncate">Comparar archivos</span>
+              <button type="button" onClick={() => setSidebarCollapsed(true)} title="Colapsar barra lateral" aria-label="Colapsar barra lateral"
+                className="ui-btn ui-btn-ghost ui-btn-icon flex-shrink-0">
                 <ChevronLeft size={14} />
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto min-h-0">
-              <FileCard label="Original" dotColor={REMOVED_COLOR} info={origFile} onClear={() => clearSide('orig')} />
-              <div className="mx-3 border-t border-outline-variant/10" />
-              <FileCard label="Modified" dotColor={ADDED_COLOR}   info={modFile}  onClear={() => clearSide('mod')} />
+              <FileCard label="Original" dotColor={REMOVED()} info={origFile} onClear={() => clearSide('orig')} />
+              <div className="mx-3 hairline-t" />
+              <FileCard label="Modificado" dotColor={ADDED()}   info={modFile}  onClear={() => clearSide('mod')} />
 
               {/* Diff stats */}
               {hasDiff && (
                 <>
-                  <div className="mx-3 mt-2 border-t border-outline-variant/10" />
+                  <div className="mx-3 mt-2 hairline-t" />
                   <div className="px-3 py-2.5">
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/50">Changes</span>
+                    <span className="t-section">Cambios</span>
                     {isIdentical ? (
-                      <div className="mt-2 flex items-center gap-1.5 text-[11px] text-secondary">
-                        <CheckCircle2 size={13} />
-                        <span className="font-medium">Files are identical</span>
+                      <div className="mt-2 flex items-center gap-1.5 t-footnote text-on-surface">
+                        <CheckCircle2 size={13} className="text-success" />
+                        <span className="font-medium">Los archivos son iguales</span>
                       </div>
                     ) : (
                       <div className="mt-2 flex flex-col gap-1">
-                        <div className="flex items-center gap-2 text-[11px]">
-                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: ADDED_COLOR }} />
-                          <span className="text-on-surface-variant/70">Added</span>
-                          <span className="ml-auto font-mono font-medium" style={{ color: ADDED_COLOR }}>+{addedCount}</span>
+                        <div className="flex items-center gap-2 t-footnote">
+                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: ADDED() }} />
+                          <span className="text-on-surface-variant">Agregadas</span>
+                          <span className="ml-auto font-mono font-medium" style={{ color: ADDED() }}>+{addedCount}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-[11px]">
-                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: REMOVED_COLOR }} />
-                          <span className="text-on-surface-variant/70">Removed</span>
-                          <span className="ml-auto font-mono font-medium" style={{ color: REMOVED_COLOR }}>-{removedCount}</span>
+                        <div className="flex items-center gap-2 t-footnote">
+                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: REMOVED() }} />
+                          <span className="text-on-surface-variant">Eliminadas</span>
+                          <span className="ml-auto font-mono font-medium" style={{ color: REMOVED() }}>-{removedCount}</span>
                         </div>
                       </div>
                     )}
@@ -537,35 +529,32 @@ export function SmartDiff(): JSX.Element {
               )}
 
               {/* Options */}
-              <div className="mx-3 mt-2 border-t border-outline-variant/10" />
+              <div className="mx-3 mt-2 hairline-t" />
               <div className="px-3 py-2.5 flex flex-col gap-2">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/50">Options</span>
+                <span className="t-section">Opciones</span>
                 {([
-                  { label: 'Ignore whitespace', value: ignoreWs,   set: setIgnoreWs },
-                  { label: 'Sync scroll',       value: syncScroll, set: setSyncScroll },
+                  { label: 'Ignorar espacios', value: ignoreWs,   set: setIgnoreWs },
+                  { label: 'Desplazamiento sincronizado', value: syncScroll, set: setSyncScroll },
                 ] as const).map(({ label, value, set }) => (
-                  <label key={label} className="flex items-center gap-2 cursor-pointer select-none">
-                    <div onClick={() => set((v) => !v)}
-                      className={`w-7 h-4 rounded-full transition-colors relative flex-shrink-0 ${value ? 'bg-primary' : 'bg-outline-variant/40'}`}>
-                      <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${value ? 'left-3.5' : 'left-0.5'}`} />
-                    </div>
-                    <span className="text-[11px] text-on-surface-variant/70">{label}</span>
-                  </label>
+                  <div key={label} className="flex items-center justify-between gap-2 select-none">
+                    <span className="t-footnote text-on-surface">{label}</span>
+                    <Toggle checked={value} onChange={(v) => set(v)} label={label} />
+                  </div>
                 ))}
               </div>
             </div>
 
             {/* Sidebar actions */}
-            <div className="border-t border-outline-variant/15 px-3 py-2 flex-shrink-0 flex flex-col gap-1.5">
+            <div className="hairline-t px-3 py-2 flex-shrink-0 flex flex-col gap-1.5">
               <button type="button" onClick={swapSides} disabled={!original && !modified}
-                className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-[11px] text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors disabled:opacity-40">
+                className="ui-btn ui-btn-ghost ui-btn-sm w-full !justify-start">
                 <ArrowLeftRight size={14} />
-                Swap sides
+                Intercambiar lados
               </button>
               <button type="button" onClick={clearAll} disabled={!original && !modified}
-                className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-[11px] text-error/70 hover:bg-error/10 hover:text-error transition-colors disabled:opacity-40">
+                className="ui-btn ui-btn-ghost ui-btn-sm w-full !justify-start">
                 <Trash2 size={14} />
-                Clear all
+                Vaciar todo
               </button>
             </div>
           </>
@@ -576,61 +565,61 @@ export function SmartDiff(): JSX.Element {
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* Toolbar */}
-        <div className="px-4 py-2.5 bg-surface border-b border-outline-variant/15 flex items-center gap-3 flex-shrink-0">
+        <div className="px-3 h-10 bg-surface hairline-b flex items-center gap-2 flex-shrink-0">
           <button onClick={runDiff} disabled={!original.trim() || !modified.trim()}
-            className="ui-btn ui-btn-primary text-[12px] py-1.5 disabled:opacity-40">
+            className="ui-btn ui-btn-primary ui-btn-sm">
             <Diff size={14} />
-            Compare
+            Comparar
           </button>
 
           {hasDiff && (
             <button onClick={cancelDiff}
-              className="ui-btn ui-btn-ghost text-[12px] py-1.5 hover:text-error hover:bg-error/10">
+              className="ui-btn ui-btn-ghost ui-btn-sm">
               <X size={14} />
-              Cancel diff
+              Descartar comparación
             </button>
           )}
 
           {hasDiff && (
-            <div className="flex items-center gap-3 ml-2 text-[11px]">
-              <span className="font-mono font-medium" style={{ color: ADDED_COLOR }}>+{addedCount}</span>
-              <span className="font-mono font-medium" style={{ color: REMOVED_COLOR }}>-{removedCount}</span>
+            <div className="flex items-center gap-3 ml-2 t-footnote">
+              <span className="font-mono font-medium" style={{ color: ADDED() }}>+{addedCount}</span>
+              <span className="font-mono font-medium" style={{ color: REMOVED() }}>-{removedCount}</span>
             </div>
           )}
 
           {/* Settings */}
           <div className="ml-auto relative" ref={settingsRef}>
-            <button onClick={() => setSettingsOpen((v) => !v)} title="Editor settings"
-              className={`p-1.5 rounded-lg transition-colors ${settingsOpen ? 'text-primary bg-primary/10' : 'text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container'}`}>
-              <Settings size={16} />
+            <button onClick={() => setSettingsOpen((v) => !v)} title="Ajustes de visualización" aria-label="Ajustes de visualización" aria-pressed={settingsOpen}
+              className={`ui-btn ui-btn-ghost ui-btn-icon ${settingsOpen ? '!bg-on-surface/[0.08] !text-on-surface' : ''}`}>
+              <Settings size={15} />
             </button>
 
             <AnimatePresence>
               {settingsOpen && (
                 <motion.div
-                  className="ui-card absolute right-0 top-full mt-1 w-56 z-30 p-3 flex flex-col gap-3"
-                  initial={{ opacity: 0, scale: 0.96, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: -4 }}
-                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                  className="mac-popover hairline absolute right-0 top-full mt-1 w-60 z-30 p-3 flex flex-col gap-3"
+                  initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}
+                  transition={{ duration: 0.12, ease: 'easeOut' }}
                 >
                   {/* Font size */}
                   <div className="flex flex-col gap-1.5">
-                    <span className="text-[10px] uppercase tracking-widest font-semibold text-on-surface-variant/50">Font size</span>
+                    <span className="t-section">Tamaño de fuente</span>
                     <div className="flex items-center gap-2">
                       <button onClick={() => updatePrefs({ fontSize: Math.max(FONT_SIZE_MIN, prefs.fontSize - 1) })}
-                        className="ui-btn ui-btn-outline w-6 h-6 p-0 justify-center text-sm font-bold">−</button>
-                      <span className="flex-1 text-center text-[12px] font-mono text-on-surface">{prefs.fontSize}px</span>
+                        aria-label="Achicar fuente" className="ui-btn ui-btn-outline ui-btn-sm w-7 !px-0">−</button>
+                      <span className="flex-1 text-center t-footnote tabular-nums text-on-surface">{prefs.fontSize} px</span>
                       <button onClick={() => updatePrefs({ fontSize: Math.min(FONT_SIZE_MAX, prefs.fontSize + 1) })}
-                        className="ui-btn ui-btn-outline w-6 h-6 p-0 justify-center text-sm font-bold">+</button>
+                        aria-label="Agrandar fuente" className="ui-btn ui-btn-outline ui-btn-sm w-7 !px-0">+</button>
                     </div>
                   </div>
 
                   {/* Font family */}
                   <div className="flex flex-col gap-1.5">
-                    <span className="text-[10px] uppercase tracking-widest font-semibold text-on-surface-variant/50">Font family</span>
-                    <div className="flex flex-col gap-1">
+                    <span className="t-section">Fuente</span>
+                    <div className="flex flex-col">
                       {FONT_FAMILIES.map((f) => (
                         <button key={f} onClick={() => updatePrefs({ fontFamily: f })}
-                          className={`text-left px-2.5 py-1 rounded-lg text-[11px] transition-colors ${prefs.fontFamily === f ? 'bg-primary/15 text-primary' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
+                          className={`text-left px-2.5 py-1 rounded-md t-footnote transition-colors ${prefs.fontFamily === f ? 'bg-primary text-on-primary' : 'text-on-surface hover:bg-on-surface/[0.06]'}`}
                           style={{ fontFamily: f }}>
                           {f}
                         </button>
@@ -687,21 +676,21 @@ export function SmartDiff(): JSX.Element {
           <AnimatePresence>
             {isIdentical && (
               <motion.div
-                className="absolute inset-0 flex items-center justify-center bg-surface/50 backdrop-blur-[2px] z-10 pointer-events-none"
+                className="absolute inset-0 flex items-center justify-center bg-surface/60 z-10 pointer-events-none"
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
               >
                 <motion.div
-                  className="ui-card flex flex-col items-center gap-3 px-10 py-7 pointer-events-auto"
-                  initial={{ opacity: 0, scale: 0.96, y: 6 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 6 }}
-                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  className="mac-popover hairline flex flex-col items-center gap-3 px-10 py-7 pointer-events-auto"
+                  initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}
+                  transition={{ duration: 0.14, ease: 'easeOut' }}
                 >
-                  <CheckCircle2 size={40} className="text-secondary" />
-                  <p className="text-sm font-semibold text-on-surface">There are no differences between files.</p>
+                  <CheckCircle2 size={36} strokeWidth={1.5} className="text-success" />
+                  <p className="t-headline text-on-surface">No hay diferencias entre los archivos.</p>
                   <button
                     onClick={cancelDiff}
-                    className="mt-1 text-[11px] text-on-surface-variant hover:text-primary transition-colors underline underline-offset-2"
+                    className="ui-btn ui-btn-outline ui-btn-sm mt-1"
                   >
-                    Dismiss
+                    Cerrar
                   </button>
                 </motion.div>
               </motion.div>

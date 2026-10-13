@@ -5,9 +5,10 @@ const Dashboard = lazy(() => import('./Dashboard').then((m) => ({ default: m.Das
 
 export const dashboardPlugin: PluginManifest = {
   id: 'dashboard',
-  name: 'Dashboard',
-  description: 'Home — overview of all available tools',
-  icon: 'space_dashboard',
+  name: 'Inicio',
+  description: 'Tu día: notas, scripts y gastos de un vistazo',
+  icon: 'home',
+  section: 'personal',
   component: Dashboard,
   keywords: ['home', 'overview', 'dashboard', 'tools']
 }

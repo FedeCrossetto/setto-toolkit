@@ -14,17 +14,28 @@ import { terminalPlugin } from '../plugins/terminal'
 import { gastosPlugin } from '../plugins/gastos'
 import { snippetsPlugin } from '../plugins/snippets'
 import { connectionsPlugin } from '../plugins/connections'
+import { notesPlugin } from '../plugins/notes'
+import { credentialsPlugin } from '../plugins/credentials'
+import { utilitiesPlugin } from '../plugins/utilities'
+import { capturesPlugin } from '../plugins/captures'
 
 export const allPlugins: PluginManifest[] = [
+  // Personal (uso diario)
   dashboardPlugin,
-  fileEditorPlugin,
-  smartDiffPlugin,
-  repoSearchPlugin,
-  apiLabPlugin,
-  ticketResolverPlugin,
-  terminalPlugin,
-  gastosPlugin,
+  notesPlugin,
   snippetsPlugin,
+  gastosPlugin,
+  credentialsPlugin,
+  // Desarrollo
+  fileEditorPlugin,
+  terminalPlugin,
+  apiLabPlugin,
+  utilitiesPlugin,
+  capturesPlugin,
+  repoSearchPlugin,
+  smartDiffPlugin,
+  ticketResolverPlugin,
+  // Sistema (fijados abajo en la barra lateral)
   connectionsPlugin,
   settingsPlugin,
   aboutPlugin,

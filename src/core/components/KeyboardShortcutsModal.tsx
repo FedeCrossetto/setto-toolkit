@@ -1,161 +1,163 @@
 import { useEffect, type ReactNode } from 'react'
-import { Keyboard } from 'lucide-react'
 import { useApp } from '../AppContext'
+import { Modal } from './Modal'
 
-function Kbd({ children }: { children: ReactNode }): JSX.Element {
+interface Shortcut {
+  /** Each entry is one combo; keys inside a combo are joined with "+" */
+  combos: string[][]
+  description: string
+}
+
+interface ShortcutGroup {
+  title: string
+  items: Shortcut[]
+}
+
+// Only shortcuts that really exist in the code (grep keydown handlers before adding).
+const LEFT: ShortcutGroup[] = [
+  {
+    title: 'General',
+    items: [
+      { combos: [['Ctrl', 'K'], ['/']], description: 'Buscar en todo' },
+      { combos: [['Ctrl', 'Shift', 'Espacio']], description: 'Captura rápida (funciona aunque la app esté de fondo)' },
+      { combos: [['Ctrl', 'Shift', 'L']], description: 'Alternar tema claro / oscuro' },
+      { combos: [['Ctrl', 'Alt', 'V']], description: 'Selector de portapapeles, capturas y snippets (pega en cualquier app)' },
+      { combos: [['Ctrl', 'Alt', 'Shift', 'V']], description: 'Pegar el siguiente de la secuencia' },
+      { combos: [['Ctrl', 'Alt', 'T']], description: 'Copiar el texto de un recorte (Win+Shift+S antes)' },
+      { combos: [['Ctrl', 'F']], description: 'Buscar en la página (salvo Editor y Notas)' },
+      { combos: [['F1'], ['?']], description: 'Mostrar estos atajos' },
+      { combos: [['Esc']], description: 'Cerrar la búsqueda o el diálogo abierto' },
+    ],
+  },
+  {
+    title: 'Búsqueda (Ctrl+K)',
+    items: [
+      { combos: [['↑'], ['↓']], description: 'Moverse entre resultados' },
+      { combos: [['Tab']], description: 'Saltar al siguiente grupo' },
+      { combos: [['Enter']], description: 'Abrir o ejecutar' },
+    ],
+  },
+  {
+    title: 'Notas y snippets',
+    items: [
+      { combos: [['Ctrl', 'N']], description: 'Nueva nota o nuevo snippet (en su módulo)' },
+      { combos: [['Ctrl', 'F']], description: 'Buscar entre las notas' },
+      { combos: [['Ctrl', 'S']], description: 'Guardar la nota ahora' },
+      { combos: [['Ctrl', 'Enter']], description: 'Guardar el snippet que estás editando' },
+    ],
+  },
+]
+
+const RIGHT: ShortcutGroup[] = [
+  {
+    title: 'Editor',
+    items: [
+      { combos: [['Ctrl', 'P']], description: 'Abrir archivo rápido' },
+      { combos: [['Ctrl', 'T']], description: 'Archivo nuevo' },
+      { combos: [['Ctrl', 'S']], description: 'Guardar' },
+      { combos: [['Ctrl', 'Shift', 'S']], description: 'Guardar todo' },
+      { combos: [['Ctrl', 'Shift', 'F']], description: 'Buscar en archivos' },
+      { combos: [['F2']], description: 'Renombrar pestaña' },
+      { combos: [['Ctrl', 'Shift', 'Z']], description: 'Modo zen' },
+    ],
+  },
+  {
+    title: 'Terminal',
+    items: [
+      { combos: [['Ctrl', 'T']], description: 'Nueva sesión' },
+    ],
+  },
+  {
+    title: 'Búsqueda en repos',
+    items: [
+      { combos: [['/']], description: 'Ir al buscador' },
+    ],
+  },
+]
+
+export function Kbd({ children }: { children: ReactNode }): JSX.Element {
   return (
-    <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-surface-container border border-outline-variant/35 text-on-surface shadow-sm whitespace-nowrap">
+    <kbd
+      className="inline-flex items-center justify-center min-w-[22px] h-[20px] px-1.5 rounded-[6px] text-[11px] font-medium font-sans text-on-surface bg-surface dark:bg-white/[0.08] hairline shadow-sm whitespace-nowrap"
+    >
       {children}
     </kbd>
   )
 }
 
-function Row({ combo, description }: { combo: ReactNode; description: string }): JSX.Element {
+function Combo({ keys }: { keys: string[] }): JSX.Element {
   return (
-    <tr className="border-b border-outline-variant/12 last:border-0">
-      <td className="py-2.5 pr-4 align-top">{combo}</td>
-      <td className="py-2.5 text-sm text-on-surface-variant">{description}</td>
-    </tr>
+    <span className="inline-flex items-center gap-0.5">
+      {keys.map((k, i) => <Kbd key={`${k}-${i}`}>{k}</Kbd>)}
+    </span>
   )
 }
 
+function Group({ group }: { group: ShortcutGroup }): JSX.Element {
+  return (
+    <section className="flex flex-col">
+      <h3 className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant/70">{group.title}</h3>
+      {group.items.map((s) => (
+        <div key={s.description} className="flex items-center justify-between gap-3 px-2.5 h-9 rounded-lg hover:bg-on-surface/[0.03] transition-colors">
+          <span className="t-body text-on-surface-variant">{s.description}</span>
+          <span className="flex items-center gap-1 flex-shrink-0">
+            {s.combos.map((c, i) => (
+              <span key={i} className="flex items-center gap-1">
+                {i > 0 && <span className="t-caption text-on-surface-variant/60">o</span>}
+                <Combo keys={c} />
+              </span>
+            ))}
+          </span>
+        </div>
+      ))}
+    </section>
+  )
+}
+
+/**
+ * The one shortcuts sheet of the app. Opens with F1, "?", Ctrl+Shift+/ or the
+ * "Atajos de teclado" action of the palette. State lives in AppState.keyboardShortcutsOpen.
+ */
 export function KeyboardShortcutsModal(): JSX.Element | null {
   const { state, dispatch } = useApp()
+  const open = state.keyboardShortcutsOpen
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'F1') {
         e.preventDefault()
-        dispatch({ type: state.keyboardShortcutsOpen ? 'CLOSE_KEYBOARD_SHORTCUTS' : 'OPEN_KEYBOARD_SHORTCUTS' })
+        dispatch({ type: open ? 'CLOSE_KEYBOARD_SHORTCUTS' : 'OPEN_KEYBOARD_SHORTCUTS' })
         return
       }
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'Slash') {
         e.preventDefault()
         dispatch({ type: 'OPEN_KEYBOARD_SHORTCUTS' })
+        return
+      }
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const el = document.activeElement as HTMLElement | null
+        const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable || !!el.closest('.cm-editor, .xterm'))
+        if (typing) return
+        e.preventDefault()
+        dispatch({ type: open ? 'CLOSE_KEYBOARD_SHORTCUTS' : 'OPEN_KEYBOARD_SHORTCUTS' })
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [dispatch, state.keyboardShortcutsOpen])
-
-  useEffect(() => {
-    if (!state.keyboardShortcutsOpen) return
-    const onEsc = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        e.stopPropagation()
-        dispatch({ type: 'CLOSE_KEYBOARD_SHORTCUTS' })
-      }
-    }
-    window.addEventListener('keydown', onEsc, true)
-    return () => window.removeEventListener('keydown', onEsc, true)
-  }, [state.keyboardShortcutsOpen, dispatch])
-
-  if (!state.keyboardShortcutsOpen) return null
+  }, [dispatch, open])
 
   return (
-    <div
-      className="fixed inset-0 z-[110] flex items-start justify-center pt-20 px-4 bg-on-surface/25 backdrop-blur-sm"
-      role="presentation"
-      onClick={() => dispatch({ type: 'CLOSE_KEYBOARD_SHORTCUTS' })}
+    <Modal
+      open={open}
+      onClose={() => dispatch({ type: 'CLOSE_KEYBOARD_SHORTCUTS' })}
+      title="Atajos de teclado"
+      subtitle="Los de cada módulo funcionan cuando ese módulo está abierto."
+      width={760}
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="kbd-shortcuts-title"
-        className="w-full max-w-lg rounded-2xl border border-outline-variant/25 overflow-hidden"
-        style={{
-          background: 'rgb(var(--c-surface) / 0.85)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.32), 0 4px 16px rgba(0,0,0,0.16)',
-          animation: 'fadeSlideUp 0.18s ease-out',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-outline-variant/15">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Keyboard size={22} className="text-primary" />
-          </div>
-          <div>
-            <h2 id="kbd-shortcuts-title" className="text-base font-semibold text-on-surface">
-              Keyboard shortcuts
-            </h2>
-            <p className="text-xs text-on-surface-variant mt-0.5">Global and tool-specific shortcuts</p>
-          </div>
-        </div>
-
-        <div className="max-h-[min(60vh,420px)] overflow-y-auto px-5 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/70 mb-2">App</p>
-          <table className="w-full text-left">
-            <tbody>
-              <Row
-                combo={<span className="flex flex-wrap gap-1"><Kbd>Ctrl</Kbd><span className="text-on-surface-variant">+</span><Kbd>K</Kbd></span>}
-                description="Open command palette"
-              />
-              <Row
-                combo={<span className="flex flex-wrap gap-1"><Kbd>Ctrl</Kbd><span className="text-on-surface-variant">+</span><Kbd>F</Kbd></span>}
-                description="Find in page (hidden when File Editor is focused — it uses its own search)"
-              />
-              <Row
-                combo={<Kbd>F1</Kbd>}
-                description="Open or close this shortcuts panel"
-              />
-              <Row
-                combo={<span className="flex flex-wrap gap-1"><Kbd>Ctrl</Kbd><span className="text-on-surface-variant">+</span><Kbd>Shift</Kbd><span className="text-on-surface-variant">+</span><Kbd>/</Kbd></span>}
-                description="Open shortcuts panel"
-              />
-              <Row combo={<Kbd>Esc</Kbd>} description="Close command palette, find bar, or this panel" />
-            </tbody>
-          </table>
-
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/70 mt-5 mb-2">File Editor</p>
-          <table className="w-full text-left">
-            <tbody>
-              <Row
-                combo={<span className="flex flex-wrap gap-1"><Kbd>Ctrl</Kbd><span className="text-on-surface-variant">+</span><Kbd>S</Kbd></span>}
-                description="Save / Save as"
-              />
-              <Row
-                combo={<span className="flex flex-wrap gap-1"><Kbd>Ctrl</Kbd><span className="text-on-surface-variant">+</span><Kbd>P</Kbd></span>}
-                description="Quick open file"
-              />
-              <Row
-                combo={<span className="flex flex-wrap gap-1"><Kbd>Ctrl</Kbd><span className="text-on-surface-variant">+</span><Kbd>Shift</Kbd><span className="text-on-surface-variant">+</span><Kbd>F</Kbd></span>}
-                description="Find in files"
-              />
-            </tbody>
-          </table>
-
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/70 mt-5 mb-2">Snippets</p>
-          <table className="w-full text-left">
-            <tbody>
-              <Row
-                combo={<span className="flex flex-wrap gap-1"><Kbd>Ctrl</Kbd><span className="text-on-surface-variant">+</span><Kbd>N</Kbd></span>}
-                description="New snippet"
-              />
-              <Row combo={<Kbd>Esc</Kbd>} description="Cancel editing (when the form is open)" />
-            </tbody>
-          </table>
-
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/70 mt-5 mb-2">Repo search</p>
-          <table className="w-full text-left">
-            <tbody>
-              <Row combo={<Kbd>/</Kbd>} description="Focus search input" />
-            </tbody>
-          </table>
-        </div>
-
-        <div className="px-5 py-3 border-t border-outline-variant/15 flex justify-end">
-          <button
-            type="button"
-            className="px-4 py-2 rounded-xl text-sm font-medium bg-primary text-on-primary hover:opacity-95 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-            onClick={() => dispatch({ type: 'CLOSE_KEYBOARD_SHORTCUTS' })}
-          >
-            Close
-          </button>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 pt-2">
+        <div className="flex flex-col gap-5">{LEFT.map((g) => <Group key={g.title} group={g} />)}</div>
+        <div className="flex flex-col gap-5">{RIGHT.map((g) => <Group key={g.title} group={g} />)}</div>
       </div>
-    </div>
+    </Modal>
   )
 }

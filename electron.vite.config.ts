@@ -63,6 +63,8 @@ export default defineConfig(({ mode }) => {
     },
     resolve: {
       alias: {
+        // Íconos: los imports de 'lucide-react' se sirven con Phosphor (ver src/core/icons/lucide-shim.tsx)
+        'lucide-react': path.resolve(__dirname, './src/core/icons/lucide-shim.tsx'),
         '@': path.resolve(__dirname, './src')
       }
     },

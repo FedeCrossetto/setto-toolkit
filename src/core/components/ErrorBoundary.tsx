@@ -1,5 +1,5 @@
 import { Component, type ReactNode } from 'react'
-import { CircleAlert } from 'lucide-react'
+import { TriangleAlert } from 'lucide-react'
 
 interface Props {
   children: ReactNode
@@ -14,7 +14,7 @@ interface State {
 /**
  * ErrorBoundary wraps any subtree and catches render-time errors.
  * If a plugin crashes, only that plugin's panel shows the error card —
- * the rest of the app (sidebar, tab bar, status bar) stays functional.
+ * the rest of the app (sidebar, tabs) stays usable.
  */
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
@@ -40,19 +40,23 @@ export class ErrorBoundary extends Component<Props, State> {
 
     return (
       <div className="flex items-center justify-center h-full w-full p-8">
-        <div className="max-w-md w-full bg-error-container/20 border border-error/25 rounded-2xl p-6 text-center">
-          <CircleAlert size={36} className="text-error mb-3 mx-auto" />
-          <h2 className="text-sm font-bold text-on-surface mb-1">
-            {this.props.label ? `${this.props.label} crashed` : 'Something went wrong'}
+        <div className="ui-card max-w-sm w-full px-6 py-6 text-center flex flex-col items-center">
+          <span className="w-10 h-10 rounded-[var(--radius-lg)] flex items-center justify-center bg-warning/[0.14] text-warning mb-3">
+            <TriangleAlert size={20} />
+          </span>
+          <h2 className="t-headline text-on-surface">
+            {this.props.label ? `${this.props.label} tuvo un problema` : 'Algo salió mal'}
           </h2>
-          <p className="text-xs text-on-surface-variant/70 mb-4 leading-relaxed">
-            {error.message || 'An unexpected error occurred in this panel.'}
+          <p className="t-footnote text-on-surface-variant mt-1">
+            No se perdió nada del resto de la app. Probá de nuevo; si sigue fallando, exportá los logs desde Ajustes.
           </p>
-          <button
-            onClick={this.handleReset}
-            className="px-4 py-2 rounded-lg text-xs font-semibold bg-error/10 text-error border border-error/20 hover:bg-error/20 transition-colors"
-          >
-            Try again
+          {error.message && (
+            <p className="t-caption text-on-surface-variant/80 font-mono mt-3 px-2 py-1.5 rounded-[var(--radius-xs)] bg-on-surface/[0.05] w-full break-words">
+              {error.message}
+            </p>
+          )}
+          <button onClick={this.handleReset} className="ui-btn ui-btn-primary mt-4">
+            Reintentar
           </button>
         </div>
       </div>

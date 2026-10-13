@@ -16,8 +16,8 @@ import { TemplatePlugin } from './TemplatePlugin'
 
 export const templatePlugin: PluginManifest = {
   id: 'template',
-  name: 'My Plugin',
-  description: 'Describe what this mini app does',
+  name: 'Mi módulo',
+  description: 'Describí qué hace este módulo',
   icon: 'extension',              // Material Symbol icon name
   component: TemplatePlugin,
   keywords: ['my-plugin', 'template']

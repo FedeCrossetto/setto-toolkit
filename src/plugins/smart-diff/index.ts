@@ -5,9 +5,11 @@ const SmartDiff = lazy(() => import('./SmartDiff').then((m) => ({ default: m.Sma
 
 export const smartDiffPlugin: PluginManifest = {
   id: 'smart-diff',
-  name: 'Smart Diff',
-  description: 'AI-powered code comparison with semantic change detection',
-  icon: 'text_compare',
+  name: 'Comparar',
+  description: 'Compará archivos y textos lado a lado',
+  icon: 'diff',
+  section: 'dev',
+  defaultDisabled: true,
   component: SmartDiff,
   keywords: ['diff', 'compare', 'code', 'semantic', 'ai', 'changes']
 }

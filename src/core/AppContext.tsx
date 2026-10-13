@@ -1,9 +1,13 @@
-import { createContext, useContext, useReducer, useEffect, type ReactNode } from 'react'
-import type { AppState, AppAction, Tab, Theme } from './types'
+import { createContext, useContext, useReducer, useEffect, useRef, type ReactNode } from 'react'
+import type { AppState, AppAction, Tab, Theme, PluginIntent } from './types'
+import { allPlugins } from './plugin-registry'
 
 const THEME_KEY    = 'app-theme'
 const SIDEBAR_KEY  = 'app-sidebar-collapsed'
 const DISABLED_KEY = 'plugins-disabled'
+const TABS_KEY     = 'app-open-tabs'
+/** Rediseño v2: aplica una vez los módulos ocultos por defecto (defaultDisabled). */
+const MODULES_V2_KEY = 'plugins-defaults-v2'
 
 function getInitialTheme(): Theme {
   const stored = localStorage.getItem(THEME_KEY)
@@ -17,22 +21,51 @@ function getInitialSidebarCollapsed(): boolean {
 }
 
 function getInitialDisabledPlugins(): string[] {
+  let stored: string[] = []
   try {
-    const stored = localStorage.getItem(DISABLED_KEY)
-    return stored ? (JSON.parse(stored) as string[]) : []
+    const raw = localStorage.getItem(DISABLED_KEY)
+    stored = raw ? (JSON.parse(raw) as string[]) : []
+  } catch { /* corrupt → defaults */ }
+  if (!localStorage.getItem(MODULES_V2_KEY)) {
+    localStorage.setItem(MODULES_V2_KEY, '1')
+    // Los módulos de uso diario siempre visibles; los de desarrollo pesados, ocultos.
+    const personal = new Set(allPlugins.filter(p => p.section === 'personal').map(p => p.id))
+    const defaults = allPlugins.filter(p => p.defaultDisabled).map(p => p.id)
+    stored = [...new Set([...stored.filter(id => !personal.has(id)), ...defaults])]
+    // Persistir junto con el flag: si sólo se guardara en el useEffect, un cierre o
+    // recarga antes del primer render dejaría el flag puesto con la lista vieja.
+    localStorage.setItem(DISABLED_KEY, JSON.stringify(stored))
+  }
+  return stored
+}
+
+function getInitialTabs(disabled: string[]): { openTabs: Tab[]; activeTabId: string | null } {
+  const fallback = { openTabs: [{ tabId: 'dashboard', pluginId: 'dashboard' }], activeTabId: 'dashboard' }
+  try {
+    const raw = localStorage.getItem(TABS_KEY)
+    if (!raw) return fallback
+    const parsed = JSON.parse(raw) as { openTabs: Tab[]; activeTabId: string | null }
+    const valid = new Set(allPlugins.map(p => p.id))
+    const openTabs = (parsed.openTabs ?? []).filter(t => valid.has(t.pluginId) && !disabled.includes(t.pluginId))
+    if (openTabs.length === 0) return fallback
+    const activeTabId = openTabs.some(t => t.tabId === parsed.activeTabId) ? parsed.activeTabId : openTabs[0]!.tabId
+    return { openTabs, activeTabId }
   } catch {
-    return []
+    return fallback
   }
 }
 
+const initialDisabled = getInitialDisabledPlugins()
+const initialTabs = getInitialTabs(initialDisabled)
+
 const initialState: AppState = {
-  openTabs: [{ tabId: 'dashboard', pluginId: 'dashboard' }],
-  activeTabId: 'dashboard',
+  openTabs: initialTabs.openTabs,
+  activeTabId: initialTabs.activeTabId,
   commandPaletteOpen: false,
   keyboardShortcutsOpen: false,
   theme: getInitialTheme(),
   sidebarCollapsed: getInitialSidebarCollapsed(),
-  disabledPlugins: getInitialDisabledPlugins(),
+  disabledPlugins: initialDisabled,
   dirtyPlugins: {},
 }
 
@@ -154,6 +187,21 @@ function appReducer(state: AppState, action: AppAction): AppState {
       if (!state.dirtyPlugins[action.pluginId]) return state
       return { ...state, dirtyPlugins: { ...state.dirtyPlugins, [action.pluginId]: false } }
     }
+    case 'OPEN_WITH_INTENT': {
+      const existing = state.openTabs.find((t) => t.pluginId === action.pluginId)
+      const tabId = existing?.tabId ?? action.pluginId
+      const openTabs = existing ? state.openTabs : [...state.openTabs, { tabId, pluginId: action.pluginId }]
+      const disabledPlugins = state.disabledPlugins.filter(id => id !== action.pluginId)
+      return {
+        ...state,
+        openTabs,
+        activeTabId: tabId,
+        disabledPlugins,
+        pluginIntent: { pluginId: action.pluginId, action: action.action, payload: action.payload, stamp: Date.now() },
+      }
+    }
+    case 'CLEAR_PLUGIN_INTENT':
+      return { ...state, pluginIntent: undefined }
     case 'TOGGLE_PLUGIN': {
       const isDisabled = state.disabledPlugins.includes(action.pluginId)
       const disabledPlugins = isDisabled
@@ -202,6 +250,10 @@ export function AppProvider({ children }: { children: ReactNode }): JSX.Element 
     localStorage.setItem(DISABLED_KEY, JSON.stringify(state.disabledPlugins))
   }, [state.disabledPlugins])
 
+  useEffect(() => {
+    localStorage.setItem(TABS_KEY, JSON.stringify({ openTabs: state.openTabs, activeTabId: state.activeTabId }))
+  }, [state.openTabs, state.activeTabId])
+
   return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>
 }
 
@@ -209,4 +261,20 @@ export function useApp(): AppContextValue {
   const ctx = useContext(AppContext)
   if (!ctx) throw new Error('useApp must be used inside AppProvider')
   return ctx
+}
+
+/**
+ * Consume intents addressed to `pluginId` (sent with OPEN_WITH_INTENT).
+ * The handler runs once per intent; the intent is cleared afterwards.
+ */
+export function usePluginIntent(pluginId: string, handler: (intent: PluginIntent) => void): void {
+  const { state, dispatch } = useApp()
+  const handlerRef = useRef(handler)
+  handlerRef.current = handler
+  const intent = state.pluginIntent
+  useEffect(() => {
+    if (!intent || intent.pluginId !== pluginId) return
+    handlerRef.current(intent)
+    dispatch({ type: 'CLEAR_PLUGIN_INTENT' })
+  }, [intent, pluginId, dispatch])
 }

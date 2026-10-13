@@ -5,9 +5,11 @@ const TicketResolver = lazy(() => import('./TicketResolver').then((m) => ({ defa
 
 export const ticketResolverPlugin: PluginManifest = {
   id: 'ticket-resolver',
-  name: 'Ticket Resolver',
-  description: 'Analyze and resolve WinSystems Jira tickets with AI-assisted code search and fix suggestions',
-  icon: 'confirmation_number',
+  name: 'Tickets',
+  description: 'Analizá tickets de Jira con ayuda de IA',
+  icon: 'ticket',
+  section: 'dev',
+  defaultDisabled: true,
   component: TicketResolver,
   keywords: ['ticket', 'jira', 'bug', 'fix', 'winsystems', 'defect', 'resolver', 'issue'],
 }

@@ -108,6 +108,7 @@
   --c-outline:                  148 148 172;   /* #9494AC */
   --c-error:                    215  51  87;   /* #D73357 */
   --c-warning:                  217 119   6;   /* #D97706 */
+  --c-success:                   40 167  69;   /* verde sistema */
 
   --gradient-brand: linear-gradient(135deg, #5347CE, #4896FE);
 
@@ -138,6 +139,7 @@
   --c-outline:                  110 110 110;   /* #6E6E6E */
   --c-error:                    255 110 132;   /* #FF6E84 */
   --c-warning:                  251 191  36;   /* #FBBF24 */
+  --c-success:                   50 215  75;   /* verde sistema (dark) */
 
   --gradient-brand: linear-gradient(135deg, #8C8C91, #B9B9BE);
 
@@ -151,10 +153,103 @@
 /* Superficies (--c-background, paneles, texto base): se fijan en useThemePalette (applyNeutralSurfaces)
    para que no dependan de la paleta; :root / .dark aquí son fallback antes de hidratar. */
 
+/* ─── Forma: radios, bordes, sombras, blur ────────────────────────────────────
+   ÚNICO lugar para ajustar la "forma" de la app. Tailwind (rounded-*, shadow-*)
+   y las primitivas .ui-* leen estas variables, así que cambiar un valor acá
+   cambia toda la app. ─────────────────────────────────────────────────────── */
+:root {
+  --radius-xs:   6px;    /* chips, kbd, badges chicos */
+  --radius-sm:   8px;    /* botones, inputs, items de lista */
+  --radius-md:  10px;    /* botones grandes, segmentos */
+  --radius-lg:  14px;    /* cards, menús */
+  --radius-xl:  18px;    /* paneles, modales */
+  --radius-2xl: 24px;    /* hero, splash */
+
+  --border-w: 1px;
+  --hairline: rgb(0 0 0 / 0.07);        /* borde fino */
+  --hairline-strong: rgb(0 0 0 / 0.12);
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.05);
+  --shadow-md: 0 1px 2px rgb(0 0 0 / 0.04), 0 6px 18px -4px rgb(0 0 0 / 0.08);
+  --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.05), 0 20px 48px -8px rgb(0 0 0 / 0.16);
+  --shadow-pop: 0 0 0 1px rgb(0 0 0 / 0.06), 0 12px 32px -6px rgb(0 0 0 / 0.18), 0 32px 80px -12px rgb(0 0 0 / 0.16);
+
+  --blur-chrome: 24px;                       /* sidebar / barras translúcidas */
+  --c-chrome: 246 246 248;                   /* fondo de sidebar y toolbar */
+  --chrome-alpha: 0.82;
+  --c-selection: var(--c-primary);           /* selección de sidebar / listas */
+
+  --ease-mac: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+.dark {
+  --hairline: rgb(255 255 255 / 0.07);
+  --hairline-strong: rgb(255 255 255 / 0.12);
+  --shadow-sm: 0 0.5px 1px rgb(0 0 0 / 0.3), 0 1px 3px rgb(0 0 0 / 0.25);
+  --shadow-md: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 20px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.35), 0 20px 50px rgb(0 0 0 / 0.45);
+  --shadow-pop: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 10px 30px rgb(0 0 0 / 0.45), 0 30px 80px rgb(0 0 0 / 0.4);
+  --c-chrome: 40 40 42;
+  --chrome-alpha: 0.78;
+}
+
+/* Selección suave (filas activas de listas y barra lateral) */
+.bg-selected { background: rgb(var(--c-primary) / 0.09); }
+.dark .bg-selected { background: rgb(var(--c-primary) / 0.16); }
+
+/* Acento de marca: degradé celeste → lila (sale de --gradient-brand / --c-accent / --c-secondary) */
+.bg-brand { background: var(--gradient-brand); color: #fff; }
+.bg-brand-soft {
+  background: linear-gradient(135deg, rgb(var(--c-accent) / 0.16), rgb(var(--c-primary) / 0.14) 55%, rgb(var(--c-secondary) / 0.16));
+}
+.dark .bg-brand-soft {
+  background: linear-gradient(135deg, rgb(var(--c-accent) / 0.2), rgb(var(--c-primary) / 0.18) 55%, rgb(var(--c-secondary) / 0.2));
+}
+.text-brand { background: var(--gradient-brand); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+
+/* Superficie translúcida estilo macOS (sidebar, toolbar, popovers) */
+.mac-chrome {
+  background: rgb(var(--c-chrome) / var(--chrome-alpha));
+  backdrop-filter: saturate(180%) blur(var(--blur-chrome));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--blur-chrome));
+}
+.mac-popover {
+  background: rgb(var(--c-surface) / 0.86);
+  backdrop-filter: saturate(180%) blur(30px);
+  -webkit-backdrop-filter: saturate(180%) blur(30px);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-pop);
+}
+.hairline   { border: var(--border-w) solid var(--hairline); }
+.hairline-b { border-bottom: var(--border-w) solid var(--hairline); }
+.hairline-t { border-top: var(--border-w) solid var(--hairline); }
+.hairline-r { border-right: var(--border-w) solid var(--hairline); }
+.hairline-l { border-left: var(--border-w) solid var(--hairline); }
+
+/* Escala tipográfica (usar en vez de text-[11.5px] etc.) */
+.t-caption  { font-size: 11px;   line-height: 14px; }
+.t-footnote { font-size: 12px;   line-height: 16px; }
+.t-body     { font-size: 13px;   line-height: 18px; }
+.t-callout  { font-size: 14px;   line-height: 20px; }
+.t-headline { font-size: 15px;   line-height: 20px; font-weight: 600; }
+.t-title1, .t-title2, .t-title3, .t-display { font-family: 'Manrope', var(--app-font-family, Inter), sans-serif; }
+.t-display  { font-size: 34px; line-height: 40px; font-weight: 800; letter-spacing: -0.03em; }
+.t-title3   { font-size: 18px;   line-height: 24px; font-weight: 600; letter-spacing: -0.01em; }
+.t-title2   { font-size: 22px;   line-height: 28px; font-weight: 700; letter-spacing: -0.015em; }
+.t-title1   { font-size: 28px;   line-height: 34px; font-weight: 700; letter-spacing: -0.02em; }
+.t-section  { font-size: 11px;   line-height: 14px; font-weight: 600; color: rgb(var(--c-on-surface-variant) / 0.8); }
+
+@keyframes mac-pop-in {
+  from { opacity: 0; transform: scale(0.97) translateY(4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.mac-pop-in { animation: mac-pop-in 0.18s var(--ease-spring) both; }
+
 /* ─── Focus visibility (keyboard / a11y) ───────────────────────────────────── */
-:focus-visible {
-  outline: 2px solid rgb(var(--c-primary) / 0.85);
-  outline-offset: 2px;
+/* Campos de texto dibujan su propio foco (.ui-input / anillo propio) */
+:focus-visible:not(input):not(textarea):not(.cm-content) {
+  outline: 3px solid rgb(var(--c-primary) / 0.45);
+  outline-offset: 1px;
 }
 button:focus:not(:focus-visible),
 [role="button"]:focus:not(:focus-visible) {
@@ -185,7 +280,7 @@ body {
 }
 
 html {
-  font-size: var(--app-font-size-base, 15px);
+  font-size: var(--app-font-size-base, 14px);
 }
 
 /* ─── Brand gradient text ────────────────────────────────────────────────── */
@@ -213,29 +308,29 @@ html {
 
 /* ─── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgb(var(--c-outline-variant) / 0.5);
-  border-radius: 6px;
-  border: 2px solid transparent;
+  background: rgb(var(--c-on-surface) / 0.18);
+  border-radius: 10px;
+  border: 3px solid transparent;
   background-clip: padding-box;
   transition: background-color 150ms;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--c-primary) / 0.65);
+  background: rgb(var(--c-on-surface) / 0.35);
   background-clip: padding-box;
 }
 .dark ::-webkit-scrollbar-thumb {
-  background: rgb(var(--c-outline-variant) / 0.8);
+  background: rgb(var(--c-on-surface) / 0.2);
   background-clip: padding-box;
 }
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--c-primary) / 0.75);
+  background: rgb(var(--c-on-surface) / 0.35);
   background-clip: padding-box;
 }
 
@@ -272,6 +367,18 @@ select option {
 .json-bool   { color: rgb(var(--c-secondary)); }
 .json-null   { color: rgb(var(--c-on-surface-variant)); font-style: italic; }
 
+/* ─── Cambio de tema suave ─────────────────────────────────────────────────
+   useThemePalette pone .theme-transition en <html> ~250 ms al cambiar de tema,
+   color o claro/oscuro: los colores se funden en vez de saltar. */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow, outline-color !important;
+  transition-duration: 220ms !important;
+  transition-timing-function: var(--ease-mac) !important;
+}
+
 /* ─── Reduced motion (a11y) ──────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -290,95 +397,114 @@ select option {
    so cards/buttons/inputs/badges stay visually consistent across the app and
    automatically follow whatever palette/theme is active. ──────────────────── */
 
-/* Floating card — the base "panel" unit: rounded, soft border, soft shadow */
-.ui-card {
+/* Floating card — the base "panel" unit: rounded, hairline border, soft shadow */
+:where(.ui-card) {
   background: rgb(var(--c-surface));
-  border: 1px solid rgb(var(--c-outline-variant) / 0.4);
-  border-radius: 14px;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 16px rgb(0 0 0 / 0.04);
-  transition: box-shadow 200ms ease, border-color 200ms ease, transform 200ms ease;
+  border: var(--border-w) solid var(--hairline);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  /* brillo sutil en el borde superior (tarjetas tipo SaaS) */
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.035), transparent 40%);
+  transition: box-shadow 200ms var(--ease-mac), border-color 200ms var(--ease-mac), transform 200ms var(--ease-mac), background-color 200ms var(--ease-mac);
 }
-.dark .ui-card {
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 8px 24px rgb(0 0 0 / 0.22);
-}
-.ui-card-interactive { cursor: pointer; will-change: transform; }
+.ui-card-interactive { cursor: pointer; }
 .ui-card-interactive:hover {
-  border-color: rgb(var(--c-primary) / 0.35);
-  box-shadow: 0 2px 4px rgb(0 0 0 / 0.06), 0 8px 24px rgb(0 0 0 / 0.08);
-  transform: translateY(-1px);
+  border-color: var(--hairline-strong);
+  box-shadow: var(--shadow-md);
 }
-.dark .ui-card-interactive:hover {
-  box-shadow: 0 2px 4px rgb(0 0 0 / 0.24), 0 12px 32px rgb(0 0 0 / 0.3);
-}
+.ui-card-interactive:active { transform: scale(0.995); }
 
-/* Buttons */
-.ui-btn {
+/* Buttons — planos, estilo macOS */
+:where(.ui-btn), button:where(.ui-btn), a:where(.ui-btn) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border-radius: 10px;
-  font-size: 12.5px;
-  font-weight: 600;
-  padding: 7px 14px;
-  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  padding: 5px 12px;
+  transition: background-color 120ms var(--ease-mac), color 120ms var(--ease-mac), border-color 120ms var(--ease-mac), box-shadow 120ms var(--ease-mac), filter 120ms var(--ease-mac);
   white-space: nowrap;
+  user-select: none;
 }
-.ui-btn:active { transform: scale(0.97); }
+.ui-btn:disabled { opacity: 0.45; pointer-events: none; }
 .ui-btn-primary {
-  background: var(--gradient-brand);
+  background: rgb(var(--c-primary));
   color: rgb(var(--c-on-primary));
-  box-shadow: 0 2px 10px rgb(var(--c-primary) / 0.3);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 1px 2px rgb(0 0 0 / 0.16), 0 4px 12px -4px rgb(var(--c-primary) / 0.55);
 }
-.ui-btn-primary:hover { box-shadow: 0 4px 16px rgb(var(--c-primary) / 0.4); filter: brightness(1.04); }
+/* CTA oscuro (como "Join the waitlist") */
+.ui-btn-dark {
+  background: rgb(28 28 33);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1), 0 1px 2px rgb(0 0 0 / 0.2);
+}
+.dark .ui-btn-dark { background: rgb(245 245 250); color: rgb(20 20 25); }
+.ui-btn-dark:hover { filter: brightness(1.15); }
+.dark .ui-btn-dark:hover { filter: brightness(0.95); }
+.ui-btn-primary:hover { filter: brightness(1.08); }
+.ui-btn-primary:active { filter: brightness(0.94); }
 .ui-btn-outline {
-  background: transparent;
-  border: 1px solid rgb(var(--c-outline-variant) / 0.6);
+  background: rgb(var(--c-surface));
+  border: var(--border-w) solid var(--hairline-strong);
   color: rgb(var(--c-on-surface));
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
 }
-.ui-btn-outline:hover { border-color: rgb(var(--c-primary) / 0.5); color: rgb(var(--c-primary)); background: rgb(var(--c-primary) / 0.06); }
+.dark .ui-btn-outline { background: rgb(255 255 255 / 0.07); }
+.ui-btn-outline:hover { background: rgb(var(--c-surface-container)); }
+.dark .ui-btn-outline:hover { background: rgb(255 255 255 / 0.11); }
 .ui-btn-ghost {
   background: transparent;
   color: rgb(var(--c-on-surface-variant));
 }
-.ui-btn-ghost:hover { background: rgb(var(--c-surface-container-high)); color: rgb(var(--c-on-surface)); }
+.ui-btn-ghost:hover { background: rgb(var(--c-on-surface) / 0.06); color: rgb(var(--c-on-surface)); }
+.ui-btn-danger { background: rgb(var(--c-error)); color: #fff; }
+.ui-btn-danger:hover { filter: brightness(1.08); }
+:where(.ui-btn-sm), button:where(.ui-btn-sm), a:where(.ui-btn-sm) { padding: 3px 9px; font-size: 12px; border-radius: var(--radius-xs); }
+:where(.ui-btn-icon), button:where(.ui-btn-icon), a:where(.ui-btn-icon) { padding: 5px; }
 
 /* Inputs */
-.ui-input {
-  background: rgb(var(--c-surface-container-low));
-  border: 1px solid rgb(var(--c-outline-variant) / 0.5);
-  border-radius: 10px;
+:where(.ui-input), input:where(.ui-input), textarea:where(.ui-input), select:where(.ui-input) {
+  background: rgb(var(--c-surface-container));
+  border: var(--border-w) solid transparent;
+  border-radius: var(--radius-sm);
   color: rgb(var(--c-on-surface));
-  padding: 7px 11px;
-  font-size: 12.5px;
-  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+  padding: 5px 10px;
+  font-size: 13px;
+  line-height: 18px;
+  transition: border-color 120ms var(--ease-mac), box-shadow 120ms var(--ease-mac);
 }
-.ui-input:hover { border-color: rgb(var(--c-outline-variant)); }
+.dark .ui-input { background: rgb(255 255 255 / 0.05); }
+.dark .ui-input:hover { background: rgb(255 255 255 / 0.08); }
+.dark .ui-input:focus { background: rgb(255 255 255 / 0.06); }
+.ui-input:hover { background: rgb(var(--c-surface-container-high)); }
 .ui-input:focus {
   outline: none;
-  border-color: rgb(var(--c-primary) / 0.6);
-  box-shadow: 0 0 0 3px rgb(var(--c-primary) / 0.15);
   background: rgb(var(--c-surface));
+  border-color: rgb(var(--c-primary) / 0.7);
+  box-shadow: 0 0 0 3px rgb(var(--c-primary) / 0.18);
 }
 
 /* Badges */
-.ui-badge {
+:where(.ui-badge) {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   border-radius: 999px;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  padding: 2px 9px;
-  background: rgb(var(--c-surface-container-high));
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 8px;
+  background: rgb(var(--c-on-surface) / 0.07);
   color: rgb(var(--c-on-surface-variant));
-  border: 1px solid rgb(var(--c-outline-variant) / 0.4);
+  border: none;
 }
-.ui-badge-primary { background: rgb(var(--c-primary) / 0.12); color: rgb(var(--c-primary)); border-color: rgb(var(--c-primary) / 0.25); }
-.ui-badge-accent  { background: rgb(var(--c-accent) / 0.12);  color: rgb(var(--c-accent));  border-color: rgb(var(--c-accent) / 0.25); }
-.ui-badge-error   { background: rgb(var(--c-error) / 0.12);   color: rgb(var(--c-error));   border-color: rgb(var(--c-error) / 0.25); }
-.ui-badge-warning { background: rgb(var(--c-warning) / 0.12); color: rgb(var(--c-warning)); border-color: rgb(var(--c-warning) / 0.25); }
+.ui-badge-primary { background: rgb(var(--c-primary) / 0.14); color: rgb(var(--c-primary)); }
+.ui-badge-accent  { background: rgb(var(--c-accent) / 0.14);  color: rgb(var(--c-accent)); }
+.ui-badge-success { background: rgb(var(--c-success) / 0.14); color: rgb(var(--c-success)); }
+.ui-badge-error   { background: rgb(var(--c-error) / 0.14);   color: rgb(var(--c-error)); }
+.ui-badge-warning { background: rgb(var(--c-warning) / 0.16); color: rgb(var(--c-warning)); }
 
 /* Devicon SVGs (no fixed width/height) injected inline — force them to fill their span */
 .devicon-svg { display: inline-flex; flex-shrink: 0; }
@@ -393,27 +519,27 @@ select option {
 }
 
 /* Dropdown / popover / menu surface (Radix-friendly) */
-.ui-menu {
-  background: rgb(var(--c-surface-container));
-  border: 1px solid rgb(var(--c-outline-variant) / 0.4);
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.08), 0 12px 32px rgb(0 0 0 / 0.1);
-  padding: 6px;
+:where(.ui-menu) {
+  background: rgb(var(--c-surface) / 0.88);
+  backdrop-filter: saturate(180%) blur(30px);
+  -webkit-backdrop-filter: saturate(180%) blur(30px);
+  border: var(--border-w) solid var(--hairline);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  padding: 5px;
 }
-.dark .ui-menu { box-shadow: 0 4px 16px rgb(0 0 0 / 0.3), 0 16px 40px rgb(0 0 0 / 0.35); }
-.ui-menu-item {
+:where(.ui-menu-item) {
   display: flex;
   align-items: center;
   gap: 8px;
-  border-radius: 8px;
-  padding: 7px 9px;
-  font-size: 12.5px;
+  border-radius: var(--radius-xs);
+  padding: 4px 9px;
+  font-size: 13px;
   color: rgb(var(--c-on-surface));
-  transition: background-color 120ms ease, color 120ms ease;
-  cursor: pointer;
+  cursor: default;
 }
 .ui-menu-item:hover,
-.ui-menu-item[data-highlighted] { background: rgb(var(--c-surface-container-high)); }
+.ui-menu-item[data-highlighted] { background: var(--gradient-brand); color: #fff; }
 
 /* ─── Diff highlights ────────────────────────────────────────────────────── */
 .diff-removed {
@@ -438,6 +564,8 @@ select option {
 .md-preview p { margin: 0.6em 0; }
 .md-preview a { color: rgb(var(--c-primary-light)); text-decoration: none; }
 .md-preview a:hover { text-decoration: underline; }
+/* [[Enlace a nota]] en la vista previa de Notas */
+.md-preview a.note-link { color: rgb(var(--c-primary)); background: rgb(var(--c-primary) / 0.08); border-radius: 4px; padding: 0 3px; }
 .md-preview code {
   background: rgb(var(--c-surface-container-high));
   border: 1px solid rgb(var(--c-outline-variant) / 0.25);
@@ -476,3 +604,51 @@ select option {
 .md-preview th { background: rgb(var(--c-surface-container)); font-weight: 600; }
 .md-preview img { max-width: 100%; border-radius: 8px; }
 .md-preview hr { border: none; border-top: 1px solid rgb(var(--c-outline-variant) / 0.3); margin: 1.5em 0; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+/* Cambio de pestaña: fundido + desplazamiento mínimo. Usar con fill-mode `backwards`. */
+@keyframes tabIn { from { opacity: 0; transform: translateY(6px); } }
+@keyframes sheetIn {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ─── Home & Search: skeleton neutro (sin tinte de acento) ───────────────── */
+.ui-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--c-on-surface) / 0.06) 25%,
+    rgb(var(--c-on-surface) / 0.11) 40%,
+    rgb(var(--c-on-surface) / 0.06) 60%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-xs);
+}
+
+
+/* ─── Dev modules (Editor / API Lab): token-only overrides ───────────────── */
+.json-string { color: rgb(var(--c-success)); }
+.json-number { color: rgb(var(--c-warning)); }
+.json-bool   { color: rgb(var(--c-primary)); }
+.md-preview h1, .md-preview h2 { border-bottom-color: var(--hairline); }
+.md-preview a { color: rgb(var(--c-primary)); }
+.md-preview code { background: rgb(var(--c-on-surface) / 0.06); border-color: transparent; border-radius: var(--radius-xs); }
+.md-preview pre { background: rgb(var(--c-on-surface) / 0.04); border-color: var(--hairline); border-radius: var(--radius-md); }
+.md-preview blockquote { border-left-color: var(--hairline-strong); background: transparent; }
+.md-preview th, .md-preview td { border-color: var(--hairline); }
+.md-preview th { background: rgb(var(--c-on-surface) / 0.04); }
+.md-preview hr { border-top-color: var(--hairline); }
+
+/* ─── File Editor pane: follows the active editor theme (--ed-* set inline by
+   themes/buildTheme.ts → paneStyle). With Setto these equal the app tokens. ── */
+.fe-pane         { background: var(--ed-bg); color: var(--ed-fg); }
+.fe-chrome       { background: var(--ed-tab-inactive); }
+.fe-tab-active   { background: var(--ed-tab-active); }
+
+/* ─── Barra superior oscura (TabBar) ─────────────────────────────────────── */
+.topbar {
+  background: rgb(var(--c-topbar, 28 28 33));
+  border-bottom: 1px solid rgb(0 0 0 / 0.35);
+  box-shadow: inset 0 -1px 0 rgb(255 255 255 / 0.04);
+}

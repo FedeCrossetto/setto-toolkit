@@ -4,9 +4,18 @@ const STORAGE_KEY = 'app:ui-scale'
 const DEFAULT_SCALE = 1
 export const UI_SCALE_MIN = 0.8
 export const UI_SCALE_MAX = 1.3
-export const UI_SCALE_STEP = 0.02
+/** Pasos de 10%: zooms intermedios (98%, 102%…) dejan el texto borroso en Windows. */
+export const UI_SCALE_STEP = 0.1
+
+/** v2: se resetea una vez a 100% (valores como 98% desenfocaban el texto). */
+const SCALE_V2_KEY = 'app:ui-scale-v2'
 
 function readScale(): number {
+  if (!localStorage.getItem(SCALE_V2_KEY)) {
+    localStorage.setItem(SCALE_V2_KEY, '1')
+    localStorage.setItem(STORAGE_KEY, String(DEFAULT_SCALE))
+    return DEFAULT_SCALE
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     const n = raw ? parseFloat(raw) : DEFAULT_SCALE
@@ -30,7 +39,8 @@ export function useUiScale() {
   }, [scale])
 
   const setScale = useCallback((value: number) => {
-    setScaleState(Math.min(UI_SCALE_MAX, Math.max(UI_SCALE_MIN, value)))
+    const snapped = Math.round(value * 10) / 10
+    setScaleState(Math.min(UI_SCALE_MAX, Math.max(UI_SCALE_MIN, snapped)))
   }, [])
 
   const resetScale = useCallback(() => setScale(DEFAULT_SCALE), [setScale])

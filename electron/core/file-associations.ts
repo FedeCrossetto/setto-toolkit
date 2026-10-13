@@ -13,6 +13,8 @@ const EXTENSIONS = [
   '.py', '.java', '.cpp', '.cc', '.cxx', '.c', '.h', '.hpp',
   '.cs', '.go', '.rs',
   '.yaml', '.yml', '.xml', '.sql', '.ini', '.env',
+  '.vb', '.config', '.csproj', '.vbproj', '.sln', '.props', '.targets', '.resx',
+  '.ps1', '.psm1', '.bat', '.cmd', '.sh', '.out', '.trace',
 ]
 
 /**

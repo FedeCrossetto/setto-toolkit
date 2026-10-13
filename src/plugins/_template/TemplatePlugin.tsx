@@ -1,52 +1,43 @@
 /**
  * PLUGIN TEMPLATE
- * Replace this with your plugin's UI.
+ * Replace this with your plugin's UI. Read docs/DESIGN.md first.
  *
  * IPC calls pattern:
  *   const result = await window.api.invoke<MyReturnType>('my-plugin:action', payload)
  *
- * Design tokens (Tailwind classes):
- *   - Backgrounds: bg-surface, bg-surface-container-low, bg-surface-container, bg-surface-container-highest
- *   - Text: text-on-surface, text-on-surface-variant
- *   - Accent: text-primary (#ba9eff), text-secondary (#53ddfc)
- *   - Cards: bg-surface-container-low rounded-xl border border-outline-variant/10
- *   - Primary button: gradient from-primary to-secondary, text-on-primary-fixed, rounded-full
+ * Design system (tokens only — no hex, no raw Tailwind palette colors, no gradients):
+ *   - Surfaces: bg-surface, bg-sidebar/40 (side panes), bg-on-surface/[0.06] (neutral fills)
+ *   - Text: text-on-surface, text-on-surface-variant, text-success|warning|error
+ *   - Type scale: .t-title1|2|3, .t-headline, .t-body, .t-callout, .t-footnote, .t-caption, .t-section
+ *   - Borders: hairline, hairline-b|t|l|r, border-hairline
+ *   - Components: ui-card, ui-btn (+ ui-btn-primary|outline|ghost|danger, ui-btn-sm, ui-btn-icon), ui-input
+ *   - Shared React: Modal / Sheet / useConfirm (core/components/Modal), PageHeader / SettingsGroup (core/components/Form)
+ *   - UI copy in Spanish (rioplatense).
  */
 
 import { Puzzle } from 'lucide-react'
+import { PageHeader } from '../../core/components/Form'
 
 export function TemplatePlugin(): JSX.Element {
   return (
-    <div className="p-8 max-w-3xl mx-auto w-full">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-extrabold tracking-tight text-on-surface">My Plugin</h1>
-        <p className="text-on-surface-variant mt-1">Plugin description goes here.</p>
-      </div>
+    <div className="px-6 py-5 max-w-5xl mx-auto w-full flex flex-col gap-5">
+      <PageHeader
+        title="Mi módulo"
+        subtitle="Descripción breve de lo que hace el módulo."
+        actions={<button className="ui-btn ui-btn-primary">Acción principal</button>}
+      />
 
       {/* Example card */}
-      <div className="bg-surface-container-low rounded-xl p-6 border border-outline-variant/10">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <Puzzle size={20} className="text-primary" />
-          </div>
-          <h2 className="font-bold text-on-surface">Example Card</h2>
+      <div className="ui-card p-5">
+        <div className="flex items-center gap-2.5 mb-2">
+          <Puzzle size={16} className="text-on-surface-variant" />
+          <h2 className="t-headline text-on-surface">Tarjeta de ejemplo</h2>
         </div>
-        <p className="text-sm text-on-surface-variant leading-relaxed">
-          Replace this with your plugin content. Use{' '}
-          <code className="bg-surface-container-lowest px-1 rounded text-primary">window.api.invoke()</code>{' '}
-          to communicate with the Electron main process.
+        <p className="t-body text-on-surface-variant">
+          Reemplazá esto con el contenido del módulo. Usá{' '}
+          <code className="font-mono t-footnote bg-on-surface/[0.06] px-1 rounded">window.api.invoke()</code>{' '}
+          para hablar con el proceso principal de Electron.
         </p>
-      </div>
-
-      {/* Example primary button */}
-      <div className="mt-6">
-        <button
-          className="px-6 py-2.5 rounded-full text-sm font-bold text-on-primary-fixed shadow-neon-btn hover:brightness-110 transition-all"
-          style={{ background: 'linear-gradient(to right, #ba9eff, #53ddfc)' }}
-        >
-          Primary Action
-        </button>
       </div>
     </div>
   )

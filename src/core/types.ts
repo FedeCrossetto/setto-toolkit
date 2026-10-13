@@ -15,8 +15,19 @@ export interface PluginManifest {
   keywords?: string[]
   /** If true, the plugin icon appears pinned at the bottom of the sidebar */
   pinned?: boolean
-  /** Dashboard section grouping. Omit for default developer-tools section. */
-  section?: string
+  /** Sidebar/Dashboard grouping: 'personal' (uso diario) | 'dev' (desarrollo). Default 'dev'. */
+  section?: 'personal' | 'dev'
+  /** Hidden by default on a fresh install (still activable in Ajustes → Módulos). */
+  defaultDisabled?: boolean
+}
+
+/** Cross-plugin "open X with this payload" — e.g. Ctrl+K opening a specific note. */
+export interface PluginIntent {
+  pluginId: string
+  action: string
+  payload?: unknown
+  /** Monotonic stamp so the same intent can be re-sent */
+  stamp: number
 }
 
 export interface Tab {
@@ -48,6 +59,8 @@ export interface AppState {
   terminalInterrupt?: number
   /** Plugins that have unsaved changes, keyed by pluginId */
   dirtyPlugins: Record<string, boolean>
+  /** Last intent sent to a plugin (see usePluginIntent) */
+  pluginIntent?: PluginIntent
 }
 
 export type AppAction =
@@ -87,3 +100,6 @@ export type AppAction =
   | { type: 'INTERRUPT_TERMINAL' }
   /** Clear editor target after FileEditor has consumed it */
   | { type: 'CLEAR_EDITOR_TARGET' }
+  /** Open (or focus) a plugin tab and hand it an intent, e.g. { action: 'open-note', payload: id } */
+  | { type: 'OPEN_WITH_INTENT'; pluginId: string; action: string; payload?: unknown }
+  | { type: 'CLEAR_PLUGIN_INTENT' }

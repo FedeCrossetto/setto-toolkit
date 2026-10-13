@@ -1,7 +1,10 @@
 import { useState, useCallback } from 'react'
+import { DEFAULT_COLOR_SCHEME, migrateColorScheme } from '../themes/registry'
+import type { EditorColorScheme } from '../themes/registry'
+import type { EolKind } from '../types'
 
+export type { EditorColorScheme }
 export type EditorTheme = 'auto' | 'dark' | 'light'
-export type EditorColorScheme = 'nexus' | 'httpie' | 'aurora' | 'dracula' | 'monokai'
 
 export interface EditorPrefs {
   fontSize: number
@@ -16,21 +19,26 @@ export interface EditorPrefs {
   minimap: boolean
   /** Width in px of the left sidebar (Explorer + Open files) */
   sidebarWidth: number
+  /** Fin de línea para archivos nuevos (los existentes conservan el suyo) */
+  defaultEol: EolKind
+  /** One-time migration marker: autosave was switched on by default (see below) */
+  autoSaveMigrated?: boolean
 }
 
 const STORAGE_KEY = 'file-editor:prefs'
 
-// "SF Mono" only exists on macOS — on Windows/Linux it silently falls back through the
-// stack in monoStack() (CodeEditor.tsx), but starting from a font that's actually
-// installed renders crisper out of the box than relying on the fallback chain.
-const PLATFORM_DEFAULT_FONT = window.api.platform === 'darwin' ? 'SF Mono' : 'Consolas'
+// JetBrains Mono is bundled via Google Fonts (index.html) so it renders the same on every
+// platform; monoStack() (themes/buildTheme.ts) falls back to Cascadia/SF Mono/Consolas offline.
+const DEFAULT_FONT = 'JetBrains Mono'
 
-const DEFAULTS: EditorPrefs = { fontSize: 14, fontFamily: PLATFORM_DEFAULT_FONT, editorTheme: 'auto', colorScheme: 'nexus', autoSave: false, autoSaveDelay: 1500, tailLinesCount: 2000, minimap: false, sidebarWidth: 224 }
+const PLATFORM_EOL: EolKind = typeof window !== 'undefined' && window.api?.platform === 'win32' ? 'crlf' : 'lf'
+
+const DEFAULTS: EditorPrefs = { fontSize: 14, fontFamily: DEFAULT_FONT, editorTheme: 'auto', colorScheme: DEFAULT_COLOR_SCHEME, autoSave: true, autoSaveDelay: 1500, tailLinesCount: 2000, minimap: false, sidebarWidth: 224, defaultEol: PLATFORM_EOL, autoSaveMigrated: true }
 
 export const SIDEBAR_WIDTH_MIN = 180
 export const SIDEBAR_WIDTH_MAX = 480
 
-export const FONT_FAMILIES = ['SF Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas'] as const
+export const FONT_FAMILIES = ['JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', 'Consolas'] as const
 export const FONT_SIZE_MIN = 9
 export const FONT_SIZE_MAX = 18
 
@@ -38,18 +46,27 @@ export function useEditorPrefs() {
   const [prefs, setPrefs] = useState<EditorPrefs>(() => {
     try {
       const merged = { ...DEFAULTS, ...JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') }
-      // Migrate the old default (JetBrains Mono @ 11px) — it isn't installed on
-      // most systems and rendered as generic monospace. Move such users to SF Mono.
-      if (merged.fontFamily === 'JetBrains Mono' && merged.fontSize === 11) {
-        merged.fontFamily = DEFAULTS.fontFamily
-        merged.fontSize = DEFAULTS.fontSize
+      // Old ids ('nexus', 'httpie') and unknown values map to the current registry
+      merged.colorScheme = migrateColorScheme(merged.colorScheme)
+      // Autosave is on by default now (local history makes it safe). Stored prefs can't tell
+      // "explicitly turned off" from "old default", so migrate everyone to on exactly once;
+      // turning it off afterwards sticks because the marker is persisted.
+      if (!merged.autoSaveMigrated) {
+        merged.autoSave = true
+        merged.autoSaveMigrated = true
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(merged)) } catch { /* storage full */ }
       }
-      // Migrate users still on the untouched old default (SF Mono @ 13px) to the
-      // platform-appropriate font — "SF Mono" doesn't exist outside macOS.
+      if (merged.defaultEol !== 'crlf' && merged.defaultEol !== 'lf') merged.defaultEol = DEFAULTS.defaultEol
+      // Very old default (JetBrains Mono @ 11px) — keep the font, bump the size
+      if (merged.fontFamily === 'JetBrains Mono' && merged.fontSize === 11) merged.fontSize = DEFAULTS.fontSize
+      // Users still on the untouched old default (SF Mono @ 13px) outside macOS, where
+      // "SF Mono" doesn't exist, move to the bundled default.
       if (merged.fontFamily === 'SF Mono' && merged.fontSize === 13 && window.api.platform !== 'darwin') {
         merged.fontFamily = DEFAULTS.fontFamily
         merged.fontSize = DEFAULTS.fontSize
       }
+      // Tamaños enteros: medio píxel (13.5px) se ve borroso en Windows
+      merged.fontSize = Math.round(merged.fontSize)
       return merged
     } catch { return DEFAULTS }
   })

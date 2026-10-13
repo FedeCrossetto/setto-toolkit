@@ -1,0 +1,153 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useApp } from '../AppContext'
+import { Modal } from './Modal'
+import { SegmentedControl } from './SegmentedControl'
+import { useToast } from './Toast'
+import type { NoteMeta } from '../../plugins/notes/types'
+
+/**
+ * Quick capture popover (Ctrl+Shift+Space from anywhere, tray menu, or the
+ * command palette via `window.dispatchEvent(new CustomEvent('setto:quick-capture'))`).
+ * Self-contained: mount once inside the app providers.
+ *
+ * Event detail / IPC payload: `{ action?: 'capture' | 'new-note', mode?: 'nota' | 'gasto' | 'snippet' }`.
+ */
+type Mode = 'nota' | 'gasto' | 'snippet'
+
+const MODES: { value: Mode; label: string }[] = [
+  { value: 'nota', label: 'Nota' },
+  { value: 'gasto', label: 'Gasto' },
+  { value: 'snippet', label: 'Snippet' },
+]
+
+const PLACEHOLDER: Record<Mode, string> = {
+  nota: 'Escribí una idea… se guarda como nota nueva',
+  gasto: 'Ej.: 4500 súper — se abre Gastos con el texto cargado',
+  snippet: 'Pegá el código o comando a guardar',
+}
+
+const MODE_KEY = 'quick-capture:mode'
+
+interface CaptureRequest { action?: 'capture' | 'new-note'; mode?: Mode }
+
+function readMode(): Mode {
+  try {
+    const m = localStorage.getItem(MODE_KEY)
+    return m === 'gasto' || m === 'snippet' ? m : 'nota'
+  } catch {
+    return 'nota'
+  }
+}
+
+export function QuickCapture(): JSX.Element {
+  const { dispatch } = useApp()
+  const { show: notify } = useToast()
+  const [open, setOpen] = useState(false)
+  const [mode, setMode] = useState<Mode>(readMode)
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  const handleRequest = useCallback((req?: CaptureRequest) => {
+    if (req?.action === 'new-note') {
+      dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'notes', action: 'new', payload: {} })
+      return
+    }
+    if (req?.mode) setMode(req.mode)
+    setOpen(true)
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }, [dispatch])
+
+  useEffect(() => {
+    const offIpc = window.api.on('app:quick-capture', (payload) => handleRequest(payload as CaptureRequest | undefined))
+    const onEvent = (e: Event): void => handleRequest((e as CustomEvent<CaptureRequest | undefined>).detail)
+    window.addEventListener('setto:quick-capture', onEvent)
+    return () => {
+      offIpc()
+      window.removeEventListener('setto:quick-capture', onEvent)
+    }
+  }, [handleRequest])
+
+  useEffect(() => {
+    try { localStorage.setItem(MODE_KEY, mode) } catch { /* ignore */ }
+    if (open) requestAnimationFrame(() => inputRef.current?.focus())
+  }, [mode, open])
+
+  const close = useCallback(() => { setOpen(false); setBusy(false) }, [])
+
+  const save = async (): Promise<void> => {
+    const value = text.trim()
+    if (!value || busy) return
+    if (mode === 'nota') {
+      setBusy(true)
+      try {
+        const meta = await window.api.invoke<NoteMeta>('notes:write', null, value)
+        notify(`Nota guardada: ${meta.title}`, 'success')
+        setText('')
+        close()
+      } catch (err) {
+        notify(`No se pudo guardar la nota: ${err instanceof Error ? err.message : String(err)}`, 'error')
+        setBusy(false)
+      }
+      return
+    }
+    if (mode === 'gasto') {
+      dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'gastos', action: 'quick-add', payload: { text: value } })
+    } else {
+      dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'snippets', action: 'new', payload: { content: text } })
+    }
+    setText('')
+    close()
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (e.key !== 'Enter' || e.shiftKey || e.altKey) return
+    const multiline = text.includes('\n')
+    // Single line: Enter saves. Multiline: Enter adds a line, Ctrl+Enter saves.
+    if (e.ctrlKey || e.metaKey || !multiline) {
+      e.preventDefault()
+      void save()
+    }
+  }
+
+  const multiline = text.includes('\n')
+
+  return (
+    <Modal
+      open={open}
+      onClose={close}
+      width={500}
+      title="Captura rápida"
+      subtitle="Ctrl+Shift+Espacio desde cualquier lado"
+      footer={
+        <>
+          <span className="t-caption text-on-surface-variant/80 mr-auto flex items-center gap-1.5">
+            <kbd className="px-1.5 py-[2px] rounded-[5px] bg-on-surface/[0.06] font-sans text-[11px] font-medium">{multiline ? 'Ctrl+Enter' : 'Enter'}</kbd>
+            guarda
+            <kbd className="ml-1.5 px-1.5 py-[2px] rounded-[5px] bg-on-surface/[0.06] font-sans text-[11px] font-medium">Shift+Enter</kbd>
+            nueva línea
+          </span>
+          <button type="button" className="ui-btn ui-btn-outline" onClick={close}>Cancelar</button>
+          <button type="button" className="ui-btn ui-btn-primary" onClick={() => { void save() }} disabled={!text.trim() || busy}>
+            {mode === 'nota' ? 'Guardar nota' : mode === 'gasto' ? 'Cargar gasto' : 'Crear snippet'}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-3 pt-1">
+        <SegmentedControl options={MODES} value={mode} onChange={setMode} />
+        <textarea
+          ref={inputRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={onKeyDown}
+          rows={Math.min(8, Math.max(3, text.split('\n').length))}
+          placeholder={PLACEHOLDER[mode]}
+          aria-label="Texto a capturar"
+          spellCheck={mode !== 'snippet'}
+          className={`ui-input w-full resize-none rounded-xl px-3.5 py-3 t-callout ${mode === 'snippet' ? 'font-mono text-[13px]' : ''}`}
+        />
+      </div>
+    </Modal>
+  )
+}

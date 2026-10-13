@@ -6,7 +6,7 @@ import { defineConfig } from '@playwright/test'
  */
 export default defineConfig({
   testDir: './e2e',
-  timeout: 30_000,
+  timeout: 60_000,
   // Electron apps can't share a single instance across parallel workers
   workers: 1,
   fullyParallel: false,

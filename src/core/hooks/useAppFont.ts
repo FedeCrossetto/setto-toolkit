@@ -7,8 +7,11 @@ export interface AppFontPrefs {
 
 const STORAGE_KEY = 'app:font-prefs'
 const DEFAULTS: AppFontPrefs = { fontFamily: 'Inter', fontSize: 'normal' }
+/** Rediseño v4 (SaaS): la primera vez se pasa a Inter. */
+const DESIGN_V2_KEY = 'app:design-v4-font'
 
 export const APP_FONT_FAMILIES = [
+  { label: 'Sistema',        stack: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, 'Segoe UI Variable Text', system-ui, sans-serif" },
   { label: 'Inter',          stack: 'Inter, system-ui, sans-serif' },
   { label: 'System UI',      stack: 'system-ui, -apple-system, sans-serif' },
   { label: 'Segoe UI',       stack: "'Segoe UI', system-ui, sans-serif" },
@@ -17,8 +20,8 @@ export const APP_FONT_FAMILIES = [
 
 export const APP_FONT_SIZES: Record<AppFontPrefs['fontSize'], string> = {
   small:  '13px',
-  normal: '15px',
-  large:  '17px',
+  normal: '14px',
+  large:  '16px',
 }
 
 function applyFont(prefs: AppFontPrefs): void {
@@ -28,6 +31,11 @@ function applyFont(prefs: AppFontPrefs): void {
 }
 
 function readPrefs(): AppFontPrefs {
+  if (!localStorage.getItem(DESIGN_V2_KEY)) {
+    localStorage.setItem(DESIGN_V2_KEY, '1')
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULTS))
+    return DEFAULTS
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     return raw ? { ...DEFAULTS, ...JSON.parse(raw) } : DEFAULTS

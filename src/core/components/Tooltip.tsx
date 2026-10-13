@@ -12,10 +12,9 @@ interface TooltipProps {
 }
 
 /**
- * Tooltip propio, consistente con el dark theme de la app.
+ * Tooltip oscuro (color de la barra superior), chico y redondeado.
  * Renderiza por portal en <body> con position:fixed — nunca queda
  * clippeado por contenedores con overflow-hidden.
- * Reemplaza los title= nativos del browser en botones icon-only.
  */
 export function Tooltip({ label, shortcut, side = 'bottom', children }: TooltipProps): JSX.Element {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
@@ -28,7 +27,7 @@ export function Tooltip({ label, shortcut, side = 'bottom', children }: TooltipP
     timerRef.current = setTimeout(() => {
       setPos({
         x: rect.left + rect.width / 2,
-        y: side === 'bottom' ? rect.bottom + 8 : rect.top - 8,
+        y: side === 'bottom' ? rect.bottom + 6 : rect.top - 6,
       })
     }, 450)
   }
@@ -59,25 +58,17 @@ export function Tooltip({ label, shortcut, side = 'bottom', children }: TooltipP
       {pos && label && createPortal(
         <div
           role="tooltip"
-          className="pointer-events-none fixed z-[500] flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap"
+          className="pointer-events-none fixed z-[700] flex items-center gap-1.5 px-2 py-[5px] rounded-md bg-[rgb(var(--c-topbar))] text-white text-[12px] font-medium leading-none whitespace-nowrap shadow-md"
           style={{
             left: pos.x,
             top: pos.y,
             transform: side === 'bottom' ? 'translateX(-50%)' : 'translate(-50%, -100%)',
-            background: 'rgb(var(--c-surface-container-highest) / 0.95)',
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
-            border: '1px solid rgb(var(--c-outline-variant) / 0.3)',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-            color: 'rgb(var(--c-on-surface))',
-            animation: 'fadeSlideUp 0.12s ease-out',
+            animation: 'fadeIn 0.12s ease both',
           }}
         >
           {label}
           {shortcut && (
-            <kbd className="text-[9px] px-1 py-px rounded border border-outline-variant/40 bg-surface-container text-on-surface-variant font-mono">
-              {shortcut}
-            </kbd>
+            <span className="px-1 py-[2px] rounded-[4px] bg-white/[0.12] text-white/70 text-[11px] font-medium">{shortcut}</span>
           )}
         </div>,
         document.body

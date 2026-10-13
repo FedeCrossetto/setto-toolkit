@@ -4,6 +4,7 @@ import { contextBridge, ipcRenderer, webFrame } from 'electron'
 const INVOKE_CHANNELS = new Set([
   'settings:get', 'settings:set', 'settings:delete', 'settings:getAll',
   'settings:export', 'settings:import', 'settings:export-logs', 'settings:encryption-available', 'settings:validate-openai-key',
+  'settings:test-connection', 'settings:supabase-source',
   'repo-search:login', 'repo-search:logout', 'repo-search:me', 'repo-search:search',
   'repo-search:history-get', 'repo-search:history-save', 'repo-search:history-clear',
   'repo-search:github-oauth-start', 'repo-search:github-oauth-poll',
@@ -15,6 +16,7 @@ const INVOKE_CHANNELS = new Set([
   'editor:watch-start', 'editor:watch-stop', 'editor:reveal',
   'editor:create-file', 'editor:create-dir', 'editor:rename', 'editor:delete', 'editor:delete-permanent',
   'editor:find-in-files', 'editor:recent-get', 'editor:recent-clear', 'editor:git-diff',
+  'editor:replace-in-files', 'editor:history-list', 'editor:history-read', 'editor:history-restore',
   'app:version', 'app:pending-file',
   'auth:google-user', 'auth:google-start', 'auth:google-logout',
   'api-tester:collections-get', 'api-tester:collections-save',
@@ -26,6 +28,14 @@ const INVOKE_CHANNELS = new Set([
   'api-tester:run-script',
   'snippets:load', 'snippets:save', 'snippets:delete', 'snippets:collections-save',
   'snippets:export', 'snippets:import',
+  'snippets:mark-used', 'snippets:meta-get', 'snippets:migrate-queries',
+  'credentials:copy-secret',
+  'credentials:list', 'credentials:save', 'credentials:delete',
+  'credentials:toggle-favorite', 'credentials:mark-used',
+  'credentials:copy-password', 'credentials:reveal',
+  'credentials:password-audit', 'credentials:check-reuse',
+  'credentials:lock-status', 'credentials:lock', 'credentials:pin-verify', 'credentials:pin-set',
+  'credentials:import-pick', 'credentials:import-commit', 'credentials:import-cancel', 'credentials:export-csv',
   'ticket-resolver:fetch', 'ticket-resolver:plan', 'ticket-resolver:search', 'ticket-resolver:analyze',
   'ticket-resolver:history-get', 'ticket-resolver:history-save', 'ticket-resolver:history-delete',
   'ticket-resolver:ai-usage-get', 'ticket-resolver:ai-usage-reset',
@@ -40,8 +50,22 @@ const INVOKE_CHANNELS = new Set([
   'gastos:credencial-save', 'gastos:credencial-delete',
   'gastos:supabase-config-get', 'gastos:supabase-config-save',
   'gastos:remote-version-get',
+  'gastos:save-gasto', 'gastos:delete-gasto', 'gastos:export-csv',
+  'gastos:supabase-health', 'gastos:supabase-test',
+  'gastos:cache-get', 'gastos:cache-set', 'gastos:pending-get', 'gastos:pending-set',
+  'gastos:import-file-open',
   'queries:load', 'queries:save', 'queries:delete',
   'updater:download',
+  'notes:list', 'notes:read', 'notes:write', 'notes:delete', 'notes:set-pinned',
+  'notes:today', 'notes:get-dir', 'notes:choose-dir', 'notes:reveal',
+  'app:notify',
+  'snippet-picker:shortcut', 'snippet-picker:paste',
+  'clipboard:history', 'clipboard:clear', 'clipboard:remove', 'clipboard:copy', 'clipboard:set-enabled',
+  'clipboard:pin', 'clipboard:open-path', 'clipboard:queue-set', 'clipboard:queue-state', 'clipboard:queue-advance', 'clipboard:queue-clear',
+  'clipboard:ocr-image', 'clipboard:shortcuts', 'snippet-picker:paste-current',
+  'sync:status', 'sync:run', 'sync:set-enabled',
+  'captures:query', 'captures:get', 'captures:settings', 'captures:update', 'captures:update-many', 'captures:delete',
+  'captures:copy', 'captures:reveal', 'captures:export', 'captures:save-annotated',
 ])
 
 /** Channels the renderer may send (fire-and-forget → main) */
@@ -52,6 +76,9 @@ const SEND_CHANNELS = new Set([
   'editor:authorize-root',
   'terminal:input', 'terminal:resize',
   'updater:install',
+  'snippet-picker:close',
+  'captures:start-drag',
+  'app:open-in-main',
 ])
 
 /** Channels the renderer may subscribe to (main → renderer) */
@@ -59,6 +86,11 @@ const ON_CHANNELS = new Set([
   'open-file', 'page:found', 'editor:file-changed',
   'terminal:data', 'terminal:exit',
   'updater:status',
+  'app:quick-capture',
+  'app:notification-click',
+  'snippet-picker:opened',
+  'sync:changed',
+  'captures:changed',
 ])
 
 const api = {

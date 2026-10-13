@@ -70,7 +70,7 @@ export function useRequestRunner(environments: Environment[]) {
     } catch (e) {
       if (cancelledRef.current) return
       const msg = e instanceof Error ? e.message : String(e)
-      setError(msg === 'TIMEOUT' ? 'Request timed out (30s)' : msg)
+      setError(msg === 'TIMEOUT' ? 'El request superó el tiempo de espera (30 s)' : msg)
       setStatus('error')
     }
   }, [envVars, loadHistory])

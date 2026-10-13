@@ -1,0 +1,207 @@
+/**
+ * Capa de íconos de la app.
+ *
+ * Todo el código importa íconos con nombres de `lucide-react`, pero Vite y
+ * TypeScript resuelven ese módulo a ESTE archivo (alias en electron.vite.config.ts
+ * y `paths` en tsconfig.web.json). Cada nombre se traduce a un ícono de Phosphor
+ * (estilo redondeado, parecido a SF Symbols de macOS).
+ *
+ * - Cambiar el estilo global: `DEFAULT_WEIGHT` (thin | light | regular | bold | fill | duotone).
+ * - Cambiar un ícono puntual: editar la tabla de abajo.
+ * - Usar un ícono nuevo: agregarlo a la tabla (si falta, tsc falla en el import).
+ */
+import { forwardRef, type CSSProperties, type ForwardRefExoticComponent, type RefAttributes, type SVGProps } from 'react'
+import * as P from '@phosphor-icons/react'
+import type { Icon as PhosphorIcon, IconWeight } from '@phosphor-icons/react'
+
+export const DEFAULT_WEIGHT: IconWeight = 'regular'
+
+export interface LucideProps extends Omit<SVGProps<SVGSVGElement>, 'ref'> {
+  size?: number | string
+  color?: string
+  strokeWidth?: number | string
+  absoluteStrokeWidth?: boolean
+  className?: string
+  style?: CSSProperties
+  /** Extensión: peso Phosphor explícito (p. ej. 'fill' para el ítem activo). */
+  weight?: IconWeight
+}
+
+export type LucideIcon = ForwardRefExoticComponent<LucideProps & RefAttributes<SVGSVGElement>>
+
+function make(Icon: PhosphorIcon, fixedWeight?: IconWeight): LucideIcon {
+  const C = forwardRef<SVGSVGElement, LucideProps>(function AppIcon(
+    { size = 24, strokeWidth, absoluteStrokeWidth: _abs, weight, ...rest },
+    ref,
+  ) {
+    const sw = typeof strokeWidth === 'string' ? parseFloat(strokeWidth) : strokeWidth
+    const w = weight ?? fixedWeight ?? (sw !== undefined && sw >= 2.25 ? 'bold' : sw !== undefined && sw <= 1.25 ? 'light' : DEFAULT_WEIGHT)
+    // Phosphor dibuja el glifo algo más chico que lucide en el mismo tamaño: compensar levemente.
+    const px = typeof size === 'number' ? Math.round(size * 1.08) : size
+    return <Icon ref={ref} size={px} weight={w} {...(rest as object)} />
+  })
+  return C as unknown as LucideIcon
+}
+
+export const Activity          = make(P.Pulse)
+export const AlertTriangle     = make(P.Warning)
+export const ArrowDown         = make(P.ArrowDown)
+export const ArrowDownToLine   = make(P.ArrowLineDown)
+export const ArrowLeftRight    = make(P.ArrowsLeftRight)
+export const ArrowRight        = make(P.ArrowRight)
+export const ArrowUpRight      = make(P.ArrowUpRight)
+export const BarChart2         = make(P.ChartBar)
+export const BookMarked        = make(P.BookBookmark)
+export const BookOpen          = make(P.BookOpen)
+export const BookmarkPlus      = make(P.BookmarkSimple)
+export const Bot               = make(P.Robot)
+export const Brain             = make(P.Brain)
+export const Building2         = make(P.Buildings)
+export const CalendarClock     = make(P.CalendarDots)
+export const CalendarDays      = make(P.CalendarBlank)
+export const Car               = make(P.Car)
+export const Check             = make(P.Check)
+export const CheckCircle2      = make(P.CheckCircle)
+export const ChevronDown       = make(P.CaretDown)
+export const ChevronLeft       = make(P.CaretLeft)
+export const ChevronRight      = make(P.CaretRight)
+export const ChevronUp         = make(P.CaretUp)
+export const Circle            = make(P.Circle)
+export const CircleAlert       = make(P.WarningCircle)
+export const CircleStop        = make(P.StopCircle)
+export const ClipboardList     = make(P.ClipboardText)
+export const Clock             = make(P.Clock)
+export const Code2             = make(P.Code)
+export const Columns2          = make(P.SquareSplitHorizontal)
+export const Copy              = make(P.Copy)
+export const CopyPlus          = make(P.CopySimple)
+export const CornerDownLeft    = make(P.ArrowElbowDownLeft)
+export const CreditCard        = make(P.CreditCard)
+export const Diff              = make(P.GitDiff)
+export const Download          = make(P.DownloadSimple)
+export const Droplets          = make(P.Drop)
+export const Dumbbell          = make(P.Barbell)
+export const Eraser            = make(P.Eraser)
+export const ExternalLink      = make(P.ArrowSquareOut)
+export const Eye               = make(P.Eye)
+export const EyeOff            = make(P.EyeSlash)
+export const FileCode2         = make(P.FileCode)
+export const FileInput         = make(P.FileArrowDown)
+export const FilePlus          = make(P.FilePlus)
+export const FileSearch        = make(P.FileMagnifyingGlass)
+export const FileText          = make(P.FileText)
+export const FileUp            = make(P.FileArrowUp)
+export const Filter            = make(P.Funnel)
+export const Flame             = make(P.Flame)
+export const Folder            = make(P.Folder)
+export const FolderCog         = make(P.FolderSimple)
+export const FolderOpen        = make(P.FolderOpen)
+export const FolderPlus        = make(P.FolderPlus)
+export const FolderSearch      = make(P.MagnifyingGlass)
+export const FolderTree        = make(P.TreeStructure)
+export const GitCompare        = make(P.GitDiff)
+export const Globe             = make(P.Globe)
+export const History           = make(P.ClockCounterClockwise)
+export const House             = make(P.House)
+export const ImageOff          = make(P.ImageBroken)
+export const Import            = make(P.DownloadSimple)
+export const Info              = make(P.Info)
+export const KeyRound          = make(P.Key)
+export const Keyboard          = make(P.Keyboard)
+export const Landmark          = make(P.Bank)
+export const LayoutGrid        = make(P.SquaresFour)
+export const ListPlus          = make(P.ListPlus)
+export const Loader2           = make(P.SpinnerGap)
+export const LoaderCircle      = make(P.CircleNotch)
+export const Lock              = make(P.Lock)
+export const LockOpen          = make(P.LockOpen)
+export const LogOut            = make(P.SignOut)
+export const Minus             = make(P.Minus)
+export const Monitor           = make(P.Monitor)
+export const Moon              = make(P.Moon)
+export const MoreHorizontal    = make(P.DotsThree, 'bold')
+export const MoreVertical      = make(P.DotsThreeVertical, 'bold')
+export const Music             = make(P.MusicNotes)
+export const Network           = make(P.TreeStructure)
+export const NotebookPen       = make(P.NotePencil)
+export const Palette           = make(P.Palette)
+export const PanelLeft         = make(P.SidebarSimple)
+export const PanelLeftClose    = make(P.SidebarSimple)
+export const PanelLeftOpen     = make(P.SidebarSimple)
+export const Paperclip         = make(P.Paperclip)
+export const Pause             = make(P.Pause)
+export const PenLine           = make(P.PencilLine)
+export const Pencil            = make(P.PencilSimple)
+export const PiggyBank         = make(P.PiggyBank)
+export const Pin               = make(P.PushPin)
+export const PinOff            = make(P.PushPinSlash)
+export const Play              = make(P.Play)
+export const Plug              = make(P.Plug)
+export const Plus              = make(P.Plus)
+export const Puzzle            = make(P.PuzzlePiece)
+export const Radio             = make(P.Broadcast)
+export const Receipt           = make(P.Receipt)
+export const RefreshCw         = make(P.ArrowsClockwise)
+export const Replace           = make(P.Swap)
+export const RotateCcw         = make(P.ArrowCounterClockwise)
+export const Save              = make(P.FloppyDisk)
+export const Search            = make(P.MagnifyingGlass)
+export const SearchX           = make(P.MagnifyingGlassMinus)
+export const Send              = make(P.PaperPlaneTilt)
+export const SendHorizontal    = make(P.PaperPlaneRight)
+export const Settings          = make(P.GearSix)
+export const ShieldCheck       = make(P.ShieldCheck)
+export const ShieldAlert       = make(P.ShieldWarning)
+export const Star              = make(P.Star)
+export const CloudCheck        = make(P.CloudCheck)
+export const CloudOff          = make(P.CloudSlash)
+export const CloudUpload       = make(P.CloudArrowUp)
+export const SlidersHorizontal = make(P.SlidersHorizontal)
+export const Smartphone        = make(P.DeviceMobile)
+export const Sparkles          = make(P.Sparkle)
+export const Square            = make(P.Square)
+export const SquareTerminal    = make(P.TerminalWindow)
+export const StopCircle        = make(P.StopCircle)
+export const Sun               = make(P.Sun)
+export const Terminal          = make(P.Terminal)
+export const Ticket            = make(P.Ticket)
+export const Trash2            = make(P.Trash)
+export const TrendingDown      = make(P.TrendDown)
+export const TrendingUp        = make(P.TrendUp)
+export const TriangleAlert     = make(P.Warning)
+export const Tv                = make(P.Television)
+export const Type              = make(P.TextT)
+export const Unlink            = make(P.LinkBreak)
+export const Upload            = make(P.UploadSimple)
+export const User              = make(P.User)
+export const Utensils          = make(P.ForkKnife)
+export const Wallet            = make(P.Wallet)
+export const Wand2             = make(P.MagicWand)
+export const Wifi              = make(P.WifiHigh)
+export const WrapText          = make(P.TextAlignLeft)
+export const Wrench            = make(P.Wrench)
+export const X                 = make(P.X)
+export const Zap               = make(P.Lightning)
+export const ZoomIn            = make(P.MagnifyingGlassPlus)
+export const ArrowLeft         = make(P.ArrowLeft)
+export const Camera            = make(P.Camera)
+export const ScanText          = make(P.Scan)
+export const ListOrdered       = make(P.ListNumbers)
+export const Crop              = make(P.Crop)
+export const Undo2             = make(P.ArrowCounterClockwise)
+export const Highlighter       = make(P.HighlighterCircle)
+export const Grid3x3           = make(P.GridFour)
+export const Images            = make(P.Images)
+export const AtSign            = make(P.At)
+export const Asterisk          = make(P.Asterisk)
+export const Bell              = make(P.Bell)
+export const BellRing          = make(P.BellRinging)
+export const Binary            = make(P.Binary)
+export const Braces            = make(P.BracketsCurly)
+export const ClipboardText     = make(P.ClipboardText)
+export const Fingerprint       = make(P.Fingerprint)
+export const Hash              = make(P.Hash)
+export const Link              = make(P.LinkSimple)
+export const Tag               = make(P.Tag)
+export const Timer             = make(P.Timer)
+export const Toolbox           = make(P.Toolbox)

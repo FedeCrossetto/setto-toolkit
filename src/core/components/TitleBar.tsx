@@ -1,53 +1,25 @@
 import { Minus, X, Square } from 'lucide-react'
 
-export function TitleBar(): JSX.Element {
-  const minimize = (): void => window.api.send('window:minimize')
-  const maximize = (): void => window.api.send('window:maximize')
-  const close = (): void => window.api.send('window:close')
+/**
+ * Window controls for Windows/Linux (macOS draws its own traffic lights via
+ * titleBarStyle: 'hidden'). Rendered at the right end of the dark top bar.
+ */
+export function WindowControls(): JSX.Element | null {
+  const isMac = window.api.platform === 'darwin'
+  if (isMac) return null
 
-  const isWindows = window.api.platform === 'win32' || window.api.platform === 'linux'
-
+  const btn = 'w-[44px] h-full flex items-center justify-center text-white/55 hover:text-white transition-colors no-drag'
   return (
-    <div
-      className="fixed top-0 left-0 right-0 h-8 z-[200] flex items-center justify-end"
-      style={{
-        WebkitAppRegion: 'drag',
-        background: 'rgb(var(--c-background) / 0.55)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        borderBottom: '1px solid rgb(var(--c-outline-variant) / 0.10)',
-      } as React.CSSProperties}
-    >
-      {/* macOS already has native traffic lights (left side, via titleBarStyle: 'hidden')
-          — only draw our own custom min/max/close on Windows/Linux, which have none. */}
-      {isWindows && (
-        <div
-          className="flex items-stretch h-full"
-          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        >
-          <button
-            onClick={minimize}
-            title="Minimizar"
-            className="w-11 h-full flex items-center justify-center text-on-surface-variant/70 hover:bg-on-surface/10 hover:text-on-surface transition-colors"
-          >
-            <Minus size={13} strokeWidth={1.5} />
-          </button>
-          <button
-            onClick={maximize}
-            title="Maximizar"
-            className="w-11 h-full flex items-center justify-center text-on-surface-variant/70 hover:bg-on-surface/10 hover:text-on-surface transition-colors"
-          >
-            <Square size={10} strokeWidth={1.5} />
-          </button>
-          <button
-            onClick={close}
-            title="Cerrar"
-            className="w-11 h-full flex items-center justify-center text-on-surface-variant/70 hover:bg-error hover:text-white transition-colors"
-          >
-            <X size={14} strokeWidth={1.5} />
-          </button>
-        </div>
-      )}
+    <div className="flex items-stretch self-stretch -mr-3 ml-1">
+      <button onClick={() => window.api.send('window:minimize')} title="Minimizar" className={`${btn} hover:bg-white/10`}>
+        <Minus size={14} strokeWidth={1.4} />
+      </button>
+      <button onClick={() => window.api.send('window:maximize')} title="Maximizar" className={`${btn} hover:bg-white/10`}>
+        <Square size={11} strokeWidth={1.4} />
+      </button>
+      <button onClick={() => window.api.send('window:close')} title="Cerrar" className={`${btn} hover:!bg-[#e81123] hover:!text-white`}>
+        <X size={15} strokeWidth={1.4} />
+      </button>
     </div>
   )
 }

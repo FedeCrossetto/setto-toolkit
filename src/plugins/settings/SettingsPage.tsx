@@ -1,39 +1,21 @@
-import { useState, useEffect, useRef } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
 import {
-  Check, CheckCircle2, ChevronDown, CircleAlert, Download,
-  Eye, EyeOff, Lock, Moon, Sun, Upload,
-  Palette, Bot, Plug, Archive, Puzzle, type LucideIcon,
+  Bot, Check, Download, Eye, EyeOff, FileText, Info, Keyboard, Lock, Monitor, Moon,
+  LayoutGrid, Palette, Plug, RefreshCw, Sun, TriangleAlert, Type, Upload, ZoomIn,
 } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
 import { allPlugins } from '../../core/plugin-registry'
 import { PluginIcon } from '../../core/pluginIcons'
-import { useAppFont, APP_FONT_FAMILIES, APP_FONT_SIZES } from '../../core/hooks/useAppFont'
+import { useAppFont, APP_FONT_FAMILIES, APP_FONT_SIZES, type AppFontPrefs } from '../../core/hooks/useAppFont'
 import { useUiScale, UI_SCALE_MIN, UI_SCALE_MAX, UI_SCALE_STEP } from '../../core/hooks/useUiScale'
-import { useThemePalette, PALETTES } from '../../core/hooks/useThemePalette'
-
-// ── Toggle switch ──────────────────────────────────────────────────────────────
-function Toggle({ enabled, onChange }: { enabled: boolean; onChange: () => void }): JSX.Element {
-  return (
-    <button
-      role="switch"
-      aria-checked={enabled}
-      onClick={onChange}
-      className={[
-        'relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full p-1',
-        'transition-colors duration-200 ease-in-out focus:outline-none',
-        enabled ? 'bg-primary' : 'bg-outline-variant/30',
-      ].join(' ')}
-      style={enabled ? { boxShadow: '0 0 12px rgb(var(--c-primary) / 0.35)' } : undefined}
-    >
-      <motion.span
-        className="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm"
-        animate={{ x: enabled ? 20 : 0 }}
-        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-      />
-    </button>
-  )
-}
+import { AppearanceSettings } from './AppearanceSettings'
+import { useThemeMode, type ThemeMode } from '../../core/themeMode'
+import { SettingsGroup, SettingsRow, Toggle } from '../../core/components/Form'
+import { SegmentedControl } from '../../core/components/SegmentedControl'
+import { useToast } from '../../core/components/Toast'
+import { DesktopSettings } from './DesktopSettings'
+import { SyncSettings } from './SyncSettings'
+import type { IconComponent, PluginManifest } from '../../core/types'
 
 interface SettingsState {
   'ai.provider': string
@@ -47,7 +29,6 @@ interface SettingsState {
   'bitbucket.workspace': string
   'repo-search.github.client_id': string
   'repo-search.gitlab.client_id': string
-  'dashboard.mascot': string
 }
 
 /** Sentinel returned by the main process when a secure key is already set. */
@@ -57,43 +38,64 @@ const OPENAI_MODELS = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo']
 const ANTHROPIC_MODELS = ['claude-haiku-4-5-20251001', 'claude-sonnet-4-5-20251001', 'claude-sonnet-4-6', 'claude-opus-4-6']
 type AIProvider = 'openai' | 'anthropic' | 'ollama'
 
-function SectionHeader({ icon: Icon, label, accent = 'text-primary' }: { icon: LucideIcon; label: string; accent?: string }): JSX.Element {
-  const tint = accent === 'text-secondary' ? 'bg-secondary/12' : accent === 'text-accent' ? 'bg-accent/12' : 'bg-primary/12'
-  return (
-    <h2 className={`flex items-center gap-2.5 text-xs font-semibold uppercase tracking-widest mb-3 ${accent}`}>
-      <span className={`w-7 h-7 rounded-lg flex items-center justify-center ${tint}`}>
-        <Icon size={14} />
-      </span>
-      {label}
-    </h2>
-  )
+/** Plugins that can't be turned off */
+const LOCKED = new Set(['dashboard', 'settings', 'about'])
+const SYSTEM_PLUGINS = new Set(['connections', 'settings', 'about'])
+
+/** Secciones de la página (índice lateral con scroll-spy). */
+const SECTIONS = [
+  { id: 'ajustes-apariencia', label: 'Apariencia', icon: Palette },
+  { id: 'ajustes-texto', label: 'Texto', icon: Type },
+  { id: 'ajustes-escritorio', label: 'Escritorio', icon: Monitor },
+  { id: 'ajustes-sync', label: 'Sincronización', icon: RefreshCw },
+  { id: 'ajustes-modulos', label: 'Módulos', icon: LayoutGrid },
+  { id: 'ajustes-ia', label: 'IA', icon: Bot },
+  { id: 'ajustes-integraciones', label: 'Integraciones', icon: Plug },
+  { id: 'ajustes-datos', label: 'Datos', icon: Download },
+  { id: 'ajustes-acerca', label: 'Acerca de', icon: Info },
+] as const
+
+type SectionId = (typeof SECTIONS)[number]['id']
+const SECTION_IDS: readonly SectionId[] = SECTIONS.map((x) => x.id)
+
+/** Marca como activa la sección que está arriba del área visible. */
+function useScrollSpy(ids: readonly string[]): [string, (id: string) => void] {
+  const [active, setActive] = useState(ids[0] ?? '')
+  const lock = useRef(0)
+  useEffect(() => {
+    const visible = new Map<string, boolean>()
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) visible.set(e.target.id, e.isIntersecting)
+      if (Date.now() < lock.current) return
+      const first = ids.find((id) => visible.get(id))
+      if (first) setActive(first)
+    }, { rootMargin: '-8% 0px -65% 0px' })
+    for (const id of ids) {
+      const el = document.getElementById(id)
+      if (el) io.observe(el)
+    }
+    return () => io.disconnect()
+  }, [ids])
+  const go = (id: string): void => {
+    lock.current = Date.now() + 700
+    setActive(id)
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+  return [active, go]
 }
 
-function SettingRow({
-  label,
-  description,
-  children,
-}: {
-  label: string
-  description?: React.ReactNode
-  children: React.ReactNode
-}): JSX.Element {
-  return (
-    <div className="flex items-start justify-between gap-8 py-5 border-b border-outline-variant/15 last:border-0">
-      <div>
-        <div className="text-sm font-semibold text-on-surface">{label}</div>
-        {description && <div className="text-xs text-on-surface-variant mt-1">{description}</div>}
-      </div>
-      <div className="flex-shrink-0 w-72">{children}</div>
-    </div>
-  )
+/** Wider control column for inputs inside a SettingsRow. */
+function Control({ children, width = 280 }: { children: ReactNode; width?: number }): JSX.Element {
+  return <div style={{ width }} className="flex flex-col gap-1.5 items-stretch">{children}</div>
 }
 
 export function SettingsPage(): JSX.Element {
   const { state, dispatch } = useApp()
+  const toast = useToast()
   const { prefs: fontPrefs, updateFont } = useAppFont()
   const { scale: uiScale, setScale: setUiScale, resetScale: resetUiScale } = useUiScale()
-  const { palette, setPalette } = useThemePalette()
+  const [themeMode, setThemeMode] = useThemeMode()
+  const [version, setVersion] = useState('…')
   const [settings, setSettings] = useState<SettingsState>({
     'ai.provider': 'openai',
     'ai.openai_key': '',
@@ -106,10 +108,8 @@ export function SettingsPage(): JSX.Element {
     'bitbucket.workspace': '',
     'repo-search.github.client_id': '',
     'repo-search.gitlab.client_id': '',
-    'dashboard.mascot': 'setto-avatar',
   })
-  const [saved, setSaved] = useState(false)
-  const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [dirty, setDirty] = useState(false)
   const [showOpenAIKey, setShowOpenAIKey] = useState(false)
   const [showAnthropicKey, setShowAnthropicKey] = useState(false)
   const [openAIKeyConfigured, setOpenAIKeyConfigured] = useState(false)
@@ -120,19 +120,12 @@ export function SettingsPage(): JSX.Element {
 
   useEffect(() => {
     void window.api.invoke<boolean>('settings:encryption-available').then(setEncryptionAvailable).catch(() => {})
+    void window.api.invoke<string>('app:version').then(setVersion).catch(() => setVersion('—'))
   }, [])
 
   useEffect(() => {
     const load = async (): Promise<void> => {
-      const keys: (keyof SettingsState)[] = [
-        'ai.provider', 'ai.openai_key', 'ai.model',
-        'ai.anthropic_key', 'ai.anthropic_model',
-        'ai.ollama_url', 'ai.ollama_model', 'ai.ollama_timeout',
-        'bitbucket.workspace',
-        'repo-search.github.client_id',
-        'repo-search.gitlab.client_id',
-        'dashboard.mascot',
-      ]
+      const keys = Object.keys(settings) as (keyof SettingsState)[]
       const values = await Promise.all(keys.map((k) => window.api.invoke<string | null>('settings:get', k)))
       setSettings((prev) => {
         const updated = { ...prev }
@@ -152,7 +145,8 @@ export function SettingsPage(): JSX.Element {
         return updated
       })
     }
-    load()
+    load().catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleSave = async (): Promise<void> => {
@@ -161,23 +155,28 @@ export function SettingsPage(): JSX.Element {
       'ai.anthropic_key': anthropicKeyConfigured,
     }
     const entries = Object.entries(settings) as [string, string][]
-    await Promise.all(
-      entries
-        .filter(([k, v]) => {
-          if (MASKED[k] && v === '') return false
-          if (!v.trim()) return false
-          return true
-        })
-        .map(([k, v]) => window.api.invoke('settings:set', k, v))
-    )
-    if (settings['ai.openai_key'].trim()) setOpenAIKeyConfigured(true)
-    if (settings['ai.anthropic_key'].trim()) setAnthropicKeyConfigured(true)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    try {
+      await Promise.all(
+        entries
+          .filter(([k, v]) => {
+            if (MASKED[k] && v === '') return false
+            if (!v.trim()) return false
+            return true
+          })
+          .map(([k, v]) => window.api.invoke('settings:set', k, v))
+      )
+      if (settings['ai.openai_key'].trim()) setOpenAIKeyConfigured(true)
+      if (settings['ai.anthropic_key'].trim()) setAnthropicKeyConfigured(true)
+      setDirty(false)
+      toast.show('Ajustes guardados', 'success')
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'No se pudieron guardar los ajustes', 'error')
+    }
   }
 
   const update = (key: keyof SettingsState, value: string): void => {
     setSettings((prev) => ({ ...prev, [key]: value }))
+    setDirty(true)
     if (key === 'ai.openai_key') setKeyTest({ status: 'idle' })
   }
 
@@ -185,555 +184,362 @@ export function SettingsPage(): JSX.Element {
     const key = settings['ai.openai_key'].trim()
     if (!key) return
     setKeyTest({ status: 'loading' })
-    const result = await window.api.invoke<{ valid: boolean; error?: string }>('settings:validate-openai-key', key)
-    if (result.valid) {
-      setKeyTest({ status: 'ok' })
-    } else {
-      setKeyTest({ status: 'error', message: result.error })
+    try {
+      const result = await window.api.invoke<{ valid: boolean; error?: string }>('settings:validate-openai-key', key)
+      setKeyTest(result.valid ? { status: 'ok' } : { status: 'error', message: result.error })
+    } catch (e) {
+      setKeyTest({ status: 'error', message: e instanceof Error ? e.message : undefined })
     }
     if (keyTestTimer.current) clearTimeout(keyTestTimer.current)
     keyTestTimer.current = setTimeout(() => setKeyTest({ status: 'idle' }), 6000)
   }
 
-  const provider = (settings['ai.provider'] || 'openai') as AIProvider
+  const runDataAction = async (
+    channel: 'settings:export' | 'settings:import' | 'settings:export-logs',
+  ): Promise<void> => {
+    try {
+      const res = await window.api.invoke<{ ok: boolean; canceled?: boolean; count?: number; error?: string }>(channel)
+      if (res.canceled) return
+      if (channel === 'settings:import') {
+        toast.show(`Se importaron ${res.count ?? 0} ajuste(s). Recargá la app para aplicarlos.`, 'success', 5000)
+      } else if (channel === 'settings:export-logs' && !res.ok) {
+        toast.show(res.error ?? 'No se pudieron exportar los logs', 'error')
+      } else {
+        toast.show(channel === 'settings:export' ? 'Ajustes exportados' : 'Logs exportados', 'success')
+      }
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'La operación falló', 'error')
+    }
+  }
 
-  const inputCls = 'ui-input w-full text-sm'
+  const provider = (settings['ai.provider'] || 'openai') as AIProvider
+  const inputCls = 'ui-input w-full'
+
+  const personal = allPlugins.filter((p) => p.section === 'personal')
+  const dev = allPlugins.filter((p) => p.section !== 'personal' && !SYSTEM_PLUGINS.has(p.id))
+  const system = allPlugins.filter((p) => p.section !== 'personal' && SYSTEM_PLUGINS.has(p.id))
+
+  const [activeSection, goToSection] = useScrollSpy(SECTION_IDS)
+
+  const moduleRows = (plugins: PluginManifest[]): JSX.Element[] =>
+    plugins.map((plugin) => {
+      const enabled = !state.disabledPlugins.includes(plugin.id)
+      const Icon: IconComponent = (props) => <PluginIcon icon={plugin.icon} size={props.size} className={props.className} />
+      return (
+        <SettingsRow
+          key={plugin.id}
+          icon={Icon}
+          title={plugin.name}
+          description={plugin.description}
+        >
+          {LOCKED.has(plugin.id) ? (
+            <span className="t-footnote text-on-surface-variant">Siempre activo</span>
+          ) : (
+            <Toggle
+              checked={enabled}
+              label={`${enabled ? 'Desactivar' : 'Activar'} ${plugin.name}`}
+              onChange={() => dispatch({ type: 'TOGGLE_PLUGIN', pluginId: plugin.id })}
+            />
+          )}
+        </SettingsRow>
+      )
+    })
 
   return (
-    <div className="p-8 max-w-3xl mx-auto w-full">
-      {/* Header */}
-      <div className="mb-10">
-        <h1 className="text-2xl font-bold tracking-tight text-on-surface">Ajustes</h1>
-        <p className="text-on-surface-variant mt-1 text-sm">Configurá tus API keys y las preferencias del espacio de trabajo.</p>
+    <div className="px-8 py-7 max-w-[1000px] mx-auto w-full flex gap-10">
+      {/* ── Índice de secciones ────────────────────────────────────────────── */}
+      <nav aria-label="Secciones de ajustes" className="hidden lg:flex flex-col gap-0.5 w-44 flex-shrink-0 sticky top-7 self-start pt-[76px]">
+        {SECTIONS.map(({ id, label, icon: Icon }) => {
+          const on = activeSection === id
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => goToSection(id)}
+              aria-current={on ? 'true' : undefined}
+              className={`flex items-center gap-2.5 h-8 px-2.5 rounded-lg t-body text-left transition-colors ${
+                on ? 'bg-selected text-on-surface font-medium' : 'text-on-surface-variant hover:bg-on-surface/[0.05] hover:text-on-surface'
+              }`}
+            >
+              <Icon size={15} weight={on ? 'fill' : undefined} className={on ? 'text-primary' : ''} />
+              {label}
+            </button>
+          )
+        })}
+      </nav>
+
+      <div className="flex-1 min-w-0 max-w-[760px] flex flex-col gap-8">
+      <div>
+        <h1 className="t-title2 text-on-surface">Ajustes</h1>
+        <p className="t-callout text-on-surface-variant mt-1">Apariencia, módulos, servicios y datos.</p>
       </div>
 
-      {/* Encryption warning */}
       {!encryptionAvailable && (
-        <div className="mb-6 flex items-start gap-3 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/10">
-          <CircleAlert size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-amber-300 leading-relaxed">
-            <span className="font-semibold">El cifrado de credenciales no está disponible</span> en este entorno.
-            Las API keys se guardarán en texto plano. Esto puede ocurrir en VMs sin credential manager o en CI.
+        <div className="ui-card flex items-start gap-3 px-4 py-3">
+          <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-warning/[0.14] text-warning">
+            <TriangleAlert size={15} />
+          </span>
+          <p className="t-footnote text-on-surface-variant">
+            <span className="font-semibold text-on-surface">El cifrado de credenciales no está disponible</span> en este equipo.
+            Las API keys se guardarán en texto plano (pasa en VMs sin almacén de credenciales o en CI).
           </p>
         </div>
       )}
 
-      {/* Appearance */}
-      <section className="mb-8">
-        <SectionHeader icon={Palette} label="Apariencia" />
-        <div className="rounded-xl border border-outline-variant/20 px-6" style={{ background: 'rgb(var(--c-surface) / 0.72)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
-          <SettingRow label="Tema" description="Elegí entre interfaz clara u oscura.">
-            <div className="flex gap-2">
-              {(['light', 'dark'] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => dispatch({ type: 'SET_THEME', theme: t })}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-all ${
-                    state.theme === t
-                      ? 'bg-primary text-on-primary border-primary'
-                      : 'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:border-primary/40'
-                  }`}
-                >
-                  {t === 'light' ? <Sun size={16} /> : <Moon size={16} />}
-                  {t === 'light' ? 'Claro' : 'Oscuro'}
-                </button>
-              ))}
-            </div>
-          </SettingRow>
+      {/* ── Apariencia ─────────────────────────────────────────────────────── */}
+      <SettingsGroup id="ajustes-apariencia" title="Apariencia" description="Claro u oscuro, tema y color de acento.">
+        <SettingsRow icon={themeMode === 'dark' ? Moon : themeMode === 'light' ? Sun : Monitor} title="Modo"
+          description={themeMode === 'system' ? 'Sigue el modo claro u oscuro del sistema.' : undefined}>
+          <SegmentedControl<ThemeMode>
+            value={themeMode}
+            onChange={setThemeMode}
+            options={[
+              { value: 'light', label: 'Claro' },
+              { value: 'dark', label: 'Oscuro' },
+              { value: 'system', label: 'Sistema' },
+            ]}
+          />
+        </SettingsRow>
+        <AppearanceSettings isDark={state.theme === 'dark'} />
+      </SettingsGroup>
 
-          <SettingRow label="Tipografía" description="Fuente global de la interfaz. Se aplica al instante.">
-            <div className="flex flex-col gap-1.5">
-              {APP_FONT_FAMILIES.map((f) => (
-                <button
-                  key={f.label}
-                  onClick={() => updateFont({ fontFamily: f.label })}
-                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm border transition-all ${
-                    fontPrefs.fontFamily === f.label
-                      ? 'bg-primary/10 text-primary border-primary/40'
-                      : 'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:border-primary/30'
-                  }`}
-                  style={{ fontFamily: f.stack }}
-                >
-                  <span>{f.label}</span>
-                  {fontPrefs.fontFamily === f.label && (
-                    <Check size={14} />
-                  )}
-                </button>
-              ))}
-            </div>
-          </SettingRow>
-
-          <SettingRow label="Tamaño de fuente" description="Escala toda la interfaz. Por defecto: Normal.">
-            <div className="flex gap-2">
-              {(Object.keys(APP_FONT_SIZES) as Array<keyof typeof APP_FONT_SIZES>).map((size) => (
-                <button
-                  key={size}
-                  onClick={() => updateFont({ fontSize: size })}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-all ${
-                    fontPrefs.fontSize === size
-                      ? 'bg-primary text-on-primary border-primary'
-                      : 'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:border-primary/40'
-                  }`}
-                >
-                  {size === 'small' ? 'Chico' : size === 'large' ? 'Grande' : 'Normal'}
-                </button>
-              ))}
-            </div>
-          </SettingRow>
-
-          <SettingRow
-            label="Escala de la interfaz"
-            description="Zoom real de toda la ventana — ajuste fino para cuando 'chico/normal/grande' no alcanza."
+      {/* ── Tipografía y escala ────────────────────────────────────────────── */}
+      <SettingsGroup id="ajustes-texto" title="Texto y tamaño" description="Fuente, tamaño y escala de la interfaz.">
+        <SettingsRow icon={Type} title="Fuente" description="Se aplica al instante en toda la app.">
+          <select
+            value={fontPrefs.fontFamily}
+            onChange={(e) => updateFont({ fontFamily: e.target.value })}
+            className="ui-input w-44"
+            aria-label="Fuente"
           >
-            <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min={UI_SCALE_MIN}
-                max={UI_SCALE_MAX}
-                step={UI_SCALE_STEP}
-                value={uiScale}
-                onChange={(e) => setUiScale(parseFloat(e.target.value))}
-                className="flex-1 accent-primary"
-              />
-              <span className="text-sm font-medium text-on-surface tabular-nums w-12 text-right">
-                {Math.round(uiScale * 100)}%
-              </span>
-              {uiScale !== 1 && (
-                <button
-                  onClick={resetUiScale}
-                  title="Restablecer a 100%"
-                  className="text-xs text-on-surface-variant hover:text-primary transition-colors px-2 py-1 rounded-md border border-outline-variant/30 hover:border-primary/40"
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-          </SettingRow>
-
-          <SettingRow
-            label="Mascota del dashboard"
-            description="Personaje que aparece en las tarjetas del dashboard."
-          >
-            <div className="flex gap-3">
-              {([
-                { id: 'panda',        label: 'Panda',        icon: '🐼', hint: 'Mascota por defecto' },
-                { id: 'setto-avatar', label: 'Setto Avatar', icon: '🎭', hint: 'Personalizada — agregá PNGs en public/setto-avatar/' },
-              ] as const).map(({ id, label, icon, hint }) => {
-                const active = (settings['dashboard.mascot'] || 'setto-avatar') === id
-                return (
-                  <button
-                    key={id}
-                    onClick={() => {
-                      update('dashboard.mascot', id)
-                      void window.api.invoke('settings:set', 'dashboard.mascot', id)
-                      window.dispatchEvent(new CustomEvent('mascot-change', { detail: id }))
-                    }}
-                    title={hint}
-                    className={`flex-1 flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl border text-sm transition-all ${
-                      active
-                        ? 'bg-primary/10 border-primary/50 text-primary'
-                        : 'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:border-primary/30'
-                    }`}
-                  >
-                    <span className="text-2xl leading-none">{icon}</span>
-                    <span className="text-xs font-semibold">{label}</span>
-                    {active && (
-                      <CheckCircle2 size={13} className="text-primary" />
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          </SettingRow>
-
-          <SettingRow label="Paleta de colores" description="Cambia los colores de acento principales en toda la app.">
-            <div className="grid grid-cols-2 gap-2">
-              {PALETTES.map((p) => {
-                const active = palette === p.id
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => setPalette(p.id)}
-                    className={`relative flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all text-left ${
-                      active
-                        ? 'border-transparent ring-2 ring-offset-1 ring-offset-surface bg-surface-container-high'
-                        : 'border-outline-variant/30 bg-surface-container hover:border-outline-variant/60'
-                    }`}
-                    style={active ? { ['--tw-ring-color' as string]: p.from } : undefined}
-                  >
-                    {/* Gradient swatch */}
-                    <div
-                      className="w-7 h-7 rounded-lg flex-shrink-0 shadow-sm"
-                      style={{ background: `linear-gradient(135deg, ${p.from}, ${p.to})` }}
-                    />
-                    <div className="min-w-0">
-                      <div className={`text-xs font-semibold truncate ${active ? 'text-on-surface' : 'text-on-surface-variant'}`}>
-                        {p.name}
-                      </div>
-                      <div className="text-[10px] text-on-surface-variant/60 truncate">{p.label}</div>
-                    </div>
-                    {active && (
-                      <Check
-                        size={12}
-                        className="absolute top-1.5 right-1.5 text-white"
-                        style={{ background: p.from, borderRadius: '50%', padding: '1px' }}
-                      />
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          </SettingRow>
-        </div>
-      </section>
-
-      {/* AI Section */}
-      <section className="mb-8">
-        <SectionHeader icon={Bot} label="Servicio de IA" />
-        <div className="rounded-xl border border-outline-variant/20 px-6" style={{ background: 'rgb(var(--c-surface) / 0.72)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
-
-          {/* Provider selector */}
-          <SettingRow label="Proveedor" description="Qué servicio de IA usar para el análisis de Smart Diff.">
-            <div className="flex gap-2">
-              {(['openai', 'anthropic', 'ollama'] as AIProvider[]).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => update('ai.provider', p)}
-                  className={`flex-1 py-2 text-xs font-semibold rounded-lg border capitalize transition-all ${
-                    provider === p
-                      ? 'bg-primary text-on-primary border-primary'
-                      : 'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:border-primary/40'
-                  }`}
-                >
-                  {p === 'openai' ? 'OpenAI' : p === 'anthropic' ? 'Anthropic' : 'Ollama'}
-                </button>
-              ))}
-            </div>
-          </SettingRow>
-
-          {/* OpenAI */}
-          {provider === 'openai' && (
-            <>
-              <SettingRow label="OpenAI API Key" description="Se guarda cifrada localmente. Nunca sale de tu equipo.">
-                <div className="flex flex-col gap-2">
-                  {openAIKeyConfigured && !settings['ai.openai_key'] && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/20 text-xs text-accent font-medium">
-                      <Lock size={14} />
-                      API key configurada
-                    </div>
-                  )}
-                  <div className="relative">
-                    <input
-                      type={showOpenAIKey ? 'text' : 'password'}
-                      value={settings['ai.openai_key']}
-                      onChange={(e) => { update('ai.openai_key', e.target.value); if (!e.target.value) setOpenAIKeyConfigured(false) }}
-                      placeholder={openAIKeyConfigured ? 'Ingresá una nueva key para reemplazar…' : 'sk-…'}
-                      className={inputCls + ' pr-10'}
-                    />
-                    <button onClick={() => setShowOpenAIKey((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary">
-                      {showOpenAIKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => void testApiKey()}
-                      disabled={keyTest.status === 'loading' || (!settings['ai.openai_key'].trim() && !openAIKeyConfigured)}
-                      className="ui-btn ui-btn-outline text-xs disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      {keyTest.status === 'loading' ? <><span className="inline-block w-3 h-3 border-2 border-primary/40 border-t-primary rounded-full animate-spin" /> Validando…</> : 'Probar key'}
-                    </button>
-                    {keyTest.status === 'ok' && <span className="flex items-center gap-1 text-xs text-accent"><Check size={12} /> Válida</span>}
-                    {keyTest.status === 'error' && <span className="text-xs text-error">{keyTest.message ?? 'Key inválida'}</span>}
-                  </div>
-                </div>
-              </SettingRow>
-              <SettingRow label="Modelo" description="Modelo de OpenAI para las respuestas.">
-                <div className="relative">
-                  <select value={settings['ai.model']} onChange={(e) => update('ai.model', e.target.value)} className={inputCls + ' appearance-none pr-8'}>
-                    {OPENAI_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                  <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant" />
-                </div>
-              </SettingRow>
-            </>
-          )}
-
-          {/* Anthropic */}
-          {provider === 'anthropic' && (
-            <>
-              <SettingRow label="Anthropic API Key" description="Se guarda cifrada localmente. Nunca sale de tu equipo.">
-                <div className="flex flex-col gap-2">
-                  {anthropicKeyConfigured && !settings['ai.anthropic_key'] && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/20 text-xs text-accent font-medium">
-                      <Lock size={14} />
-                      API key configurada
-                    </div>
-                  )}
-                  <div className="relative">
-                    <input
-                      type={showAnthropicKey ? 'text' : 'password'}
-                      value={settings['ai.anthropic_key']}
-                      onChange={(e) => { update('ai.anthropic_key', e.target.value); if (!e.target.value) setAnthropicKeyConfigured(false) }}
-                      placeholder={anthropicKeyConfigured ? 'Ingresá una nueva key para reemplazar…' : 'sk-ant-…'}
-                      className={inputCls + ' pr-10'}
-                    />
-                    <button onClick={() => setShowAnthropicKey((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary">
-                      {showAnthropicKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-              </SettingRow>
-              <SettingRow label="Modelo" description="Modelo Claude de Anthropic para las respuestas.">
-                <div className="relative">
-                  <select value={settings['ai.anthropic_model']} onChange={(e) => update('ai.anthropic_model', e.target.value)} className={inputCls + ' appearance-none pr-8'}>
-                    {ANTHROPIC_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                  <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant" />
-                </div>
-              </SettingRow>
-            </>
-          )}
-
-          {/* Ollama (local) */}
-          {provider === 'ollama' && (
-            <>
-              <SettingRow label="URL de Ollama" description="URL base de tu instancia local de Ollama.">
-                <input
-                  type="text"
-                  value={settings['ai.ollama_url']}
-                  onChange={(e) => update('ai.ollama_url', e.target.value)}
-                  placeholder="http://localhost:11434"
-                  className={inputCls}
-                />
-              </SettingRow>
-              <SettingRow label="Modelo" description="Tag del modelo de Ollama (ej. llama3, qwen3:14b, mistral).">
-                <input
-                  type="text"
-                  value={settings['ai.ollama_model']}
-                  onChange={(e) => update('ai.ollama_model', e.target.value)}
-                  placeholder="llama3"
-                  className={inputCls}
-                />
-              </SettingRow>
-              <SettingRow
-                label="Timeout (minutos)"
-                description="Tiempo máximo de espera. Aumentalo para modelos grandes como qwen3:14b en CPU."
-              >
-                <input
-                  type="number"
-                  min="5"
-                  max="120"
-                  value={settings['ai.ollama_timeout']}
-                  onChange={(e) => update('ai.ollama_timeout', e.target.value)}
-                  placeholder="30"
-                  className={inputCls}
-                />
-              </SettingRow>
-            </>
-          )}
-
-        </div>
-      </section>
-
-      {/* Integrations Section */}
-      <section className="mb-8">
-        <SectionHeader icon={Plug} label="Integraciones" accent="text-secondary" />
-        <div className="rounded-xl border border-outline-variant/20 px-6" style={{ background: 'rgb(var(--c-surface) / 0.72)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
-
-          {/* GitHub OAuth App Client ID */}
-          <SettingRow
-            label="GitHub OAuth App — Client ID"
-            description={
-              <span>
-                Necesario para Iniciar sesión con GitHub (Device Flow).{' '}
-                <span className="text-on-surface-variant/60">
-                  github.com → Settings → Developer settings → OAuth Apps → New OAuth App → activá Device Flow → copiá el Client ID.
-                </span>
-              </span>
-            }
-          >
+            {APP_FONT_FAMILIES.map((f) => <option key={f.label} value={f.label}>{f.label}</option>)}
+          </select>
+        </SettingsRow>
+        <SettingsRow icon={Type} title="Tamaño de texto">
+          <SegmentedControl<AppFontPrefs['fontSize']>
+            value={fontPrefs.fontSize}
+            onChange={(size) => updateFont({ fontSize: size })}
+            options={(Object.keys(APP_FONT_SIZES) as AppFontPrefs['fontSize'][]).map((size) => ({
+              value: size,
+              label: size === 'small' ? 'Chico' : size === 'large' ? 'Grande' : 'Normal',
+            }))}
+          />
+        </SettingsRow>
+        <SettingsRow icon={ZoomIn} title="Escala de la interfaz" description="Zoom de toda la ventana, para ajuste fino.">
+          <div className="flex items-center gap-2.5">
             <input
-              type="text"
-              value={settings['repo-search.github.client_id']}
-              onChange={(e) => update('repo-search.github.client_id', e.target.value)}
-              placeholder="Ov23li…"
-              className={inputCls}
+              type="range"
+              min={UI_SCALE_MIN}
+              max={UI_SCALE_MAX}
+              step={UI_SCALE_STEP}
+              value={uiScale}
+              onChange={(e) => setUiScale(parseFloat(e.target.value))}
+              className="w-36 accent-primary"
+              aria-label="Escala de la interfaz"
             />
-          </SettingRow>
-
-          {/* GitLab OAuth Application ID */}
-          <SettingRow
-            label="GitLab OAuth Application — Application ID"
-            description={
-              <span>
-                Necesario para Iniciar sesión con GitLab (Device Flow).{' '}
-                <span className="text-on-surface-variant/60">
-                  gitlab.com → Preferences → Applications → New application → Scope: read_api → activá Device Authorization Grant → copiá el Application ID.
-                </span>
-              </span>
-            }
-          >
-            <input
-              type="text"
-              value={settings['repo-search.gitlab.client_id']}
-              onChange={(e) => update('repo-search.gitlab.client_id', e.target.value)}
-              placeholder="abc123def456…"
-              className={inputCls}
-            />
-          </SettingRow>
-
-          {/* Bitbucket default workspace */}
-          <SettingRow label="Bitbucket — Workspace por defecto" description="Slug del workspace por defecto para las búsquedas en Bitbucket.">
-            <input
-              type="text"
-              value={settings['bitbucket.workspace']}
-              onChange={(e) => update('bitbucket.workspace', e.target.value)}
-              placeholder="my-workspace"
-              className={inputCls}
-            />
-          </SettingRow>
-
-        </div>
-      </section>
-
-      {/* Backup / Restore */}
-      <section className="mb-8">
-        <SectionHeader icon={Archive} label="Copia y restauración" />
-        <div className="rounded-xl border border-outline-variant/20 px-6" style={{ background: 'rgb(var(--c-surface) / 0.72)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
-          <SettingRow
-            label="Exportar ajustes"
-            description="Guarda los ajustes no sensibles (modelos, workspace, alias) en un archivo JSON. Las API keys nunca se exportan."
-          >
-            <button
-              onClick={async () => {
-                try {
-                  const res = await window.api.invoke<{ ok: boolean; canceled?: boolean }>('settings:export')
-                  if (!res.canceled) setImportMsg({ ok: true, text: 'Ajustes exportados.' })
-                } catch (e) {
-                  setImportMsg({ ok: false, text: e instanceof Error ? e.message : 'Falló la exportación' })
-                }
-                setTimeout(() => setImportMsg(null), 3000)
-              }}
-              className="ui-btn ui-btn-outline w-full justify-center"
-            >
-              <Download size={16} />
-              Exportar JSON
+            <span className="t-footnote text-on-surface tabular-nums w-10 text-right">{Math.round(uiScale * 100)}%</span>
+            <button onClick={resetUiScale} disabled={uiScale === 1} className="ui-btn ui-btn-outline ui-btn-sm">
+              Restablecer
             </button>
-          </SettingRow>
-
-          <SettingRow
-            label="Importar ajustes"
-            description="Carga los ajustes desde un JSON exportado previamente. Los valores actuales se sobrescriben."
-          >
-            <button
-              onClick={async () => {
-                try {
-                  const res = await window.api.invoke<{ ok: boolean; canceled?: boolean; count?: number }>('settings:import')
-                  if (!res.canceled) {
-                    setImportMsg({ ok: true, text: `Se importaron ${res.count ?? 0} ajuste(s). Recargá para aplicar.` })
-                  }
-                } catch (e) {
-                  setImportMsg({ ok: false, text: e instanceof Error ? e.message : 'Falló la importación' })
-                }
-                setTimeout(() => setImportMsg(null), 4000)
-              }}
-              className="ui-btn ui-btn-outline w-full justify-center"
-            >
-              <Upload size={16} />
-              Importar JSON
-            </button>
-          </SettingRow>
-
-          <SettingRow
-            label="Exportar logs"
-            description="Guarda el archivo de log de la app para diagnóstico. Útil para reportar un problema."
-          >
-            <button
-              onClick={async () => {
-                try {
-                  const res = await window.api.invoke<{ ok: boolean; canceled?: boolean; error?: string }>('settings:export-logs')
-                  if (res.ok) setImportMsg({ ok: true, text: 'Logs exportados.' })
-                  else if (!res.canceled) setImportMsg({ ok: false, text: res.error ?? 'Falló la exportación de logs' })
-                } catch (e) {
-                  setImportMsg({ ok: false, text: e instanceof Error ? e.message : 'Falló la exportación de logs' })
-                }
-                setTimeout(() => setImportMsg(null), 3000)
-              }}
-              className="ui-btn ui-btn-outline w-full justify-center"
-            >
-              <Download size={16} />
-              Exportar logs
-            </button>
-          </SettingRow>
-
-          {importMsg && (
-            <div className={`mx-0 mb-4 flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${importMsg.ok ? 'bg-accent/10 text-accent border border-accent/20' : 'bg-error/10 text-error border border-error/20'}`}>
-              {importMsg.ok ? <CheckCircle2 size={14} /> : <CircleAlert size={14} />}
-              {importMsg.text}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Modules */}
-      <section className="mb-8">
-        <SectionHeader icon={Puzzle} label="Módulos" />
-        <p className="text-xs text-on-surface-variant -mt-1 mb-3">Activá o desactivá plugins. Los módulos desactivados se ocultan de la barra lateral.</p>
-        <div className="grid grid-cols-1 gap-2">
-          {allPlugins.map((plugin) => {
-            const locked   = ['dashboard', 'settings', 'about'].includes(plugin.id)
-            const enabled  = !state.disabledPlugins.includes(plugin.id)
-            return (
-              <div
-                key={plugin.id}
-                className={[
-                  'flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-colors',
-                  enabled
-                    ? 'bg-surface border-outline-variant/20'
-                    : 'bg-surface/50 border-outline-variant/10 opacity-60',
-                ].join(' ')}
-              >
-                <PluginIcon
-                  icon={plugin.icon}
-                  size={20}
-                  className="flex-shrink-0"
-                  style={{ color: enabled ? 'rgb(var(--c-primary))' : undefined, transition: 'color 200ms' }}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-on-surface">{plugin.name}</div>
-                  <div className="text-xs text-on-surface-variant/60 truncate mt-0.5">{plugin.description}</div>
-                </div>
-                {locked ? (
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-2 py-1 rounded-full border border-outline-variant/20 flex-shrink-0">
-                    Siempre activo
-                  </span>
-                ) : (
-                  <Toggle
-                    enabled={enabled}
-                    onChange={() => dispatch({ type: 'TOGGLE_PLUGIN', pluginId: plugin.id })}
-                  />
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </section>
-
-      {/* Save */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={handleSave}
-          className="ui-btn ui-btn-primary"
-        >
-          Guardar ajustes
-        </button>
-        {saved && (
-          <div className="flex items-center gap-2 text-accent text-sm font-medium">
-            <CheckCircle2 size={16} />
-            Guardado
           </div>
+        </SettingsRow>
+      </SettingsGroup>
+
+      {/* ── Módulos ────────────────────────────────────────────────────────── */}
+      <DesktopSettings />
+
+      <SyncSettings />
+
+      <div id="ajustes-modulos" className="flex flex-col gap-5 scroll-mt-6">
+        <SettingsGroup title="Módulos" description="Los módulos desactivados se ocultan de la barra lateral y de la búsqueda.">
+          <SubHeader>Personal</SubHeader>
+          {moduleRows(personal)}
+        </SettingsGroup>
+        <SettingsGroup>
+          <SubHeader>Desarrollo</SubHeader>
+          {moduleRows(dev)}
+        </SettingsGroup>
+        <SettingsGroup>
+          <SubHeader>Sistema</SubHeader>
+          {moduleRows(system)}
+        </SettingsGroup>
+      </div>
+
+      {/* ── Servicio de IA ─────────────────────────────────────────────────── */}
+      <SettingsGroup id="ajustes-ia" title="Servicio de IA" footer="Las API keys se guardan cifradas en tu equipo y nunca se exportan.">
+        <SettingsRow icon={Bot} title="Proveedor">
+          <SegmentedControl<AIProvider>
+            value={provider}
+            onChange={(p) => update('ai.provider', p)}
+            options={[
+              { value: 'openai', label: 'OpenAI' },
+              { value: 'anthropic', label: 'Anthropic' },
+              { value: 'ollama', label: 'Ollama' },
+            ]}
+          />
+        </SettingsRow>
+
+        {provider === 'openai' && (
+          <>
+            <SettingsRow title="API key de OpenAI" description={openAIKeyConfigured && !settings['ai.openai_key'] ? <span className="inline-flex items-center gap-1 text-success"><Lock size={11} /> Configurada</span> : undefined}>
+              <Control>
+                <div className="relative">
+                  <input
+                    type={showOpenAIKey ? 'text' : 'password'}
+                    value={settings['ai.openai_key']}
+                    onChange={(e) => { update('ai.openai_key', e.target.value); if (!e.target.value) setOpenAIKeyConfigured(false) }}
+                    placeholder={openAIKeyConfigured ? 'Pegá una nueva para reemplazarla…' : 'sk-…'}
+                    className={inputCls + ' pr-8'}
+                    aria-label="API key de OpenAI"
+                  />
+                  <button
+                    onClick={() => setShowOpenAIKey((s) => !s)}
+                    aria-label={showOpenAIKey ? 'Ocultar key' : 'Mostrar key'}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+                  >
+                    {showOpenAIKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => void testApiKey()}
+                    disabled={keyTest.status === 'loading' || !settings['ai.openai_key'].trim()}
+                    className="ui-btn ui-btn-outline ui-btn-sm"
+                  >
+                    {keyTest.status === 'loading' ? 'Validando…' : 'Probar key'}
+                  </button>
+                  {keyTest.status === 'ok' && <span className="flex items-center gap-1 t-footnote text-success"><Check size={12} /> Válida</span>}
+                  {keyTest.status === 'error' && <span className="t-footnote text-error truncate">{keyTest.message ?? 'Key inválida'}</span>}
+                </div>
+              </Control>
+            </SettingsRow>
+            <SettingsRow title="Modelo">
+              <select value={settings['ai.model']} onChange={(e) => update('ai.model', e.target.value)} className="ui-input w-52" aria-label="Modelo de OpenAI">
+                {OPENAI_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </SettingsRow>
+          </>
         )}
+
+        {provider === 'anthropic' && (
+          <>
+            <SettingsRow title="API key de Anthropic" description={anthropicKeyConfigured && !settings['ai.anthropic_key'] ? <span className="inline-flex items-center gap-1 text-success"><Lock size={11} /> Configurada</span> : undefined}>
+              <Control>
+                <div className="relative">
+                  <input
+                    type={showAnthropicKey ? 'text' : 'password'}
+                    value={settings['ai.anthropic_key']}
+                    onChange={(e) => { update('ai.anthropic_key', e.target.value); if (!e.target.value) setAnthropicKeyConfigured(false) }}
+                    placeholder={anthropicKeyConfigured ? 'Pegá una nueva para reemplazarla…' : 'sk-ant-…'}
+                    className={inputCls + ' pr-8'}
+                    aria-label="API key de Anthropic"
+                  />
+                  <button
+                    onClick={() => setShowAnthropicKey((s) => !s)}
+                    aria-label={showAnthropicKey ? 'Ocultar key' : 'Mostrar key'}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+                  >
+                    {showAnthropicKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </Control>
+            </SettingsRow>
+            <SettingsRow title="Modelo">
+              <select value={settings['ai.anthropic_model']} onChange={(e) => update('ai.anthropic_model', e.target.value)} className="ui-input w-52" aria-label="Modelo de Anthropic">
+                {ANTHROPIC_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </SettingsRow>
+          </>
+        )}
+
+        {provider === 'ollama' && (
+          <>
+            <SettingsRow title="URL de Ollama">
+              <Control>
+                <input type="text" value={settings['ai.ollama_url']} onChange={(e) => update('ai.ollama_url', e.target.value)} placeholder="http://localhost:11434" className={inputCls} aria-label="URL de Ollama" />
+              </Control>
+            </SettingsRow>
+            <SettingsRow title="Modelo" description="Tag del modelo (llama3, qwen3:14b, mistral…).">
+              <Control width={200}>
+                <input type="text" value={settings['ai.ollama_model']} onChange={(e) => update('ai.ollama_model', e.target.value)} placeholder="llama3" className={inputCls} aria-label="Modelo de Ollama" />
+              </Control>
+            </SettingsRow>
+            <SettingsRow title="Tiempo máximo (minutos)" description="Subilo para modelos grandes en CPU.">
+              <Control width={90}>
+                <input type="number" min="5" max="120" value={settings['ai.ollama_timeout']} onChange={(e) => update('ai.ollama_timeout', e.target.value)} placeholder="30" className={inputCls} aria-label="Tiempo máximo en minutos" />
+              </Control>
+            </SettingsRow>
+          </>
+        )}
+      </SettingsGroup>
+
+      {/* ── Integraciones ──────────────────────────────────────────────────── */}
+      <SettingsGroup id="ajustes-integraciones" title="Integraciones" description="Credenciales OAuth para buscar en tus repositorios.">
+        <SettingsRow
+          icon={Plug}
+         
+          title="GitHub · Client ID de OAuth"
+          description="github.com → Settings → Developer settings → OAuth Apps. Activá Device Flow."
+        >
+          <Control width={220}>
+            <input type="text" value={settings['repo-search.github.client_id']} onChange={(e) => update('repo-search.github.client_id', e.target.value)} placeholder="Ov23li…" className={inputCls} aria-label="Client ID de GitHub" />
+          </Control>
+        </SettingsRow>
+        <SettingsRow
+          icon={Plug}
+         
+          title="GitLab · Application ID"
+          description="gitlab.com → Preferences → Applications. Scope read_api y Device Authorization Grant."
+        >
+          <Control width={220}>
+            <input type="text" value={settings['repo-search.gitlab.client_id']} onChange={(e) => update('repo-search.gitlab.client_id', e.target.value)} placeholder="abc123def456…" className={inputCls} aria-label="Application ID de GitLab" />
+          </Control>
+        </SettingsRow>
+        <SettingsRow icon={Plug} title="Bitbucket · Workspace por defecto">
+          <Control width={220}>
+            <input type="text" value={settings['bitbucket.workspace']} onChange={(e) => update('bitbucket.workspace', e.target.value)} placeholder="mi-workspace" className={inputCls} aria-label="Workspace de Bitbucket" />
+          </Control>
+        </SettingsRow>
+      </SettingsGroup>
+
+      <div className={`-mt-3 flex items-center justify-end gap-3 ${dirty ? 'sticky bottom-5 z-10 ui-card shadow-lg pl-4 pr-2 py-2' : ''}`}>
+        {dirty && (
+          <span className="flex-1 flex items-center gap-2 t-footnote text-on-surface-variant">
+            <span className="w-1.5 h-1.5 rounded-full bg-warning" aria-hidden />
+            Tenés cambios sin guardar
+          </span>
+        )}
+        <button onClick={() => void handleSave()} className="ui-btn ui-btn-primary">Guardar cambios</button>
+      </div>
+
+      {/* ── Datos ──────────────────────────────────────────────────────────── */}
+      <SettingsGroup id="ajustes-datos" title="Datos" footer="Las API keys nunca se incluyen en la exportación.">
+        <SettingsRow icon={Download} title="Exportar ajustes" description="Modelos, workspace y preferencias en un JSON.">
+          <button onClick={() => void runDataAction('settings:export')} className="ui-btn ui-btn-outline ui-btn-sm">Exportar…</button>
+        </SettingsRow>
+        <SettingsRow icon={Upload} title="Importar ajustes" description="Sobrescribe los valores actuales.">
+          <button onClick={() => void runDataAction('settings:import')} className="ui-btn ui-btn-outline ui-btn-sm">Importar…</button>
+        </SettingsRow>
+        <SettingsRow icon={FileText} title="Exportar logs" description="Para diagnosticar un problema.">
+          <button onClick={() => void runDataAction('settings:export-logs')} className="ui-btn ui-btn-outline ui-btn-sm">Exportar…</button>
+        </SettingsRow>
+      </SettingsGroup>
+
+      {/* ── Acerca de ──────────────────────────────────────────────────────── */}
+      <SettingsGroup id="ajustes-acerca" title="Acerca de">
+        <SettingsRow icon={Info} title="Setto Toolkit" description={`Versión ${version}`}>
+          <button onClick={() => dispatch({ type: 'OPEN_TAB', pluginId: 'about' })} className="ui-btn ui-btn-ghost ui-btn-sm">Más información</button>
+        </SettingsRow>
+        <SettingsRow icon={Keyboard} title="Atajos de teclado" description="También con F1.">
+          <button onClick={() => dispatch({ type: 'OPEN_KEYBOARD_SHORTCUTS' })} className="ui-btn ui-btn-ghost ui-btn-sm">Ver atajos</button>
+        </SettingsRow>
+      </SettingsGroup>
       </div>
     </div>
   )
+}
+
+/** Sub-encabezado dentro de una tarjeta de grupo (Personal / Desarrollo / Sistema). */
+function SubHeader({ children }: { children: ReactNode }): JSX.Element {
+  return <div className="px-4 pt-3 pb-2 t-footnote font-semibold text-on-surface-variant bg-on-surface/[0.02]">{children}</div>
 }

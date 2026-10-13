@@ -14,7 +14,7 @@ export function MarkdownPreview({ content }: { content: string }): JSX.Element {
 
   return (
     <div
-      className="md-preview h-full overflow-y-auto px-6 py-5 text-[13px] leading-relaxed text-on-surface select-text"
+      className="md-preview h-full overflow-y-auto px-8 py-6 t-body leading-relaxed text-on-surface select-text"
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )

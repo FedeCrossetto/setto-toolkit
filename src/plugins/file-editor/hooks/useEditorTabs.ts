@@ -175,6 +175,9 @@ export function useEditorTabs() {
         wordWrap: true,
         truncated: result.truncated,
         encodingWarning: result.encodingWarning,
+        encoding: result.encoding,
+        eol: result.eol,
+        eolMixed: result.eolMixed,
       }
       setTabs((prev) => [...prev, file])
       setActiveId(file.id)

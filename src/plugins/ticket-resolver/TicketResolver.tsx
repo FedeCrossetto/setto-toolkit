@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import {
   Brain, Check, CheckCircle2, CircleAlert, ClipboardList, Code2, Copy,
-  FileText, FolderOpen, Network, Pencil, Play, Plus, RotateCcw, Save, Search,
+  FileText, FolderOpen, Pencil, Play, Plus, RotateCcw, Save, Search,
   Settings, Sparkles, Ticket, TriangleAlert, Wrench, X, ChevronRight,
 } from 'lucide-react'
 import type {
@@ -10,6 +9,8 @@ import type {
   HistoryEntry, Phase, AnalysisStepUI, DiffChunk, TicketComment,
 } from './types'
 import type { IconComponent } from '../../core/types'
+import { Modal, Sheet } from '../../core/components/Modal'
+import { SegmentedControl } from '../../core/components/SegmentedControl'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function relativeTime(iso: string): string {
@@ -66,23 +67,23 @@ function TokenCounter({ usage, onReset }: { usage:SessionUsage; onReset:()=>void
   const fmt   = (n:number) => n >= 1000 ? `${(n/1000).toFixed(1)}k` : String(n)
   if (usage.calls === 0) return <></>
   return (
-    <div className="flex items-center gap-2 text-[11px] text-on-surface-variant/45 flex-shrink-0">
+    <div className="flex items-center gap-2 t-footnote text-on-surface-variant flex-shrink-0">
       <Ticket size={13} />
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-1.5">
           <span className="text-primary font-semibold">{fmt(total)}</span>
           <span>tok</span>
-          <span className="text-on-surface-variant/25">·</span>
-          <span className="text-on-surface-variant/35">↑{fmt(usage.inputTokens)} ↓{fmt(usage.outputTokens)}</span>
-          <span className="text-on-surface-variant/25">·</span>
+          <span className="text-on-surface-variant/60">·</span>
+          <span className="text-on-surface-variant/60">↑{fmt(usage.inputTokens)} ↓{fmt(usage.outputTokens)}</span>
+          <span className="text-on-surface-variant/60">·</span>
           <span>{pct.toFixed(1)}%</span>
         </div>
-        <div className="w-20 h-1 bg-outline-variant/20 rounded-full overflow-hidden">
+        <div className="w-20 h-1 bg-on-surface/[0.08] rounded-full overflow-hidden">
           <div className="h-full rounded-full transition-all duration-700"
-            style={{width:`${Math.max(pct,pct>0?3:0)}%`, background:pct>80?'#f87171':pct>50?'#fb923c':'rgb(var(--c-primary))'}} />
+            style={{width:`${Math.max(pct,pct>0?3:0)}%`, background:pct>80?'rgb(var(--c-error))':pct>50?'rgb(var(--c-warning))':'rgb(var(--c-primary))'}} />
         </div>
       </div>
-      <button onClick={onReset} title="Resetear sesión" className="text-on-surface-variant/25 hover:text-primary transition-colors">
+      <button onClick={onReset} title="Reiniciar contador de la sesión" aria-label="Reiniciar contador de la sesión" className="ui-btn ui-btn-ghost ui-btn-icon">
         <RotateCcw size={13} />
       </button>
     </div>
@@ -94,10 +95,10 @@ interface ConfigValues { jiraUrl:string; jiraUser:string; jiraToken:string; repo
 
 // ── Priority ───────────────────────────────────────────────────────────────────
 const PRIORITY_COLOR: Record<string,string> = {
-  Highest:'text-red-400', High:'text-orange-400', Medium:'text-yellow-400', Low:'text-green-400', Lowest:'text-blue-400',
+  Highest:'text-error', High:'text-warning', Medium:'text-warning', Low:'text-success', Lowest:'text-on-surface-variant',
 }
 const PRIORITY_BG: Record<string,string> = {
-  Highest:'bg-red-500', High:'bg-orange-500', Medium:'bg-yellow-500', Low:'bg-green-500', Lowest:'bg-blue-500',
+  Highest:'bg-error', High:'bg-warning', Medium:'bg-warning', Low:'bg-success', Lowest:'bg-on-surface-variant',
 }
 
 // ── Spinner ────────────────────────────────────────────────────────────────────
@@ -112,7 +113,7 @@ function Spinner({ size=16 }: { size?:number }): JSX.Element {
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 function Skel({ h='h-4', w='w-full', className='' }: { h?:string; w?:string; className?:string }): JSX.Element {
-  return <div className={`${h} ${w} rounded-lg bg-white/[0.06] tr-shimmer ${className}`} />
+  return <div className={`${h} ${w} rounded-lg bg-on-surface/[0.06] tr-shimmer ${className}`} />
 }
 
 // ── Diff view ──────────────────────────────────────────────────────────────────
@@ -121,19 +122,19 @@ function DiffView({ diff }: { diff:DiffChunk[] }): JSX.Element {
   return (
     <div className="flex flex-col gap-2.5 mt-4">
       {diff.map((chunk, i) => (
-        <div key={i} className="rounded-xl overflow-hidden border border-outline-variant/20 text-[12px] font-mono tr-fadein">
-          <div className="px-3 py-1.5 bg-surface-container/60 text-on-surface-variant/40 text-[10px] border-b border-outline-variant/10 truncate flex items-center gap-2">
+        <div key={i} className="rounded-xl overflow-hidden hairline t-footnote font-mono tr-fadein">
+          <div className="px-3 py-1.5 bg-surface-container/60 text-on-surface-variant t-caption hairline-b truncate flex items-center gap-2">
             <FileText size={11} />
             {chunk.file} · línea {chunk.lineStart}
           </div>
-          <div className="bg-red-500/8 px-3 py-2 whitespace-pre-wrap text-red-300/80 border-b border-outline-variant/10">
+          <div className="bg-error/[0.08] px-3 py-2 whitespace-pre-wrap text-error/80 hairline-b">
             {chunk.original.split('\n').map((l,j) => (
-              <div key={j}><span className="select-none text-red-400/30 mr-2">−</span>{l}</div>
+              <div key={j}><span className="select-none text-error/30 mr-2">−</span>{l}</div>
             ))}
           </div>
-          <div className="bg-green-500/8 px-3 py-2 whitespace-pre-wrap text-green-300/80">
+          <div className="bg-success/[0.08] px-3 py-2 whitespace-pre-wrap text-success/80">
             {chunk.modified.split('\n').map((l,j) => (
-              <div key={j}><span className="select-none text-green-400/30 mr-2">+</span>{l}</div>
+              <div key={j}><span className="select-none text-success/30 mr-2">+</span>{l}</div>
             ))}
           </div>
         </div>
@@ -149,7 +150,7 @@ function TicketDetailCard({ ticket, skeleton, disp }: { ticket?:JiraTicket|null;
   if (skeleton || !ticket) {
     return (
       <div className="bg-surface-container rounded-xl overflow-hidden">
-        <div className="h-0.5 w-full bg-white/10 tr-shimmer" />
+        <div className="h-0.5 w-full bg-on-surface/10 tr-shimmer" />
         <div className="px-3 py-3 flex flex-col gap-2">
           <div className="flex gap-2"><Skel h="h-3" w="w-16"/><Skel h="h-3" w="w-12"/></div>
           <Skel h="h-4"/><Skel h="h-4" w="w-3/4"/>
@@ -176,21 +177,21 @@ function TicketDetailCard({ ticket, skeleton, disp }: { ticket?:JiraTicket|null;
       <div className={`h-0.5 w-full ${pBg} opacity-75`}/>
       <div className="px-3 py-3">
         <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
-          <span className="text-[12px] font-bold text-primary">{ticket.key}</span>
-          {ticket.type && <span className="text-[9px] px-1.5 py-0.5 rounded-full border border-outline-variant/15 text-on-surface-variant/40">{ticket.type}</span>}
-          {ticket.priority && <span className={`text-[9px] font-bold uppercase ${pColor}`}>{ticket.priority}</span>}
-          {ticket.status && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/15">{ticket.status}</span>}
+          <span className="t-footnote font-bold text-primary">{ticket.key}</span>
+          {ticket.type && <span className="t-caption px-1.5 py-0.5 rounded-full hairline text-on-surface-variant">{ticket.type}</span>}
+          {ticket.priority && <span className={`t-caption font-semibold ${pColor}`}>{ticket.priority}</span>}
+          {ticket.status && <span className="ui-badge ui-badge-primary">{ticket.status}</span>}
         </div>
 
-        <p className="text-[12px] font-semibold text-on-surface leading-snug mb-2">{ticket.summary}</p>
+        <p className="t-footnote font-semibold text-on-surface leading-snug mb-2">{ticket.summary}</p>
 
         {desc && (
-          <div className="mb-2 bg-surface/50 rounded-lg px-2.5 py-2 border border-outline-variant/8">
-            <p className="text-[11px] text-on-surface-variant/65" style={{lineHeight:LINE_MAP[disp.lineHeight]}}>
+          <div className="mb-2 bg-surface/50 rounded-lg px-2.5 py-2 hairline">
+            <p className="t-footnote text-on-surface-variant/65" style={{lineHeight:LINE_MAP[disp.lineHeight]}}>
               {expanded ? desc : desc.length > limit ? desc.slice(0,limit)+'…' : desc}
             </p>
             {desc.length > limit && (
-              <button onClick={()=>setExpanded(e=>!e)} className="text-[10px] text-primary mt-1 hover:underline">
+              <button onClick={()=>setExpanded(e=>!e)} className="t-caption text-primary mt-1 hover:underline">
                 {expanded ? 'Ver menos' : 'Ver más'}
               </button>
             )}
@@ -199,14 +200,14 @@ function TicketDetailCard({ ticket, skeleton, disp }: { ticket?:JiraTicket|null;
 
         {ticket.components.length > 0 && (
           <div className="flex gap-1 flex-wrap mb-2">
-            {ticket.components.map(c=><span key={c} className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">{c}</span>)}
+            {ticket.components.map(c=><span key={c} className="t-caption px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">{c}</span>)}
           </div>
         )}
 
-        <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[10px]">
-          {ticket.reporter && <><span className="text-on-surface-variant/25">Reporter</span><span className="text-on-surface-variant/50 truncate">{ticket.reporter}</span></>}
-          {ticket.assignee && <><span className="text-on-surface-variant/25">Asignado</span><span className="text-on-surface-variant/50 truncate">{ticket.assignee}</span></>}
-          {ticket.created  && <><span className="text-on-surface-variant/25">Creado</span><span className="text-on-surface-variant/50">{fmtDate(ticket.created)}</span></>}
+        <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 t-caption">
+          {ticket.reporter && <><span className="text-on-surface-variant/60">Informante</span><span className="text-on-surface-variant truncate">{ticket.reporter}</span></>}
+          {ticket.assignee && <><span className="text-on-surface-variant/60">Asignado</span><span className="text-on-surface-variant truncate">{ticket.assignee}</span></>}
+          {ticket.created  && <><span className="text-on-surface-variant/60">Creado</span><span className="text-on-surface-variant">{fmtDate(ticket.created)}</span></>}
         </div>
       </div>
     </div>
@@ -230,31 +231,31 @@ function PlanCard({ plan, skeleton }: { plan?:AnalysisPlan|null; skeleton?:boole
     <div className="bg-surface-container rounded-xl p-3 tr-fadein">
       <div className="flex items-center gap-1.5 mb-3">
         <ClipboardList size={13} className="text-primary"/>
-        <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/40">Plan de análisis</span>
+        <span className="t-section">Plan de análisis</span>
       </div>
       <div className="grid grid-cols-2 gap-1.5 mb-3">
         {[{l:'Componente',v:plan.component},{l:'Tecnología',v:plan.technology},{l:'Términos',v:plan.searchTerms.slice(0,3).join(', ')}]
           .map(({l,v})=>(
             <div key={l} className="bg-surface rounded-lg px-2 py-1.5">
-              <div className="text-[8px] text-on-surface-variant/30 uppercase tracking-widest mb-0.5">{l}</div>
-              <div className="text-[11px] font-medium text-on-surface truncate">{v||'—'}</div>
+              <div className="t-section mb-0.5">{l}</div>
+              <div className="t-footnote font-medium text-on-surface truncate">{v||'—'}</div>
             </div>
           ))}
       </div>
       <div className="mb-2">
-        <div className="text-[8px] text-on-surface-variant/30 uppercase tracking-widest mb-1">Problema</div>
-        <p className="text-[11px] text-on-surface leading-snug">{plan.nature}</p>
+        <div className="t-section mb-1">Problema</div>
+        <p className="t-footnote text-on-surface leading-snug">{plan.nature}</p>
       </div>
       {plan.steps.length > 0 && (
         <div>
-          <div className="text-[8px] text-on-surface-variant/30 uppercase tracking-widest mb-1.5">Pasos</div>
+          <div className="t-section mb-1.5">Pasos</div>
           <div className="flex flex-col gap-1">
             {plan.steps.map(s=>(
               <div key={s.id} className="flex items-start gap-1.5">
-                <span className="flex-shrink-0 w-3.5 h-3.5 rounded-full bg-primary/10 text-primary text-[8px] font-bold flex items-center justify-center mt-0.5">{s.id}</span>
+                <span className="flex-shrink-0 w-3.5 h-3.5 rounded-full bg-primary/10 text-primary t-caption font-bold flex items-center justify-center mt-0.5">{s.id}</span>
                 <div>
-                  <div className="text-[11px] font-medium text-on-surface">{s.label}</div>
-                  <div className="text-[10px] text-on-surface-variant/40">{s.detail}</div>
+                  <div className="t-footnote font-medium text-on-surface">{s.label}</div>
+                  <div className="t-caption text-on-surface-variant">{s.detail}</div>
                 </div>
               </div>
             ))}
@@ -276,17 +277,17 @@ function AnalyzingPanel({ steps }: { steps:AnalysisStepUI[] }): JSX.Element {
   return (
     <div className="flex flex-col gap-5 tr-fadein">
       {/* Progress header */}
-      <div className="bg-surface-container rounded-2xl p-4 border border-outline-variant/10">
+      <div className="bg-surface-container rounded-xl p-4 hairline">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Spinner size={16} />
-            <span className="text-[13px] font-semibold text-on-surface">Analizando ticket...</span>
+            <span className="t-body font-semibold text-on-surface">Analizando ticket...</span>
           </div>
-          <span className="text-[12px] font-bold text-primary tabular-nums">{pct}%</span>
+          <span className="t-footnote font-bold text-primary tabular-nums">{pct}%</span>
         </div>
-        <div className="h-1.5 bg-outline-variant/10 rounded-full overflow-hidden">
+        <div className="h-1.5 bg-on-surface/[0.08] rounded-full overflow-hidden">
           <div className="h-full rounded-full transition-all duration-700"
-            style={{width:`${Math.max(pct,pct>0?4:0)}%`, background:'linear-gradient(90deg,rgb(var(--c-primary)),rgb(var(--c-secondary,var(--c-primary))))'}} />
+            style={{width:`${Math.max(pct,pct>0?4:0)}%`, background:'rgb(var(--c-primary))'}} />
         </div>
         <div className="flex gap-1 mt-3">
           {[0,160,320].map(d=><div key={d} className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{animationDelay:`${d}ms`}} />)}
@@ -300,31 +301,31 @@ function AnalyzingPanel({ steps }: { steps:AnalysisStepUI[] }): JSX.Element {
           const pend = step.status==='pending'
           const Icon = ICONS[step.id] ?? Pencil
           return (
-            <div key={step.id} className={['rounded-2xl p-4 border transition-all duration-500',
+            <div key={step.id} className={['rounded-xl p-4 border transition-all duration-500',
               run  ? 'bg-primary/5 border-primary/20' : '',
-              done ? 'bg-green-500/[0.04] border-green-500/15' : '',
-              pend ? 'bg-surface-container/30 border-outline-variant/8 opacity-40' : '',
+              done ? 'bg-success/[0.04] border-success/15' : '',
+              pend ? 'bg-surface-container/30 border-hairline opacity-40' : '',
             ].join(' ')}>
               <div className="flex items-center gap-3">
                 <div className={['w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all',
-                  run?'bg-primary/12':done?'bg-green-500/10':'bg-outline-variant/8',
+                  run?'bg-primary/[0.12]':done?'bg-success/10':'bg-on-surface/[0.06]',
                 ].join(' ')}>
                   {run  && <Spinner size={18} />}
-                  {done && <CheckCircle2 size={18} className="text-green-400 tr-pop" />}
-                  {pend && <Icon size={18} className="text-on-surface-variant/20" />}
+                  {done && <CheckCircle2 size={18} className="text-success tr-pop" />}
+                  {pend && <Icon size={18} className="text-on-surface-variant/60" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className={`text-[12px] font-semibold ${pend?'text-on-surface-variant/30':done?'text-on-surface/70':'text-on-surface'}`}>
+                  <div className={`t-footnote font-semibold ${pend?'text-on-surface-variant/60':done?'text-on-surface/70':'text-on-surface'}`}>
                     {TITLES[step.id]??step.label}
                   </div>
                   {step.detail && (
-                    <div className={`text-[11px] mt-0.5 truncate ${run?'text-primary/55':'text-on-surface-variant/40'}`}>
+                    <div className={`t-footnote mt-0.5 truncate ${run?'text-primary/55':'text-on-surface-variant'}`}>
                       {step.detail}
                     </div>
                   )}
                 </div>
-                {done && <span className="text-[9px] text-green-400/60 font-semibold uppercase tracking-wider flex-shrink-0 tr-fadein">Listo</span>}
-                {run  && <span className="text-[9px] text-primary/50 font-semibold uppercase tracking-wider flex-shrink-0 tr-pulse">En progreso</span>}
+                {done && <span className="t-caption text-success/60 font-semibold flex-shrink-0 tr-fadein">Listo</span>}
+                {run  && <span className="t-caption text-primary/50 font-semibold flex-shrink-0 tr-pulse">En progreso</span>}
               </div>
             </div>
           )
@@ -341,25 +342,25 @@ function CommentCard({ comment, disp }: { comment:TicketComment; disp:DisplayCfg
   const copy = () => void navigator.clipboard.writeText(fullText).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),1500)})
 
   return (
-    <div className="bg-surface-container rounded-2xl tr-fadein" style={{padding:PAD_PX[disp.density]}}>
+    <div className="bg-surface-container rounded-xl tr-fadein" style={{padding:PAD_PX[disp.density]}}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <FileText size={17} className="text-blue-400" />
-          <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/45">Comentario para el ticket</span>
+          <FileText size={17} className="text-primary" />
+          <span className="t-section">Comentario para el ticket</span>
         </div>
-        <button onClick={copy} className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-primary/10 hover:text-primary text-on-surface-variant/45 transition-all">
+        <button onClick={copy} className="ui-btn ui-btn-outline ui-btn-sm">
           {copied ? <Check size={13} /> : <Copy size={13} />}
           {copied?'Copiado':'Copiar todo'}
         </button>
       </div>
-      <div className="flex flex-col rounded-xl overflow-hidden border border-outline-variant/12">
+      <div className="flex flex-col rounded-xl overflow-hidden hairline">
         {[
-          {key:'causa',    label:'Causa del error', color:'text-red-400',   bg:'bg-red-500/5',   text:comment.causa},
-          {key:'solucion', label:'Solución',        color:'text-green-400', bg:'bg-green-500/5', text:comment.solucion},
-          {key:'probarlo', label:'Cómo probar',     color:'text-blue-400',  bg:'bg-blue-500/5',  text:comment.comoProbarlo},
+          {key:'causa',    label:'Causa del error', color:'text-error',   bg:'bg-error/5',   text:comment.causa},
+          {key:'solucion', label:'Solución',        color:'text-success', bg:'bg-success/5', text:comment.solucion},
+          {key:'probarlo', label:'Cómo probar',     color:'text-primary',  bg:'bg-primary/5',  text:comment.comoProbarlo},
         ].map(({key,label,color,bg,text},i,arr)=>(
-          <div key={key} className={`px-4 py-3.5 ${bg} ${i<arr.length-1?'border-b border-outline-variant/10':''}`}>
-            <div className={`text-[9px] font-bold uppercase tracking-widest mb-2 ${color}`}>{label}</div>
+          <div key={key} className={`px-4 py-3.5 ${bg} ${i<arr.length-1?'hairline-b':''}`}>
+            <div className={`t-section mb-2 ${color}`}>{label}</div>
             <p className="text-on-surface" style={{fontSize:FONT_PX[disp.fontSize],lineHeight:LINE_MAP[disp.lineHeight]}}>{text}</p>
           </div>
         ))}
@@ -371,9 +372,10 @@ function CommentCard({ comment, disp }: { comment:TicketComment; disp:DisplayCfg
 // ── Display settings section ───────────────────────────────────────────────────
 function DisplaySettings({ disp, onChange }: { disp:DisplayCfg; onChange:(k:keyof DisplayCfg,v:string)=>void }): JSX.Element {
   const btnCls = (active:boolean) =>
-    `flex-1 py-1.5 text-[11px] font-medium rounded-lg border transition-all ${active
-      ? 'bg-primary text-on-primary border-primary'
-      : 'bg-surface border-outline-variant/25 text-on-surface-variant/60 hover:border-primary/40'}`
+    `flex-1 py-1 t-footnote font-medium rounded-md transition-colors ${active
+      ? 'bg-surface dark:bg-white/[0.16] text-on-surface shadow-sm'
+      : 'text-on-surface-variant hover:text-on-surface'}`
+  const group = 'flex gap-0.5 p-[2px] rounded-lg bg-on-surface/[0.06]'
 
   const FONT_FAMILY_LABELS: Record<FontFamily, string> = {
     system: 'Sistema', sans: 'Sans', mono: 'Mono', serif: 'Serif',
@@ -383,15 +385,15 @@ function DisplaySettings({ disp, onChange }: { disp:DisplayCfg; onChange:(k:keyo
     <div className="flex flex-col gap-4">
       {/* Font size */}
       <div>
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/45 mb-2">Tamaño de texto</div>
-        <div className="flex gap-1.5">
+        <div className="t-section mb-2">Tamaño de texto</div>
+        <div className={group}>
           {(['small','normal','large'] as FontSize[]).map(s=>(
             <button key={s} className={btnCls(disp.fontSize===s)} onClick={()=>onChange('fontSize',s)}>
               {s==='small'?'Pequeño':s==='normal'?'Normal':'Grande'}
             </button>
           ))}
         </div>
-        <div className="mt-2 px-3 py-2 bg-surface/60 rounded-lg border border-outline-variant/10">
+        <div className="mt-2 px-3 py-2 bg-surface/60 rounded-lg hairline">
           <span className="text-on-surface-variant/60" style={{fontSize:FONT_PX[disp.fontSize],fontFamily:FONT_FAMILY_MAP[disp.fontFamily]}}>
             Vista previa: el texto del módulo tendrá este tamaño y fuente.
           </span>
@@ -400,8 +402,8 @@ function DisplaySettings({ disp, onChange }: { disp:DisplayCfg; onChange:(k:keyo
 
       {/* Font family */}
       <div>
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/45 mb-2">Tipografía</div>
-        <div className="flex gap-1.5">
+        <div className="t-section mb-2">Tipografía</div>
+        <div className={group}>
           {(['system','sans','mono','serif'] as FontFamily[]).map(ff=>(
             <button key={ff} className={btnCls(disp.fontFamily===ff)} onClick={()=>onChange('fontFamily',ff)}
               style={{fontFamily:FONT_FAMILY_MAP[ff]}}>
@@ -413,8 +415,8 @@ function DisplaySettings({ disp, onChange }: { disp:DisplayCfg; onChange:(k:keyo
 
       {/* Density */}
       <div>
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/45 mb-2">Densidad de cards</div>
-        <div className="flex gap-1.5">
+        <div className="t-section mb-2">Densidad de cards</div>
+        <div className={group}>
           {(['compact','comfortable'] as Density[]).map(d=>(
             <button key={d} className={btnCls(disp.density===d)} onClick={()=>onChange('density',d)}>
               {d==='compact'?'Compacta':'Cómoda'}
@@ -425,8 +427,8 @@ function DisplaySettings({ disp, onChange }: { disp:DisplayCfg; onChange:(k:keyo
 
       {/* Line height */}
       <div>
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/45 mb-2">Interlineado</div>
-        <div className="flex gap-1.5">
+        <div className="t-section mb-2">Interlineado</div>
+        <div className={group}>
           {(['tight','normal','relaxed'] as LineHeight[]).map(lh=>(
             <button key={lh} className={btnCls(disp.lineHeight===lh)} onClick={()=>onChange('lineHeight',lh)}>
               {lh==='tight'?'Ajustado':lh==='normal'?'Normal':'Amplio'}
@@ -460,79 +462,72 @@ function ConfigPanel({
     finally { setSaving(false) }
   }
 
-  const inp = 'ui-input w-full text-[13px]'
-  const lbl = 'block text-[11px] text-on-surface-variant/50 mb-1'
-
-  const TAB_BTN = (t:ConfigTab, Icon:IconComponent, label:string) => (
-    <button
-      key={t}
-      onClick={()=>setTab(t)}
-      className={['flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-medium transition-all',
-        tab===t ? 'bg-primary/10 text-primary' : 'text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.04]'
-      ].join(' ')}
-    >
-      <Icon size={16} />
-      {label}
-    </button>
-  )
+  const inp = 'ui-input w-full t-body'
+  const lbl = 'block t-footnote text-on-surface-variant mb-1'
 
   return (
-    <div className="absolute inset-0 bg-surface z-30 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/15 flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <Settings size={18} className="text-primary" />
-          <span className="text-[14px] font-semibold text-on-surface">Configuración</span>
+    <Sheet
+      open
+      onClose={onClose}
+      title="Configuración"
+      width={440}
+      footer={tab === 'jira' ? (
+        <div className="flex flex-col gap-2 w-full">
+          {saveError && (
+            <div className="t-footnote text-error bg-error/10 rounded-md px-3 py-2">{saveError}</div>
+          )}
+          <div className="flex justify-end gap-2">
+            <button onClick={onClose} className="ui-btn ui-btn-outline">Cancelar</button>
+            <button onClick={()=>void save()} disabled={saving} className="ui-btn ui-btn-primary">
+              {saving?'Guardando…':'Guardar'}
+            </button>
+          </div>
         </div>
-        <button onClick={onClose} className="text-on-surface-variant/45 hover:text-on-surface transition-colors">
-          <X size={20} />
-        </button>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-1 px-4 pt-3 pb-0 flex-shrink-0">
-        {TAB_BTN('jira',    Network,   'Conexión')}
-        {TAB_BTN('display', Settings,  'Visualización')}
-      </div>
-
-      {/* Body */}
-      <div className="flex-1 overflow-y-auto px-5 py-5">
+      ) : undefined}
+    >
+      <SegmentedControl
+        className="mb-5"
+        options={[{ value: 'jira', label: 'Conexión' }, { value: 'display', label: 'Visualización' }]}
+        value={tab}
+        onChange={(t)=>setTab(t as ConfigTab)}
+      />
+      <div>
         {tab === 'jira' && (
           <div className="flex flex-col gap-5">
             {/* Jira */}
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-3">Jira</div>
+              <div className="t-section mb-3">Jira</div>
               <div className="flex flex-col gap-3">
-                <div><label className={lbl}>Base URL</label><input className={inp} placeholder="https://company.atlassian.net" value={local.jiraUrl} onChange={set('jiraUrl')} /></div>
+                <div><label className={lbl}>URL base</label><input className={inp} placeholder="https://empresa.atlassian.net" value={local.jiraUrl} onChange={set('jiraUrl')} /></div>
                 <div><label className={lbl}>Email</label><input className={inp} placeholder="tu@empresa.com" value={local.jiraUser} onChange={set('jiraUser')} /></div>
                 <div>
-                  <label className={lbl}>API Token</label>
-                  <input className={inp} type="password" placeholder={local.jiraToken==='__CONFIGURED__'?'●●●●●●●● (ya configurado)':'Jira API token'}
+                  <label className={lbl}>Token de API</label>
+                  <input className={inp} type="password" placeholder={local.jiraToken==='__CONFIGURED__'?'●●●●●●●● (ya configurado)':'Token de API de Jira'}
                     value={local.jiraToken==='__CONFIGURED__'?'':local.jiraToken} onChange={set('jiraToken')} />
-                  <p className="text-[11px] text-on-surface-variant/30 mt-1">Jira → Configuración → Seguridad → API tokens</p>
+                  <p className="t-footnote text-on-surface-variant/60 mt-1">Jira → Configuración → Seguridad → API tokens</p>
                 </div>
               </div>
             </div>
             {/* Repo */}
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-3">Repositorio</div>
+              <div className="t-section mb-3">Repositorio</div>
               <div className="flex flex-col gap-3">
                 <div>
                   <label className={lbl}>Prefijo de proyecto</label>
                   <input className={inp} placeholder="WIN" value={local.projectPrefix} onChange={set('projectPrefix')} />
-                  <p className="text-[11px] text-on-surface-variant/30 mt-1">Ej: 1234 → WIN-1234</p>
+                  <p className="t-footnote text-on-surface-variant/60 mt-1">Ej: 1234 → WIN-1234</p>
                 </div>
                 <div><label className={lbl}>Ruta del repositorio Wigos</label><input className={inp} placeholder="D:\repos\wigos" value={local.repoPath} onChange={set('repoPath')} /></div>
               </div>
             </div>
             {/* AI info */}
-            <div className="px-4 py-3 bg-surface-container/60 rounded-xl border border-outline-variant/10">
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-1">Modelo IA activo</div>
+            <div className="ui-card shadow-none px-4 py-3">
+              <div className="t-section mb-1">Modelo de IA activo</div>
               <div className="flex items-center gap-2">
-                <Sparkles size={14} className="text-primary tr-pulse" />
-                <span className="text-[12px] text-on-surface font-medium">{aiModel || 'No configurado'}</span>
+                <Sparkles size={14} className="text-on-surface-variant" />
+                <span className="t-footnote text-on-surface font-medium">{aiModel || 'No configurado'}</span>
               </div>
-              <p className="text-[11px] text-on-surface-variant/35 mt-1">Cambiá el modelo en Configuración → AI Service.</p>
+              <p className="t-footnote text-on-surface-variant/60 mt-1">Cambiá el modelo en Configuración → Servicio de IA.</p>
             </div>
           </div>
         )}
@@ -541,18 +536,7 @@ function ConfigPanel({
           <DisplaySettings disp={disp} onChange={onDisplayChange} />
         )}
       </div>
-
-      {tab === 'jira' && (
-        <div className="px-5 py-4 border-t border-outline-variant/15 flex-shrink-0 flex flex-col gap-2">
-          {saveError && (
-            <div className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{saveError}</div>
-          )}
-          <button onClick={()=>void save()} disabled={saving} className="ui-btn ui-btn-primary w-full justify-center disabled:opacity-50">
-            {saving?'Guardando…':'Guardar configuración'}
-          </button>
-        </div>
-      )}
-    </div>
+    </Sheet>
   )
 }
 
@@ -560,22 +544,22 @@ function ConfigPanel({
 function AwaitingPanel({ plan, onExecute, onReset }: { plan:AnalysisPlan; onExecute:()=>void; onReset:()=>void }): JSX.Element {
   return (
     <div className="flex flex-col gap-3 tr-fadein">
-      <div className="bg-surface-container rounded-xl p-4 border border-outline-variant/10">
+      <div className="bg-surface-container rounded-xl p-4 hairline">
         <div className="flex items-center gap-2 mb-2">
-          <Sparkles size={15} className="text-primary tr-pulse"/>
-          <span className="text-[13px] font-semibold text-on-surface">Plan listo</span>
+          <Sparkles size={15} className="text-primary"/>
+          <span className="t-body font-semibold text-on-surface">Plan listo</span>
         </div>
-        <p className="text-[11px] text-on-surface-variant/55 leading-relaxed mb-3">
+        <p className="t-footnote text-on-surface-variant leading-relaxed mb-3">
           Revisá el plan en el panel izquierdo y ejecutá el análisis completo.
         </p>
         {plan.steps.length > 0 && (
-          <div className="flex flex-col bg-surface/50 rounded-lg overflow-hidden border border-outline-variant/8 mb-3">
+          <div className="flex flex-col bg-surface/50 rounded-lg overflow-hidden hairline mb-3">
             {plan.steps.map((s,i)=>(
-              <div key={s.id} className={`flex items-start gap-2 px-3 py-2 ${i>0?'border-t border-outline-variant/8':''}`}>
-                <span className="flex-shrink-0 w-4 h-4 rounded-full bg-primary/10 text-primary text-[8px] font-bold flex items-center justify-center mt-0.5">{i+1}</span>
+              <div key={s.id} className={`flex items-start gap-2 px-3 py-2 ${i>0?'hairline-t':''}`}>
+                <span className="flex-shrink-0 w-4 h-4 rounded-full bg-primary/10 text-primary t-caption font-bold flex items-center justify-center mt-0.5">{i+1}</span>
                 <div>
-                  <div className="text-[11px] font-medium text-on-surface">{s.label}</div>
-                  <div className="text-[10px] text-on-surface-variant/35 mt-0.5">{s.detail}</div>
+                  <div className="t-footnote font-medium text-on-surface">{s.label}</div>
+                  <div className="t-caption text-on-surface-variant/60 mt-0.5">{s.detail}</div>
                 </div>
               </div>
             ))}
@@ -620,58 +604,55 @@ function ApplyChangesModal({ diff, onClose }: { diff:DiffChunk[]; onClose:()=>vo
   const allOk = results?.every(r => r.status==='applied')
 
   return (
-    <AnimatePresence>
-    <motion.div className="absolute inset-0 z-40 flex items-center justify-center p-5 bg-black/55 backdrop-blur-sm"
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-      <motion.div className="ui-card w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden"
-        initial={{ opacity: 0, scale: 0.96, y: 6 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 6 }}
-        transition={{ duration: 0.18, ease: 'easeOut' }}>
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/12 flex-shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Wrench size={15} className="text-primary" />
-            </div>
-            <div>
-              <div className="text-[13px] font-semibold text-on-surface">Aplicar cambios en repositorio</div>
-              <div className="text-[11px] text-on-surface-variant/40">{diff.length} cambio{diff.length!==1?'s':''} propuesto{diff.length!==1?'s':''}</div>
-            </div>
-          </div>
-          <button onClick={onClose} className="text-on-surface-variant/35 hover:text-on-surface transition-colors p-1"><X size={18}/></button>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+    <Modal
+      open
+      onClose={onClose}
+      width={680}
+      title="Aplicar cambios en el repositorio"
+      subtitle={`${diff.length} cambio${diff.length!==1?'s':''} propuesto${diff.length!==1?'s':''}`}
+      footer={!results ? (
+        <>
+          <span className="t-footnote text-on-surface-variant mr-auto self-center">{selected.size} de {diff.length} seleccionado{selected.size!==1?'s':''}</span>
+          <button onClick={onClose} className="ui-btn ui-btn-outline">Cancelar</button>
+          <button onClick={()=>void handleApply()} disabled={applying||selected.size===0}
+            className="ui-btn ui-btn-primary">
+            {applying ? <><Spinner size={13}/>Aplicando…</> : <><Wrench size={13}/>Aplicar {selected.size} cambio{selected.size!==1?'s':''}</>}
+          </button>
+        </>
+      ) : (
+        <button onClick={onClose} className="ui-btn ui-btn-primary">Cerrar</button>
+      )}
+    >
+        <div className="flex flex-col gap-3">
           {!results ? (
             <>
-              <p className="text-[11px] text-on-surface-variant/40 px-1">
+              <p className="t-footnote text-on-surface-variant px-1">
                 Seleccioná los cambios a aplicar. Los archivos se modificarán directamente en el repositorio configurado.
               </p>
               {diff.map((chunk,i) => (
                 <label key={i} onClick={()=>toggle(i)}
                   className={['rounded-xl border overflow-hidden cursor-pointer transition-all select-none',
-                    selected.has(i) ? 'border-primary/25 bg-primary/5' : 'border-outline-variant/12 bg-surface-container/40 opacity-60',
+                    selected.has(i) ? 'border-primary/25 bg-primary/5' : 'border-hairline bg-surface-container/40 opacity-60',
                   ].join(' ')}>
                   <div className="flex items-center gap-3 px-4 py-2.5">
                     <div className={['w-4 h-4 rounded flex items-center justify-center border transition-all flex-shrink-0',
-                      selected.has(i) ? 'bg-primary border-primary' : 'border-outline-variant/30'
+                      selected.has(i) ? 'bg-primary border-primary' : 'border-hairline'
                     ].join(' ')}>
-                      {selected.has(i) && <Check size={10} className="text-white" />}
+                      {selected.has(i) && <Check size={10} className="text-on-primary" />}
                     </div>
-                    <FileText size={12} className="text-on-surface-variant/35 flex-shrink-0"/>
-                    <span className="font-mono text-[12px] text-on-surface flex-1 truncate">{chunk.file}</span>
-                    <span className="text-[10px] text-on-surface-variant/30 flex-shrink-0">línea {chunk.lineStart}</span>
+                    <FileText size={12} className="text-on-surface-variant/60 flex-shrink-0"/>
+                    <span className="font-mono t-footnote text-on-surface flex-1 truncate">{chunk.file}</span>
+                    <span className="t-caption text-on-surface-variant/60 flex-shrink-0">línea {chunk.lineStart}</span>
                   </div>
-                  <div className="text-[11px] font-mono leading-relaxed">
+                  <div className="t-footnote font-mono leading-relaxed">
                     {chunk.original.split('\n').map((l,j)=>(
-                      <div key={j} className="flex gap-2 px-4 py-0.5 bg-red-500/8 text-red-300/70 border-t border-red-500/8">
-                        <span className="text-red-400/40 select-none w-3 flex-shrink-0">−</span><span>{l}</span>
+                      <div key={j} className="flex gap-2 px-4 py-0.5 bg-error/[0.08] text-error/70 border-t border-error/[0.08]">
+                        <span className="text-error/40 select-none w-3 flex-shrink-0">−</span><span>{l}</span>
                       </div>
                     ))}
                     {chunk.modified.split('\n').map((l,j)=>(
-                      <div key={j} className="flex gap-2 px-4 py-0.5 bg-green-500/8 text-green-300/70">
-                        <span className="text-green-400/40 select-none w-3 flex-shrink-0">+</span><span>{l}</span>
+                      <div key={j} className="flex gap-2 px-4 py-0.5 bg-success/[0.08] text-success/70">
+                        <span className="text-success/40 select-none w-3 flex-shrink-0">+</span><span>{l}</span>
                       </div>
                     ))}
                   </div>
@@ -681,53 +662,30 @@ function ApplyChangesModal({ diff, onClose }: { diff:DiffChunk[]; onClose:()=>vo
           ) : (
             <div className="flex flex-col gap-2.5">
               {allOk && (
-                <div className="flex items-center gap-2.5 text-green-400 bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-2.5 text-success bg-success/10 rounded-lg px-4 py-3">
                   <CheckCircle2 size={16} className="flex-shrink-0"/>
-                  <span className="text-[13px] font-medium">Todos los cambios aplicados correctamente</span>
+                  <span className="t-body font-medium">Todos los cambios aplicados correctamente</span>
                 </div>
               )}
               {results.map((r,i)=>(
-                <div key={i} className={['flex items-start gap-3 rounded-xl px-4 py-3 border',
-                  r.status==='applied'   ? 'bg-green-500/8 border-green-500/15' :
-                  r.status==='not_found' ? 'bg-amber-500/8 border-amber-500/15' :
-                                           'bg-red-500/8 border-red-500/15',
+                <div key={i} className={['flex items-start gap-3 rounded-lg px-4 py-3',
+                  r.status==='applied'   ? 'bg-success/[0.08]' :
+                  r.status==='not_found' ? 'bg-warning/[0.08]' :
+                                           'bg-error/[0.08]',
                 ].join(' ')}>
-                  {r.status==='applied'   ? <Check size={14} className="text-green-400 flex-shrink-0 mt-0.5"/> :
-                   r.status==='not_found' ? <TriangleAlert size={14} className="text-amber-400 flex-shrink-0 mt-0.5"/> :
-                                            <CircleAlert size={14} className="text-red-400 flex-shrink-0 mt-0.5"/>}
+                  {r.status==='applied'   ? <Check size={14} className="text-success flex-shrink-0 mt-0.5"/> :
+                   r.status==='not_found' ? <TriangleAlert size={14} className="text-warning flex-shrink-0 mt-0.5"/> :
+                                            <CircleAlert size={14} className="text-error flex-shrink-0 mt-0.5"/>}
                   <div>
-                    {r.file && <div className="text-[11px] font-mono text-on-surface">{r.file}</div>}
-                    {r.message && <div className="text-[11px] text-on-surface-variant/50 mt-0.5">{r.message}</div>}
+                    {r.file && <div className="t-footnote font-mono text-on-surface">{r.file}</div>}
+                    {r.message && <div className="t-footnote text-on-surface-variant mt-0.5">{r.message}</div>}
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between px-5 py-4 border-t border-outline-variant/12 flex-shrink-0">
-          {!results ? (
-            <>
-              <span className="text-[11px] text-on-surface-variant/35">{selected.size} de {diff.length} seleccionado{selected.size!==1?'s':''}</span>
-              <div className="flex gap-2">
-                <button onClick={onClose} className="ui-btn ui-btn-ghost">Cancelar</button>
-                <button onClick={()=>void handleApply()} disabled={applying||selected.size===0}
-                  className="ui-btn ui-btn-primary disabled:opacity-35">
-                  {applying ? <><Spinner size={13}/>Aplicando…</> : <><Wrench size={13}/>Aplicar {selected.size} cambio{selected.size!==1?'s':''}</>}
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="flex justify-end w-full">
-              <button onClick={onClose} className="ui-btn bg-primary/10 text-primary hover:bg-primary/20">Cerrar</button>
-            </div>
-          )}
-        </div>
-
-      </motion.div>
-    </motion.div>
-    </AnimatePresence>
+    </Modal>
   )
 }
 
@@ -746,12 +704,11 @@ function ResultsPanel({
   const SectionHeader = ({ color, icon: Icon, label, copyKey, copyText }: {
     color:string; icon:IconComponent; label:string; copyKey?:string; copyText?:string
   }) => (
-    <div className={`flex items-center gap-2 px-4 py-2.5 border-b border-outline-variant/10 bg-surface-container/30`}>
-      <span className={`w-1 h-4 rounded-full flex-shrink-0 ${color}`}/>
-      <Icon size={13} className={`flex-shrink-0 ${color.replace('bg-','text-')}`}/>
-      <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">{label}</span>
+    <div className={`flex items-center gap-2 px-4 py-2 hairline-b bg-on-surface/[0.02]`}>
+      <Icon size={13} className={`flex-shrink-0 ${color}`}/>
+      <span className="t-section">{label}</span>
       {copyKey && copyText && (
-        <button onClick={()=>copy(copyText,copyKey)} className="ml-auto text-on-surface-variant/20 hover:text-on-surface-variant/60 transition-colors">
+        <button onClick={()=>copy(copyText,copyKey)} title="Copiar" aria-label="Copiar" className="ml-auto ui-btn ui-btn-ghost ui-btn-icon">
           {copied===copyKey ? <Check size={12}/> : <Copy size={12}/>}
         </button>
       )}
@@ -765,13 +722,11 @@ function ResultsPanel({
       <div className="flex flex-col gap-3">
 
         {/* Banner */}
-        <div className="flex items-center gap-3 rounded-2xl border border-outline-variant/12 px-4 py-3 bg-surface-container/50 tr-fadein">
-          <div className="w-8 h-8 rounded-xl bg-green-500/12 flex items-center justify-center flex-shrink-0">
-            <CheckCircle2 size={16} className="text-green-400"/>
-          </div>
+        <div className="flex items-center gap-3 rounded-xl hairline px-4 py-3 bg-surface-container/50 tr-fadein">
+          <CheckCircle2 size={18} className="text-success flex-shrink-0"/>
           <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-semibold text-on-surface">Análisis completado</div>
-            <div className="text-[11px] text-on-surface-variant/40 truncate">
+            <div className="t-body font-semibold text-on-surface">Análisis completado</div>
+            <div className="t-footnote text-on-surface-variant truncate">
               {result.affectedFiles.length > 0 && `${result.affectedFiles.length} archivo${result.affectedFiles.length!==1?'s':''}`}
               {hasDiff && ` · ${result.diff.length} cambio${result.diff.length!==1?'s':''} listo${result.diff.length!==1?'s':''} para aplicar`}
             </div>
@@ -784,21 +739,21 @@ function ResultsPanel({
         </div>
 
         {/* Root cause */}
-        <div className="rounded-2xl border border-outline-variant/12 overflow-hidden tr-fadein">
-          <SectionHeader color="bg-amber-400" icon={Search} label="Causa raíz" copyKey="root" copyText={result.rootCause}/>
+        <div className="rounded-xl hairline overflow-hidden tr-fadein">
+          <SectionHeader color="text-warning" icon={Search} label="Causa raíz" copyKey="root" copyText={result.rootCause}/>
           <div className="px-4 py-4">
             <p className="text-on-surface" style={{fontSize:FONT_PX[disp.fontSize],lineHeight:LINE_MAP[disp.lineHeight]}}>{result.rootCause}</p>
           </div>
         </div>
 
         {/* Fix */}
-        <div className="rounded-2xl border border-outline-variant/12 overflow-hidden tr-fadein" style={{animationDelay:'.05s'}}>
-          <SectionHeader color="bg-green-400" icon={Wrench} label="Solución propuesta" copyKey="fix" copyText={result.fix}/>
+        <div className="rounded-xl hairline overflow-hidden tr-fadein" style={{animationDelay:'.05s'}}>
+          <SectionHeader color="text-success" icon={Wrench} label="Solución propuesta" copyKey="fix" copyText={result.fix}/>
           <div className="px-4 py-4">
             <p className="text-on-surface" style={{fontSize:FONT_PX[disp.fontSize],lineHeight:LINE_MAP[disp.lineHeight]}}>{result.fix}</p>
           </div>
           {hasDiff && (
-            <div className="border-t border-outline-variant/10">
+            <div className="hairline-t">
               <DiffView diff={result.diff}/>
             </div>
           )}
@@ -806,13 +761,13 @@ function ResultsPanel({
 
         {/* Affected files */}
         {result.affectedFiles.length > 0 && (
-          <div className="rounded-2xl border border-outline-variant/12 overflow-hidden tr-fadein" style={{animationDelay:'.1s'}}>
-            <SectionHeader color="bg-primary/60" icon={FolderOpen} label={`Archivos modificados · ${result.affectedFiles.length}`}/>
+          <div className="rounded-xl hairline overflow-hidden tr-fadein" style={{animationDelay:'.1s'}}>
+            <SectionHeader color="text-on-surface-variant" icon={FolderOpen} label={`Archivos modificados · ${result.affectedFiles.length}`}/>
             <div className="px-3 py-2.5 flex flex-col gap-1">
               {result.affectedFiles.map(f=>(
-                <div key={f} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-container/60 border border-outline-variant/8">
-                  <FileText size={12} className="text-on-surface-variant/25 flex-shrink-0"/>
-                  <span className="font-mono text-[11px] text-on-surface-variant/60 truncate">{f}</span>
+                <div key={f} className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-on-surface/[0.04]">
+                  <FileText size={12} className="text-on-surface-variant/60 flex-shrink-0"/>
+                  <span className="font-mono t-footnote text-on-surface-variant/60 truncate">{f}</span>
                 </div>
               ))}
             </div>
@@ -829,15 +784,15 @@ function ResultsPanel({
         {/* Actions */}
         <div className="flex items-center gap-1.5 flex-wrap pb-1 pt-0.5 tr-fadein" style={{animationDelay:'.2s'}}>
           <button onClick={onSaveHistory}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${justSaved?'bg-green-500/12 text-green-400 border border-green-500/15':isAlreadySaved?'bg-white/[0.04] text-on-surface-variant/55 hover:bg-primary/10 hover:text-primary border border-outline-variant/12':'bg-primary/10 text-primary hover:bg-primary/18 border border-primary/12'}`}>
-            {justSaved?<><CheckCircle2 size={12}/>Guardado</>:isAlreadySaved?<><RotateCcw size={12}/>Actualizar</>:<><Save size={12}/>Guardar</>}
+            className={`ui-btn ui-btn-sm ${isAlreadySaved || justSaved ? 'ui-btn-outline' : 'ui-btn-primary'}`}>
+            {justSaved?<><CheckCircle2 size={12} className="text-success"/>Guardado</>:isAlreadySaved?<><RotateCcw size={12}/>Actualizar</>:<><Save size={12}/>Guardar</>}
           </button>
           <button onClick={()=>copy(`CAUSA RAÍZ:\n${result.rootCause}\n\nSOLUCIÓN:\n${result.fix}`,'all')}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] text-on-surface-variant/45 hover:text-on-surface hover:bg-white/[0.04] border border-outline-variant/8 hover:border-outline-variant/20 transition-all">
+            className="ui-btn ui-btn-outline ui-btn-sm">
             {copied==='all'?<Check size={12}/>:<Copy size={12}/>}Copiar
           </button>
           <button onClick={onReset}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] text-on-surface-variant/45 hover:text-on-surface hover:bg-white/[0.04] border border-outline-variant/8 hover:border-outline-variant/20 transition-all ml-auto">
+            className="ui-btn ui-btn-ghost ui-btn-sm ml-auto">
             <Plus size={12}/>Nuevo
           </button>
         </div>
@@ -1022,13 +977,13 @@ export function TicketResolver(): JSX.Element {
       )}
 
       {/* History sidebar — collapsible */}
-      <aside className={`flex-shrink-0 flex flex-col border-r border-outline-variant/15 bg-surface overflow-hidden transition-all duration-200 ${histOpen?'w-48':'w-8'}`}>
+      <aside className={`flex-shrink-0 flex flex-col hairline-r bg-sidebar/40 overflow-hidden transition-all duration-200 ${histOpen?'w-56':'w-9'}`}>
         {/* Toggle strip */}
-        <div className={`flex-shrink-0 flex items-center border-b border-outline-variant/10 ${histOpen?'justify-between px-2 py-2':'justify-center py-2'}`}>
-          {histOpen && <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/35 pl-1">Historial</span>}
-          <button onClick={()=>setHistOpen(o=>!o)} title={histOpen?'Colapsar historial':'Ver historial'}
-            className="w-5 h-5 flex items-center justify-center rounded text-on-surface-variant/30 hover:text-primary hover:bg-primary/10 transition-all flex-shrink-0">
-            <ChevronRight size={12} className={`transition-transform duration-200 ${histOpen?'rotate-180':''}`}/>
+        <div className={`flex-shrink-0 flex items-center h-10 hairline-b ${histOpen?'justify-between px-2':'justify-center'}`}>
+          {histOpen && <span className="t-section pl-1">Historial</span>}
+          <button onClick={()=>setHistOpen(o=>!o)} title={histOpen?'Colapsar historial':'Ver historial'} aria-label={histOpen?'Colapsar historial':'Ver historial'}
+            className="ui-btn ui-btn-ghost ui-btn-icon flex-shrink-0">
+            <ChevronRight size={13} className={`transition-transform duration-200 ${histOpen?'rotate-180':''}`}/>
           </button>
         </div>
 
@@ -1038,32 +993,32 @@ export function TicketResolver(): JSX.Element {
             {history.slice(0,5).map(entry=>(
               <button key={entry.id} onClick={()=>{setHistOpen(true);handleSelectHistory(entry)}}
                 title={`${entry.ticketKey} — ${entry.summary}`}
-                className={`w-2 h-2 rounded-full transition-all ${selectedId===entry.id?'bg-primary':'bg-outline-variant/30 hover:bg-primary/50'}`}/>
+                className={`w-2 h-2 rounded-full transition-all ${selectedId===entry.id?'bg-primary':'bg-on-surface-variant/30 hover:bg-primary/50'}`}/>
             ))}
-            {history.length > 5 && <span className="text-[8px] text-on-surface-variant/20 mt-0.5">+{history.length-5}</span>}
+            {history.length > 5 && <span className="t-caption text-on-surface-variant/60 mt-0.5">+{history.length-5}</span>}
           </div>
         )}
 
         {/* Expanded list */}
         {histOpen && (
           <div className="flex-1 overflow-y-auto pb-1">
-            <button onClick={resetToIdle} className="flex items-center gap-1.5 w-full px-2 py-1.5 text-[10px] text-on-surface-variant/40 hover:text-primary hover:bg-primary/5 transition-all">
-              <Plus size={11}/>Nuevo ticket
+            <button onClick={resetToIdle} className="flex items-center gap-1.5 w-[calc(100%-12px)] mx-1.5 mt-1.5 px-2 h-[26px] rounded-md t-footnote text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.05] transition-colors">
+              <Plus size={12}/>Nuevo ticket
             </button>
             {history.length===0 ? (
-              <p className="text-[10px] text-on-surface-variant/25 text-center px-3 pt-6 leading-relaxed">Sin tickets aún.</p>
+              <p className="t-caption text-on-surface-variant/60 text-center px-3 pt-6 leading-relaxed">Sin tickets aún.</p>
             ) : history.map(entry=>(
               <div key={entry.id} onClick={()=>handleSelectHistory(entry)}
-                className={['group relative flex flex-col gap-0.5 px-2 py-2 mx-0.5 mt-0.5 rounded-lg cursor-pointer transition-all',
-                  selectedId===entry.id ? 'bg-primary/10 border border-primary/20' : 'hover:bg-white/[0.04] border border-transparent',
+                className={['group relative flex flex-col gap-0.5 px-2 py-1.5 mx-1.5 mt-0.5 rounded-md cursor-default transition-colors',
+                  selectedId===entry.id ? 'bg-primary/15' : 'hover:bg-on-surface/[0.05]',
                 ].join(' ')}>
                 <div className="flex items-center justify-between gap-1 min-w-0">
-                  <span className={`text-[10px] font-bold truncate ${selectedId===entry.id?'text-primary':'text-on-surface'}`}>{entry.ticketKey}</span>
-                  <span className="text-[8px] text-on-surface-variant/20 flex-shrink-0 tabular-nums">{relativeTime(entry.createdAt)}</span>
+                  <span className="t-footnote font-semibold truncate text-on-surface">{entry.ticketKey}</span>
+                  <span className="t-caption text-on-surface-variant/70 flex-shrink-0 tabular-nums group-hover:opacity-0">{relativeTime(entry.createdAt)}</span>
                 </div>
-                <span className="text-[10px] text-on-surface-variant/50 truncate leading-snug">{entry.summary}</span>
-                <button onClick={e=>{void handleDeleteHistory(entry.id,e)}}
-                  className="absolute right-1 top-1 opacity-0 group-hover:opacity-100 w-4 h-4 flex items-center justify-center rounded text-on-surface-variant/25 hover:text-red-400 hover:bg-red-500/10 transition-all">
+                <span className="t-caption text-on-surface-variant truncate leading-snug">{entry.summary}</span>
+                <button onClick={e=>{void handleDeleteHistory(entry.id,e)}} title="Eliminar del historial" aria-label="Eliminar del historial"
+                  className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-100 w-4 h-4 flex items-center justify-center rounded text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.08] transition-opacity">
                   <X size={10}/>
                 </button>
               </div>
@@ -1076,44 +1031,43 @@ export function TicketResolver(): JSX.Element {
       <div className="flex-1 flex flex-col overflow-hidden min-w-0" style={{fontFamily:FONT_FAMILY_MAP[disp.fontFamily]}}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-3 py-1.5 border-b border-outline-variant/15 flex-shrink-0 gap-2">
+        <div className="flex items-center justify-between px-3 h-10 hairline-b flex-shrink-0 gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <Ticket size={13} className="text-primary flex-shrink-0"/>
-            {ticket && <span className="text-[11px] text-on-surface-variant/35 truncate">· {ticket.key}</span>}
+            <Ticket size={14} className="text-on-surface-variant flex-shrink-0"/>
+            {ticket && <span className="t-footnote font-medium text-on-surface truncate">{ticket.key}</span>}
             {(phase==='analyzing'||phase==='planning') && (
-              <span className="flex items-center gap-1 text-[10px] text-primary/70 bg-primary/8 px-2 py-0.5 rounded-full border border-primary/15 tr-fadein">
-                <Spinner size={10}/>{phase==='analyzing'?'Analizando...':'Planificando...'}
+              <span className="flex items-center gap-1.5 t-caption text-on-surface-variant tr-fadein">
+                <Spinner size={11}/>{phase==='analyzing'?'Analizando…':'Planificando…'}
               </span>
             )}
             {aiModel && (
-              <span className="hidden lg:inline-flex items-center gap-1.5 text-[10px] font-medium text-on-surface-variant/70 bg-surface-container-high px-2 py-0.5 rounded-full border border-outline-variant/25">
-                <Sparkles size={10} className="text-primary/70"/>{aiModel}
+              <span className="hidden lg:inline-flex items-center gap-1.5 t-caption text-on-surface-variant">
+                <Sparkles size={11}/>{aiModel}
               </span>
             )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <TokenCounter usage={sessionUsage} onReset={()=>void window.api.invoke('ticket-resolver:ai-usage-reset').then(()=>setSessionUsage(p=>({...p,inputTokens:0,outputTokens:0,calls:0})))} />
             {/* Font size quick controls */}
-            <div className="flex items-center gap-0.5 border border-outline-variant/15 rounded-lg overflow-hidden">
+            <div className="flex items-center">
               <button
                 onClick={()=>{ const i=FONT_SIZE_ORDER.indexOf(disp.fontSize); if(i>0) void handleDisplayChange('fontSize',FONT_SIZE_ORDER[i-1]!) }}
                 disabled={disp.fontSize==='small'}
-                title="Reducir fuente"
-                className="px-2 py-1 text-[10px] font-bold text-on-surface-variant/40 hover:text-primary hover:bg-primary/8 disabled:opacity-20 disabled:cursor-not-allowed transition-all leading-none">
+                title="Reducir fuente" aria-label="Reducir fuente"
+                className="ui-btn ui-btn-ghost ui-btn-sm !px-1.5 t-caption font-semibold">
                 A−
               </button>
-              <span className="text-[9px] text-on-surface-variant/20 px-0.5 select-none">{disp.fontSize==='small'?'S':disp.fontSize==='normal'?'M':'L'}</span>
               <button
                 onClick={()=>{ const i=FONT_SIZE_ORDER.indexOf(disp.fontSize); if(i<2) void handleDisplayChange('fontSize',FONT_SIZE_ORDER[i+1]!) }}
                 disabled={disp.fontSize==='large'}
-                title="Aumentar fuente"
-                className="px-2 py-1 text-[10px] font-bold text-on-surface-variant/40 hover:text-primary hover:bg-primary/8 disabled:opacity-20 disabled:cursor-not-allowed transition-all leading-none">
+                title="Aumentar fuente" aria-label="Aumentar fuente"
+                className="ui-btn ui-btn-ghost ui-btn-sm !px-1.5 font-semibold">
                 A+
               </button>
             </div>
-            <button onClick={()=>setShowConfig(true)} className="flex items-center gap-1 text-[11px] text-on-surface-variant/40 hover:text-on-surface transition-colors" title="Configuración">
+            <button onClick={()=>setShowConfig(true)} className="ui-btn ui-btn-ghost ui-btn-sm !gap-1" title="Configuración" aria-label="Configuración">
               <Settings size={14}/>
-              {!isConfigured && <span className="text-amber-400 text-[10px] font-medium">Sin configurar</span>}
+              {!isConfigured && <span className="text-warning t-caption font-medium">Sin configurar</span>}
             </button>
           </div>
         </div>
@@ -1122,43 +1076,41 @@ export function TicketResolver(): JSX.Element {
         {!showTwoCols && (
           <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-6 py-6 gap-4">
             {!isConfigured && (
-              <div className="flex items-center gap-2 text-amber-400 text-[11px] bg-amber-400/8 border border-amber-400/15 px-3 py-2 rounded-lg w-full max-w-xs">
-                <TriangleAlert size={13} className="flex-shrink-0"/>
+              <div className="flex items-center gap-2 text-on-surface t-footnote bg-warning/10 px-3 py-2 rounded-lg w-full max-w-sm">
+                <TriangleAlert size={13} className="flex-shrink-0 text-warning"/>
                 <span>Configurá las credenciales de Jira primero.</span>
-                <button onClick={()=>setShowConfig(true)} className="underline font-medium ml-auto flex-shrink-0 hover:no-underline">Configurar</button>
+                <button onClick={()=>setShowConfig(true)} className="ui-btn ui-btn-outline ui-btn-sm ml-auto flex-shrink-0">Configurar</button>
               </div>
             )}
             <div className="w-full max-w-xs">
               <div className="text-center mb-4">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
-                  <Ticket size={24} className="text-primary"/>
-                </div>
-                <h2 className="text-[15px] font-bold text-on-surface">Ticket Resolver</h2>
-                <p className="text-[11px] text-on-surface-variant/40 mt-0.5">Analizá tickets de Jira con IA</p>
-                {aiModel && <p className="text-[10px] text-primary/40 mt-0.5">{aiModel}</p>}
+                <Ticket size={36} strokeWidth={1.4} className="text-on-surface-variant/50 mx-auto mb-2"/>
+                <h2 className="t-title3 text-on-surface">Tickets</h2>
+                <p className="t-footnote text-on-surface-variant mt-0.5">Analizá tickets de Jira con IA</p>
+                {aiModel && <p className="t-caption text-on-surface-variant/70 mt-0.5">{aiModel}</p>}
               </div>
               <div className="flex gap-1.5">
                 <input value={ticketInput} onChange={e=>setTicketInput(e.target.value)}
                   onKeyDown={e=>{if(e.key==='Enter')void handleFetch()}}
                   placeholder={`${config.projectPrefix||'WIN'}-1234`}
                   autoFocus
-                  className="ui-input flex-1 text-[12px]"/>
+                  className="ui-input flex-1 t-footnote"/>
                 <button onClick={()=>void handleFetch()} disabled={!ticketInput.trim()||!isConfigured}
-                  className="ui-btn ui-btn-primary disabled:opacity-35">
+                  className="ui-btn ui-btn-primary">
                   Cargar
                 </button>
               </div>
-              <p className="text-[10px] text-on-surface-variant/25 text-center mt-1.5">Solo el número (1234) o la clave (WIN-1234)</p>
+              <p className="t-caption text-on-surface-variant/60 text-center mt-1.5">Solo el número (1234) o la clave (WIN-1234)</p>
             </div>
             {history.length > 0 && (
               <div className="w-full max-w-xs">
-                <div className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/25 mb-1.5">Recientes</div>
+                <div className="t-section mb-1.5">Recientes</div>
                 <div className="flex flex-col gap-1">
                   {history.slice(0,5).map(e=>(
                     <button key={e.id} onClick={()=>handleSelectHistory(e)}
-                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-surface-container/50 hover:bg-surface-container border border-outline-variant/8 hover:border-outline-variant/20 transition-all text-left">
-                      <span className="text-[10px] font-bold text-primary w-20 flex-shrink-0">{e.ticketKey}</span>
-                      <span className="text-[10px] text-on-surface-variant/50 truncate">{e.summary}</span>
+                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-on-surface/[0.05] transition-colors text-left">
+                      <span className="t-footnote font-semibold text-on-surface w-20 flex-shrink-0">{e.ticketKey}</span>
+                      <span className="t-footnote text-on-surface-variant truncate">{e.summary}</span>
                     </button>
                   ))}
                 </div>
@@ -1172,20 +1124,20 @@ export function TicketResolver(): JSX.Element {
           <div className="flex-1 flex overflow-hidden">
 
             {/* Left col */}
-            <div className="w-[280px] flex-shrink-0 overflow-y-auto border-r border-outline-variant/10 flex flex-col gap-2 p-3">
+            <div className="w-[280px] flex-shrink-0 overflow-y-auto hairline-r bg-sidebar/40 flex flex-col gap-2 p-3">
               <TicketDetailCard ticket={ticket} skeleton={phase==='fetching'} disp={disp} />
               {phase !== 'fetching' && <PlanCard plan={plan} skeleton={phase==='planning'} />}
               {snippets.length > 0 && (
-                <div className="rounded-xl border border-outline-variant/8 overflow-hidden tr-fadein">
-                  <button className="flex items-center gap-1.5 w-full px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/30 hover:bg-white/[0.03] transition-colors"
+                <div className="rounded-xl hairline overflow-hidden tr-fadein">
+                  <button className="flex items-center gap-1.5 w-full px-3 py-2 t-section hover:bg-on-surface/[0.03] transition-colors"
                     onClick={e=>{const el=e.currentTarget.nextElementSibling as HTMLElement; el.style.display=el.style.display==='none'?'':'none'}}>
                     <Code2 size={10}/>Código encontrado · {snippets.length}
                   </button>
-                  <div style={{display:'none'}} className="flex flex-col divide-y divide-outline-variant/8">
+                  <div style={{display:'none'}} className="flex flex-col divide-y divide-[var(--hairline)]">
                     {snippets.map((s,i)=>(
                       <div key={i} className="px-3 py-1.5">
-                        <div className="text-[9px] font-mono text-on-surface-variant/30 truncate mb-1">{s.file}:{s.line}</div>
-                        <pre className="text-[10px] font-mono text-on-surface/45 overflow-x-auto whitespace-pre leading-relaxed max-h-16">{s.context.slice(0,200)}</pre>
+                        <div className="t-caption font-mono text-on-surface-variant/60 truncate mb-1">{s.file}:{s.line}</div>
+                        <pre className="t-caption font-mono text-on-surface/45 overflow-x-auto whitespace-pre leading-relaxed max-h-16">{s.context.slice(0,200)}</pre>
                       </div>
                     ))}
                   </div>
@@ -1197,21 +1149,19 @@ export function TicketResolver(): JSX.Element {
             <div className="flex-1 overflow-y-auto p-4">
               {phase==='fetching' && (
                 <div className="flex flex-col items-center justify-center h-full gap-3 tr-fadein">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center"><Spinner size={20}/></div>
+                  <Spinner size={22}/>
                   <div className="text-center">
-                    <div className="text-[13px] font-semibold text-on-surface mb-0.5">Conectando con Jira</div>
-                    <div className="text-[11px] text-on-surface-variant/40">Obteniendo información del ticket...</div>
+                    <div className="t-body font-semibold text-on-surface mb-0.5">Conectando con Jira</div>
+                    <div className="t-footnote text-on-surface-variant">Obteniendo información del ticket...</div>
                   </div>
                 </div>
               )}
               {phase==='planning' && (
                 <div className="flex flex-col items-center justify-center h-full gap-3 tr-fadein">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <Brain size={20} className="text-primary tr-pulse"/>
-                  </div>
+                  <Brain size={26} strokeWidth={1.5} className="text-on-surface-variant"/>
                   <div className="text-center">
-                    <div className="text-[13px] font-semibold text-on-surface mb-0.5">Generando plan</div>
-                    <div className="text-[11px] text-on-surface-variant/40">La IA está analizando el contexto...</div>
+                    <div className="t-body font-semibold text-on-surface mb-0.5">Generando plan</div>
+                    <div className="t-footnote text-on-surface-variant">La IA está analizando el contexto...</div>
                   </div>
                   <div className="flex gap-1">{[0,160,320].map(d=><div key={d} className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{animationDelay:`${d}ms`}}/>)}</div>
                 </div>
@@ -1229,22 +1179,20 @@ export function TicketResolver(): JSX.Element {
               )}
               {phase==='error' && (
                 <div className="flex flex-col items-center justify-center h-full gap-3 tr-fadein">
-                  <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
-                    <CircleAlert size={20} className="text-red-400"/>
-                  </div>
+                  <CircleAlert size={26} strokeWidth={1.5} className="text-error"/>
                   <div className="text-center max-w-sm">
-                    <div className="text-[13px] font-semibold text-on-surface mb-1.5">
+                    <div className="t-body font-semibold text-on-surface mb-1.5">
                       {error==='JIRA_NOT_CONFIGURED'?'Jira no configurado':'Ocurrió un error'}
                     </div>
-                    <div className="text-[11px] text-on-surface-variant/45 leading-relaxed bg-surface-container rounded-xl px-3 py-2.5">{error}</div>
+                    <div className="t-footnote text-on-surface-variant leading-relaxed bg-surface-container rounded-xl px-3 py-2.5">{error}</div>
                   </div>
                   <div className="flex gap-1.5">
                     {error==='JIRA_NOT_CONFIGURED' && (
-                      <button onClick={()=>setShowConfig(true)} className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+                      <button onClick={()=>setShowConfig(true)} className="ui-btn ui-btn-primary">
                         Configurar Jira
                       </button>
                     )}
-                    <button onClick={resetToIdle} className="px-3 py-1.5 rounded-lg text-[11px] text-on-surface-variant/50 hover:text-on-surface hover:bg-white/[0.04] transition-colors">
+                    <button onClick={resetToIdle} className="ui-btn ui-btn-outline">
                       Intentar de nuevo
                     </button>
                   </div>

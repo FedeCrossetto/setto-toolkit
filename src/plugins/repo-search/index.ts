@@ -5,9 +5,11 @@ const RepoSearch = lazy(() => import('./RepoSearch').then((m) => ({ default: m.R
 
 export const repoSearchPlugin: PluginManifest = {
   id: 'repo-search',
-  name: 'Repo Search',
-  description: 'Search code across repositories — Bitbucket, GitHub and more',
-  icon: 'folder_search',
+  name: 'Buscar en repos',
+  description: 'Buscá código en Bitbucket, GitHub y GitLab',
+  icon: 'repo-search',
+  section: 'dev',
+  defaultDisabled: true,
   component: RepoSearch,
   keywords: ['search', 'code', 'repository', 'bitbucket', 'github', 'refactor'],
 }

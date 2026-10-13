@@ -35,36 +35,22 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
   return (
     <motion.div
       ref={ref}
-      className="fixed z-[200] py-1.5 min-w-[200px] rounded-xl overflow-hidden"
-      style={{
-        left: safeX, top: safeY,
-        background: 'rgb(var(--c-surface-container) / 0.88)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        border: '1px solid rgb(var(--c-outline-variant) / 0.25)',
-        boxShadow: '0 16px 40px rgba(0,0,0,0.28), 0 4px 12px rgba(0,0,0,0.16)',
-      }}
-      initial={{ opacity: 0, scale: 0.95, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ duration: 0.13, ease: 'easeOut' }}
+      className="ui-menu fixed z-[200] min-w-[200px]"
+      style={{ left: safeX, top: safeY }}
+      initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.1, ease: 'easeOut' }}
     >
       {items.map((item, i) =>
         item.divider ? (
-          <div key={i} className="border-t border-outline-variant/15 my-1 mx-2" />
+          <div key={i} className="hairline-t my-1 mx-1.5" />
         ) : (
           <button
             key={i}
             onClick={() => { item.action(); onClose() }}
-            className={`flex items-center gap-2.5 w-full px-3 py-1.5 text-[12px] text-left transition-colors ${
-              item.danger
-                ? 'text-error hover:bg-error/12'
-                : 'text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.06]'
-            }`}
+            className={`ui-menu-item w-full text-left ${item.danger ? '!text-error hover:!text-on-primary' : ''}`}
           >
             {item.icon && (
-              <item.icon
-                size={13}
-                className={`flex-shrink-0 ${item.danger ? 'text-error/80' : 'text-on-surface-variant/60'}`}
-              />
+              <item.icon size={14} className="flex-shrink-0 opacity-80" />
             )}
             {item.label}
           </button>

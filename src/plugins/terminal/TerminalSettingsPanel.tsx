@@ -1,5 +1,6 @@
 import { TERMINAL_THEMES } from './themes'
 import type { TerminalPrefs } from './types'
+import { Toggle, SettingsGroup, SettingsRow } from '../../core/components/Form'
 
 interface Props {
   prefs: TerminalPrefs
@@ -13,140 +14,108 @@ const SHELL_OPTS  = IS_WIN ? SHELLS_WIN : SHELLS_UNIX
 
 const FONT_SIZES  = [10, 11, 12, 13, 14, 15, 16, 18, 20]
 
+const FONT_FAMILIES = [
+  'Consolas, "Cascadia Code", "Fira Code", monospace',
+  '"Cascadia Code", Consolas, monospace',
+  '"Fira Code", Consolas, monospace',
+  '"JetBrains Mono", Consolas, monospace',
+  'Consolas, monospace',
+  '"Courier New", monospace',
+]
+
 export function TerminalSettingsPanel({ prefs, onChange }: Props): JSX.Element {
-  const row = 'flex items-center justify-between gap-4 py-2.5 border-b border-outline-variant/20'
-  const label = 'text-[12px] text-on-surface font-medium'
-  const sublabel = 'text-[11px] mt-0.5 text-on-surface-variant'
-  const select = 'ui-input text-[12px] py-1 cursor-pointer'
+  const select = 'ui-input !py-1 t-footnote cursor-pointer max-w-[160px]'
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto px-4 py-4">
-      <div className="text-[13px] font-semibold text-on-surface mb-4">Terminal Settings</div>
-
-      {/* Theme */}
-      <div className={row}>
-        <div>
-          <div className={label}>Color Theme</div>
-        </div>
-        <select
-          className={select}
-          value={prefs.theme}
-          onChange={(e) => onChange({ theme: e.target.value })}
-        >
-          {Object.entries(TERMINAL_THEMES).map(([key, def]) => (
-            <option key={key} value={key}>{def.label}</option>
-          ))}
-        </select>
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex items-center px-3 h-10 hairline-b flex-shrink-0">
+        <span className="t-headline text-on-surface">Ajustes de la terminal</span>
       </div>
 
-      {/* Font size */}
-      <div className={row}>
-        <div>
-          <div className={label}>Font Size</div>
-        </div>
-        <select
-          className={select}
-          value={prefs.fontSize}
-          onChange={(e) => onChange({ fontSize: Number(e.target.value) })}
-        >
-          {FONT_SIZES.map((s) => (
-            <option key={s} value={s}>{s}px</option>
-          ))}
-        </select>
-      </div>
+      <div className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-5">
+        <SettingsGroup title="Apariencia">
+          <SettingsRow title="Tema de color">
+            <select
+              className={select}
+              value={prefs.theme}
+              onChange={(e) => onChange({ theme: e.target.value })}
+              aria-label="Tema de color"
+            >
+              {Object.entries(TERMINAL_THEMES).map(([key, def]) => (
+                <option key={key} value={key}>{def.label}</option>
+              ))}
+            </select>
+          </SettingsRow>
+          <SettingsRow title="Tamaño de fuente">
+            <select
+              className={select}
+              value={prefs.fontSize}
+              onChange={(e) => onChange({ fontSize: Number(e.target.value) })}
+              aria-label="Tamaño de fuente"
+            >
+              {FONT_SIZES.map((s) => (
+                <option key={s} value={s}>{s} px</option>
+              ))}
+            </select>
+          </SettingsRow>
+          <SettingsRow title="Fuente" description="Solo fuentes monoespaciadas">
+            <select
+              className={select}
+              value={prefs.fontFamily}
+              onChange={(e) => onChange({ fontFamily: e.target.value })}
+              aria-label="Fuente"
+            >
+              {FONT_FAMILIES.map((f) => (
+                <option key={f} value={f}>{f.split(',')[0]!.replace(/"/g, '')}</option>
+              ))}
+            </select>
+          </SettingsRow>
+        </SettingsGroup>
 
-      {/* Font family */}
-      <div className={row}>
-        <div>
-          <div className={label}>Font Family</div>
-          <div className={sublabel} style={{ color: 'rgb(var(--c-on-surface-variant))' }}>
-            Monospace fonts only
-          </div>
-        </div>
-        <select
-          className={select}
-          value={prefs.fontFamily}
-          onChange={(e) => onChange({ fontFamily: e.target.value })}
-        >
-          {[
-            'Consolas, "Cascadia Code", "Fira Code", monospace',
-            '"Cascadia Code", Consolas, monospace',
-            '"Fira Code", Consolas, monospace',
-            '"JetBrains Mono", Consolas, monospace',
-            'Consolas, monospace',
-            '"Courier New", monospace',
-          ].map((f) => (
-            <option key={f} value={f}>{f.split(',')[0]!.replace(/"/g, '')}</option>
-          ))}
-        </select>
-      </div>
+        <SettingsGroup title="Cursor">
+          <SettingsRow title="Estilo">
+            <select
+              className={select}
+              value={prefs.cursorStyle}
+              onChange={(e) => onChange({ cursorStyle: e.target.value as TerminalPrefs['cursorStyle'] })}
+              aria-label="Estilo del cursor"
+            >
+              <option value="bar">Barra ( | )</option>
+              <option value="block">Bloque ( █ )</option>
+              <option value="underline">Subrayado ( _ )</option>
+            </select>
+          </SettingsRow>
+          <SettingsRow title="Parpadeo">
+            <Toggle checked={prefs.cursorBlink} onChange={(v) => onChange({ cursorBlink: v })} label="Parpadeo del cursor" />
+          </SettingsRow>
+        </SettingsGroup>
 
-      {/* Cursor style */}
-      <div className={row}>
-        <div>
-          <div className={label}>Cursor Style</div>
-        </div>
-        <select
-          className={select}
-          value={prefs.cursorStyle}
-          onChange={(e) => onChange({ cursorStyle: e.target.value as TerminalPrefs['cursorStyle'] })}
-        >
-          <option value="bar">Bar ( | )</option>
-          <option value="block">Block ( █ )</option>
-          <option value="underline">Underline ( _ )</option>
-        </select>
-      </div>
-
-      {/* Cursor blink */}
-      <div className={row}>
-        <div>
-          <div className={label}>Cursor Blink</div>
-        </div>
-        <button
-          onClick={() => onChange({ cursorBlink: !prefs.cursorBlink })}
-          className="relative flex-shrink-0 w-10 h-5 rounded-full transition-colors duration-200"
-          style={{ background: prefs.cursorBlink ? 'rgb(var(--c-primary))' : 'rgb(var(--c-outline-variant))' }}
-        >
-          <span
-            className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-200"
-            style={{ left: prefs.cursorBlink ? '1.25rem' : '0.125rem' }}
-          />
-        </button>
-      </div>
-
-      {/* Shell */}
-      <div className={row}>
-        <div>
-          <div className={label}>Default Shell</div>
-          <div className={sublabel} style={{ color: 'rgb(var(--c-on-surface-variant))' }}>
-            Used when opening a new session
-          </div>
-        </div>
-        <select
-          className={select}
-          value={prefs.shell || SHELL_OPTS[0]}
-          onChange={(e) => onChange({ shell: e.target.value })}
-        >
-          {SHELL_OPTS.map((s) => (
-            <option key={s} value={s}>{s.split(/[/\\]/).pop()}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Scrollback */}
-      <div className={row}>
-        <div>
-          <div className={label}>Scrollback Lines</div>
-        </div>
-        <select
-          className={select}
-          value={prefs.scrollback}
-          onChange={(e) => onChange({ scrollback: Number(e.target.value) })}
-        >
-          {[500, 1000, 2000, 3000, 5000, 10000].map((n) => (
-            <option key={n} value={n}>{n.toLocaleString()}</option>
-          ))}
-        </select>
+        <SettingsGroup title="Sesiones">
+          <SettingsRow title="Shell por defecto" description="Se usa al abrir una sesión nueva">
+            <select
+              className={select}
+              value={prefs.shell || SHELL_OPTS[0]}
+              onChange={(e) => onChange({ shell: e.target.value })}
+              aria-label="Shell por defecto"
+            >
+              {SHELL_OPTS.map((s) => (
+                <option key={s} value={s}>{s.split(/[/\\]/).pop()}</option>
+              ))}
+            </select>
+          </SettingsRow>
+          <SettingsRow title="Líneas de historial">
+            <select
+              className={select}
+              value={prefs.scrollback}
+              onChange={(e) => onChange({ scrollback: Number(e.target.value) })}
+              aria-label="Líneas de historial"
+            >
+              {[500, 1000, 2000, 3000, 5000, 10000].map((n) => (
+                <option key={n} value={n}>{n.toLocaleString('es-AR')}</option>
+              ))}
+            </select>
+          </SettingsRow>
+        </SettingsGroup>
       </div>
     </div>
   )

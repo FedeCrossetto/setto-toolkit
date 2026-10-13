@@ -5,7 +5,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createSupabaseClient } from './supabase-client'
 import type { DatabaseService } from './db.service'
 import type { SettingsService } from './settings.service'
-import type { Servicio, PagoMensual, Credencial, QueryItem } from '../../../src/plugins/gastos/types'
+import type {
+  Servicio, PagoMensual, Credencial, QueryItem, Gasto, GastosLoadResult, GastosCacheState, GastosCachePatch, PendingWrite,
+} from '../../../src/plugins/gastos/types'
 import { logger } from '../logger'
 
 /** Copia local de contraseñas (safeStorage); Supabase recibe el mismo cifrado en password_enc */
@@ -14,8 +16,59 @@ const CREDENCIALES_PASSWORDS_VAULT = 'gastos-credenciales-passwords.vault'
  *  (nunca se escribe más) para poder rescatar contraseñas inline de instalaciones viejas. */
 const LEGACY_CREDENCIALES_FILE = 'gastos-credenciales.json'
 
+/** Caché offline compartido por todas las ventanas/orígenes (dev y app instalada). */
+const LOCAL_CACHE_FILE = 'gastos-cache.json'
+const PENDING_WRITES_FILE = 'gastos-pending.json'
+const MAX_PENDING_WRITES = 5000
+
 const SETTINGS_KEY_URL = 'gastos.supabase_url'
 const SETTINGS_KEY_SERVICE = 'gastos.supabase_service_key'
+
+/** Prefijo de error cuando la tabla `gastos` (migración 002) no existe en Supabase. */
+export const GASTOS_TABLE_MISSING = 'GASTOS_TABLE_MISSING'
+
+/** PostgREST devuelve 404 / PGRST205 / 42P01 cuando la tabla no existe (o no está en el schema cache). */
+export function isMissingTableError(err: { code?: string; message?: string } | null | undefined): boolean {
+  if (!err) return false
+  if (err.code === '42P01' || err.code === 'PGRST205' || err.code === 'PGRST204') return true
+  return /does not exist|could not find the table|schema cache/i.test(err.message ?? '')
+}
+
+/** Error de Supabase → Error; si la tabla no existe lleva el prefijo GASTOS_TABLE_MISSING (el renderer lo detecta). */
+function supabaseError(error: { code?: string; message?: string }, table: string): Error {
+  if (isMissingTableError(error)) return new Error(`${GASTOS_TABLE_MISSING}(${table}): ${error.message ?? ''}`)
+  return new Error(error.message ?? 'Error de Supabase')
+}
+
+function gastoRow(g: Gasto) {
+  return {
+    id: g.id,
+    fecha: g.fecha,
+    monto: g.monto,
+    descripcion: g.descripcion,
+    categoria: g.categoria,
+    metodo_pago: g.metodoPago,
+    moneda: g.moneda,
+    notas: g.notas ?? null,
+    created_at: g.created_at,
+    updated_at: new Date().toISOString(),
+  }
+}
+
+function gastoFromRow(r: Record<string, unknown>): Gasto {
+  return {
+    id: String(r.id),
+    fecha: String(r.fecha ?? '').slice(0, 10),
+    monto: Number(r.monto ?? 0),
+    descripcion: (r.descripcion as string) ?? '',
+    categoria: (r.categoria as string) || 'Otro',
+    metodoPago: (r.metodo_pago as string) ?? '',
+    moneda: r.moneda === 'USD' ? 'USD' : 'ARS',
+    notas: (r.notas as string | null) ?? undefined,
+    created_at: (r.created_at as string) ?? '',
+    updated_at: (r.updated_at as string) ?? '',
+  }
+}
 
 export interface SupabaseConfig {
   url: string
@@ -114,6 +167,56 @@ export class GastosStorageService {
     return createSupabaseClient(url, key)
   }
 
+  /** URL + key efectivas, sólo para uso interno del main (chequeo de salud). Nunca devolver al renderer. */
+  resolveSupabaseCredentials(): { url: string; key: string } {
+    return { url: this.mergeSupabaseConfig().url, key: this.getServiceKey() }
+  }
+
+  // ── Caché local compartido (archivo en userData, no localStorage) ───────────
+
+  getLocalCache(): GastosCacheState {
+    const raw = this.db.readJSON<Partial<GastosCacheState>>(LOCAL_CACHE_FILE)
+    const d = raw?.data
+    const data = d && Array.isArray(d.servicios) && Array.isArray(d.pagos)
+      ? { servicios: d.servicios, pagos: d.pagos, gastos: Array.isArray(d.gastos) ? d.gastos : [] }
+      : null
+    return {
+      data,
+      updatedAt: typeof raw?.updatedAt === 'string' ? raw.updatedAt : null,
+      lastSynced: typeof raw?.lastSynced === 'string' ? raw.lastSynced : null,
+      prefs: raw?.prefs && typeof raw.prefs === 'object' ? raw.prefs : {},
+    }
+  }
+
+  setLocalCache(patch: GastosCachePatch): GastosCacheState {
+    if (!patch || typeof patch !== 'object') throw new Error('Payload inválido')
+    const cur = this.getLocalCache()
+    const next: GastosCacheState = {
+      data: patch.data !== undefined
+        ? (patch.data ? { servicios: patch.data.servicios ?? [], pagos: patch.data.pagos ?? [], gastos: patch.data.gastos ?? [] } : null)
+        : cur.data,
+      updatedAt: patch.data !== undefined ? (patch.updatedAt ?? new Date().toISOString()) : cur.updatedAt,
+      lastSynced: patch.lastSynced !== undefined ? patch.lastSynced : cur.lastSynced,
+      prefs: patch.prefs ? { ...cur.prefs, ...patch.prefs } : cur.prefs,
+    }
+    this.db.writeJSON(LOCAL_CACHE_FILE, next)
+    return next
+  }
+
+  getPendingWrites(): PendingWrite[] {
+    const raw = this.db.readJSON<{ writes?: unknown }>(PENDING_WRITES_FILE)
+    const writes: unknown[] = Array.isArray(raw?.writes) ? raw.writes : []
+    return writes.filter((w): w is PendingWrite =>
+      Boolean(w) && typeof (w as PendingWrite).channel === 'string' && Array.isArray((w as PendingWrite).args))
+  }
+
+  setPendingWrites(writes: PendingWrite[]): void {
+    if (!Array.isArray(writes)) throw new Error('Payload inválido')
+    const valid = writes.filter((w) => w && typeof w.channel === 'string' && w.channel.startsWith('gastos:') && Array.isArray(w.args))
+    if (valid.length > MAX_PENDING_WRITES) throw new Error('Demasiadas escrituras pendientes')
+    this.db.writeJSON(PENDING_WRITES_FILE, { updatedAt: new Date().toISOString(), writes: valid })
+  }
+
   // ── Bóveda local de contraseñas (no Supabase) ───────────────────────────────
 
   private readPasswordVault(): Record<string, string> {
@@ -173,24 +276,53 @@ export class GastosStorageService {
 
   // ── Load / CRUD — Supabase es la única fuente de verdad ─────────────────────
 
-  async load(): Promise<{ servicios: Servicio[]; pagos: PagoMensual[]; credenciales: Credencial[] }> {
-    return this.loadFromSupabase()
+  async load(): Promise<GastosLoadResult> {
+    const [base, variables] = await Promise.all([this.loadFromSupabase(), this.loadGastosVariables()])
+    const missingTables = [...base.missingTables, ...(variables.gastosTableReady ? [] : ['gastos'])]
+    return { ...base, ...variables, missingTables }
+  }
+
+  /** Gastos variables; si la tabla no existe (falta migración 002) degrada a lista vacía. */
+  private async loadGastosVariables(): Promise<{ gastos: Gasto[]; gastosTableReady: boolean }> {
+    const { data, error } = await this.createClient().from('gastos').select('*').order('fecha', { ascending: false })
+    if (error) {
+      if (isMissingTableError(error)) {
+        logger.warn('GastosStorage', 'Tabla gastos no encontrada en Supabase — falta aplicar la migración 002')
+        return { gastos: [], gastosTableReady: false }
+      }
+      throw new Error(error.message)
+    }
+    return { gastos: (data ?? []).map((r) => gastoFromRow(r as Record<string, unknown>)), gastosTableReady: true }
+  }
+
+  async saveGasto(gasto: Gasto): Promise<void> {
+    const { error } = await this.createClient().from('gastos').upsert(gastoRow(gasto))
+    if (error) throw supabaseError(error, 'gastos')
+  }
+
+  async deleteGasto(id: string): Promise<void> {
+    const { error } = await this.createClient().from('gastos').delete().eq('id', id)
+    if (error) throw supabaseError(error, 'gastos')
   }
 
   async loadQueries(): Promise<QueryItem[]> {
     return this.loadQueriesFromSupabase()
   }
 
-  /** Versión global de los datos remotos — el mayor `updated_at` entre las 4 tablas. */
+  /** Versión global de los datos remotos — el mayor `updated_at` entre las tablas
+   *  (la de gastos variables se ignora si todavía no existe). */
   async getRemoteVersion(): Promise<string | null> {
     const sb = this.createClient()
-    const tables = ['servicios', 'pagos', 'credenciales', 'queries'] as const
+    const tables = ['servicios', 'pagos', 'credenciales', 'queries', 'gastos'] as const
     const results = await Promise.all(
       tables.map((t) => sb.from(t).select('updated_at').order('updated_at', { ascending: false }).limit(1)),
     )
     let latest: string | null = null
     for (const r of results) {
-      if (r.error) throw new Error(r.error.message)
+      if (r.error) {
+        if (isMissingTableError(r.error)) continue
+        throw new Error(r.error.message)
+      }
       const ts = r.data?.[0]?.updated_at as string | undefined
       if (ts && (!latest || ts > latest)) latest = ts
     }
@@ -209,14 +341,14 @@ export class GastosStorageService {
       orden: servicio.orden,
       updated_at: new Date().toISOString(),
     })
-    if (error) throw new Error(error.message)
+    if (error) throw supabaseError(error, 'servicios')
   }
 
   async deleteServicio(id: string): Promise<void> {
     const sb = this.createClient()
     await sb.from('pagos').delete().eq('servicio_id', id)
     const { error } = await sb.from('servicios').delete().eq('id', id)
-    if (error) throw new Error(error.message)
+    if (error) throw supabaseError(error, 'servicios')
   }
 
   async savePago(pago: PagoMensual): Promise<void> {
@@ -232,12 +364,12 @@ export class GastosStorageService {
       notas: pago.notas ?? null,
       updated_at: new Date().toISOString(),
     })
-    if (error) throw new Error(error.message)
+    if (error) throw supabaseError(error, 'pagos')
   }
 
   async deletePago(id: string): Promise<void> {
     const { error } = await this.createClient().from('pagos').delete().eq('id', id)
-    if (error) throw new Error(error.message)
+    if (error) throw supabaseError(error, 'pagos')
   }
 
   async savePagosBulk(pagos: PagoMensual[]): Promise<void> {
@@ -255,7 +387,7 @@ export class GastosStorageService {
       updated_at: new Date().toISOString(),
     }))
     const { error } = await sb.from('pagos').upsert(rows)
-    if (error) throw new Error(error.message)
+    if (error) throw supabaseError(error, 'pagos')
   }
 
   async saveCredencial(cred: Credencial): Promise<void> {
@@ -296,6 +428,7 @@ export class GastosStorageService {
     servicios: Servicio[]
     pagos: PagoMensual[]
     credenciales: Credencial[]
+    missingTables: string[]
   }> {
     const sb = this.createClient()
     const [svcRes, pagosRes, credRes] = await Promise.all([
@@ -303,11 +436,17 @@ export class GastosStorageService {
       sb.from('pagos').select('*'),
       sb.from('credenciales').select('*').order('orden'),
     ])
-    if (svcRes.error) throw new Error(svcRes.error.message)
-    if (pagosRes.error) throw new Error(pagosRes.error.message)
-    if (credRes.error) throw new Error(credRes.error.message)
+    // Una tabla faltante (migración sin aplicar) degrada a lista vacía; otros errores cortan la carga.
+    const missingTables: string[] = []
+    for (const [table, res] of [['servicios', svcRes], ['pagos', pagosRes], ['credenciales', credRes]] as const) {
+      if (!res.error) continue
+      if (isMissingTableError(res.error)) { missingTables.push(table); continue }
+      throw new Error(res.error.message)
+    }
+    if (missingTables.length) logger.warn('GastosStorage', `Tablas faltantes en Supabase: ${missingTables.join(', ')}`)
 
     return {
+      missingTables,
       servicios: (svcRes.data ?? []).map((r) => ({
         id: r.id,
         nombre: r.nombre,

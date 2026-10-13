@@ -1,6 +1,17 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Check, ChevronDown, ChevronRight, CircleAlert, Eye, EyeOff, Lock, Unlink } from 'lucide-react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Check, CheckCircle2, Circle, CircleAlert, Clock, Copy, ExternalLink, Eye, EyeOff, Lock, RefreshCw, Settings, Unlink, Zap,
+} from 'lucide-react'
 import { StatusPill, type StatusTone } from '../../core/components/StatusPill'
+import { PageHeader } from '../../core/components/Form'
+import { Sheet } from '../../core/components/Modal'
+import { useToast } from '../../core/components/Toast'
+import { usePluginIntent } from '../../core/AppContext'
+import {
+  type ConnId, type ConnState, type ConnStatus, type SupabaseHealth, type SupabaseKeyKind, type TestResult,
+  SUPABASE_TABLES, detectSupabaseKeyKind, formatCheckedAt, isPublicSupabaseKey, missingTables, normalizeSupabaseUrl,
+  shortError, statusFromHealth, statusFromResult, summarizeStatuses, supabaseApiKeysUrl, supabaseSqlEditorUrl,
+} from './helpers'
 
 // ── Brand SVG logos ────────────────────────────────────────────────────────────
 
@@ -72,836 +83,1151 @@ function LogoJira({ size = 24 }: { size?: number }): JSX.Element {
   )
 }
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+// ── IPC helpers ───────────────────────────────────────────────────────────────
 
-type Status = 'connected' | 'partial' | 'disconnected' | 'loading'
+/** async wrapper: the preload throws synchronously on unknown channels — turn that into a rejection. */
+async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
+  return await window.api.invoke<T>(channel, ...args)
+}
 
-// ── Shared UI ──────────────────────────────────────────────────────────────────
+const SENTINEL = '__CONFIGURED__'
+const STORAGE_KEY = 'setto:connections:last-status'
 
-const inputCls = 'ui-input w-full text-sm'
+async function checkStored(id: ConnId): Promise<ConnStatus> {
+  if (id === 'supabase') {
+    try {
+      return statusFromHealth(await invoke<SupabaseHealth>('gastos:supabase-health'))
+    } catch {
+      // Health channel not available yet: fall back to "is it configured?"
+      const cfg = await invoke<{ url: string; keyConfigured: boolean } | null>('gastos:supabase-config-get').catch(() => null)
+      const ok = Boolean(cfg?.url && cfg.keyConfigured)
+      return {
+        state: ok ? 'idle' : 'unconfigured',
+        detail: ok ? 'Configurado (verificación no disponible)' : 'Falta la URL o la clave service_role',
+        checkedAt: Date.now(),
+      }
+    }
+  }
+  try {
+    return statusFromResult(await invoke<TestResult>('settings:test-connection', id))
+  } catch (e) {
+    return { state: 'error', detail: e instanceof Error ? e.message : 'No se pudo verificar', checkedAt: Date.now() }
+  }
+}
 
-const STATUS_PILL: Record<Status, { tone: StatusTone; label: string; pulse?: boolean }> = {
-  loading:      { tone: 'neutral', label: 'Verificando…', pulse: true },
+// ── Catalog ───────────────────────────────────────────────────────────────────
+
+type Logo = React.FC<{ size?: number }>
+
+interface IntegrationMeta {
+  id: ConnId
+  name: string
+  purpose: string
+  Logo: Logo
+}
+
+const GROUPS: Array<{ title: string; items: IntegrationMeta[] }> = [
+  {
+    title: 'IA',
+    items: [
+      { id: 'openai', name: 'OpenAI', purpose: 'Modelos GPT para Tickets y Smart Diff', Logo: LogoOpenAI },
+      { id: 'anthropic', name: 'Anthropic', purpose: 'Modelos Claude para Tickets y Smart Diff', Logo: LogoAnthropic },
+      { id: 'ollama', name: 'Ollama', purpose: 'IA local, sin clave de API', Logo: LogoOllama },
+    ],
+  },
+  {
+    title: 'Código',
+    items: [
+      { id: 'github', name: 'GitHub', purpose: 'Búsqueda de código en tus repos', Logo: LogoGitHub },
+      { id: 'gitlab', name: 'GitLab', purpose: 'Búsqueda de código en proyectos y grupos', Logo: LogoGitLab },
+      { id: 'bitbucket', name: 'Bitbucket', purpose: 'Búsqueda de código del workspace', Logo: LogoBitbucket },
+    ],
+  },
+  {
+    title: 'Gestión',
+    items: [
+      { id: 'jira', name: 'Jira', purpose: 'Traer tickets al Ticket Resolver', Logo: LogoJira },
+    ],
+  },
+  {
+    title: 'Datos',
+    items: [
+      { id: 'supabase', name: 'Supabase', purpose: 'Base de Gastos y Credenciales', Logo: LogoSupabase },
+    ],
+  },
+]
+
+const ALL: IntegrationMeta[] = GROUPS.flatMap((g) => g.items)
+const META = Object.fromEntries(ALL.map((m) => [m.id, m])) as Record<ConnId, IntegrationMeta>
+
+function loadLastStatuses(): Record<ConnId, ConnStatus> {
+  const empty = Object.fromEntries(ALL.map((m) => [m.id, { state: 'idle' } as ConnStatus])) as Record<ConnId, ConnStatus>
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return empty
+    const parsed = JSON.parse(raw) as Partial<Record<ConnId, ConnStatus>>
+    for (const m of ALL) {
+      const s = parsed[m.id]
+      if (s && s.state !== 'checking') empty[m.id] = s
+    }
+  } catch { /* storage unavailable */ }
+  return empty
+}
+
+// ── Small UI pieces ───────────────────────────────────────────────────────────
+
+function Spinner(): JSX.Element {
+  return <span className="inline-block w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" aria-hidden />
+}
+
+const PILL: Record<ConnState, { tone: StatusTone; label: string; pulse?: boolean }> = {
+  checking:     { tone: 'neutral', label: 'Verificando…', pulse: true },
   connected:    { tone: 'success', label: 'Conectado' },
-  partial:      { tone: 'warning', label: 'Incompleto' },
-  disconnected: { tone: 'neutral', label: 'Sin configurar' },
+  unconfigured: { tone: 'neutral', label: 'Sin configurar' },
+  error:        { tone: 'error',   label: 'Error' },
+  idle:         { tone: 'neutral', label: 'Sin verificar' },
 }
 
-function ConnStatus({ status }: { status: Status }): JSX.Element {
-  const s = STATUS_PILL[status]
-  return <StatusPill tone={s.tone} label={s.label} pulse={s.pulse} />
+function ConnPill({ status }: { status: ConnStatus }): JSX.Element {
+  const p = PILL[status.state]
+  const label = status.state === 'error' ? `Error: ${shortError(status.detail, 22)}` : p.label
+  return (
+    <span title={status.state === 'error' ? status.detail : undefined} className="flex-shrink-0">
+      <StatusPill tone={p.tone} label={label} pulse={p.pulse} />
+    </span>
+  )
 }
 
-function PasswordInput({
-  value, onChange, placeholder, configured,
+function LogoTile({ Logo, size = 36 }: { Logo: Logo; size?: number }): JSX.Element {
+  return (
+    <span
+      className="rounded-lg flex items-center justify-center flex-shrink-0 bg-surface hairline shadow-sm text-on-surface"
+      style={{ width: size, height: size }}
+    >
+      <Logo size={Math.round(size / 2)} />
+    </span>
+  )
+}
+
+function ExtLink({ href, children }: { href: string; children: React.ReactNode }): JSX.Element {
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+      {children}<ExternalLink size={11} />
+    </a>
+  )
+}
+
+/** Field with label, help text, "¿Dónde la consigo?" link and inline error. */
+function FormField({
+  label, help, whereUrl, whereLabel = '¿Dónde la consigo?', error, children,
 }: {
-  value: string; onChange: (v: string) => void; placeholder?: string; configured?: boolean
+  label: string
+  help?: React.ReactNode
+  whereUrl?: string
+  whereLabel?: string
+  error?: string | null
+  children: React.ReactNode
+}): JSX.Element {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="t-footnote font-medium text-on-surface-variant">{label}</span>
+        {whereUrl && <span className="t-caption"><ExtLink href={whereUrl}>{whereLabel}</ExtLink></span>}
+      </div>
+      {children}
+      {error
+        ? <span className="flex items-start gap-1.5 t-caption text-error"><CircleAlert size={12} className="mt-px flex-shrink-0" />{error}</span>
+        : help && <span className="t-caption text-on-surface-variant/80">{help}</span>}
+    </div>
+  )
+}
+
+function SecretInput({
+  value, onChange, placeholder, configured, invalid,
+}: {
+  value: string; onChange: (v: string) => void; placeholder?: string; configured?: boolean; invalid?: boolean
 }): JSX.Element {
   const [show, setShow] = useState(false)
   return (
-    <div className="space-y-1.5">
-      {configured && !value && (
-        <div className="flex items-center gap-1.5 text-xs text-on-surface-variant/60 font-medium">
-          <Lock size={12} />
-          Ya configurado — ingresá un valor nuevo para reemplazar
-        </div>
-      )}
-      <div className="relative">
+    <div className="flex flex-col gap-1.5">
+      <div className={`ui-input w-full flex items-center gap-2 py-0 pr-1 ${invalid ? 'ring-1 ring-error/60' : ''}`}>
         <input
           type={show ? 'text' : 'password'}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={configured && !value ? '••••••••' : (placeholder ?? '')}
-          className={inputCls + ' pr-10'}
+          className="flex-1 min-w-0 bg-transparent outline-none py-[5px] font-mono"
+          autoComplete="off"
+          spellCheck={false}
         />
         <button
           type="button"
           onClick={() => setShow((s) => !s)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/40 hover:text-on-surface-variant transition-colors"
+          className="ui-btn ui-btn-ghost ui-btn-icon"
+          aria-label={show ? 'Ocultar valor' : 'Mostrar valor'}
         >
           {show ? <EyeOff size={14} /> : <Eye size={14} />}
         </button>
       </div>
-    </div>
-  )
-}
-
-function SaveButton({ onClick, saving, saved }: { onClick: () => void; saving: boolean; saved: boolean }): JSX.Element {
-  return (
-    <button
-      onClick={onClick}
-      disabled={saving}
-      className={[
-        'ui-btn',
-        saved ? 'bg-accent/15 text-accent border border-accent/25' : 'ui-btn-outline',
-        'disabled:opacity-40',
-      ].join(' ')}
-    >
-      {saving
-        ? <><span className="inline-block w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />Guardando…</>
-        : saved
-          ? <><Check size={13} />Guardado</>
-          : 'Guardar'}
-    </button>
-  )
-}
-
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }): JSX.Element {
-  return (
-    <div className="space-y-1.5">
-      <label className="block text-xs font-semibold text-on-surface-variant/80">{label}</label>
-      {children}
-      {hint && <p className="text-[11px] text-on-surface-variant/50 leading-relaxed">{hint}</p>}
-    </div>
-  )
-}
-
-function HowToBox({ steps }: { steps: Array<{ title: string; detail?: string | JSX.Element }> }): JSX.Element {
-  return (
-    <div className="rounded-xl border border-outline-variant/20 bg-surface-container/40 p-4">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-3">Cómo obtener las credenciales</p>
-      <ol className="space-y-3">
-        {steps.map((s, i) => (
-          <li key={i} className="flex gap-3 text-xs text-on-surface-variant/70 leading-relaxed">
-            <span className="flex-shrink-0 w-4 h-4 rounded-full border border-outline-variant/40 text-[10px] font-bold flex items-center justify-center text-on-surface-variant/50 mt-0.5">
-              {i + 1}
-            </span>
-            <span>
-              <span className="font-semibold text-on-surface/80">{s.title}</span>
-              {s.detail && <> — {s.detail}</>}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </div>
-  )
-}
-
-// ── Accordion ──────────────────────────────────────────────────────────────────
-
-function Section({
-  id, title, subtitle, Logo, status, open, onToggle, children,
-}: {
-  id: string
-  title: string
-  subtitle: string
-  Logo: React.FC<{ size?: number }>
-  status: Status
-  open: boolean
-  onToggle: (id: string) => void
-  children: React.ReactNode
-}): JSX.Element {
-  return (
-    <div className="ui-card overflow-hidden">
-      {/* Header row */}
-      <button
-        className="w-full flex items-center gap-4 px-5 py-4 hover:bg-surface-container/30 transition-colors text-left"
-        onClick={() => onToggle(id)}
-      >
-        {/* Brand logo */}
-        <div className="w-9 h-9 rounded-lg bg-surface-container flex items-center justify-center flex-shrink-0 text-on-surface/70">
-          <Logo size={20} />
-        </div>
-
-        {/* Text */}
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-on-surface">{title}</div>
-          <div className="text-xs text-on-surface-variant/50 mt-0.5 truncate">{subtitle}</div>
-        </div>
-
-        {/* Status + chevron */}
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <ConnStatus status={status} />
-          {open
-            ? <ChevronDown size={15} className="text-on-surface-variant/40" />
-            : <ChevronRight size={15} className="text-on-surface-variant/40" />}
-        </div>
-      </button>
-
-      {/* Body */}
-      {open && (
-        <div className="px-5 pb-5 border-t border-outline-variant/15 space-y-4 pt-4">
-          {children}
-        </div>
+      {configured && !value && (
+        <span className="flex items-center gap-1.5 t-caption text-on-surface-variant">
+          <Lock size={11} />
+          Ya configurada. Escribí una nueva solo si querés reemplazarla.
+        </span>
       )}
     </div>
   )
 }
 
-// ── AI Section ─────────────────────────────────────────────────────────────────
-
-function AIOpenAISection({ open, onToggle }: { open: boolean; onToggle: (id: string) => void }): JSX.Element {
-  const [key, setKey] = useState('')
-  const [configured, setConfigured] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [status, setStatus] = useState<Status>('loading')
-
-  useEffect(() => {
-    window.api.invoke<string | null>('settings:get', 'ai.openai_key').then((v) => {
-      const ok = v === '__CONFIGURED__'
-      setConfigured(ok)
-      setStatus(ok ? 'connected' : 'disconnected')
-    }).catch(() => setStatus('disconnected'))
-  }, [])
-
-  const save = async (): Promise<void> => {
-    if (!key.trim()) return
-    setSaving(true)
-    await window.api.invoke('settings:set', 'ai.openai_key', key.trim())
-    setConfigured(true)
-    setKey('')
-    setSaving(false)
-    setSaved(true)
-    setStatus('connected')
-    setTimeout(() => setSaved(false), 2500)
-  }
-
+function TextInput({ value, onChange, placeholder, type = 'text', invalid }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; type?: string; invalid?: boolean
+}): JSX.Element {
   return (
-    <Section id="openai" title="OpenAI" subtitle="Modelos GPT para el análisis de Smart Diff" Logo={LogoOpenAI} status={status} open={open} onToggle={onToggle}>
-      <HowToBox steps={[
-        { title: 'Andá a platform.openai.com', detail: 'Iniciá sesión o creá una cuenta.' },
-        { title: 'Abrí API keys', detail: 'Menú arriba a la derecha → API keys → Create new secret key.' },
-        { title: 'Pegala abajo', detail: 'La key empieza con sk-… y solo se muestra una vez.' },
-      ]} />
-      <Field label="API Key">
-        <PasswordInput value={key} onChange={setKey} placeholder="sk-…" configured={configured} />
-      </Field>
-      <div className="flex justify-end">
-        <SaveButton onClick={() => void save()} saving={saving} saved={saved} />
-      </div>
-    </Section>
+    <input
+      type={type}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      spellCheck={false}
+      className={`ui-input w-full ${invalid ? 'ring-1 ring-error/60' : ''}`}
+    />
   )
 }
 
-function AIAnthropicSection({ open, onToggle }: { open: boolean; onToggle: (id: string) => void }): JSX.Element {
-  const [key, setKey] = useState('')
-  const [configured, setConfigured] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [status, setStatus] = useState<Status>('loading')
-
-  useEffect(() => {
-    window.api.invoke<string | null>('settings:get', 'ai.anthropic_key').then((v) => {
-      const ok = v === '__CONFIGURED__'
-      setConfigured(ok)
-      setStatus(ok ? 'connected' : 'disconnected')
-    }).catch(() => setStatus('disconnected'))
-  }, [])
-
-  const save = async (): Promise<void> => {
-    if (!key.trim()) return
-    setSaving(true)
-    await window.api.invoke('settings:set', 'ai.anthropic_key', key.trim())
-    setConfigured(true)
-    setKey('')
-    setSaving(false)
-    setSaved(true)
-    setStatus('connected')
-    setTimeout(() => setSaved(false), 2500)
-  }
-
+/** Result of the last test inside a sheet. */
+function Outcome({ result }: { result: { ok: boolean; detail: string } | null }): JSX.Element | null {
+  if (!result) return null
   return (
-    <Section id="anthropic" title="Anthropic" subtitle="Modelos Claude para el análisis de Smart Diff" Logo={LogoAnthropic} status={status} open={open} onToggle={onToggle}>
-      <HowToBox steps={[
-        { title: 'Andá a console.anthropic.com', detail: 'Iniciá sesión o creá una cuenta.' },
-        { title: 'Abrí API Keys', detail: 'Barra lateral izquierda → API Keys → Create Key.' },
-        { title: 'Pegala abajo', detail: 'La key empieza con sk-ant-…' },
-      ]} />
-      <Field label="API Key">
-        <PasswordInput value={key} onChange={setKey} placeholder="sk-ant-…" configured={configured} />
-      </Field>
-      <div className="flex justify-end">
-        <SaveButton onClick={() => void save()} saving={saving} saved={saved} />
-      </div>
-    </Section>
+    <div className={`flex items-start gap-2 rounded-xl px-3.5 py-2.5 t-footnote ${result.ok ? 'bg-success/[0.10] text-success' : 'bg-error/[0.08] text-error'}`}>
+      {result.ok ? <CheckCircle2 size={14} className="mt-px flex-shrink-0" /> : <CircleAlert size={14} className="mt-px flex-shrink-0" />}
+      <span className="min-w-0 break-words">{result.detail}</span>
+    </div>
   )
 }
 
-function AILocalSection({ open, onToggle }: { open: boolean; onToggle: (id: string) => void }): JSX.Element {
+function StatusBanner({ meta, status }: { meta: IntegrationMeta; status: ConnStatus }): JSX.Element {
+  return (
+    <div className="flex items-center gap-3 rounded-xl hairline px-3.5 py-3">
+      <LogoTile Logo={meta.Logo} />
+      <div className="flex-1 min-w-0">
+        <p className={`t-footnote truncate ${status.state === 'error' ? 'text-error' : 'text-on-surface'}`} title={status.detail}>
+          {status.detail ?? 'Todavía no se verificó'}
+        </p>
+        <p className="t-caption text-on-surface-variant">{formatCheckedAt(status.checkedAt)}</p>
+      </div>
+      <ConnPill status={status} />
+    </div>
+  )
+}
+
+function HowTo({ steps }: { steps: React.ReactNode[] }): JSX.Element {
+  return (
+    <ol className="flex flex-col gap-2 rounded-xl bg-on-surface/[0.035] dark:bg-on-surface/[0.05] px-4 py-3.5">
+      {steps.map((s, i) => (
+        <li key={i} className="flex gap-2.5 t-footnote text-on-surface-variant">
+          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-selected text-primary t-caption font-semibold flex items-center justify-center">{i + 1}</span>
+          <span className="min-w-0">{s}</span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+function SessionRow({ username, extra, onLogout }: { username: string | null; extra?: string | null; onLogout: () => void }): JSX.Element {
+  return (
+    <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-on-surface/[0.035] dark:bg-on-surface/[0.05]">
+      <span className="t-footnote text-on-surface-variant">Sesión iniciada como</span>
+      <span className="t-body font-medium text-on-surface flex-1 truncate">
+        {username}{extra && <span className="text-on-surface-variant font-normal"> · {extra}</span>}
+      </span>
+      <button onClick={onLogout} className="ui-btn ui-btn-ghost ui-btn-sm hover:text-error">
+        <Unlink size={12} />Desconectar
+      </button>
+    </div>
+  )
+}
+
+function DeviceCodeBox({ uri, code }: { uri: string; code: string }): JSX.Element {
+  return (
+    <div className="rounded-xl bg-selected px-4 py-3.5 flex flex-col gap-2">
+      <p className="t-footnote font-medium text-on-surface">Autorizá en tu navegador</p>
+      <p className="t-footnote text-on-surface-variant">
+        Andá a <ExtLink href={uri}><span className="font-mono">{uri}</span></ExtLink> e ingresá:
+      </p>
+      <p className="font-mono t-title2 tracking-[0.2em] text-on-surface select-all">{code}</p>
+      <div className="flex items-center gap-2 t-caption text-on-surface-variant">
+        <Spinner /> Esperando autorización…
+      </div>
+    </div>
+  )
+}
+
+/** Decide under which field a failed test message belongs. */
+function fieldForError(detail: string): 'secret' | 'url' | 'general' {
+  if (/401|403|Credenciales|clave|token|permisos/i.test(detail)) return 'secret'
+  if (/URL|host|404|rechazada|timeout|conectar|responde|modelo/i.test(detail)) return 'url'
+  return 'general'
+}
+
+// ── Shared sheet footer + test/save logic ─────────────────────────────────────
+
+interface SheetProps {
+  meta: IntegrationMeta
+  status: ConnStatus
+  onStatus: (s: ConnStatus) => void
+  onClose: () => void
+}
+
+interface FooterState {
+  testing: boolean
+  saving: boolean
+  canTest: boolean
+  canSave: boolean
+  onTest: () => void
+  onSave: () => void
+  saveLabel?: string
+}
+
+function SheetFooter({ testing, saving, canTest, canSave, onTest, onSave, saveLabel = 'Guardar' }: FooterState): JSX.Element {
+  return (
+    <>
+      <button className="ui-btn ui-btn-outline" disabled={!canTest || testing || saving} onClick={onTest}>
+        {testing ? <><Spinner />Probando…</> : <><Zap size={13} />Probar sin guardar</>}
+      </button>
+      <button className="ui-btn ui-btn-primary" disabled={!canSave || saving || testing} onClick={onSave}>
+        {saving ? <><Spinner />Guardando…</> : saveLabel}
+      </button>
+    </>
+  )
+}
+
+/**
+ * Generic "fill fields → Probar sin guardar → Guardar" flow for key-based integrations.
+ * `values` go to `settings:test-connection`; `persist` writes settings; after saving the
+ * stored config is re-tested so the overview card reflects reality.
+ */
+function useTestSave(
+  id: ConnId,
+  values: () => Record<string, string>,
+  persist: () => Promise<void>,
+  onStatus: (s: ConnStatus) => void,
+): { testing: boolean; saving: boolean; result: TestResult | null; setResult: (r: TestResult | null) => void; test: () => Promise<void>; save: () => Promise<void> } {
+  const toast = useToast()
+  const [testing, setTesting] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [result, setResult] = useState<TestResult | null>(null)
+
+  const test = async (): Promise<void> => {
+    setTesting(true)
+    setResult(null)
+    try {
+      setResult(await invoke<TestResult>('settings:test-connection', id, values()))
+    } catch (e) {
+      setResult({ ok: false, configured: true, detail: e instanceof Error ? e.message : 'No se pudo probar' })
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  const save = async (): Promise<void> => {
+    setSaving(true)
+    try {
+      await persist()
+      onStatus({ state: 'checking' })
+      const s = await checkStored(id)
+      onStatus(s)
+      setResult({ ok: s.state === 'connected', configured: s.state !== 'unconfigured', detail: s.detail ?? '' })
+      toast.show(s.state === 'connected' ? 'Guardado y verificado' : 'Guardado', s.state === 'connected' ? 'success' : 'info')
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'No se pudo guardar', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return { testing, saving, result, setResult, test, save }
+}
+
+// ── OpenAI / Anthropic ─────────────────────────────────────────────────────────
+
+const KEY_PROVIDERS = {
+  openai: {
+    setting: 'ai.openai_key', prefix: 'sk-', placeholder: 'sk-…',
+    where: 'https://platform.openai.com/api-keys',
+    help: 'Empieza con sk-. OpenAI la muestra una sola vez al crearla.',
+  },
+  anthropic: {
+    setting: 'ai.anthropic_key', prefix: 'sk-ant-', placeholder: 'sk-ant-…',
+    where: 'https://console.anthropic.com/settings/keys',
+    help: 'Empieza con sk-ant-. Creala en la consola de Anthropic → API Keys.',
+  },
+} as const
+
+function ApiKeySheet({ meta, onStatus, id }: SheetProps & { id: 'openai' | 'anthropic' }): JSX.Element {
+  const cfg = KEY_PROVIDERS[id]
+  const [key, setKey] = useState('')
+  const [configured, setConfigured] = useState(false)
+
+  useEffect(() => {
+    invoke<string | null>('settings:get', cfg.setting).then((v) => setConfigured(v === SENTINEL)).catch(() => undefined)
+  }, [cfg.setting])
+
+  const formatError = key.trim() && !key.trim().startsWith(cfg.prefix) ? `La clave debería empezar con ${cfg.prefix}` : null
+  const ts = useTestSave(id, () => ({ key: key.trim() }), async () => {
+    if (key.trim()) await invoke('settings:set', cfg.setting, key.trim())
+    if (key.trim()) { setConfigured(true); setKey('') }
+  }, onStatus)
+
+  const failed = ts.result && !ts.result.ok ? ts.result.detail : null
+  return (
+    <SheetBody
+      meta={meta}
+      footer={<SheetFooter testing={ts.testing} saving={ts.saving} canTest={Boolean(key.trim() || configured)} canSave={Boolean(key.trim()) && !formatError} onTest={() => void ts.test()} onSave={() => void ts.save()} />}
+    >
+      <FormField label="Clave de API" help={cfg.help} whereUrl={cfg.where} error={formatError ?? failed}>
+        <SecretInput value={key} onChange={(v) => { setKey(v); ts.setResult(null) }} placeholder={cfg.placeholder} configured={configured} invalid={Boolean(formatError ?? failed)} />
+      </FormField>
+      {ts.result?.ok && <Outcome result={ts.result} />}
+    </SheetBody>
+  )
+}
+
+// ── Ollama ─────────────────────────────────────────────────────────────────────
+
+function OllamaSheet({ meta, onStatus }: SheetProps): JSX.Element {
   const [url, setUrl] = useState('http://localhost:11434')
   const [model, setModel] = useState('llama3')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [status, setStatus] = useState<Status>('loading')
 
   useEffect(() => {
     Promise.all([
-      window.api.invoke<string | null>('settings:get', 'ai.ollama_url'),
-      window.api.invoke<string | null>('settings:get', 'ai.ollama_model'),
-    ]).then(([u, m]) => {
-      if (u) setUrl(u)
-      if (m) setModel(m)
-      setStatus(u ? 'connected' : 'disconnected')
-    }).catch(() => setStatus('disconnected'))
+      invoke<string | null>('settings:get', 'ai.ollama_url'),
+      invoke<string | null>('settings:get', 'ai.ollama_model'),
+    ]).then(([u, m]) => { if (u) setUrl(u); if (m) setModel(m) }).catch(() => undefined)
   }, [])
 
-  const save = async (): Promise<void> => {
-    setSaving(true)
+  const urlError = url.trim() && !/^https?:\/\//i.test(url.trim()) ? 'La URL tiene que empezar con http:// o https://' : null
+  const ts = useTestSave('ollama', () => ({ url: url.trim(), model: model.trim() }), async () => {
     await Promise.all([
-      window.api.invoke('settings:set', 'ai.ollama_url', url.trim()),
-      window.api.invoke('settings:set', 'ai.ollama_model', model.trim()),
+      invoke('settings:set', 'ai.ollama_url', url.trim()),
+      invoke('settings:set', 'ai.ollama_model', model.trim()),
     ])
-    setSaving(false)
-    setSaved(true)
-    setStatus('connected')
-    setTimeout(() => setSaved(false), 2500)
-  }
+  }, onStatus)
 
+  const failed = ts.result && !ts.result.ok ? ts.result.detail : null
+  const modelMissing = failed && /modelo/i.test(failed)
   return (
-    <Section id="ollama" title="Ollama (Local)" subtitle="Ejecutá modelos de IA localmente — sin API key" Logo={LogoOllama} status={status} open={open} onToggle={onToggle}>
-      <HowToBox steps={[
-        { title: 'Instalá Ollama', detail: 'Descargalo de ollama.com y ejecutalo. Levanta un servidor local automáticamente.' },
-        { title: 'Descargá un modelo', detail: 'Ejecutá: ollama pull llama3 (o qwen3:14b, mistral, etc.) en tu terminal.' },
-        { title: 'Configurá abajo', detail: 'La URL por defecto es http://localhost:11434. Ingresá el nombre del modelo que descargaste.' },
-      ]} />
-      <Field label="URL del servidor">
-        <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:11434" className={inputCls} />
-      </Field>
-      <Field label="Modelo">
-        <input type="text" value={model} onChange={(e) => setModel(e.target.value)} placeholder="llama3" className={inputCls} />
-      </Field>
-      <div className="flex justify-end">
-        <SaveButton onClick={() => void save()} saving={saving} saved={saved} />
-      </div>
-    </Section>
-  )
-}
-
-// ── GitHub Section ─────────────────────────────────────────────────────────────
-
-function GitHubSection({ open, onToggle }: { open: boolean; onToggle: (id: string) => void }): JSX.Element {
-  const [clientId, setClientId] = useState('')
-  const [authInfo, setAuthInfo] = useState<{ authenticated: boolean; username: string | null } | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [status, setStatus] = useState<Status>('loading')
-  const [oauthStep, setOauthStep] = useState<{ user_code: string; verification_uri: string; device_code: string } | null>(null)
-  const [polling, setPolling] = useState(false)
-
-  const load = useCallback(async (): Promise<void> => {
-    const [cid, me] = await Promise.all([
-      window.api.invoke<string | null>('settings:get', 'repo-search.github.client_id'),
-      window.api.invoke<{ authenticated: boolean; username: string | null; workspace: string | null; org: string | null; picture: string | null } | null>('repo-search:me', { provider: 'github' }),
-    ])
-    if (cid) setClientId(cid)
-    setAuthInfo(me)
-    setStatus(me?.authenticated ? 'connected' : cid ? 'partial' : 'disconnected')
-  }, [])
-
-  useEffect(() => { void load() }, [load])
-
-  const save = async (): Promise<void> => {
-    setSaving(true)
-    if (clientId.trim()) await window.api.invoke('settings:set', 'repo-search.github.client_id', clientId.trim())
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
-  }
-
-  const startOAuth = async (): Promise<void> => {
-    const res = await window.api.invoke<{ user_code: string; verification_uri: string; device_code: string }>('repo-search:github-oauth-start')
-    setOauthStep(res)
-    setPolling(true)
-    const poll = async (): Promise<void> => {
-      const result = await window.api.invoke<{ ok: boolean; error?: string }>('repo-search:github-oauth-poll', { device_code: res.device_code })
-      if (result.ok) { setOauthStep(null); setPolling(false); await load() }
-      else if (result.error === 'authorization_pending' || result.error === 'slow_down') setTimeout(() => void poll(), 5000)
-      else { setOauthStep(null); setPolling(false) }
-    }
-    setTimeout(() => void poll(), 3000)
-  }
-
-  const logout = async (): Promise<void> => {
-    await window.api.invoke('repo-search:logout', { provider: 'github' })
-    await load()
-  }
-
-  return (
-    <Section id="github" title="GitHub" subtitle="Buscá código en tus repositorios y organizaciones" Logo={LogoGitHub} status={status} open={open} onToggle={onToggle}>
-      <HowToBox steps={[
-        { title: 'Creá una OAuth App en GitHub', detail: 'github.com → Settings → Developer settings → OAuth Apps → New OAuth App.' },
-        { title: 'Activá Device Flow', detail: 'Marcá la casilla "Enable Device Flow". La redirect URI puede ser cualquiera.' },
-        { title: 'Copiá el Client ID', detail: 'Pegalo abajo y guardá. Después clic en "Iniciar sesión con GitHub".' },
-      ]} />
-
-      <Field label="OAuth App — Client ID">
-        <input type="text" value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="Ov23li…" className={inputCls} />
-      </Field>
-
-      {oauthStep && (
-        <div className="rounded-xl border border-outline-variant/30 bg-surface-container p-4 space-y-3">
-          <p className="text-xs font-semibold text-on-surface">Autorizá en tu navegador</p>
-          <p className="text-xs text-on-surface-variant/60">
-            Andá a <span className="font-mono text-on-surface">{oauthStep.verification_uri}</span> e ingresá:
-          </p>
-          <p className="font-mono text-xl font-bold tracking-widest text-on-surface">{oauthStep.user_code}</p>
-          <div className="flex items-center gap-2 text-xs text-on-surface-variant/50">
-            <span className="inline-block w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />
-            Esperando autorización…
-          </div>
-        </div>
-      )}
-
-      {authInfo?.authenticated && (
-        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-outline-variant/20 bg-surface-container/40">
-          <span className="text-xs text-on-surface-variant/60">Sesión iniciada como</span>
-          <span className="text-sm font-semibold text-on-surface flex-1">{authInfo.username}</span>
-          <button onClick={() => void logout()} className="flex items-center gap-1 text-xs text-on-surface-variant/40 hover:text-error transition-colors">
-            <Unlink size={12} />Desconectar
-          </button>
-        </div>
-      )}
-
-      <div className="flex items-center justify-between">
-        {!authInfo?.authenticated ? (
-          <button
-            onClick={() => void startOAuth()}
-            disabled={!clientId.trim() || polling}
-            className="text-xs font-semibold text-primary hover:underline disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
-          >
-            {polling ? 'Esperando autorización…' : 'Iniciar sesión con GitHub →'}
-          </button>
-        ) : <span />}
-        <SaveButton onClick={() => void save()} saving={saving} saved={saved} />
-      </div>
-    </Section>
-  )
-}
-
-// ── GitLab Section ─────────────────────────────────────────────────────────────
-
-function GitLabSection({ open, onToggle }: { open: boolean; onToggle: (id: string) => void }): JSX.Element {
-  const [clientId, setClientId] = useState('')
-  const [authInfo, setAuthInfo] = useState<{ authenticated: boolean; username: string | null } | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [status, setStatus] = useState<Status>('loading')
-  const [oauthStep, setOauthStep] = useState<{ user_code: string; verification_uri: string; device_code: string } | null>(null)
-  const [polling, setPolling] = useState(false)
-
-  const load = useCallback(async (): Promise<void> => {
-    const [cid, me] = await Promise.all([
-      window.api.invoke<string | null>('settings:get', 'repo-search.gitlab.client_id'),
-      window.api.invoke<{ authenticated: boolean; username: string | null; workspace: string | null; org: string | null; picture: string | null } | null>('repo-search:me', { provider: 'gitlab' }),
-    ])
-    if (cid) setClientId(cid)
-    setAuthInfo(me)
-    setStatus(me?.authenticated ? 'connected' : cid ? 'partial' : 'disconnected')
-  }, [])
-
-  useEffect(() => { void load() }, [load])
-
-  const save = async (): Promise<void> => {
-    setSaving(true)
-    if (clientId.trim()) await window.api.invoke('settings:set', 'repo-search.gitlab.client_id', clientId.trim())
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
-  }
-
-  const startOAuth = async (): Promise<void> => {
-    const res = await window.api.invoke<{ user_code: string; verification_uri: string; device_code: string }>('repo-search:gitlab-oauth-start')
-    setOauthStep(res)
-    setPolling(true)
-    const poll = async (): Promise<void> => {
-      const result = await window.api.invoke<{ ok: boolean; error?: string }>('repo-search:gitlab-oauth-poll', { device_code: res.device_code })
-      if (result.ok) { setOauthStep(null); setPolling(false); await load() }
-      else if (result.error === 'authorization_pending' || result.error === 'slow_down') setTimeout(() => void poll(), 5000)
-      else { setOauthStep(null); setPolling(false) }
-    }
-    setTimeout(() => void poll(), 3000)
-  }
-
-  const logout = async (): Promise<void> => {
-    await window.api.invoke('repo-search:logout', { provider: 'gitlab' })
-    await load()
-  }
-
-  return (
-    <Section id="gitlab" title="GitLab" subtitle="Buscá código en tus proyectos y grupos de GitLab" Logo={LogoGitLab} status={status} open={open} onToggle={onToggle}>
-      <HowToBox steps={[
-        { title: 'Creá una Application en GitLab', detail: 'gitlab.com → Avatar → Preferences → Applications → New application.' },
-        { title: 'Configurá los scopes', detail: 'Scopes: read_api. Activá "Device Authorization Grant". La redirect URI puede quedar vacía.' },
-        { title: 'Copiá el Application ID', detail: 'Pegalo abajo, guardá y después clic en "Iniciar sesión con GitLab".' },
-      ]} />
-
-      <Field label="OAuth Application — Application ID">
-        <input type="text" value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="abc123…" className={inputCls} />
-      </Field>
-
-      {oauthStep && (
-        <div className="rounded-xl border border-outline-variant/30 bg-surface-container p-4 space-y-3">
-          <p className="text-xs font-semibold text-on-surface">Autorizá en tu navegador</p>
-          <p className="text-xs text-on-surface-variant/60">
-            Andá a <span className="font-mono text-on-surface">{oauthStep.verification_uri}</span> e ingresá:
-          </p>
-          <p className="font-mono text-xl font-bold tracking-widest text-on-surface">{oauthStep.user_code}</p>
-          <div className="flex items-center gap-2 text-xs text-on-surface-variant/50">
-            <span className="inline-block w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />
-            Esperando autorización…
-          </div>
-        </div>
-      )}
-
-      {authInfo?.authenticated && (
-        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-outline-variant/20 bg-surface-container/40">
-          <span className="text-xs text-on-surface-variant/60">Sesión iniciada como</span>
-          <span className="text-sm font-semibold text-on-surface flex-1">{authInfo.username}</span>
-          <button onClick={() => void logout()} className="flex items-center gap-1 text-xs text-on-surface-variant/40 hover:text-error transition-colors">
-            <Unlink size={12} />Desconectar
-          </button>
-        </div>
-      )}
-
-      <div className="flex items-center justify-between">
-        {!authInfo?.authenticated ? (
-          <button
-            onClick={() => void startOAuth()}
-            disabled={!clientId.trim() || polling}
-            className="text-xs font-semibold text-primary hover:underline disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
-          >
-            {polling ? 'Esperando autorización…' : 'Iniciar sesión con GitLab →'}
-          </button>
-        ) : <span />}
-        <SaveButton onClick={() => void save()} saving={saving} saved={saved} />
-      </div>
-    </Section>
-  )
-}
-
-// ── Bitbucket Section ──────────────────────────────────────────────────────────
-
-function BitbucketSection({ open, onToggle }: { open: boolean; onToggle: (id: string) => void }): JSX.Element {
-  const [username, setUsername] = useState('')
-  const [workspace, setWorkspace] = useState('')
-  const [token, setToken] = useState('')
-  const [authInfo, setAuthInfo] = useState<{ authenticated: boolean; username: string | null; workspace: string | null } | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [status, setStatus] = useState<Status>('loading')
-  const [error, setError] = useState<string | null>(null)
-
-  // Detect token type as user types
-  const isBearer = token.startsWith('ATCTT')
-
-  const load = useCallback(async (): Promise<void> => {
-    const [me, ws] = await Promise.all([
-      window.api.invoke<{ authenticated: boolean; username: string | null; workspace: string | null; org: string | null; picture: string | null } | null>('repo-search:me', { provider: 'bitbucket' }),
-      window.api.invoke<string | null>('settings:get', 'bitbucket.workspace'),
-    ])
-    setAuthInfo(me)
-    if (ws) setWorkspace(ws)
-    setStatus(me?.authenticated ? 'connected' : 'disconnected')
-  }, [])
-
-  useEffect(() => { void load() }, [load])
-
-  const canConnect = token.trim() && workspace.trim() && (isBearer || username.trim())
-
-  const connect = async (): Promise<void> => {
-    if (!canConnect) return
-    setError(null)
-    setSaving(true)
-    try {
-      const result = await window.api.invoke<{ ok: boolean; error?: string }>('repo-search:login', {
-        provider: 'bitbucket',
-        username: username.trim() || '',
-        token: token.trim(),
-        workspace: workspace.trim(),
-      })
-      if (result.ok) {
-        await window.api.invoke('settings:set', 'bitbucket.workspace', workspace.trim())
-        setSaved(true)
-        setTimeout(() => setSaved(false), 2500)
-        await load()
-      } else {
-        setError(result.error ?? 'Falló la autenticación')
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falló la autenticación — revisá tus credenciales e intentá de nuevo')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const logout = async (): Promise<void> => {
-    await window.api.invoke('repo-search:logout', { provider: 'bitbucket' })
-    await load()
-  }
-
-  return (
-    <Section id="bitbucket" title="Bitbucket" subtitle="Buscá código en repositorios de Bitbucket" Logo={LogoBitbucket} status={status} open={open} onToggle={onToggle}>
-
-      {/* Token type notice */}
-      <div className="rounded-xl border border-outline-variant/20 bg-surface-container/40 p-4 space-y-3">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">¿Qué token necesito?</p>
-        <div className="space-y-2 text-xs text-on-surface-variant/70 leading-relaxed">
-          <p>
-            <span className="font-semibold text-on-surface/80">API token de Atlassian con scope de Bitbucket</span>
-            {' '}(recomendado) — empieza con <span className="font-mono bg-surface-container px-1 rounded">ATATT…</span>.
-            Crealo en <span className="font-mono text-on-surface/60">id.atlassian.com → Security → API tokens</span>.
-            Elegí <span className="font-semibold">Bitbucket</span> como app y marcá los scopes: <span className="font-mono">Account → Read</span> y <span className="font-mono">Repositories → Read</span>.
-            Usá tu <span className="font-semibold">email de Atlassian</span> como usuario.
-          </p>
-          <p>
-            <span className="font-semibold text-on-surface/80">Access Token de Workspace/Repositorio</span>
-            {' '}— empieza con <span className="font-mono bg-surface-container px-1 rounded">ATCTT…</span>.
-            Crealo en <span className="font-mono text-on-surface/60">bitbucket.org → Workspace Settings → Access tokens</span>. Scopes: <span className="font-mono">repository:read</span>. No necesita usuario.
-          </p>
-          <p>
-            <span className="font-semibold text-on-surface/80">App Password</span>
-            {' '}(legacy, discontinuado en sep. 2025) — empieza con <span className="font-mono bg-surface-container px-1 rounded">ATBB…</span>.
-            Usá tu <span className="font-semibold">usuario</span> de Bitbucket (no el email).
-          </p>
-        </div>
-      </div>
-
-      {authInfo?.authenticated ? (
-        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-outline-variant/20 bg-surface-container/40">
-          <span className="text-xs text-on-surface-variant/60">Sesión iniciada como</span>
-          <span className="text-sm font-semibold text-on-surface flex-1">{authInfo.username}</span>
-          {authInfo.workspace && <span className="text-xs text-on-surface-variant/50">· {authInfo.workspace}</span>}
-          <button onClick={() => void logout()} className="flex items-center gap-1 text-xs text-on-surface-variant/40 hover:text-error transition-colors">
-            <Unlink size={12} />Desconectar
-          </button>
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 gap-3">
-            <Field
-              label={isBearer ? 'Usuario (opcional)' : 'Usuario / Email'}
-              hint={isBearer ? 'No requerido para tokens de Workspace/Repo (ATCTT)' : 'Usá tu email de Atlassian para tokens ATATT, o tu usuario de Bitbucket para App Passwords ATBB'}
-            >
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder={isBearer ? 'opcional' : 'vos@empresa.com'}
-                className={inputCls}
-              />
-            </Field>
-            <Field label="Slug del workspace" hint="El slug que aparece en las URLs de tus repos">
-              <input type="text" value={workspace} onChange={(e) => setWorkspace(e.target.value)} placeholder="my-workspace" className={inputCls} />
-            </Field>
-          </div>
-          <Field label="Access Token">
-            <PasswordInput value={token} onChange={setToken} placeholder="ATCTT… o ATBB…" />
-          </Field>
-
-          {error && (
-            <div className="flex items-center gap-2 text-xs text-error/80">
-              <CircleAlert size={13} />{error}
-            </div>
-          )}
-
-          <div className="flex justify-end">
-            <button
-              onClick={() => void connect()}
-              disabled={!canConnect || saving}
-              className={[
-                'ui-btn',
-                saved ? 'bg-accent/15 text-accent border border-accent/25' : 'ui-btn-outline',
-                'disabled:opacity-40 disabled:cursor-not-allowed',
-              ].join(' ')}
-            >
-              {saving ? <><span className="inline-block w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />Conectando…</>
-                : saved ? <><Check size={13} />Conectado</>
-                : 'Conectar'}
-            </button>
-          </div>
-        </>
-      )}
-    </Section>
-  )
-}
-
-// ── Supabase Section ───────────────────────────────────────────────────────────
-
-function SupabaseSection({ open, onToggle }: { open: boolean; onToggle: (id: string) => void }): JSX.Element {
-  const [url, setUrl] = useState('')
-  const [serviceKey, setServiceKey] = useState('')
-  const [keyConfigured, setKeyConfigured] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [status, setStatus] = useState<Status>('loading')
-
-  useEffect(() => {
-    window.api.invoke<{ url: string; keyConfigured: boolean } | null>('gastos:supabase-config-get').then((cfg) => {
-      if (cfg?.url) setUrl(cfg.url)
-      setKeyConfigured(cfg?.keyConfigured ?? false)
-      const ok = Boolean(cfg?.url && cfg?.keyConfigured)
-      setStatus(ok ? 'connected' : 'disconnected')
-    }).catch(() => setStatus('disconnected'))
-  }, [])
-
-  const save = async (): Promise<void> => {
-    setSaving(true)
-    try {
-      await window.api.invoke('gastos:supabase-config-save', {
-        url: url.trim(),
-        serviceKey: serviceKey.trim(),
-      })
-      if (serviceKey.trim()) setKeyConfigured(true)
-      setSaved(true)
-      const ok = Boolean(url.trim() && (serviceKey.trim() || keyConfigured))
-      setStatus(ok ? 'connected' : 'disconnected')
-      setTimeout(() => setSaved(false), 2500)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <Section
-      id="supabase"
-      title="Supabase"
-      subtitle="Base de datos para servicios, gastos, contraseñas y queries"
-      Logo={LogoSupabase}
-      status={status}
-      open={open}
-      onToggle={onToggle}
+    <SheetBody
+      meta={meta}
+      footer={<SheetFooter testing={ts.testing} saving={ts.saving} canTest={Boolean(url.trim()) && !urlError} canSave={Boolean(url.trim()) && !urlError} onTest={() => void ts.test()} onSave={() => void ts.save()} />}
     >
-      <HowToBox steps={[
-        { title: 'Crear proyecto Supabase', detail: 'supabase.com → New project.' },
-        { title: 'Ejecutar el SQL del repo', detail: 'SQL Editor → pegar supabase/migrations/001_gastos_schema.sql → Run.' },
-        { title: 'Copiar URL y service_role', detail: 'Settings → API → Project URL y service_role (secret).' },
-        { title: 'Guardar', detail: 'Pegá ambos campos acá abajo y guardá — Gastos los usa directo, no hace falta migrar nada.' },
+      <HowTo steps={[
+        <>Instalá Ollama desde <ExtLink href="https://ollama.com/download">ollama.com</ExtLink>; levanta un servidor local solo.</>,
+        <>Descargá un modelo: <span className="font-mono text-on-surface">ollama pull llama3</span> (o qwen3:14b, mistral…).</>,
       ]} />
-
-      <Field label="Project URL">
-        <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://xxxx.supabase.co" className={inputCls} />
-      </Field>
-      <Field label="Service role key" hint="Solo en el proceso principal de Electron; nunca en el renderer.">
-        <PasswordInput value={serviceKey} onChange={setServiceKey} placeholder="eyJ..." configured={keyConfigured} />
-      </Field>
-      <div className="flex flex-wrap gap-2 justify-end">
-        <SaveButton onClick={() => void save()} saving={saving} saved={saved} />
-      </div>
-    </Section>
+      <FormField label="URL del servidor" help="Por defecto http://localhost:11434" error={urlError ?? (failed && !modelMissing ? failed : null)}>
+        <TextInput value={url} onChange={(v) => { setUrl(v); ts.setResult(null) }} placeholder="http://localhost:11434" invalid={Boolean(urlError ?? (failed && !modelMissing))} />
+      </FormField>
+      <FormField label="Modelo" help="El nombre exacto que descargaste (ollama list)." error={modelMissing ? failed : null}>
+        <TextInput value={model} onChange={(v) => { setModel(v); ts.setResult(null) }} placeholder="llama3" invalid={Boolean(modelMissing)} />
+      </FormField>
+      {ts.result?.ok && <Outcome result={ts.result} />}
+    </SheetBody>
   )
 }
 
-// ── Jira Section ───────────────────────────────────────────────────────────────
+// ── Jira ───────────────────────────────────────────────────────────────────────
 
-function JiraSection({ open, onToggle }: { open: boolean; onToggle: (id: string) => void }): JSX.Element {
+function JiraSheet({ meta, onStatus }: SheetProps): JSX.Element {
   const [jiraUrl, setJiraUrl] = useState('')
   const [jiraUser, setJiraUser] = useState('')
   const [jiraToken, setJiraToken] = useState('')
   const [tokenConfigured, setTokenConfigured] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [status, setStatus] = useState<Status>('loading')
 
   useEffect(() => {
     Promise.all([
-      window.api.invoke<string | null>('settings:get', 'ticket-resolver.jira_url'),
-      window.api.invoke<string | null>('settings:get', 'ticket-resolver.jira_user'),
-      window.api.invoke<string | null>('settings:get', 'ticket-resolver.jira_token'),
-    ]).then(([url, user, tok]) => {
-      if (url) setJiraUrl(url)
-      if (user) setJiraUser(user)
-      const tokOk = tok === '__CONFIGURED__'
-      setTokenConfigured(tokOk)
-      setStatus(url && user && tokOk ? 'connected' : (url || user) ? 'partial' : 'disconnected')
-    }).catch(() => setStatus('disconnected'))
+      invoke<string | null>('settings:get', 'ticket-resolver.jira_url'),
+      invoke<string | null>('settings:get', 'ticket-resolver.jira_user'),
+      invoke<string | null>('settings:get', 'ticket-resolver.jira_token'),
+    ]).then(([u, usr, tok]) => {
+      if (u) setJiraUrl(u)
+      if (usr) setJiraUser(usr)
+      setTokenConfigured(tok === SENTINEL)
+    }).catch(() => undefined)
   }, [])
 
-  const save = async (): Promise<void> => {
-    setSaving(true)
+  const urlError = jiraUrl.trim() && !/^https?:\/\/[^\s/]+/i.test(jiraUrl.trim()) ? 'Usá la URL completa, por ejemplo https://empresa.atlassian.net' : null
+  const userError = jiraUser.trim() && !jiraUser.includes('@') ? 'Para Jira Cloud va el email de tu cuenta de Atlassian' : null
+  const ts = useTestSave('jira', () => ({ url: jiraUrl.trim(), user: jiraUser.trim(), token: jiraToken.trim() }), async () => {
     const ops: Promise<unknown>[] = []
-    if (jiraUrl.trim()) ops.push(window.api.invoke('settings:set', 'ticket-resolver.jira_url', jiraUrl.trim()))
-    if (jiraUser.trim()) ops.push(window.api.invoke('settings:set', 'ticket-resolver.jira_user', jiraUser.trim()))
-    if (jiraToken.trim() && jiraToken !== '__CONFIGURED__') {
-      ops.push(window.api.invoke('settings:set', 'ticket-resolver.jira_token', jiraToken.trim()))
-      setTokenConfigured(true)
-      setJiraToken('')
-    }
+    if (jiraUrl.trim()) ops.push(invoke('settings:set', 'ticket-resolver.jira_url', jiraUrl.trim().replace(/\/+$/, '')))
+    if (jiraUser.trim()) ops.push(invoke('settings:set', 'ticket-resolver.jira_user', jiraUser.trim()))
+    if (jiraToken.trim()) ops.push(invoke('settings:set', 'ticket-resolver.jira_token', jiraToken.trim()))
     await Promise.all(ops)
-    setSaving(false)
-    setSaved(true)
-    setStatus(jiraUrl.trim() && jiraUser.trim() && (tokenConfigured || jiraToken.trim()) ? 'connected' : 'partial')
-    setTimeout(() => setSaved(false), 2500)
-  }
+    if (jiraToken.trim()) { setTokenConfigured(true); setJiraToken('') }
+  }, onStatus)
 
+  const failed = ts.result && !ts.result.ok ? ts.result.detail : null
+  const where = failed ? fieldForError(failed) : null
+  const complete = Boolean(jiraUrl.trim() && jiraUser.trim() && (jiraToken.trim() || tokenConfigured))
   return (
-    <Section id="jira" title="Jira" subtitle="Traé y analizá tickets de Jira en el Ticket Resolver" Logo={LogoJira} status={status} open={open} onToggle={onToggle}>
-      <HowToBox steps={[
-        { title: 'Conseguí la URL de tu instancia de Jira', detail: 'ej. https://empresa.atlassian.net' },
-        { title: 'Creá un API token', detail: 'id.atlassian.com → Security → API tokens → Create API token. Copiá el valor.' },
-        { title: 'Ingresá tu email', detail: 'El email asociado a tu cuenta de Atlassian.' },
-      ]} />
-
-      <Field label="URL base de Jira">
-        <input type="text" value={jiraUrl} onChange={(e) => setJiraUrl(e.target.value)} placeholder="https://company.atlassian.net" className={inputCls} />
-      </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Email">
-          <input type="email" value={jiraUser} onChange={(e) => setJiraUser(e.target.value)} placeholder="you@company.com" className={inputCls} />
-        </Field>
-        <Field label="API Token">
-          <PasswordInput value={jiraToken} onChange={setJiraToken} placeholder="API token" configured={tokenConfigured} />
-        </Field>
-      </div>
-      <div className="flex justify-end">
-        <SaveButton onClick={() => void save()} saving={saving} saved={saved} />
-      </div>
-    </Section>
+    <SheetBody
+      meta={meta}
+      footer={<SheetFooter testing={ts.testing} saving={ts.saving} canTest={complete && !urlError} canSave={Boolean(jiraUrl.trim() || jiraUser.trim() || jiraToken.trim()) && !urlError} onTest={() => void ts.test()} onSave={() => void ts.save()} />}
+    >
+      <FormField label="URL base de Jira" help="La dirección de tu instancia, ej. https://empresa.atlassian.net" error={urlError ?? (where === 'url' ? failed : null)}>
+        <TextInput value={jiraUrl} onChange={(v) => { setJiraUrl(v); ts.setResult(null) }} placeholder="https://empresa.atlassian.net" invalid={Boolean(urlError ?? (where === 'url'))} />
+      </FormField>
+      <FormField label="Email" help="El de tu cuenta de Atlassian." error={userError}>
+        <TextInput type="email" value={jiraUser} onChange={(v) => { setJiraUser(v); ts.setResult(null) }} placeholder="vos@empresa.com" invalid={Boolean(userError)} />
+      </FormField>
+      <FormField
+        label="Token de API"
+        help="Se usa junto con el email; no es tu contraseña."
+        whereUrl="https://id.atlassian.com/manage-profile/security/api-tokens"
+        error={where === 'secret' || where === 'general' ? failed : null}
+      >
+        <SecretInput value={jiraToken} onChange={(v) => { setJiraToken(v); ts.setResult(null) }} placeholder="Token de API" configured={tokenConfigured} invalid={where === 'secret'} />
+      </FormField>
+      {ts.result?.ok && <Outcome result={ts.result} />}
+    </SheetBody>
   )
 }
 
-// ── Main ───────────────────────────────────────────────────────────────────────
+// ── GitHub / GitLab (OAuth device flow) ────────────────────────────────────────
 
-type SectionId = 'openai' | 'anthropic' | 'ollama' | 'github' | 'gitlab' | 'bitbucket' | 'supabase' | 'jira'
+type PollResult = { status: 'authorized' | 'pending' | 'slow_down' | 'expired' | 'denied' | 'error'; interval?: number; message?: string }
 
-export function ConnectionsPlugin(): JSX.Element {
-  const [open, setOpen] = useState<Record<SectionId, boolean>>({
-    openai: false, anthropic: false, ollama: false,
-    github: false, gitlab: false, bitbucket: false,
-    supabase: false, jira: false,
-  })
+const OAUTH = {
+  github: {
+    label: 'OAuth App — Client ID', placeholder: 'Ov23li…',
+    where: 'https://github.com/settings/developers',
+    help: 'OAuth App con "Enable Device Flow" activado. La redirect URI puede ser cualquiera.',
+    steps: ['Creá una OAuth App en GitHub → Settings → Developer settings → OAuth Apps.', 'Marcá "Enable Device Flow" y copiá el Client ID.', 'Guardalo y tocá "Iniciar sesión con GitHub".'],
+  },
+  gitlab: {
+    label: 'Application ID', placeholder: 'abc123…',
+    where: 'https://gitlab.com/-/user_settings/applications',
+    help: 'Application con scope read_api y "Device Authorization Grant" activado.',
+    steps: ['Creá una Application en GitLab → Preferences → Applications.', 'Scope read_api y activá "Device Authorization Grant".', 'Guardá el Application ID y tocá "Iniciar sesión con GitLab".'],
+  },
+} as const
 
-  const toggle = (id: string): void =>
-    setOpen((prev) => ({ ...prev, [id]: !prev[id as SectionId] }))
+function OAuthSheet({ meta, status, onStatus, id }: SheetProps & { id: 'github' | 'gitlab' }): JSX.Element {
+  const cfg = OAUTH[id]
+  const toast = useToast()
+  const [clientId, setClientId] = useState('')
+  const [builtIn, setBuiltIn] = useState(false)
+  const [authInfo, setAuthInfo] = useState<{ authenticated: boolean; username: string | null } | null>(null)
+  const [oauthStep, setOauthStep] = useState<{ user_code: string; verification_uri: string; device_code: string } | null>(null)
+  const [oauthError, setOauthError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const alive = useRef(true)
+  useEffect(() => () => { alive.current = false }, [])
+
+  const load = useCallback(async (): Promise<void> => {
+    const [cid, me, conf] = await Promise.all([
+      invoke<string | null>('settings:get', `repo-search.${id}.client_id`).catch(() => null),
+      invoke<{ authenticated: boolean; username: string | null } | null>('repo-search:me', { provider: id }).catch(() => null),
+      invoke<boolean>('repo-search:oauth-configured', { provider: id }).catch(() => false),
+    ])
+    if (cid) setClientId(cid)
+    setAuthInfo(me)
+    setBuiltIn(Boolean(conf))
+  }, [id])
+
+  useEffect(() => { void load() }, [load])
+
+  const recheck = async (): Promise<void> => {
+    setTesting(true)
+    onStatus({ state: 'checking' })
+    onStatus(await checkStored(id))
+    setTesting(false)
+  }
+
+  const saveClientId = async (): Promise<void> => {
+    if (!clientId.trim()) return
+    setSaving(true)
+    try {
+      await invoke('settings:set', `repo-search.${id}.client_id`, clientId.trim())
+      setBuiltIn(true)
+      toast.show('Client ID guardado', 'success')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const startOAuth = async (): Promise<void> => {
+    setOauthError(null)
+    try {
+      if (clientId.trim()) await invoke('settings:set', `repo-search.${id}.client_id`, clientId.trim())
+      const res = await invoke<{ user_code: string; verification_uri: string; device_code: string; interval?: number }>(`repo-search:${id}-oauth-start`)
+      setOauthStep(res)
+      let interval = Math.max(5, res.interval ?? 5) * 1000
+      const poll = async (): Promise<void> => {
+        if (!alive.current) return
+        try {
+          const r = await invoke<PollResult & { ok?: boolean; error?: string }>(`repo-search:${id}-oauth-poll`, { device_code: res.device_code })
+          if (r.status === 'authorized' || r.ok) {
+            setOauthStep(null)
+            await load()
+            await recheck()
+            return
+          }
+          if (r.status === 'pending' || r.error === 'authorization_pending') { setTimeout(() => void poll(), interval); return }
+          if (r.status === 'slow_down' || r.error === 'slow_down') { interval = Math.max(interval + 5000, (r.interval ?? 0) * 1000); setTimeout(() => void poll(), interval); return }
+          setOauthStep(null)
+          setOauthError(r.status === 'expired' ? 'El código expiró. Volvé a intentar.' : r.status === 'denied' ? 'Cancelaste la autorización.' : (r.message ?? r.error ?? 'No se pudo iniciar sesión'))
+        } catch (e) {
+          setOauthStep(null)
+          setOauthError(e instanceof Error ? e.message : 'No se pudo iniciar sesión')
+        }
+      }
+      setTimeout(() => void poll(), interval)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : ''
+      setOauthError(msg.includes('NO_CLIENT_ID') ? 'Falta el Client ID' : msg || 'No se pudo iniciar sesión')
+    }
+  }
+
+  const logout = async (): Promise<void> => {
+    await invoke('repo-search:logout', { provider: id })
+    await load()
+    onStatus({ state: 'unconfigured', detail: 'No iniciaste sesión', checkedAt: Date.now() })
+  }
+
+  const providerName = id === 'github' ? 'GitHub' : 'GitLab'
+  return (
+    <SheetBody
+      meta={meta}
+      footer={
+        <>
+          <button className="ui-btn ui-btn-outline" disabled={!authInfo?.authenticated || testing} onClick={() => void recheck()}>
+            {testing ? <><Spinner />Probando…</> : <><Zap size={13} />Probar</>}
+          </button>
+          <button className="ui-btn ui-btn-primary" disabled={!clientId.trim() || saving} onClick={() => void saveClientId()}>
+            {saving ? <><Spinner />Guardando…</> : 'Guardar'}
+          </button>
+        </>
+      }
+    >
+      {authInfo?.authenticated ? (
+        <SessionRow username={authInfo.username} onLogout={() => void logout()} />
+      ) : (
+        <HowTo steps={cfg.steps.map((s) => s)} />
+      )}
+      <FormField label={cfg.label} help={builtIn && !clientId ? 'Usando el Client ID incluido en la app. Podés poner el tuyo.' : cfg.help} whereUrl={cfg.where} whereLabel="Crear la app">
+        <TextInput value={clientId} onChange={setClientId} placeholder={cfg.placeholder} />
+      </FormField>
+      {oauthStep && <DeviceCodeBox uri={oauthStep.verification_uri} code={oauthStep.user_code} />}
+      {oauthError && <Outcome result={{ ok: false, detail: oauthError }} />}
+      {!authInfo?.authenticated && !oauthStep && (
+        <button className="ui-btn ui-btn-dark self-start" disabled={!clientId.trim() && !builtIn} onClick={() => void startOAuth()}>
+          Iniciar sesión con {providerName}
+        </button>
+      )}
+      {status.state === 'error' && authInfo?.authenticated && (
+        <p className="t-caption text-on-surface-variant">Si la sesión expiró, desconectá y volvé a iniciar sesión.</p>
+      )}
+    </SheetBody>
+  )
+}
+
+// ── Bitbucket ──────────────────────────────────────────────────────────────────
+
+function BitbucketSheet({ meta, onStatus }: SheetProps): JSX.Element {
+  const toast = useToast()
+  const [username, setUsername] = useState('')
+  const [workspace, setWorkspace] = useState('')
+  const [token, setToken] = useState('')
+  const [authInfo, setAuthInfo] = useState<{ authenticated: boolean; username: string | null; workspace: string | null } | null>(null)
+  const [testing, setTesting] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [result, setResult] = useState<TestResult | null>(null)
+  const isBearer = token.startsWith('ATCTT')
+
+  const load = useCallback(async (): Promise<void> => {
+    const [me, ws] = await Promise.all([
+      invoke<{ authenticated: boolean; username: string | null; workspace: string | null } | null>('repo-search:me', { provider: 'bitbucket' }).catch(() => null),
+      invoke<string | null>('settings:get', 'bitbucket.workspace').catch(() => null),
+    ])
+    setAuthInfo(me)
+    if (ws) setWorkspace(ws)
+  }, [])
+  useEffect(() => { void load() }, [load])
+
+  const canConnect = Boolean(token.trim() && workspace.trim() && (isBearer || username.trim()))
+  const values = (): Record<string, string> => ({ token: token.trim(), username: username.trim(), workspace: workspace.trim() })
+
+  const test = async (): Promise<void> => {
+    setTesting(true)
+    setResult(null)
+    try { setResult(await invoke<TestResult>('settings:test-connection', 'bitbucket', values())) }
+    catch (e) { setResult({ ok: false, configured: true, detail: e instanceof Error ? e.message : 'No se pudo probar' }) }
+    finally { setTesting(false) }
+  }
+
+  const connect = async (): Promise<void> => {
+    if (!canConnect) return
+    setSaving(true)
+    setResult(null)
+    try {
+      const r = await invoke<{ ok: boolean; error?: string }>('repo-search:login', { provider: 'bitbucket', ...values() })
+      if (!r.ok) { setResult({ ok: false, configured: true, detail: r.error ?? 'Falló la autenticación' }); return }
+      await invoke('settings:set', 'bitbucket.workspace', workspace.trim())
+      setToken('')
+      await load()
+      onStatus({ state: 'checking' })
+      onStatus(await checkStored('bitbucket'))
+      toast.show('Bitbucket conectado', 'success')
+    } catch (e) {
+      setResult({ ok: false, configured: true, detail: e instanceof Error ? e.message : 'Falló la autenticación — revisá tus credenciales' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const logout = async (): Promise<void> => {
+    await invoke('repo-search:logout', { provider: 'bitbucket' })
+    await load()
+    onStatus({ state: 'unconfigured', detail: 'Falta el token de acceso', checkedAt: Date.now() })
+  }
+
+  const failed = result && !result.ok ? result.detail : null
+  if (authInfo?.authenticated) {
+    return (
+      <SheetBody meta={meta} footer={<button className="ui-btn ui-btn-outline" disabled={testing} onClick={() => { setTesting(true); onStatus({ state: 'checking' }); void checkStored('bitbucket').then((s) => { onStatus(s); setTesting(false) }) }}>{testing ? <><Spinner />Probando…</> : <><Zap size={13} />Probar</>}</button>}>
+        <SessionRow username={authInfo.username} extra={authInfo.workspace} onLogout={() => void logout()} />
+      </SheetBody>
+    )
+  }
+  return (
+    <SheetBody
+      meta={meta}
+      footer={<SheetFooter testing={testing} saving={saving} canTest={canConnect} canSave={canConnect} onTest={() => void test()} onSave={() => void connect()} saveLabel="Conectar" />}
+    >
+      <HowTo steps={[
+        <><span className="font-medium text-on-surface">API token de Atlassian</span> (recomendado, ATATT…): elegí Bitbucket con scopes Account → Read y Repositories → Read; usuario = tu email.</>,
+        <><span className="font-medium text-on-surface">Access token de workspace</span> (ATCTT…): Workspace settings → Access tokens, scope repository:read; no necesita usuario.</>,
+        <><span className="font-medium text-on-surface">App Password</span> (ATBB…, legacy): usá tu usuario de Bitbucket, no el email.</>,
+      ]} />
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label={isBearer ? 'Usuario (opcional)' : 'Usuario / email'} help={isBearer ? 'No hace falta para tokens ATCTT' : 'Email para ATATT, usuario para ATBB'}>
+          <TextInput value={username} onChange={(v) => { setUsername(v); setResult(null) }} placeholder={isBearer ? 'opcional' : 'vos@empresa.com'} />
+        </FormField>
+        <FormField label="Workspace" help="El que aparece en la URL de tus repos" error={failed && /workspace|404/i.test(failed) ? failed : null}>
+          <TextInput value={workspace} onChange={(v) => { setWorkspace(v); setResult(null) }} placeholder="mi-workspace" />
+        </FormField>
+      </div>
+      <FormField label="Token de acceso" whereUrl="https://id.atlassian.com/manage-profile/security/api-tokens" error={failed && !/workspace|404/i.test(failed) ? failed : null}>
+        <SecretInput value={token} onChange={(v) => { setToken(v); setResult(null) }} placeholder="ATATT…, ATCTT… o ATBB…" invalid={Boolean(failed)} />
+      </FormField>
+      {result?.ok && <Outcome result={result} />}
+    </SheetBody>
+  )
+}
+
+// ── Supabase (guided setup) ────────────────────────────────────────────────────
+
+const SOURCE_LABEL: Record<string, string> = {
+  settings: 'Ajustes de la app',
+  'local-file': 'archivo gastos-supabase.local.json',
+  env: 'variables de entorno (.env)',
+  none: 'sin configurar',
+}
+
+const KEY_KIND_INFO: Record<SupabaseKeyKind, { tone: 'ok' | 'warn' | 'none'; text: string }> = {
+  service_role: { tone: 'ok', text: 'Clave service_role detectada.' },
+  secret: { tone: 'ok', text: 'Clave secreta (sb_secret_…) detectada.' },
+  anon: { tone: 'warn', text: 'Esta es la clave anon (pública). Gastos necesita la service_role: en API Keys tocá "Reveal" en service_role.' },
+  publishable: { tone: 'warn', text: 'Esta es la clave publishable (pública). Usá una clave secreta (sb_secret_…) o la service_role.' },
+  'other-jwt': { tone: 'warn', text: 'El token no es de tipo service_role. Revisá que hayas copiado la clave correcta.' },
+  unknown: { tone: 'warn', text: 'No parece una clave de Supabase (JWT eyJ… o sb_secret_…).' },
+  empty: { tone: 'none', text: '' },
+}
+
+function CheckRow({ ok, pending, label, detail }: { ok: boolean | null; pending?: boolean; label: string; detail?: string }): JSX.Element {
+  return (
+    <li className="flex items-start gap-2.5 t-footnote">
+      <span className="mt-px flex-shrink-0">
+        {pending ? <Spinner />
+          : ok === true ? <CheckCircle2 size={14} className="text-success" />
+          : ok === false ? <CircleAlert size={14} className="text-error" />
+          : <Circle size={14} className="text-on-surface-variant/50" />}
+      </span>
+      <span className="min-w-0">
+        <span className={ok === false ? 'text-error' : 'text-on-surface'}>{label}</span>
+        {detail && <span className="text-on-surface-variant"> — {detail}</span>}
+      </span>
+    </li>
+  )
+}
+
+function SupabaseSheet({ meta, onStatus }: SheetProps): JSX.Element {
+  const toast = useToast()
+  const [current, setCurrent] = useState<{ url: string; keyConfigured: boolean } | null>(null)
+  const [source, setSource] = useState<string | null>(null)
+  const [urlInput, setUrlInput] = useState('')
+  const [key, setKey] = useState('')
+  const [checking, setChecking] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [health, setHealth] = useState<SupabaseHealth | null>(null)
+  const [checkError, setCheckError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const loadCurrent = useCallback(async (): Promise<void> => {
+    const [cfg, src] = await Promise.all([
+      invoke<{ url: string; keyConfigured: boolean } | null>('gastos:supabase-config-get').catch(() => null),
+      invoke<{ source: string }>('settings:supabase-source').catch(() => null),
+    ])
+    setCurrent(cfg)
+    setSource(src?.source ?? null)
+    if (cfg?.url) setUrlInput((prev) => prev || cfg.url)
+  }, [])
+  useEffect(() => { void loadCurrent() }, [loadCurrent])
+
+  const norm = normalizeSupabaseUrl(urlInput)
+  const urlError = urlInput.trim() && !norm ? 'Pegá la Project URL (https://xxxx.supabase.co) o el Reference ID del proyecto' : null
+  const kind = detectSupabaseKeyKind(key)
+  const kindInfo = KEY_KIND_INFO[kind]
+  const sameAsCurrent = Boolean(norm && current?.url && norm.url === normalizeSupabaseUrl(current.url)?.url)
+  const usingStoredKey = !key.trim() && sameAsCurrent && Boolean(current?.keyConfigured)
+  const canVerify = Boolean(norm) && (Boolean(key.trim()) || usingStoredKey)
+  const ref = norm?.ref ?? null
+  const missing = health ? missingTables(health) : []
+  const healthy = Boolean(health?.reachable && health.authOk && missing.length === 0)
+
+  const verify = async (): Promise<void> => {
+    if (!norm) return
+    setChecking(true)
+    setCheckError(null)
+    setHealth(null)
+    try {
+      const h = usingStoredKey
+        ? await invoke<SupabaseHealth>('gastos:supabase-health')
+        : await invoke<SupabaseHealth>('gastos:supabase-test', norm.url, key.trim())
+      setHealth(h)
+      if (usingStoredKey) onStatus(statusFromHealth(h))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : ''
+      setCheckError(msg.includes('IPC invoke blocked') ? 'La verificación todavía no está disponible en esta versión. Podés guardar igual.' : msg || 'No se pudo verificar')
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  const save = async (): Promise<void> => {
+    if (!norm) return
+    setSaving(true)
+    try {
+      await invoke('gastos:supabase-config-save', { url: norm.url, serviceKey: key.trim() })
+      window.dispatchEvent(new CustomEvent('setto:supabase-config-changed'))
+      setKey('')
+      await loadCurrent()
+      onStatus({ state: 'checking' })
+      const s = await checkStored('supabase')
+      onStatus(s)
+      toast.show(s.state === 'connected' ? 'Supabase guardado y verificado' : 'Supabase guardado', s.state === 'connected' ? 'success' : 'info')
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'No se pudo guardar', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const copySql = async (): Promise<void> => {
+    if (!health?.missingSql) return
+    try {
+      await navigator.clipboard.writeText(health.missingSql)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.show('No se pudo copiar', 'error')
+    }
+  }
+
+  const step = (n: number, title: string, body: React.ReactNode, done?: boolean): JSX.Element => (
+    <section className="flex gap-3">
+      <span className={`flex-shrink-0 w-6 h-6 rounded-full t-caption font-semibold flex items-center justify-center ${done ? 'bg-success/[0.14] text-success' : 'bg-selected text-primary'}`}>
+        {done ? <Check size={12} /> : n}
+      </span>
+      <div className="flex-1 min-w-0 flex flex-col gap-3 pt-0.5">
+        <p className="t-body font-medium text-on-surface">{title}</p>
+        {body}
+      </div>
+    </section>
+  )
 
   return (
-    <div className="p-8 max-w-2xl mx-auto w-full">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-xl font-bold tracking-tight text-on-surface">Conexiones</h1>
-        <p className="text-on-surface-variant/60 mt-1 text-sm">
-          Configurá tus integraciones. Expandí un servicio para ver las instrucciones e ingresar las credenciales.
+    <SheetBody
+      meta={meta}
+      footer={
+        <>
+          <button className="ui-btn ui-btn-outline" disabled={!canVerify || checking || saving} onClick={() => void verify()}>
+            {checking ? <><Spinner />Verificando…</> : <><Zap size={13} />{health ? 'Verificar de nuevo' : 'Verificar'}</>}
+          </button>
+          <button
+            className="ui-btn ui-btn-primary"
+            disabled={!norm || saving || checking || (!key.trim() && sameAsCurrent) || isPublicSupabaseKey(kind)}
+            onClick={() => void save()}
+          >
+            {saving ? <><Spinner />Guardando…</> : 'Guardar'}
+          </button>
+        </>
+      }
+    >
+      <div className="rounded-xl bg-on-surface/[0.035] dark:bg-on-surface/[0.05] px-3.5 py-2.5 t-footnote text-on-surface-variant flex flex-col gap-0.5">
+        <span>
+          En uso: <span className="font-mono text-on-surface break-all">{current?.url || '—'}</span>
+        </span>
+        {source && <span>Origen: {SOURCE_LABEL[source] ?? source}{current?.url && !current.keyConfigured ? ' · falta la clave' : ''}</span>}
+      </div>
+
+      {step(1, 'Proyecto y clave', (
+        <>
+          <FormField
+            label="Project URL o Reference ID"
+            help={norm && norm.url !== urlInput.trim() ? <>Se va a usar <span className="font-mono">{norm.url}</span></> : 'Podés pegar la URL del proyecto, la del dashboard o solo el ID.'}
+            whereUrl={supabaseApiKeysUrl(ref)}
+            whereLabel="Abrir API Keys"
+            error={urlError}
+          >
+            <TextInput value={urlInput} onChange={(v) => { setUrlInput(v); setHealth(null) }} placeholder="https://xxxx.supabase.co" invalid={Boolean(urlError)} />
+          </FormField>
+          <FormField
+            label="Clave service_role"
+            help={kindInfo.tone === 'ok'
+              ? <span className="text-success">{kindInfo.text}</span>
+              : 'Settings → API Keys → service_role (secret). Se usa solo en el proceso principal; nunca llega a la interfaz.'}
+            error={kindInfo.tone === 'warn' ? kindInfo.text : null}
+          >
+            <SecretInput
+              value={key}
+              onChange={(v) => { setKey(v); setHealth(null) }}
+              placeholder="eyJ… o sb_secret_…"
+              configured={sameAsCurrent && Boolean(current?.keyConfigured)}
+              invalid={kindInfo.tone === 'warn'}
+            />
+          </FormField>
+          {norm && !sameAsCurrent && !key.trim() && current?.url && (
+            <p className="t-caption text-warning">Cambiaste de proyecto: pegá la clave service_role del proyecto nuevo.</p>
+          )}
+        </>
+      ), Boolean(norm && (key.trim() ? !isPublicSupabaseKey(kind) && kind !== 'unknown' : usingStoredKey)))}
+
+      {step(2, 'Verificar conexión', (
+        <>
+          {!health && !checking && !checkError && (
+            <p className="t-footnote text-on-surface-variant">Tocá “Verificar” para probar la URL y la clave sin guardarlas.</p>
+          )}
+          {checkError && <Outcome result={{ ok: false, detail: checkError }} />}
+          {(checking || health) && (
+            <ul className="flex flex-col gap-1.5">
+              <CheckRow pending={checking} ok={health ? health.reachable : null} label="El proyecto responde" detail={health?.reachable && health.latencyMs !== undefined ? `${health.latencyMs} ms` : !health?.reachable ? health?.error : undefined} />
+              <CheckRow pending={checking} ok={health ? (health.reachable ? health.authOk : null) : null} label="La clave es válida" detail={health?.reachable && !health.authOk ? health.error : undefined} />
+              {SUPABASE_TABLES.map((t) => (
+                <CheckRow key={t} pending={checking} ok={health?.authOk ? (health.tables?.[t] ?? null) : null} label={`Tabla ${t}`} detail={health?.authOk && health.tables?.[t] === false ? 'falta crearla' : undefined} />
+              ))}
+            </ul>
+          )}
+          {healthy && <Outcome result={{ ok: true, detail: 'Todo en orden. Guardá para empezar a usar este proyecto.' }} />}
+        </>
+      ), healthy)}
+
+      {health?.authOk && missing.length > 0 && step(3, 'Crear las tablas que faltan', (
+        <>
+          <p className="t-footnote text-on-surface-variant">
+            Copiá este SQL, pegalo en el SQL Editor del proyecto y tocá <span className="font-medium text-on-surface">Run</span>. Después volvé y tocá “Verificar de nuevo”.
+          </p>
+          {health.missingSql ? (
+            <div className="relative">
+              <pre className="ui-input font-mono t-caption max-h-56 overflow-auto whitespace-pre pr-12 py-2.5">{health.missingSql}</pre>
+              <button className="ui-btn ui-btn-ghost ui-btn-sm absolute top-1.5 right-1.5" onClick={() => void copySql()} aria-label="Copiar SQL">
+                {copied ? <><Check size={12} className="text-success" />Copiado</> : <><Copy size={12} />Copiar</>}
+              </button>
+            </div>
+          ) : (
+            <p className="t-footnote text-on-surface-variant">Aplicá las migraciones de <span className="font-mono">supabase/migrations</span> del repo.</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {ref && (
+              <a href={supabaseSqlEditorUrl(ref)} target="_blank" rel="noreferrer" className="ui-btn ui-btn-outline ui-btn-sm">
+                <ExternalLink size={12} />Abrir SQL Editor
+              </a>
+            )}
+            <button className="ui-btn ui-btn-ghost ui-btn-sm" disabled={checking} onClick={() => void verify()}>
+              <RefreshCw size={12} />Verificar de nuevo
+            </button>
+          </div>
+        </>
+      ))}
+
+      {step(health?.authOk && missing.length > 0 ? 4 : 3, 'Guardar', (
+        <p className="t-footnote text-on-surface-variant">
+          Se guarda cifrado en esta computadora y tiene prioridad sobre .env y gastos-supabase.local.json. Gastos y Credenciales se reconectan solos.
         </p>
-      </div>
+      ))}
+    </SheetBody>
+  )
+}
 
-      {/* AI */}
-      <div className="mb-6">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-2">Inteligencia artificial</p>
-        <div className="space-y-2">
-          <AIOpenAISection open={open.openai} onToggle={toggle} />
-          <AIAnthropicSection open={open.anthropic} onToggle={toggle} />
-          <AILocalSection open={open.ollama} onToggle={toggle} />
-        </div>
-      </div>
+// ── Sheet wrapper ──────────────────────────────────────────────────────────────
 
-      {/* Code repos */}
-      <div className="mb-6">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-2">Repositorios de código</p>
-        <div className="space-y-2">
-          <GitHubSection open={open.github} onToggle={toggle} />
-          <GitLabSection open={open.gitlab} onToggle={toggle} />
-          <BitbucketSection open={open.bitbucket} onToggle={toggle} />
-        </div>
+/** Sheet content: status banner + fields. Footer is lifted to the Sheet via context-free prop drilling. */
+function SheetBody({ meta, footer, children }: { meta: IntegrationMeta; footer?: React.ReactNode; children: React.ReactNode }): JSX.Element {
+  const ctx = useContext(SheetCtx)
+  return (
+    <Sheet open onClose={ctx.onClose} title={meta.name} subtitle={meta.purpose} width={480} footer={footer}>
+      <div className="flex flex-col gap-4">
+        <StatusBanner meta={meta} status={ctx.status} />
+        {children}
       </div>
+    </Sheet>
+  )
+}
 
-      {/* PM & Notes */}
-      <div className="mb-6">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-2">Gestión de proyectos y notas</p>
-        <div className="space-y-2">
-          <SupabaseSection open={open.supabase} onToggle={toggle} />
-          <JiraSection open={open.jira} onToggle={toggle} />
+const SheetCtx = createContext<{ status: ConnStatus; onClose: () => void }>({ status: { state: 'idle' }, onClose: () => undefined })
+
+function ConfigSheet(props: SheetProps): JSX.Element {
+  const { meta } = props
+  const body = ((): JSX.Element => {
+    switch (meta.id) {
+      case 'openai':
+      case 'anthropic': return <ApiKeySheet {...props} id={meta.id} />
+      case 'ollama': return <OllamaSheet {...props} />
+      case 'github':
+      case 'gitlab': return <OAuthSheet {...props} id={meta.id} />
+      case 'bitbucket': return <BitbucketSheet {...props} />
+      case 'jira': return <JiraSheet {...props} />
+      case 'supabase': return <SupabaseSheet {...props} />
+    }
+  })()
+  return <SheetCtx.Provider value={{ status: props.status, onClose: props.onClose }}>{body}</SheetCtx.Provider>
+}
+
+// ── Overview ───────────────────────────────────────────────────────────────────
+
+function IntegrationCard({
+  meta, status, onTest, onConfigure,
+}: {
+  meta: IntegrationMeta; status: ConnStatus; onTest: () => void; onConfigure: () => void
+}): JSX.Element {
+  const checking = status.state === 'checking'
+  return (
+    <article className="ui-card p-4 flex flex-col gap-3 min-w-0">
+      <div className="flex items-start gap-3">
+        <LogoTile Logo={meta.Logo} />
+        <div className="flex-1 min-w-0">
+          <h3 className="t-body font-semibold text-on-surface truncate">{meta.name}</h3>
+          <p className="t-footnote text-on-surface-variant truncate" title={meta.purpose}>{meta.purpose}</p>
         </div>
+        <ConnPill status={status} />
       </div>
+      <p
+        className={`t-footnote min-h-[18px] truncate ${status.state === 'error' ? 'text-error' : 'text-on-surface-variant'}`}
+        title={status.detail}
+      >
+        {checking ? 'Probando conexión…' : status.detail ?? 'Todavía no se verificó'}
+      </p>
+      <div className="flex items-center gap-2 hairline-t pt-3 -mx-4 px-4">
+        <span className="t-caption text-on-surface-variant flex-1 truncate inline-flex items-center gap-1">
+          <Clock size={11} />{formatCheckedAt(status.checkedAt)}
+        </span>
+        <button className="ui-btn ui-btn-ghost ui-btn-sm" disabled={checking} onClick={onTest}>
+          {checking ? <Spinner /> : <Zap size={12} />}Probar
+        </button>
+        <button className="ui-btn ui-btn-outline ui-btn-sm" onClick={onConfigure}>
+          <Settings size={12} />Configurar
+        </button>
+      </div>
+    </article>
+  )
+}
+
+export function ConnectionsPlugin(): JSX.Element {
+  const [statuses, setStatuses] = useState<Record<ConnId, ConnStatus>>(loadLastStatuses)
+  const [openId, setOpenId] = useState<ConnId | null>(null)
+  // Otros módulos (p. ej. Gastos → "Abrir Conexiones") piden abrir una integración puntual
+  usePluginIntent('connections', (intent) => {
+    if (intent.action === 'supabase') setOpenId('supabase')
+  })
+
+  const setStatus = useCallback((id: ConnId, s: ConnStatus): void => {
+    setStatuses((prev) => ({ ...prev, [id]: s }))
+  }, [])
+
+  const statusesRef = useRef(statuses)
+  statusesRef.current = statuses
+
+  const check = useCallback(async (id: ConnId): Promise<void> => {
+    setStatus(id, { ...statusesRef.current[id], state: 'checking' })
+    setStatus(id, await checkStored(id))
+  }, [setStatus])
+
+  const checkAll = useCallback(async (): Promise<void> => {
+    await Promise.all(ALL.map((m) => check(m.id)))
+  }, [check])
+
+  useEffect(() => { void checkAll() }, [checkAll])
+
+  // Persist the last finished results so "last checked" survives reopening the module.
+  useEffect(() => {
+    if (Object.values(statuses).some((s) => s.state === 'checking')) return
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(statuses)) } catch { /* ignore */ }
+  }, [statuses])
+
+  // Gastos (or anything else) may change the Supabase config: re-check it.
+  useEffect(() => {
+    const onChange = (): void => { void check('supabase') }
+    window.addEventListener('setto:supabase-config-changed', onChange)
+    return () => window.removeEventListener('setto:supabase-config-changed', onChange)
+  }, [check])
+
+  const summary = useMemo(() => summarizeStatuses(ALL.map((m) => statuses[m.id])), [statuses])
+  const anyChecking = summary.checking > 0
+
+  return (
+    <div className="px-6 py-5 max-w-5xl mx-auto w-full flex flex-col gap-6">
+      <PageHeader
+        title="Conexiones"
+        subtitle={summary.text}
+        actions={
+          <button className="ui-btn ui-btn-outline" disabled={anyChecking} onClick={() => void checkAll()}>
+            {anyChecking ? <Spinner /> : <RefreshCw size={13} />}Probar todas
+          </button>
+        }
+      />
+
+      {GROUPS.map((g) => (
+        <section key={g.title} className="flex flex-col gap-2.5">
+          <h2 className="t-section">{g.title}</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {g.items.map((m) => (
+              <IntegrationCard
+                key={m.id}
+                meta={m}
+                status={statuses[m.id]}
+                onTest={() => void check(m.id)}
+                onConfigure={() => setOpenId(m.id)}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+
+      <p className="t-caption text-on-surface-variant">
+        Las claves se guardan cifradas en esta computadora y nunca se muestran en texto plano.
+      </p>
+
+      {openId && (
+        <ConfigSheet
+          key={openId}
+          meta={META[openId]}
+          status={statuses[openId]}
+          onStatus={(s) => setStatus(openId, s)}
+          onClose={() => setOpenId(null)}
+        />
+      )}
     </div>
   )
 }
