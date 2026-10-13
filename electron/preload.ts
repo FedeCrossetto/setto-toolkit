@@ -80,7 +80,7 @@ const SEND_CHANNELS = new Set([
   'snippet-picker:close',
   'captures:start-drag',
   'app:open-in-main',
-  'dock:expand', 'dock:collapse', 'dock:pin', 'dock:want-focus', 'dock:quick-capture',
+  'dock:expand', 'dock:collapse', 'dock:pin', 'dock:want-focus', 'dock:quick-capture', 'dock:move', 'dock:move-end',
 ])
 
 /** Channels the renderer may subscribe to (main → renderer) */
@@ -93,7 +93,7 @@ const ON_CHANNELS = new Set([
   'snippet-picker:opened',
   'sync:changed',
   'captures:changed',
-  'dock:state',
+  'dock:state', 'dock:bump',
 ])
 
 const api = {

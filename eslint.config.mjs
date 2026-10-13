@@ -7,8 +7,9 @@ import globals from 'globals'
 
 /** @type {import('typescript-eslint').Config} */
 export default tseslint.config(
+  // Sólo `ignores` en el objeto: si lleva otras claves deja de ser un ignore global.
+  { ignores: ['out/**', 'release/**', 'node_modules/**', 'dist/**', '.claude/**'] },
   {
-    ignores: ['out/**', 'release/**', 'node_modules/**', 'dist/**', '.claude/**'],
     linterOptions: {
       reportUnusedDisableDirectives: 'off',
     },

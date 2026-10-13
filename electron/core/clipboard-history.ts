@@ -50,6 +50,13 @@ let last = ''
 let timer: ReturnType<typeof setInterval> | null = null
 let sweeper: ReturnType<typeof setInterval> | null = null
 const ignored = new Set<string>()
+const addedListeners = new Set<(kind: ClipKind) => void>()
+
+/** Aviso de copia nueva (sin el texto: sólo el tipo). Lo usa la barra flotante. */
+export function onClipAdded(cb: (kind: ClipKind) => void): () => void {
+  addedListeners.add(cb)
+  return () => { addedListeners.delete(cb) }
+}
 
 const digest = (text: string): string => createHash('sha256').update(text).digest('hex')
 
@@ -148,6 +155,7 @@ function add(text: string): void {
     }).catch(() => undefined)
   }
   if (!sensitive) saveRecentSoon()
+  for (const cb of addedListeners) { try { cb(sensitive ? 'text' : entry.kind) } catch { /* nada */ } }
 }
 
 function poll(): void {

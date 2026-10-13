@@ -1,8 +1,5 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { App } from './App'
-import { SnippetPicker } from './plugins/snippets/SnippetPicker'
-import { Dock } from './dock/Dock'
 import { applyPaletteImmediate } from './core/hooks/useThemePalette'
 import './styles/globals.css'
 
@@ -44,15 +41,23 @@ if (isSnippetPicker || isDock) {
   document.body.style.background = 'transparent'
 }
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-  <React.StrictMode>
-    {isSnippetPicker ? <SnippetPicker /> : isDock ? <Dock /> : <App />}
-  </React.StrictMode>
-)
+// Cada ventana carga sólo su código: la barra y el selector no arrastran toda la
+// app (editor, terminal, plugins), que es lo que más memoria ocupa por ventana.
+const Root = isSnippetPicker
+  ? import('./plugins/snippets/SnippetPicker').then((m) => m.SnippetPicker)
+  : isDock ? import('./dock/Dock').then((m) => m.Dock) : import('./App').then((m) => m.App)
+void Root.then((Component) => {
+  ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+    <React.StrictMode>
+      <Component />
+    </React.StrictMode>
+  )
+  hideSplash()
+})
 
 // Pantalla de apertura (index.html): se desvanece cuando React ya pintó,
 // respetando un mínimo para que el logo se alcance a ver sin parpadeo.
-;(() => {
+function hideSplash(): void {
   const splash = document.getElementById('splash')
   if (!splash || isSnippetPicker || isDock) return
   // La espera larga la cubre la ventanita nativa de main (startup-splash.ts): acá sólo un fundido.
@@ -64,4 +69,4 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   }
   // Un instante para que el fundido no parezca un salto.
   requestAnimationFrame(() => setTimeout(hide, Math.max(120, MIN_VISIBLE_MS - elapsed)))
-})()
+}

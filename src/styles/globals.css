@@ -612,6 +612,12 @@ select option {
   from { opacity: 0; transform: translateX(24px); }
   to   { opacity: 1; transform: translateX(0); }
 }
+/* Barra flotante (src/dock): el logo de la pestaña "respira" mientras espera. Sólo transform. */
+@keyframes dock-idle {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-2px) rotate(-3deg); }
+}
+.dock-idle { animation: dock-idle 3.6s ease-in-out infinite; }
 
 /* ─── Home & Search: skeleton neutro (sin tinte de acento) ───────────────── */
 .ui-skeleton {

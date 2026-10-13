@@ -4,14 +4,15 @@ import path from 'path'
 import type { SettingsService } from './services/settings.service'
 import { foregroundWindow } from './win-helper'
 import { simulatePaste } from './snippet-picker'
-import { clipText } from './clipboard-history'
+import { clipText, onClipAdded } from './clipboard-history'
 import { showWindow } from './notifications'
 import { logger } from './logger'
 
 /**
- * Barra flotante a la derecha de la pantalla ("dock"): una pestañita fina pegada
- * al borde que al pasar el mouse (o con Ctrl+Alt+D) se despliega con lo último
- * copiado, capturas, snippets fijados, tickets y acciones rápidas.
+ * Barra flotante a la derecha de la pantalla ("dock"): una pestaña angosta con el
+ * logo pegada al borde que al pasar el mouse (o con Ctrl+Alt+D) se despliega con
+ * lo último copiado, capturas, snippets fijados, tickets y acciones rápidas.
+ * La pestaña se arrastra arriba/abajo por el borde (la altura se recuerda).
  *
  * - No roba el foco (ventana no "focusable"): un clic pega directo en la app que
  *   estabas usando. Sólo al escribir en su buscador se vuelve focusable.
@@ -21,8 +22,13 @@ import { logger } from './logger'
 
 const SETTING = 'app.dock'
 const SHORTCUTS = ['CommandOrControl+Alt+D', 'CommandOrControl+Alt+J']
-const HANDLE = { width: 10, height: 132 }
+/** Ventana plegada: la pestaña visible mide ~40 px; el resto es aire para animar (rebote, globito). */
+const HANDLE = { width: 56, height: 84 }
 const PANEL_WIDTH = 360
+const PANEL_MAX_HEIGHT = 640
+/** Al plegar, el renderer anima la salida del panel antes de achicar la ventana. */
+const COLLAPSE_ANIM_MS = 190
+const Y_SETTING = 'app.dock_y'
 const MARGIN = 8
 const FULLSCREEN_POLL_MS = 2000
 
@@ -30,19 +36,33 @@ let dock: BrowserWindow | null = null
 let expanded = false
 let pinned = false
 let hiddenForFullscreen = false
+/** App en pantalla completa sobre la que el usuario pidió la barra igual (Ctrl+Alt+D): no volver a esconderla hasta cambiar de app. */
+let overrideApp: string | null = null
 let shortcut: string | null = null
 let poller: ReturnType<typeof setInterval> | null = null
 let getMain: () => BrowserWindow | null = () => null
+let settingsRef: SettingsService | null = null
+/** Altura de la pestaña en el borde: 0 = arriba, 1 = abajo. */
+let yRatio = 0.5
+let shrinkTimer: ReturnType<typeof setTimeout> | null = null
 
 const area = (): Electron.Rectangle => screen.getPrimaryDisplay().workArea
 
+const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
+
+function handleTop(): number {
+  const a = area()
+  return Math.round(a.y + clamp(yRatio, 0, 1) * (a.height - HANDLE.height))
+}
+
 function boundsFor(isExpanded: boolean): Electron.Rectangle {
   const a = area()
-  if (!isExpanded) {
-    return { x: a.x + a.width - HANDLE.width, y: Math.round(a.y + (a.height - HANDLE.height) / 2), ...HANDLE }
-  }
-  const height = Math.min(a.height - MARGIN * 2, 760)
-  return { x: a.x + a.width - PANEL_WIDTH - MARGIN, y: Math.round(a.y + (a.height - height) / 2), width: PANEL_WIDTH, height }
+  if (!isExpanded) return { x: a.x + a.width - HANDLE.width, y: handleTop(), ...HANDLE }
+  // El panel se abre a la altura de la pestaña (centrado en ella, sin salirse de la pantalla).
+  const height = Math.min(a.height - MARGIN * 2, PANEL_MAX_HEIGHT)
+  const center = handleTop() + HANDLE.height / 2
+  const y = clamp(Math.round(center - height / 2), a.y + MARGIN, a.y + a.height - MARGIN - height)
+  return { x: a.x + a.width - PANEL_WIDTH - MARGIN, y, width: PANEL_WIDTH, height }
 }
 
 function send(): void {
@@ -52,11 +72,35 @@ function send(): void {
 function setExpanded(next: boolean, focus = false): void {
   if (!dock || dock.isDestroyed() || hiddenForFullscreen) return
   if (!next && pinned) return
+  if (shrinkTimer) { clearTimeout(shrinkTimer); shrinkTimer = null }
+  const was = expanded
   expanded = next
-  dock.setBounds(boundsFor(next))
-  if (!next) dock.setFocusable(false)
-  if (next && focus) { dock.setFocusable(true); dock.focus() }
+  if (next) {
+    // Primero agrandar la ventana (transparente) y después avisar: el panel entra animado.
+    dock.setBounds(boundsFor(true))
+    if (focus) { dock.setFocusable(true); dock.focus() }
+    send()
+    return
+  }
+  dock.setFocusable(false)
   send()
+  if (!was) { dock.setBounds(boundsFor(false)); return }
+  // Plegar: el renderer anima la salida y recién ahí se achica la ventana.
+  shrinkTimer = setTimeout(() => {
+    shrinkTimer = null
+    if (dock && !dock.isDestroyed() && !expanded) dock.setBounds(boundsFor(false))
+  }, COLLAPSE_ANIM_MS)
+}
+
+/** Mostrar la barra si corresponde (no está oculta por pantalla completa). Idempotente. */
+function reveal(): void {
+  if (dock && !dock.isDestroyed() && !hiddenForFullscreen && !dock.isVisible()) dock.showInactive()
+}
+
+function load(win: BrowserWindow): void {
+  const { url, file } = rendererUrl()
+  if (url) void win.loadURL(url).catch(() => undefined)
+  else void win.loadFile(file!, { hash: 'dock' }).catch(() => undefined)
 }
 
 function rendererUrl(): { url?: string; file?: string } {
@@ -95,10 +139,17 @@ function create(icon: NativeImage | string): void {
   dock.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   dock.on('blur', () => { if (expanded && !pinned) setExpanded(false) })
   dock.on('closed', () => { dock = null; expanded = false })
-  dock.once('ready-to-show', () => { if (!hiddenForFullscreen) dock?.showInactive() })
-  const { url, file } = rendererUrl()
-  if (url) void dock.loadURL(url)
-  else void dock.loadFile(file!, { hash: 'dock' })
+  // `ready-to-show` solo no alcanza: si la primera carga falla (en dev Vite tarda en
+  // arrancar) no llega nunca y la barra quedaba invisible. Mostrar al terminar de
+  // cargar y reintentar si falla.
+  dock.once('ready-to-show', reveal)
+  dock.webContents.on('did-finish-load', reveal)
+  dock.webContents.on('did-fail-load', (_e, code, desc, _url, isMain) => {
+    if (!isMain || code === -3) return   // -3: carga abortada por otra navegación
+    logger.warn('dock', `No cargó la barra (${code} ${desc}); reintento`)
+    setTimeout(() => { if (dock && !dock.isDestroyed()) load(dock) }, 2000)
+  })
+  load(dock)
 }
 
 /** Sin la ventana principal la barra no debe impedir que la app se cierre. */
@@ -107,6 +158,8 @@ export function destroyDock(): void { destroy() }
 function destroy(): void {
   if (poller) clearInterval(poller)
   poller = null
+  if (shrinkTimer) clearTimeout(shrinkTimer)
+  shrinkTimer = null
   if (dock && !dock.isDestroyed()) dock.destroy()
   dock = null
   expanded = false
@@ -121,8 +174,9 @@ function startFullscreenWatch(): void {
     void foregroundWindow().then((fg) => {
       if (!dock || dock.isDestroyed() || !fg) return
       const own = /^(setto|electron)$/i.test(fg.app)
-      const full = !!fg.full && !own
-      if (full === hiddenForFullscreen) return
+      if (overrideApp && fg.app !== overrideApp && !own) overrideApp = null
+      const full = !!fg.full && !own && fg.app !== overrideApp
+      if (full === hiddenForFullscreen) { if (!full) reveal(); return }
       hiddenForFullscreen = full
       if (full) { expanded = false; dock.hide() }
       else { dock.setBounds(boundsFor(false)); dock.showInactive() }
@@ -142,7 +196,12 @@ function registerShortcut(icon: NativeImage | string, settings: SettingsService)
       if (globalShortcut.register(accel, () => {
         if (settings.get(SETTING) === '0') return
         if (!dock) enable(icon)
-        if (hiddenForFullscreen) { hiddenForFullscreen = false; dock?.showInactive() }
+        if (hiddenForFullscreen) {
+          // La pediste a mano sobre una app en pantalla completa: se queda hasta que cambies de app.
+          hiddenForFullscreen = false
+          void foregroundWindow().then((fg) => { if (fg?.full) overrideApp = fg.app }).catch(() => undefined)
+        }
+        reveal()
         setExpanded(!expanded, true)
       })) { shortcut = accel.replace('CommandOrControl', 'Ctrl'); logger.info('dock', `Atajo global: ${accel}`); return }
     } catch { /* probar el siguiente */ }
@@ -151,6 +210,9 @@ function registerShortcut(icon: NativeImage | string, settings: SettingsService)
 
 export function registerDock(ipcMain: IpcMain, settings: SettingsService, icon: NativeImage | string, getMainWindow: () => BrowserWindow | null): void {
   getMain = getMainWindow
+  settingsRef = settings
+  const savedY = Number(settings.get(Y_SETTING))
+  if (Number.isFinite(savedY) && settings.get(Y_SETTING) !== null) yRatio = clamp(savedY, 0, 1)
   registerShortcut(icon, settings)
   // Activada por defecto; Ajustes → Escritorio la apaga. Arranca un poco después
   // para no competir con la ventana principal al abrir.
@@ -161,6 +223,15 @@ export function registerDock(ipcMain: IpcMain, settings: SettingsService, icon: 
   ipcMain.on('dock:collapse', () => setExpanded(false))
   ipcMain.on('dock:pin', (_e, on: unknown) => { pinned = on === true; if (!pinned) setExpanded(false); send() })
   /** El buscador necesita teclado: sólo entonces la barra toma el foco. */
+  /** Arrastrar la pestaña por el borde: `top` es el borde superior deseado (DIP). */
+  ipcMain.on('dock:move', (_e, top: unknown) => {
+    if (!dock || dock.isDestroyed() || expanded || typeof top !== 'number' || !Number.isFinite(top)) return
+    const a = area()
+    const y = clamp(Math.round(top), a.y, a.y + a.height - HANDLE.height)
+    yRatio = (y - a.y) / Math.max(1, a.height - HANDLE.height)
+    dock.setBounds({ x: a.x + a.width - HANDLE.width, y, ...HANDLE })
+  })
+  ipcMain.on('dock:move-end', () => { settingsRef?.set(Y_SETTING, yRatio.toFixed(4)) })
   ipcMain.on('dock:want-focus', () => { if (dock && !dock.isDestroyed()) { dock.setFocusable(true); dock.focus() } })
   ipcMain.handle('dock:state', () => ({ expanded, pinned, shortcut }))
   ipcMain.handle('dock:enabled', () => settings.get(SETTING) !== '0')
@@ -196,6 +267,11 @@ export function registerDock(ipcMain: IpcMain, settings: SettingsService, icon: 
     if (!w || w.isDestroyed()) return
     showWindow(w)
     w.webContents.send('app:quick-capture', { action: 'capture' })
+  })
+
+  // Lo nuevo que se copia hace "saltar" la pestaña (el renderer muestra el globito).
+  onClipAdded((kind) => {
+    if (dock && !dock.isDestroyed() && !expanded && !hiddenForFullscreen) dock.webContents.send('dock:bump', { kind })
   })
 
   app.on('will-quit', () => {

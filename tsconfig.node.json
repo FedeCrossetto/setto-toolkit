@@ -15,6 +15,9 @@
     "types": ["electron-vite/node"],
     "noImplicitAny": true,
     "noUncheckedIndexedAccess": true,
-    "paths": {}
+    "paths": {
+      // v5 sólo publica "exports" (sin "main"/"types"): con moduleResolution "node" no se encuentra.
+      "@vitejs/plugin-react": ["./node_modules/@vitejs/plugin-react/dist/index.d.ts"]
+    }
   }
 }

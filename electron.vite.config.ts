@@ -55,6 +55,9 @@ export default defineConfig(({ mode }) => {
             if (id.includes('/@codemirror/') || id.includes('/codemirror/') || id.includes('/@lezer/') || id.includes('/@replit/codemirror')) return 'vendor-codemirror'
             if (id.includes('/react-dom/')) return 'vendor-react-dom'
             if (id.includes('/react-icons/')) return 'vendor-react-icons'
+            // Aparte para que la barra flotante y el selector no los carguen.
+            if (id.includes('/@xterm/') || id.includes('/xterm')) return 'vendor-xterm'
+            if (id.includes('/@phosphor-icons/')) return 'vendor-icons'
             if (id.includes('node_modules/')) return 'vendor'
             return undefined
           },

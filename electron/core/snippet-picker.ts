@@ -15,9 +15,12 @@ import { logger } from './logger'
 const SHORTCUTS = ['CommandOrControl+Alt+V', 'CommandOrControl+Shift+Alt+V', 'CommandOrControl+Alt+S']
 const WIDTH = 720
 const HEIGHT = 500
+/** Oculta y sin usar este rato → se destruye para liberar su memoria (se recrea en ~0,5 s). */
+const IDLE_DESTROY_MS = 5 * 60_000
 
 let picker: BrowserWindow | null = null
 let activeShortcut: string | null = null
+let idleTimer: ReturnType<typeof setTimeout> | null = null
 
 function rendererUrl(): { url?: string; file?: string } {
   const dev = process.env['ELECTRON_RENDERER_URL']
@@ -52,6 +55,15 @@ function createPicker(icon: NativeImage | string): BrowserWindow {
   win.setAlwaysOnTop(true, 'pop-up-menu')
   // Cualquier clic afuera la cierra, como un menú.
   win.on('blur', () => { if (!win.isDestroyed()) win.hide() })
+  win.on('show', () => { if (idleTimer) { clearTimeout(idleTimer); idleTimer = null } })
+  win.on('hide', () => {
+    if (idleTimer) clearTimeout(idleTimer)
+    idleTimer = setTimeout(() => {
+      idleTimer = null
+      if (!win.isDestroyed() && !win.isVisible()) win.destroy()
+    }, IDLE_DESTROY_MS)
+  })
+  win.on('closed', () => { if (picker === win) picker = null })
   win.webContents.on('will-navigate', (e) => e.preventDefault())
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   const { url, file } = rendererUrl()

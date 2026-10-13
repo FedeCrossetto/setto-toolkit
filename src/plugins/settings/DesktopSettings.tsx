@@ -76,7 +76,7 @@ export function DesktopSettings(): JSX.Element {
         <Toggle checked={flags['app.clipboard_history']} onChange={(v) => set('app.clipboard_history', v)} label="Historial del portapapeles" />
       </SettingsRow>
       <SettingsRow icon={PanelLeft} title="Barra flotante a la derecha"
-        description="Pestañita en el borde derecho: al pasar el mouse (o Ctrl+Alt+D) muestra lo copiado, capturas, snippets y accesos. Se esconde en pantalla completa.">
+        description="Pestaña con el logo en el borde derecho (arrastrala para moverla): al pasar el mouse (o Ctrl+Alt+D) muestra lo copiado, capturas, snippets y accesos. Se esconde en pantalla completa.">
         <Toggle checked={flags['app.dock']} onChange={(v) => set('app.dock', v)} label="Barra flotante a la derecha" />
       </SettingsRow>
     </SettingsGroup>
