@@ -19,6 +19,7 @@ import { registerSnippetPicker, teardownSnippetPicker } from './core/snippet-pic
 import { registerClipboardHistory, teardownClipboardHistory } from './core/clipboard-history'
 import { registerClipboardActions, teardownClipboardActions } from './core/clipboard-actions'
 import { closeStartupSplash, showStartupSplash } from './core/startup-splash'
+import { destroyDock, registerDock } from './core/dock'
 import { registerCaptureScheme } from './plugins/captures/handlers'
 
 // E2E tests pass --user-data-dir so each run gets an isolated profile.
@@ -228,7 +229,7 @@ function createWindow(): void {
   })
   // Sin la ventana principal no tiene sentido mantener el selector de snippets vivo
   // (además impediría que se dispare window-all-closed).
-  mainWindow.on('closed', () => teardownSnippetPicker())
+  mainWindow.on('closed', () => { teardownSnippetPicker(); destroyDock() })
 
   // Fallback: show the window after 3 s even if ready-to-show hasn't fired yet.
   // Prevents an invisible window when the renderer has a startup error.
@@ -404,6 +405,8 @@ app.whenReady().then(() => {
   registerSnippetPicker(ipcMain, getWindowIcon())
   registerClipboardHistory(ipcMain, () => settings.get('app.clipboard_history') !== '0')
   registerClipboardActions(ipcMain)
+  // Barra flotante a la derecha (Ajustes → Escritorio)
+  registerDock(ipcMain, settings, getWindowIcon(), () => mainWindow)
 
   // Sincronización opcional de Notas y Snippets con Supabase (Ajustes → Sincronización)
   syncService = new SyncService(db, settings, gastosStorage, () => mainWindow)

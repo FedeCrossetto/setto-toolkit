@@ -1,6 +1,6 @@
 import type { IconComponent } from './types'
 import {
-  Camera,
+  ClipboardText,
   Code2,
   FileCode2,
   FolderSearch,
@@ -37,7 +37,7 @@ const PLUGIN_ICON_MAP: Record<string, IconComponent> = {
   info:          Info,
   extension:     Puzzle,
   utilities:     Toolbox,
-  captures:      Camera,
+  captures:      ClipboardText,
   // Legacy keys (manifests antiguos)
   space_dashboard:          House,
   a_large_small:            FileCode2,

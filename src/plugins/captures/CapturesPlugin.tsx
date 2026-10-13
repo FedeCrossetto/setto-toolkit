@@ -11,6 +11,9 @@ import { listItemMotion, shouldAnimateList } from '../../core/motion'
 import { Annotator } from './Annotator'
 import { CaptureOptions } from './CaptureOptions'
 import { TicketPanel } from './TicketPanel'
+import { TextClips } from './TextClips'
+import { SegmentedControl } from '../../core/components/SegmentedControl'
+import type { PluginIntent } from '../../core/types'
 import { formatBytes, groupItems } from './logic'
 import {
   captureUrl, thumbUrl, type CaptureEntry, type CaptureLite, type CaptureQuery, type CaptureQueryResult, type CaptureSettings, type CaptureSort,
@@ -45,7 +48,34 @@ const readSort = (): CaptureSort => {
   return 'new'
 }
 
+type Tab = 'images' | 'text'
+const TAB_KEY = 'captures:tab'
+
+/**
+ * Módulo "Portapapeles": pestañas Imágenes (capturas) y Texto (historial de lo
+ * copiado, separado por tipo). Los intents de capturas abren Imágenes; 'text', Texto.
+ */
 export function CapturesPlugin(): JSX.Element {
+  const [tab, setTab] = useState<Tab>(() => {
+    try { return localStorage.getItem(TAB_KEY) === 'text' ? 'text' : 'images' } catch { return 'images' }
+  })
+  const [pending, setPending] = useState<PluginIntent | null>(null)
+  useEffect(() => { try { localStorage.setItem(TAB_KEY, tab) } catch { /* nada */ } }, [tab])
+  usePluginIntent('captures', (intent) => {
+    if (intent.action === 'text') { setTab('text'); return }
+    setTab('images')
+    setPending(intent)
+  })
+  const tabs = (
+    <div className="flex items-center gap-3">
+      <h1 className="t-title2 text-on-surface">Portapapeles</h1>
+      <SegmentedControl<Tab> value={tab} onChange={setTab} options={[{ value: 'images', label: 'Imágenes' }, { value: 'text', label: 'Texto' }]} />
+    </div>
+  )
+  return tab === 'text' ? <TextClips header={tabs} /> : <ImagesView header={tabs} pending={pending} />
+}
+
+function ImagesView({ header, pending }: { header: React.ReactNode; pending: PluginIntent | null }): JSX.Element {
   const { dispatch } = useApp()
   const toast = useToast()
   const confirm = useConfirm()
@@ -103,10 +133,12 @@ export function CapturesPlugin(): JSX.Element {
     return () => io.disconnect()
   }, [baseQuery, items.length, res])
 
-  usePluginIntent('captures', (intent) => {
-    if (intent.action === 'open' && typeof intent.payload === 'string') setSelected([intent.payload])
-    else if (intent.action === 'ticket' && typeof intent.payload === 'string') { setTicket(intent.payload.toUpperCase()); setSelected([]) }
-  })
+  // Intents que llegan desde el contenedor (Ctrl+K, notificaciones, otros módulos).
+  useEffect(() => {
+    if (!pending) return
+    if (pending.action === 'open' && typeof pending.payload === 'string') setSelected([pending.payload])
+    else if (pending.action === 'ticket' && typeof pending.payload === 'string') { setTicket(pending.payload.toUpperCase()); setSelected([]) }
+  }, [pending])
 
   const groups = useMemo(() => groupItems(items, sort), [items, sort])
   const current = selected.length === 1 ? selected[0]! : null
@@ -176,7 +208,7 @@ export function CapturesPlugin(): JSX.Element {
         {/* ── Barra ── */}
         <div className="px-6 pt-5 pb-3 flex flex-col gap-3">
           <div className="flex items-center gap-3">
-            <h1 className="t-title2 text-on-surface">Capturas</h1>
+            {header}
             {facets && (
               <span className="t-footnote text-on-surface-variant tabular-nums" title="Cantidad y espacio usado">
                 {filtered && res ? `${res.total} de ${facets.count}` : facets.count} · {formatBytes(facets.bytes)}

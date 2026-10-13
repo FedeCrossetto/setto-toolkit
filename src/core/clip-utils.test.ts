@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  detectKind, findTicket, isSensitive, maskSecret, redactSecrets, splitValues, toCSharpString, toJiraTable, toMarkdownTable, toSqlIn,
+  clipCategory, detectKind, findTicket, guessLanguage, isSensitive, maskSecret, redactSecrets, splitValues, toCSharpString, toJiraTable, toMarkdownTable, toSqlIn,
   toSqlString, transformsFor,
 } from './clip-utils'
 
@@ -83,5 +83,31 @@ describe('transforms', () => {
   it('suggests the right transforms first', () => {
     expect(transformsFor('table')[0]!.id).toBe('jira-table')
     expect(transformsFor('list')[0]!.id).toBe('sql-in')
+  })
+})
+
+describe('código', () => {
+  const cs = 'public class Caja\n{\n    public void Abrir() { var s = new Session(); }\n}'
+  const js = 'const total = items.reduce((s, x) => s + x.monto, 0);\nreturn total;'
+  const ps = '$path = "C:\\logs"\nGet-ChildItem $path | Remove-Item'
+  it('detecta código y adivina el lenguaje', () => {
+    expect(detectKind(cs)).toBe('code')
+    expect(guessLanguage(cs, 'code')).toBe('csharp')
+    expect(detectKind(js)).toBe('code')
+    expect(guessLanguage(js, 'code')).toBe('javascript')
+    expect(detectKind(ps)).toBe('code')
+    expect(guessLanguage(ps, 'code')).toBe('powershell')
+    expect(guessLanguage('SELECT 1', 'sql')).toBe('sql')
+  })
+  it('no confunde texto común con código', () => {
+    expect(detectKind('Hola Juan,\nte paso el resumen de la reunión.\nSaludos')).toBe('text')
+  })
+  it('clasifica en categorías', () => {
+    expect(clipCategory('code', '')).toBe('code')
+    expect(clipCategory('stacktrace', '')).toBe('code')
+    expect(clipCategory('path', '')).toBe('links')
+    expect(clipCategory('ticket', 'WIGOS-1')).toBe('tickets')
+    expect(clipCategory('text', 'revisar WIGOS-130026 mañana')).toBe('tickets')
+    expect(clipCategory('text', 'hola')).toBe('text')
   })
 })

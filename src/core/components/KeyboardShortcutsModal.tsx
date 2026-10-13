@@ -24,6 +24,7 @@ const LEFT: ShortcutGroup[] = [
       { combos: [['Ctrl', 'Alt', 'V']], description: 'Selector de portapapeles, capturas y snippets (pega en cualquier app)' },
       { combos: [['Ctrl', 'Alt', 'Shift', 'V']], description: 'Pegar el siguiente de la secuencia' },
       { combos: [['Ctrl', 'Alt', 'T']], description: 'Copiar el texto de un recorte (Win+Shift+S antes)' },
+      { combos: [['Ctrl', 'Alt', 'D']], description: 'Abrir / cerrar la barra flotante de la derecha' },
       { combos: [['Ctrl', 'F']], description: 'Buscar en la página (salvo Editor y Notas)' },
       { combos: [['F1'], ['?']], description: 'Mostrar estos atajos' },
       { combos: [['Esc']], description: 'Cerrar la búsqueda o el diálogo abierto' },

@@ -11,8 +11,8 @@ import { logger } from './logger'
 /**
  * Historial del portapapeles (texto).
  *
- * - En memoria y se pierde al cerrar la app, salvo los **fijados**: esos se guardan
- *   cifrados con safeStorage en `<userData>/clipboard-pins.json`.
+ * - Los **fijados** y los **últimos RECENT_KEEP** se guardan cifrados con safeStorage
+ *   (`clipboard-pins.json` / `clipboard-recent.json`); el resto vive sólo en memoria.
  * - Cada texto lleva su tipo (ticket, ruta, JSON, tabla…) y la app de donde salió.
  * - Lo que parece contraseña/token se guarda **enmascarado** hacia el renderer y se
  *   borra solo a los SENSITIVE_TTL_MS. No se puede fijar.
@@ -39,6 +39,9 @@ const MAX_ENTRIES = 80
 const MAX_TEXT = 20_000
 const SENSITIVE_TTL_MS = 60_000
 const PINS_FILE = 'clipboard-pins.json'
+const RECENT_FILE = 'clipboard-recent.json'
+/** Cuántos textos (no fijados ni sensibles) sobreviven al cerrar la app. */
+const RECENT_KEEP = 20
 /** Formatos que, con sólo estar, marcan el contenido como privado. */
 const PRIVATE_FORMATS = ['ExcludeClipboardContentFromMonitorProcessing', 'Clipboard Viewer Ignore']
 
@@ -74,29 +77,51 @@ export function isPrivateClipboard(): boolean {
   }
 }
 
-// ── Fijados (persistentes, cifrados) ─────────────────────────────────────────
+// ── Persistencia (fijados y últimos RECENT_KEEP, cifrados) ───────────────────
 
-const pinsPath = (): string => path.join(app.getPath('userData'), PINS_FILE)
+const dataPath = (file: string): string => path.join(app.getPath('userData'), file)
 
-function loadPins(): ClipEntry[] {
+function readEncrypted(file: string): ClipEntry[] {
   try {
-    const raw = JSON.parse(fs.readFileSync(pinsPath(), 'utf-8')) as { enc?: boolean; data?: string }
+    const raw = JSON.parse(fs.readFileSync(dataPath(file), 'utf-8')) as { enc?: boolean; data?: string }
     if (!raw.data) return []
     const json = raw.enc ? safeStorage.decryptString(Buffer.from(raw.data, 'base64')) : raw.data
     const list = JSON.parse(json) as ClipEntry[]
-    return Array.isArray(list) ? list.filter((e) => typeof e.text === 'string').map((e) => ({ ...e, pinned: true, sensitive: false })) : []
+    // El tipo se recalcula: la detección mejora entre versiones.
+    return Array.isArray(list) ? list.filter((e) => typeof e.text === 'string' && e.id).map((e) => ({ ...e, kind: detectKind(e.text), sensitive: false })) : []
   } catch {
     return []
   }
 }
 
-function savePins(): void {
-  const json = JSON.stringify(entries.filter((e) => e.pinned))
+function writeEncrypted(file: string, list: ClipEntry[]): void {
+  const json = JSON.stringify(list)
   const enc = safeStorage.isEncryptionAvailable()
   const data = enc ? safeStorage.encryptString(json).toString('base64') : json
-  const p = pinsPath()
+  const p = dataPath(file)
   fs.writeFileSync(`${p}.tmp`, JSON.stringify({ v: 1, enc, data }), 'utf-8')
   fs.renameSync(`${p}.tmp`, p)
+}
+
+function loadPersisted(): ClipEntry[] {
+  const pins = readEncrypted(PINS_FILE).map((e) => ({ ...e, pinned: true }))
+  const recent = readEncrypted(RECENT_FILE).map((e) => ({ ...e, pinned: false }))
+  const seen = new Set(pins.map((e) => e.text))
+  return [...pins, ...recent.filter((e) => !seen.has(e.text))].sort((a, b) => b.at - a.at)
+}
+
+function savePins(): void {
+  writeEncrypted(PINS_FILE, entries.filter((e) => e.pinned))
+}
+
+let recentTimer: ReturnType<typeof setTimeout> | null = null
+/** Guarda los últimos RECENT_KEEP (no fijados, no sensibles), con un pequeño retardo. */
+function saveRecentSoon(): void {
+  if (recentTimer) clearTimeout(recentTimer)
+  recentTimer = setTimeout(() => {
+    recentTimer = null
+    try { writeEncrypted(RECENT_FILE, entries.filter((e) => !e.pinned && !e.sensitive).slice(0, RECENT_KEEP)) } catch { /* best-effort */ }
+  }, 1000)
 }
 
 // ── Vigilar el portapapeles ──────────────────────────────────────────────────
@@ -119,8 +144,10 @@ function add(text: string): void {
     void foregroundWindow().then((raw) => {
       const src = normalizeSource(raw)
       if (src) entry.app = src.app
+      if (!sensitive) saveRecentSoon()
     }).catch(() => undefined)
   }
+  if (!sensitive) saveRecentSoon()
 }
 
 function poll(): void {
@@ -153,6 +180,8 @@ function stop(): void {
   timer = null
   sweeper = null
   entries = entries.filter((e) => e.pinned)
+  // Historial apagado: tampoco se conservan los últimos en disco.
+  try { writeEncrypted(RECENT_FILE, []) } catch { /* nada */ }
 }
 
 const view = (e: ClipEntry): ClipEntryView => (e.sensitive ? { ...e, text: '', masked: maskSecret(e.text) } : e)
@@ -189,18 +218,20 @@ export function clipText(id: string): string | null {
 
 /** `enabled()` lee el ajuste app.clipboard_history (default activado). */
 export function registerClipboardHistory(ipcMain: IpcMain, enabled: () => boolean): void {
-  entries = loadPins()
+  entries = loadPersisted()
   if (enabled()) start()
 
   ipcMain.handle('clipboard:history', () => entries.map(view))
   ipcMain.handle('clipboard:clear', () => {
     entries = entries.filter((e) => e.pinned)
+    saveRecentSoon()
     return { ok: true }
   })
   ipcMain.handle('clipboard:remove', (_e, id: unknown) => {
     const wasPinned = entries.some((x) => x.id === id && x.pinned)
     entries = entries.filter((x) => x.id !== id)
     if (wasPinned) savePins()
+    saveRecentSoon()
     return { ok: true }
   })
   ipcMain.handle('clipboard:copy', (_e, id: unknown) => {
@@ -217,6 +248,7 @@ export function registerClipboardHistory(ipcMain: IpcMain, enabled: () => boolea
     if (entry.sensitive && pinned) throw new Error('Los textos que parecen contraseñas o tokens no se pueden fijar')
     entry.pinned = pinned === true
     savePins()
+    saveRecentSoon()
     return view(entry)
   })
   /** Abrir una ruta copiada (carpeta o archivo). Sólo si existe. */
@@ -255,4 +287,10 @@ export function teardownClipboardHistory(): void {
   if (sweeper) clearInterval(sweeper)
   timer = null
   sweeper = null
+  // Si quedó un guardado pendiente, hacerlo ahora (al salir no hay "después").
+  if (recentTimer) {
+    clearTimeout(recentTimer)
+    recentTimer = null
+    try { writeEncrypted(RECENT_FILE, entries.filter((e) => !e.pinned && !e.sensitive).slice(0, RECENT_KEEP)) } catch { /* nada */ }
+  }
 }

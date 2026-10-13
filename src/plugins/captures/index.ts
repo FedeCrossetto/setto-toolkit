@@ -5,9 +5,9 @@ const CapturesPlugin = lazy(() => import('./CapturesPlugin').then((m) => ({ defa
 
 export const capturesPlugin: PluginManifest = {
   id: 'captures',
-  name: 'Capturas',
-  description: 'Historial de recortes (Win+Shift+S) con búsqueda por texto, anotaciones y tickets',
+  name: 'Portapapeles',
+  description: 'Capturas y texto copiado: búsqueda por texto, código, anotaciones y tickets',
   icon: 'captures',
   component: CapturesPlugin,
-  keywords: ['capturas', 'screenshots', 'recortes', 'imagenes', 'pantalla', 'snip', 'ocr', 'anotar', 'jira'],
+  keywords: ['portapapeles', 'clipboard', 'copiado', 'texto', 'codigo', 'capturas', 'screenshots', 'recortes', 'imagenes', 'pantalla', 'snip', 'ocr', 'anotar', 'jira'],
 }

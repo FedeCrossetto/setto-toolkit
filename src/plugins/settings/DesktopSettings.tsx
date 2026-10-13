@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Bell, ClipboardText, Code2, Monitor } from 'lucide-react'
+import { Bell, ClipboardText, Code2, Monitor, PanelLeft } from 'lucide-react'
 import { SettingsGroup, SettingsRow, Toggle } from '../../core/components/Form'
 import { useToast } from '../../core/components/Toast'
 import { NOTIFICATIONS_SETTING, notify } from '../../core/notify'
@@ -8,13 +8,14 @@ import { NOTIFICATIONS_SETTING, notify } from '../../core/notify'
  * Ajustes → Escritorio: notificaciones del sistema, seguir en la bandeja al
  * cerrar y el atajo global de snippets. Valores '1'/'0' en settings (main).
  */
-type Flag = 'app.close_to_tray' | typeof NOTIFICATIONS_SETTING | 'snippets.auto_paste' | 'app.clipboard_history'
+type Flag = 'app.close_to_tray' | typeof NOTIFICATIONS_SETTING | 'snippets.auto_paste' | 'app.clipboard_history' | 'app.dock'
 /** Valor cuando la clave todavía no existe. */
 const DEFAULTS: Record<Flag, boolean> = {
   'app.close_to_tray': false,
   [NOTIFICATIONS_SETTING]: true,
   'snippets.auto_paste': true,
   'app.clipboard_history': true,
+  'app.dock': true,
 }
 
 export function DesktopSettings(): JSX.Element {
@@ -40,6 +41,7 @@ export function DesktopSettings(): JSX.Element {
     setFlags((f) => ({ ...f, [k]: v }))
     void window.api.invoke('settings:set', k, v ? '1' : '0').catch(() => toast.show('No se pudo guardar el ajuste', 'error'))
     if (k === 'app.clipboard_history') void window.api.invoke('clipboard:set-enabled', v).catch(() => undefined)
+    if (k === 'app.dock') void window.api.invoke('dock:set-enabled', v).catch(() => undefined)
   }
 
   const testNotification = async (): Promise<void> => {
@@ -70,8 +72,12 @@ export function DesktopSettings(): JSX.Element {
           <Toggle checked={flags['snippets.auto_paste']} onChange={(v) => set('snippets.auto_paste', v)} label="Pegar automáticamente" />
         </label>
       </SettingsRow>
-      <SettingsRow icon={ClipboardText} title="Historial del portapapeles" description="Lo último que copiaste, en Utilidades y en Ctrl+K. Sólo en memoria; nunca guarda contraseñas.">
+      <SettingsRow icon={ClipboardText} title="Historial del portapapeles" description="Lo último que copiaste, en Portapapeles → Texto y en Ctrl+K. Guarda los últimos 20 y los fijados (cifrados); nunca contraseñas.">
         <Toggle checked={flags['app.clipboard_history']} onChange={(v) => set('app.clipboard_history', v)} label="Historial del portapapeles" />
+      </SettingsRow>
+      <SettingsRow icon={PanelLeft} title="Barra flotante a la derecha"
+        description="Pestañita en el borde derecho: al pasar el mouse (o Ctrl+Alt+D) muestra lo copiado, capturas, snippets y accesos. Se esconde en pantalla completa.">
+        <Toggle checked={flags['app.dock']} onChange={(v) => set('app.dock', v)} label="Barra flotante a la derecha" />
       </SettingsRow>
     </SettingsGroup>
   )

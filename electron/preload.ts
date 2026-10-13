@@ -63,6 +63,7 @@ const INVOKE_CHANNELS = new Set([
   'clipboard:history', 'clipboard:clear', 'clipboard:remove', 'clipboard:copy', 'clipboard:set-enabled',
   'clipboard:pin', 'clipboard:open-path', 'clipboard:queue-set', 'clipboard:queue-state', 'clipboard:queue-advance', 'clipboard:queue-clear',
   'clipboard:ocr-image', 'clipboard:shortcuts', 'snippet-picker:paste-current',
+  'dock:state', 'dock:enabled', 'dock:set-enabled', 'dock:paste',
   'sync:status', 'sync:run', 'sync:set-enabled',
   'captures:query', 'captures:get', 'captures:settings', 'captures:update', 'captures:update-many', 'captures:delete',
   'captures:copy', 'captures:reveal', 'captures:export', 'captures:save-annotated',
@@ -79,6 +80,7 @@ const SEND_CHANNELS = new Set([
   'snippet-picker:close',
   'captures:start-drag',
   'app:open-in-main',
+  'dock:expand', 'dock:collapse', 'dock:pin', 'dock:want-focus', 'dock:quick-capture',
 ])
 
 /** Channels the renderer may subscribe to (main → renderer) */
@@ -91,6 +93,7 @@ const ON_CHANNELS = new Set([
   'snippet-picker:opened',
   'sync:changed',
   'captures:changed',
+  'dock:state',
 ])
 
 const api = {

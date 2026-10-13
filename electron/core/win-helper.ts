@@ -25,9 +25,14 @@ public static class SettoFg {
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [DllImport("user32.dll")] public static extern IntPtr GetShellWindow();
+  [DllImport("user32.dll")] public static extern IntPtr GetDesktopWindow();
 }
 "@
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
+Add-Type -AssemblyName System.Windows.Forms
 $asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation` + '`' + String.raw`1' })[0]
 function Await($op, [Type]$t) { $task = $asTaskGeneric.MakeGenericMethod($t).Invoke($null, @($op)); $task.Wait(-1) | Out-Null; $task.Result }
 [Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime] | Out-Null
@@ -43,7 +48,16 @@ function Do-Fg {
   [void][SettoFg]::GetWindowThreadProcessId($h, [ref]$procId)
   $name = ''
   try { $name = (Get-Process -Id $procId).ProcessName } catch {}
-  return @{ app = $name; title = $sb.ToString() }
+  # Pantalla completa = la ventana cubre todo su monitor (juegos, videos, presentaciones).
+  $full = $false
+  if ($h -ne [IntPtr]::Zero -and $h -ne [SettoFg]::GetShellWindow() -and $h -ne [SettoFg]::GetDesktopWindow()) {
+    $r = New-Object SettoFg+RECT
+    if ([SettoFg]::GetWindowRect($h, [ref]$r)) {
+      $b = [System.Windows.Forms.Screen]::FromHandle($h).Bounds
+      $full = ($r.Left -le $b.Left -and $r.Top -le $b.Top -and $r.Right -ge $b.Right -and $r.Bottom -ge $b.Bottom)
+    }
+  }
+  return @{ app = $name; title = $sb.ToString(); full = $full }
 }
 function Do-Ocr($p) {
   if ($null -eq $engine) { return '' }
@@ -133,9 +147,9 @@ async function call<T>(cmd: 'fg' | 'ocr', args: Record<string, unknown> = {}, ti
   })
 }
 
-/** Ventana en primer plano: `{ app: 'WigosGUI', title: 'Error' }`. */
-export function foregroundWindow(): Promise<{ app: string; title: string } | null> {
-  return call<{ app: string; title: string }>('fg', {}, 5000)
+/** Ventana en primer plano: `{ app: 'WigosGUI', title: 'Error', full: false }` (full = pantalla completa). */
+export function foregroundWindow(): Promise<{ app: string; title: string; full?: boolean } | null> {
+  return call<{ app: string; title: string; full?: boolean }>('fg', {}, 5000)
 }
 
 export async function ocrImage(filePath: string): Promise<string | null> {

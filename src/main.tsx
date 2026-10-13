@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from './App'
 import { SnippetPicker } from './plugins/snippets/SnippetPicker'
+import { Dock } from './dock/Dock'
 import { applyPaletteImmediate } from './core/hooks/useThemePalette'
 import './styles/globals.css'
 
@@ -34,8 +35,10 @@ window.addEventListener('unhandledrejection', (e) => {
 
 // Ventana flotante del atajo global de snippets (electron/core/snippet-picker.ts):
 // mismo bundle, sin el shell ni la pantalla de apertura, con fondo transparente.
+// Lo mismo para la barra flotante de la derecha (electron/core/dock.ts).
 const isSnippetPicker = window.location.hash === '#snippet-picker'
-if (isSnippetPicker) {
+const isDock = window.location.hash === '#dock'
+if (isSnippetPicker || isDock) {
   document.getElementById('splash')?.remove()
   document.documentElement.style.background = 'transparent'
   document.body.style.background = 'transparent'
@@ -43,7 +46,7 @@ if (isSnippetPicker) {
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    {isSnippetPicker ? <SnippetPicker /> : <App />}
+    {isSnippetPicker ? <SnippetPicker /> : isDock ? <Dock /> : <App />}
   </React.StrictMode>
 )
 
@@ -51,7 +54,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
 // respetando un mínimo para que el logo se alcance a ver sin parpadeo.
 ;(() => {
   const splash = document.getElementById('splash')
-  if (!splash || isSnippetPicker) return
+  if (!splash || isSnippetPicker || isDock) return
   // La espera larga la cubre la ventanita nativa de main (startup-splash.ts): acá sólo un fundido.
   const MIN_VISIBLE_MS = 0
   const elapsed = performance.now()

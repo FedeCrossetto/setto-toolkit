@@ -55,6 +55,7 @@ export function actionsFor(kind: ClipKind, text: string): ClipAction[] {
       id: 'note', label: 'Guardar como nota', icon: NotebookPen,
       run: (_x, open) => open({ pluginId: 'notes', action: 'new', payload: { content: `${ticket ? `${ticket} — ` : ''}Error\n\n\`\`\`\n${t}\n\`\`\`\n` } }),
     }); break
+    case 'code': out.push({ id: 'snippet', label: 'Guardar como snippet', icon: Code2, run: (_x, open) => open({ pluginId: 'snippets', action: 'new', payload: { content: t } }) }); break
     case 'sql': out.push({ id: 'snippet', label: 'Guardar como snippet', icon: Code2, run: (_x, open) => open({ pluginId: 'snippets', action: 'new', payload: { content: t, language: 'sql' } }) }); break
   }
   return out
@@ -62,5 +63,5 @@ export function actionsFor(kind: ClipKind, text: string): ClipAction[] {
 
 export const KIND_LABEL: Record<ClipKind, string> = {
   ticket: 'Ticket', url: 'Link', path: 'Ruta', json: 'JSON', jwt: 'JWT', stacktrace: 'Error', guid: 'GUID',
-  timestamp: 'Timestamp', sql: 'SQL', email: 'Email', table: 'Tabla', list: 'Lista', text: 'Texto',
+  timestamp: 'Timestamp', sql: 'SQL', email: 'Email', table: 'Tabla', list: 'Lista', code: 'Código', text: 'Texto',
 }

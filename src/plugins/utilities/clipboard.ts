@@ -46,7 +46,7 @@ const OCR = /^(texto de (la )?imagen|ocr|leer imagen|texto imagen)$/i
 export const clipboardSearchProvider: SearchProvider = {
   id: 'clipboard',
   group: 'Portapapeles',
-  pluginId: 'utilities',
+  pluginId: 'captures',
   async search(query) {
     const out: SearchItem[] = []
     if (!query) return out

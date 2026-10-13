@@ -7,7 +7,7 @@
 // ─── Qué es lo copiado ───────────────────────────────────────────────────────
 
 export type ClipKind =
-  | 'ticket' | 'url' | 'path' | 'json' | 'jwt' | 'stacktrace' | 'guid' | 'timestamp' | 'sql' | 'email' | 'table' | 'list' | 'text'
+  | 'ticket' | 'url' | 'path' | 'json' | 'jwt' | 'stacktrace' | 'guid' | 'timestamp' | 'sql' | 'email' | 'table' | 'list' | 'code' | 'text'
 
 const GUID_RE = /^\{?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}?$/i
 const TICKET_RE = /^[A-Z][A-Z0-9]{1,9}-\d{1,7}$/
@@ -36,9 +36,12 @@ export function detectKind(raw: string): ClipKind {
   }
   if (STACK_RE.test('\n' + t)) return 'stacktrace'
   if (SQL_RE.test(t)) return 'sql'
+  if (looksLikeCode(t)) return 'code'
   const lines = t.split(/\r?\n/)
   if (lines.length >= 2 && lines.every((l) => l.includes('\t')) && new Set(lines.map((l) => l.split('\t').length)).size === 1) return 'table'
-  if (lines.length >= 2 && lines.every((l) => l.trim() && l.trim().length <= 80 && !/\s{2,}/.test(l.trim()))) return 'list'
+  // Lista = valores sueltos (IDs, nombres, códigos): renglones cortos y de pocas palabras, no un párrafo.
+  const short = lines.filter((l) => l.trim().length <= 60 && l.trim().split(/\s+/).length <= 3).length
+  if (lines.length >= 2 && lines.every((l) => l.trim()) && short / lines.length >= 0.8) return 'list'
   return 'text'
 }
 
@@ -200,4 +203,52 @@ export interface ClipView {
   sensitive: boolean
   pinned: boolean
   app?: string
+}
+
+// ─── Código ──────────────────────────────────────────────────────────────────
+
+const CODE_KEYWORDS = /\b(function|const|let|var|class|interface|public|private|protected|static|void|return|using|namespace|import|export|async|await|foreach|elseif|param|new)\b/
+/** Varias líneas con señales de código (llaves, `;` al final, palabras clave, `=>`, `$var =`). */
+export function looksLikeCode(t: string): boolean {
+  const lines = t.split(/\r?\n/).filter((l) => l.trim())
+  if (!lines.length) return false
+  let signals = 0
+  if (/[{}]/.test(t)) signals++
+  if (lines.filter((l) => /[;{}]\s*$/.test(l)).length >= Math.max(1, Math.ceil(lines.length / 3))) signals++
+  if (CODE_KEYWORDS.test(t)) signals++
+  if (/=>|\(\)\s*[{=]|\$[A-Za-z_]\w*\s*=|<\/?[a-z][\w-]*[ >]/i.test(t)) signals++
+  // PowerShell / shell: cmdlets Verbo-Sustantivo o tuberías entre comandos.
+  if (/\b(Get|Set|New|Remove|Invoke|Write|Start|Stop|Select|Where|ForEach)-[A-Z][A-Za-z]+\b|\w\s*\|\s*[A-Za-z$]/.test(t)) signals++
+  return lines.length >= 2 ? signals >= 2 : signals >= 3
+}
+
+export type CodeLanguage = 'sql' | 'json' | 'csharp' | 'javascript' | 'powershell' | 'xml' | 'plaintext'
+
+/** Lenguaje aproximado para resaltar lo copiado. */
+export function guessLanguage(text: string, kind: ClipKind): CodeLanguage {
+  if (kind === 'sql') return 'sql'
+  if (kind === 'json') return 'json'
+  if (kind !== 'code') return 'plaintext'
+  if (/^\s*</.test(text)) return 'xml'
+  if (/\$[A-Za-z_]\w*|\b(Get|Set|New|Remove|Invoke|Write)-[A-Z]\w+|\bparam\s*\(/.test(text)) return 'powershell'
+  if (/\b(using\s+System|namespace\s|public\s+(class|void|static|async)|private\s+\w+\s+\w+\s*\(|\bvar\s+\w+\s*=\s*new\b|string\s+\w+\s*=)/.test(text)) return 'csharp'
+  return 'javascript'
+}
+
+// ─── Categorías del historial de texto ───────────────────────────────────────
+
+export type ClipCategory = 'code' | 'links' | 'tickets' | 'text'
+
+export const CLIP_CATEGORIES: { id: ClipCategory; label: string }[] = [
+  { id: 'code', label: 'Código' },
+  { id: 'links', label: 'Links y rutas' },
+  { id: 'tickets', label: 'Tickets' },
+  { id: 'text', label: 'Texto' },
+]
+
+export function clipCategory(kind: ClipKind, text: string): ClipCategory {
+  if (kind === 'code' || kind === 'sql' || kind === 'json' || kind === 'stacktrace') return 'code'
+  if (kind === 'url' || kind === 'path' || kind === 'email') return 'links'
+  if (kind === 'ticket' || findTicket(text)) return 'tickets'
+  return 'text'
 }
