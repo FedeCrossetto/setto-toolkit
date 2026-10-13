@@ -18,6 +18,7 @@ import { registerNotifications } from './core/notifications'
 import { registerSnippetPicker, teardownSnippetPicker } from './core/snippet-picker'
 import { registerClipboardHistory, teardownClipboardHistory } from './core/clipboard-history'
 import { registerClipboardActions, teardownClipboardActions } from './core/clipboard-actions'
+import { closeStartupSplash, showStartupSplash } from './core/startup-splash'
 import { registerCaptureScheme } from './plugins/captures/handlers'
 
 // E2E tests pass --user-data-dir so each run gets an isolated profile.
@@ -214,6 +215,7 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
+    closeStartupSplash()
   })
 
   // Ajustes → "Al cerrar, seguir en la bandeja": la X oculta la ventana (los avisos
@@ -230,7 +232,7 @@ function createWindow(): void {
 
   // Fallback: show the window after 3 s even if ready-to-show hasn't fired yet.
   // Prevents an invisible window when the renderer has a startup error.
-  setTimeout(() => { if (mainWindow && !mainWindow.isVisible()) mainWindow.show() }, 3000)
+  setTimeout(() => { if (mainWindow && !mainWindow.isVisible()) { mainWindow.show(); closeStartupSplash() } }, 3000)
 
   if (process.env['ELECTRON_RENDERER_URL']) {
     // Auto-open DevTools in dev mode to see renderer errors
@@ -281,6 +283,9 @@ app.on('child-process-gone', (_e, details) => {
 })
 
 app.whenReady().then(() => {
+  // Ventanita "Abriendo Setto…" lo antes posible: se cierra cuando la principal está lista.
+  showStartupSplash(getWindowIcon())
+
   // ── Content Security Policy ─────────────────────────────────────────────
   // Applied to every response including local file:// loads.
   // In dev mode we also allow the Vite HMR websocket origin.
@@ -308,9 +313,10 @@ app.whenReady().then(() => {
     })
   })
 
-  // Register file associations in Windows "Open with" menu
+  // Register file associations in Windows "Open with" menu — en segundo plano y sólo si
+  // cambió algo; no debe demorar la apertura (antes trababa ~15 s). Ver file-associations.ts
   // __filename = compiled main script path (e.g. out/main/index.js) — needed in dev
-  registerFileAssociations(process.execPath, __filename)
+  setTimeout(() => registerFileAssociations(process.execPath, __filename), 4000)
 
   // Initialize core services
   const db = new DatabaseService()

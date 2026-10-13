@@ -52,12 +52,13 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
 ;(() => {
   const splash = document.getElementById('splash')
   if (!splash || isSnippetPicker) return
-  const MIN_VISIBLE_MS = 1200
+  // La espera larga la cubre la ventanita nativa de main (startup-splash.ts): acá sólo un fundido.
+  const MIN_VISIBLE_MS = 0
   const elapsed = performance.now()
   const hide = (): void => {
     splash.classList.add('hide')
     setTimeout(() => splash.remove(), 500)
   }
-  // La ventana se muestra recién en ready-to-show: garantizar ~0.8 s visibles igual.
-  requestAnimationFrame(() => setTimeout(hide, Math.max(800, MIN_VISIBLE_MS - elapsed)))
+  // Un instante para que el fundido no parezca un salto.
+  requestAnimationFrame(() => setTimeout(hide, Math.max(120, MIN_VISIBLE_MS - elapsed)))
 })()

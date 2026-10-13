@@ -13,7 +13,11 @@ export async function launchApp(userDataDir?: string): Promise<{ app: ElectronAp
     args: [path.join(__dirname, '../out/main/main.js'), `--user-data-dir=${dataDir}`],
     env: { ...process.env, NODE_ENV: 'production', SETTO_E2E: '1' },
   })
-  const page = await app.firstWindow()
+  // La primera ventana es la de carga ("Abriendo Setto…", data: URL): esperar la principal.
+  let page = await app.firstWindow()
+  for (let i = 0; i < 100 && page.url().startsWith('data:'); i++) {
+    page = app.windows().find((w) => !w.url().startsWith('data:')) ?? await app.waitForEvent('window')
+  }
   await page.waitForLoadState('domcontentloaded')
   return { app, page, userDataDir: dataDir }
 }

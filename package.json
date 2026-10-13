@@ -1,6 +1,6 @@
 {
   "name": "mytools-app",
-  "version": "2.8.0",
+  "version": "2.8.1",
   "description": "Setto — modular developer utilities",
   "main": "out/main/main.js",
   "scripts": {
@@ -179,6 +179,11 @@
       "provider": "github",
       "owner": "FedeCrossetto",
       "repo": "setto-toolkit"
+    }
+  },
+  "overrides": {
+    "eslint-plugin-jsx-a11y": {
+      "eslint": "$eslint"
     }
   }
 }
