@@ -15,6 +15,8 @@ import { hasVariables, stripDataUrls } from '../plugins/snippets/template'
 import { recentSnippets } from '../plugins/snippets/search'
 import type { Snippet } from '../plugins/snippets/types'
 import type { Credential, CredentialsListResult } from '../plugins/credentials/types'
+import { getMonthSummary } from '../plugins/gastos/summary'
+import { classifyContext, isSqlSnippet } from './context'
 
 /**
  * Barra flotante al borde (ventana `#dock`, ver electron/core/dock.ts).
@@ -38,7 +40,11 @@ import type { Credential, CredentialsListResult } from '../plugins/credentials/t
  */
 type Side = 'right' | 'left'
 interface Pad { top: number; bottom: number; edge: number; outer: number }
-interface DockState { expanded: boolean; pinned: boolean; shortcut: string | null; side: Side; pad: Pad }
+interface DockState {
+  expanded: boolean; pinned: boolean; shortcut: string | null; side: Side; pad: Pad
+  /** App externa que estaba adelante al abrir (para sugerir). */
+  context?: { app: string; title: string } | null
+}
 const DEFAULT_PAD: Pad = { top: 14, bottom: 30, edge: 10, outer: 22 }
 
 type TabId = 'clips' | 'caps' | 'snippets' | 'tickets' | 'keys'
@@ -149,6 +155,9 @@ function fallbackTop(r: CredentialsListResult): CredItem[] {
     .map((c) => ({ ...c, lastUsedAt: r.usedAt?.[c.id] }))
 }
 
+/** Atajo de la franja "Para <app>": un clic pega o abre. */
+interface Suggestion { key: string; label: string; icon: LucideIcon; hint?: string; run: () => void }
+
 /** Un ítem navegable de la pestaña actual (lo que pega Enter / el número). */
 type Item =
   | { type: 'clip'; key: string; clip: ClipView }
@@ -176,6 +185,8 @@ export function Dock(): JSX.Element {
   const [unseen, setUnseen] = useState(0)
   const [bumpKey, setBumpKey] = useState(0)
   const [lastKind, setLastKind] = useState<ClipKind | null>(null)
+  /** Pagos del mes sin marcar (Gastos), para el aviso de arriba. */
+  const [pending, setPending] = useState(0)
   const [small, setSmall] = useState(() => window.innerWidth < SMALL_WINDOW)
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -234,6 +245,7 @@ export function Dock(): JSX.Element {
       setCapTickets(r.facets.tickets.slice(0, 12))
     } catch { setCaps([]) }
     try { setSnippets((await window.api.invoke<{ snippets: Snippet[] }>('snippets:load')).snippets) } catch { setSnippets([]) }
+    try { setPending((await getMonthSummary())?.pendientesCount ?? 0) } catch { setPending(0) }
     await loadCreds()
   }, [loadCreds])
 
@@ -325,6 +337,48 @@ export function Dock(): JSX.Element {
     const credItems: Item[] = credBase.map((c) => ({ type: 'cred', key: `k:${c.id}`, cred: c }))
     return { clips: clipItems, caps: capItems, snippets: snipItems, tickets: ticketItems, keys: credItems } satisfies Record<TabId, Item[]>
   }, [clips, caps, capTickets, snippets, topCreds, allCreds, q])
+
+  // ── Sugerencias según la app de adelante ─────────────────────────────────
+  const ctx = useMemo(() => classifyContext(st.context?.app, st.context?.title), [st.context])
+  const suggestions = useMemo((): Suggestion[] => {
+    if (!ctx) return []
+    const out: Suggestion[] = []
+    const bySnippet = (pred: (sn: Snippet) => boolean): void => {
+      for (const sn of [...snippets].filter(pred).sort((a, b) => (b.useCount ?? 0) - (a.useCount ?? 0) || (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0)).slice(0, 3)) {
+        const content = stripDataUrls(sn.content)
+        out.push({
+          key: `sg:s:${sn.id}`, label: sn.title || 'Snippet', icon: Code2,
+          hint: hasVariables(content) ? 'tiene variables' : 'clic pega',
+          run: () => (hasVariables(content) ? openMain({ pluginId: 'snippets', action: 'open', payload: sn.id }) : void paste({ text: content }, `sg:s:${sn.id}`)),
+        })
+      }
+    }
+    const byClip = (kinds: ClipKind[]): void => {
+      for (const c of clips.filter((x) => !x.sensitive && kinds.includes(x.kind)).slice(0, 2)) {
+        out.push({ key: `sg:c:${c.id}`, label: oneLine(c.text, 40), icon: KIND_STYLE[c.kind].icon, hint: 'copiado', run: () => void paste({ clipId: c.id }, `sg:c:${c.id}`) })
+      }
+    }
+    switch (ctx.kind) {
+      case 'sql': bySnippet(isSqlSnippet); byClip(['sql']); break
+      case 'code': bySnippet((sn) => !isSqlSnippet(sn)); byClip(['code', 'path']); break
+      case 'ticket': {
+        const t = ctx.ticket!
+        const n = caps.filter((c) => c.ticket === t).length
+        out.push({ key: 'sg:t:all', label: `Todo lo de ${t}`, icon: Ticket, hint: n ? `${n} captura${n === 1 ? '' : 's'}` : 'capturas y comentario', run: () => openMain({ pluginId: 'captures', action: 'ticket', payload: t }) })
+        for (const c of caps.filter((x) => x.ticket === t).slice(0, 2)) {
+          out.push({ key: `sg:i:${c.id}`, label: c.title || 'Captura', icon: Images, hint: 'clic pega', run: () => { void window.api.invoke('captures:copy', c.id).then(() => paste({ current: true }, `sg:i:${c.id}`)) } })
+        }
+        break
+      }
+      case 'chat':
+        for (const c of caps.slice(0, 3)) {
+          out.push({ key: `sg:i:${c.id}`, label: c.title || 'Captura', icon: Images, hint: 'clic pega', run: () => { void window.api.invoke('captures:copy', c.id).then(() => paste({ current: true }, `sg:i:${c.id}`)) } })
+        }
+        break
+    }
+    return out.slice(0, 4)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx, snippets, clips, caps])
 
   const items = lists[tab]
   const safeActive = Math.min(active, Math.max(0, items.length - 1))
@@ -493,6 +547,35 @@ export function Dock(): JSX.Element {
                 <Quick icon={Toolbox} label="Abrir Utilidades" onClick={() => openMain({ pluginId: 'utilities' })} />
               </div>
 
+              {/* Para lo que estás usando (SSMS → SQL, Jira → el ticket…) y pagos pendientes */}
+              <AnimatePresence initial={false}>
+                {!words.length && (suggestions.length > 0 || pending > 0) && (
+                  <motion.div key="ctx" className="px-3.5 pt-2.5 shrink-0 overflow-hidden"
+                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.24, ease: EASE_OUT }}>
+                    {suggestions.length > 0 && ctx && (
+                      <div className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-on-surface-variant/70 mb-1.5">Para {ctx.label}</div>
+                    )}
+                    <div className="flex flex-wrap gap-1.5">
+                      {pending > 0 && (
+                        <button type="button" onClick={() => openMain({ pluginId: 'gastos' })}
+                          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-warning/[0.12] text-warning text-[12px] font-medium hover:bg-warning/20 transition-colors">
+                          <Wallet size={12} /> {pending} pago{pending === 1 ? '' : 's'} pendiente{pending === 1 ? '' : 's'}
+                        </button>
+                      )}
+                      {suggestions.map((sg) => (
+                        <button key={sg.key} type="button" onClick={sg.run} title={sg.hint}
+                          className={`inline-flex items-center gap-1.5 h-7 max-w-full px-2.5 rounded-full text-[12px] transition-colors ${
+                            pastedKey === sg.key ? 'bg-primary/15 text-primary' : 'bg-on-surface/[0.05] text-on-surface hover:bg-on-surface/[0.09]'}`}>
+                          {pastedKey === sg.key ? <Check size={12} /> : <sg.icon size={12} className="text-on-surface-variant shrink-0" />}
+                          <span className="truncate">{sg.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Pestañas */}
               <div className="mx-3.5 mt-2.5 p-[3px] rounded-[10px] bg-on-surface/[0.05] grid grid-cols-5 shrink-0">
                 {TABS.map((t) => {
@@ -657,8 +740,14 @@ function ItemView({ item, index, active, done, onActivate, onPin, onRemove }: It
     }
   }
 
+  // Copiados y snippets se pueden arrastrar como texto a Jira, Teams, un mail… (nunca un secreto).
+  const dragText = item.type === 'clip' ? (item.clip.sensitive ? null : item.clip.text) : item.type === 'snippet' && !item.vars ? item.content : null
+
   return (
-    <div role="button" tabIndex={-1} onClick={onActivate} className={rowCls(active, done)}>
+    <div role="button" tabIndex={-1} onClick={onActivate} className={rowCls(active, done)}
+      draggable={dragText !== null}
+      onDragStart={dragText !== null ? (e) => { e.dataTransfer.setData('text/plain', dragText); e.dataTransfer.effectAllowed = 'copy' } : undefined}
+      title={dragText !== null ? 'Clic pega · arrastrá para soltarlo en otra app' : undefined}>
       <span className={`relative grid place-items-center w-8 h-8 rounded-[9px] shrink-0 self-start mt-px ${iconCls}`}>
         <AnimatePresence initial={false} mode="wait">
           {done

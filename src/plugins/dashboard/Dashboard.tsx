@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
-  ArrowRight, CalendarDays, Code2, Copy, CornerDownLeft, FileCode2, NotebookPen, Pin, Plus, Search, Sparkles, TrendingDown, TrendingUp, Wallet,
+  ArrowRight, CalendarDays, ClipboardText, Code2, Copy, CornerDownLeft, FileCode2, KeyRound, Lock, NotebookPen, Pin, Plus, Search, Sparkles,
+  Ticket, TrendingDown, TrendingUp, Wallet,
 } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
 import { EmptyState } from '../../core/components/EmptyState'
@@ -14,6 +15,11 @@ import { fmtMoney, mesLong } from '../gastos/format'
 import { DeltaPill } from '../../core/components/Form'
 import type { IconComponent } from '../../core/types'
 import type { Snippet } from '../snippets/types'
+import { KIND_LABEL } from '../../core/clip-actions'
+import { findTicket, type ClipView } from '../../core/clip-utils'
+import type { CaptureQueryResult } from '../captures/types'
+import type { Credential, CopyResult } from '../credentials/types'
+import { usageHint } from '../credentials/usage'
 
 // ── Contracts consumed (owned by other modules) ──────────────────────────────
 interface NoteMeta { id: string; title: string; preview: string; updatedAt: number; pinned: boolean }
@@ -464,6 +470,119 @@ function RecentFilesWidget({ recents }: { recents: Loadable<RecentEntry[]> }): J
   )
 }
 
+/** Tickets recientes: los de las capturas y los copiados (solos o dentro de un link). */
+interface TicketRow { ticket: string; captures: number; copied: boolean; at: number }
+
+async function loadTickets(): Promise<TicketRow[]> {
+  const rows = new Map<string, TicketRow>()
+  const bump = (t: string, at: number, patch: Partial<TicketRow>): void => {
+    const r = rows.get(t) ?? { ticket: t, captures: 0, copied: false, at: 0 }
+    rows.set(t, { ...r, ...patch, at: Math.max(r.at, at), captures: r.captures + (patch.captures ?? 0) })
+  }
+  try {
+    const r = await invoke<CaptureQueryResult>('captures:query', { limit: 300 })
+    for (const c of r.items) if (c.ticket) bump(c.ticket, c.createdAt, { captures: 1 })
+  } catch { /* sin capturas */ }
+  try {
+    const clips = await invoke<ClipView[]>('clipboard:history')
+    for (const c of clips) {
+      if (c.sensitive) continue
+      const t = c.kind === 'ticket' ? c.text.trim() : findTicket(c.text)
+      if (t) bump(t, c.at, { copied: true })
+    }
+  } catch { /* sin historial */ }
+  return [...rows.values()].sort((a, b) => b.at - a.at)
+}
+
+function TicketsWidget({ tickets }: { tickets: Loadable<TicketRow[]> }): JSX.Element {
+  const { dispatch } = useApp()
+  return (
+    <Widget title="Tickets recientes" icon={Ticket}>
+      {tickets.status === 'loading' && <ListSkeleton rows={3} />}
+      {(tickets.status === 'error' || (tickets.status === 'ready' && tickets.data.length === 0)) && (
+        <EmptyState compact icon={Ticket} title="Sin tickets todavía"
+          description="Copiá un WIGOS-123 o ponele ticket a una captura y aparece acá con todo lo suyo." />
+      )}
+      {tickets.status === 'ready' && tickets.data.slice(0, 6).map((t) => (
+        <Row
+          key={t.ticket}
+          title={t.ticket}
+          subtitle={[t.captures ? `${t.captures} captura${t.captures === 1 ? '' : 's'}` : null, t.copied ? 'copiado' : null].filter(Boolean).join(' · ')}
+          meta={relTime(t.at)}
+          icon={<span className="w-7 h-7 rounded-lg grid place-items-center bg-on-surface/[0.05] text-on-surface-variant flex-shrink-0"><Ticket size={14} /></span>}
+          onClick={() => dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'captures', action: 'ticket', payload: t.ticket })}
+        />
+      ))}
+    </Widget>
+  )
+}
+
+function KeysWidget({ keys }: { keys: Loadable<Credential[]> }): JSX.Element {
+  const { dispatch } = useApp()
+  const toast = useToast()
+  const open = (id?: string): void => dispatch(id
+    ? { type: 'OPEN_WITH_INTENT', pluginId: 'credentials', action: 'open', payload: id }
+    : { type: 'OPEN_TAB', pluginId: 'credentials' })
+  const copy = async (c: Credential): Promise<void> => {
+    let r: CopyResult
+    try { r = await invoke<CopyResult>('credentials:copy-password', c.id) } catch { toast.show('No se pudo copiar', 'error'); return }
+    if (r.ok) toast.show(`Contraseña de ${c.nombre} copiada (se borra en 30 s)`, 'success')
+    else if (r.locked) { toast.show('Claves está bloqueada: ingresá el PIN', 'info'); open(c.id) }
+    else toast.show(r.error || 'No se pudo copiar', 'error')
+  }
+  return (
+    <Widget title="Claves más usadas" icon={KeyRound}
+      action={<button onClick={() => open()} className="ui-btn ui-btn-ghost ui-btn-sm">Ver todas <ArrowRight size={12} /></button>}>
+      {keys.status === 'loading' && <ListSkeleton rows={3} />}
+      {(keys.status === 'error' || (keys.status === 'ready' && keys.data.length === 0)) && (
+        <EmptyState compact icon={KeyRound} title="Sin claves todavía" description="Las que más copies van a quedar acá, a un clic." />
+      )}
+      {keys.status === 'ready' && keys.data.slice(0, 5).map((c) => (
+        <Row
+          key={c.id}
+          title={c.nombre}
+          subtitle={[c.usuario, usageHint(c.useCount, c.lastUsedAt ? relTime(c.lastUsedAt) : '')].filter(Boolean).join(' · ')}
+          icon={<span className="w-7 h-7 rounded-lg grid place-items-center bg-on-surface/[0.05] text-on-surface-variant flex-shrink-0">{c.favorite ? <Pin size={13} /> : <KeyRound size={13} />}</span>}
+          onClick={() => open(c.id)}
+          trailing={c.hasPassword ? (
+            <button onClick={() => void copy(c)} title="Copiar contraseña"
+              className="mr-1.5 ui-btn ui-btn-ghost ui-btn-sm opacity-60 group-hover:opacity-100 focus-visible:opacity-100">
+              <Lock size={12} /> Copiar
+            </button>
+          ) : undefined}
+        />
+      ))}
+    </Widget>
+  )
+}
+
+function ClipboardWidget({ clips }: { clips: Loadable<ClipView[]> }): JSX.Element {
+  const { dispatch } = useApp()
+  const toast = useToast()
+  const copy = async (c: ClipView): Promise<void> => {
+    try { await invoke('clipboard:copy', c.id); toast.show('Copiado de nuevo: pegalo con Ctrl+V', 'success') } catch { toast.show('Ya no está en el historial', 'error') }
+  }
+  return (
+    <Widget title="Copiado reciente" icon={ClipboardText}
+      action={<button onClick={() => dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'captures', action: 'text' })} className="ui-btn ui-btn-ghost ui-btn-sm">Ver todo <ArrowRight size={12} /></button>}>
+      {clips.status === 'loading' && <ListSkeleton rows={3} />}
+      {(clips.status === 'error' || (clips.status === 'ready' && clips.data.length === 0)) && (
+        <EmptyState compact icon={ClipboardText} title="Nada copiado todavía" description="Lo que copies con Ctrl+C queda acá para volver a usarlo." />
+      )}
+      {clips.status === 'ready' && clips.data.slice(0, 6).map((c) => (
+        <Row
+          key={c.id}
+          title={c.sensitive ? (c.masked ?? '••••••') : c.text.replace(/\s+/g, ' ').trim().slice(0, 140)}
+          subtitle={[c.sensitive ? 'Oculto' : KIND_LABEL[c.kind], c.app].filter(Boolean).join(' · ')}
+          meta={relTime(c.at)}
+          icon={<span className="w-7 h-7 rounded-lg grid place-items-center bg-on-surface/[0.05] text-on-surface-variant flex-shrink-0">{c.sensitive ? <Lock size={13} /> : <Copy size={13} />}</span>}
+          onClick={() => void copy(c)}
+        />
+      ))}
+    </Widget>
+  )
+}
+
 // ── Dashboard ────────────────────────────────────────────────────────────────
 export function Dashboard(): JSX.Element {
   const { state } = useApp()
@@ -498,6 +617,12 @@ export function Dashboard(): JSX.Element {
   }, [stamp])
   const [summary] = useLoad(() => getMonthSummary(), [stamp])
   const [recents] = useLoad(async () => (await invoke<RecentEntry[]>('editor:recent-get')) ?? [], [stamp])
+  const [tickets] = useLoad(loadTickets, [stamp])
+  const [keys] = useLoad(async () => {
+    const r = await invoke<Credential[] | { items: Credential[] }>('credentials:top', 5)
+    return Array.isArray(r) ? r : r.items
+  }, [stamp])
+  const [clips] = useLoad(async () => (await invoke<ClipView[]>('clipboard:history')) ?? [], [stamp])
 
   const capture = useMemo(() => ({
     note: isOn('notes'), expense: isOn('gastos'), snippet: isOn('snippets'),
@@ -505,10 +630,13 @@ export function Dashboard(): JSX.Element {
   }), [state.disabledPlugins])
 
   const widgets = [
-    isOn('notes') && <NotesWidget key="notes" notes={notes} onRetry={reloadNotes} />,
     isOn('gastos') && <ExpensesWidget key="gastos" summary={summary} />,
+    isOn('captures') && <TicketsWidget key="tickets" tickets={tickets} />,
+    isOn('credentials') && <KeysWidget key="keys" keys={keys} />,
+    isOn('captures') && <ClipboardWidget key="clips" clips={clips} />,
     isOn('snippets') && <SnippetsWidget key="snippets" snippets={snippets} onUsed={reloadSnippets} />,
     isOn('file-editor') && <RecentFilesWidget key="files" recents={recents} />,
+    isOn('notes') && <NotesWidget key="notes" notes={notes} onRetry={reloadNotes} />,
   ].filter(Boolean)
 
   return (

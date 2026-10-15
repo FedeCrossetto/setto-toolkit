@@ -91,7 +91,14 @@ function boundsFor(isExpanded: boolean, top = handleTop()): Electron.Rectangle {
   return { x: edgeX(width), y, width, height }
 }
 
-const state = (): Record<string, unknown> => ({ expanded, pinned, shortcut, side, pad: PAD })
+/**
+ * Última app externa en primer plano (la de antes de abrir la barra): el panel
+ * sugiere según eso (SSMS → snippets SQL, Jira → el ticket, VS → código).
+ */
+let lastExternal: { app: string; title: string } | null = null
+const isOwnApp = (app: string): boolean => /^(setto|electron)$/i.test(app)
+
+const state = (): Record<string, unknown> => ({ expanded, pinned, shortcut, side, pad: PAD, context: lastExternal })
 
 function send(): void {
   if (dock && !dock.isDestroyed()) dock.webContents.send('dock:state', state())
@@ -164,6 +171,12 @@ function setExpanded(next: boolean, focus = false): void {
     if (!was) openedByKey = focus
     send()
     watchCursor()
+    // Abierta con el mouse la barra no toma el foco: la app de adelante es la que el usuario estaba usando.
+    if (!was && !focus) {
+      void foregroundWindow().then((fg) => {
+        if (fg && !isOwnApp(fg.app) && expanded) { lastExternal = { app: fg.app, title: fg.title }; send() }
+      }).catch(() => undefined)
+    }
     return
   }
   stopCursorWatch()
@@ -264,7 +277,8 @@ function startFullscreenWatch(): void {
     if (!dock || dock.isDestroyed()) return
     void foregroundWindow().then((fg) => {
       if (!dock || dock.isDestroyed() || !fg) return
-      const own = /^(setto|electron)$/i.test(fg.app)
+      const own = isOwnApp(fg.app)
+      if (!own && fg.app) lastExternal = { app: fg.app, title: fg.title }
       if (overrideApp && fg.app !== overrideApp && !own) overrideApp = null
       const full = !!fg.full && !own && fg.app !== overrideApp
       if (full === hiddenForFullscreen) { if (!full) reveal(); return }
