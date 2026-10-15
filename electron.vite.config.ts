@@ -43,6 +43,9 @@ export default defineConfig(({ mode }) => {
   },
   renderer: {
     root: path.resolve(__dirname),
+    // El root es todo el proyecto: sin esto Vite vigila `release/` y en Windows una
+    // carpeta vigilada no se puede renombrar (electron-builder falla con EPERM con `npm run dev` abierto).
+    server: { watch: { ignored: ['**/release/**', '**/out/**', '**/dist/**', '**/test-results/**'] } },
     base: './',
     build: {
       rollupOptions: {
