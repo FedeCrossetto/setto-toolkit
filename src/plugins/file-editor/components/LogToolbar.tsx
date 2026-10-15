@@ -16,7 +16,7 @@ interface LogToolbarProps {
   onToggleFreeze: () => void
 }
 
-const ACTIVE = '!bg-on-surface/[0.08] !text-on-surface'
+const ACTIVE = 'bg-on-surface/8! text-on-surface!'
 
 const LEVELS: Array<{ value: LogLevelFilter; label: string }> = [
   { value: 'all', label: 'Todos' },
@@ -115,24 +115,24 @@ export function LogToolbar({
   const cleared = view.fromLine > 1
 
   return (
-    <div ref={rootRef} className="flex items-center gap-2 px-2 h-8 hairline-b bg-surface flex-shrink-0 t-footnote whitespace-nowrap overflow-hidden">
+    <div ref={rootRef} className="flex items-center gap-2 px-2 h-8 hairline-b bg-surface shrink-0 t-footnote whitespace-nowrap overflow-hidden">
       <button onClick={onToggleWatch} title={tab.watchActive ? 'Dejar de monitorear' : 'Monitorear cambios del archivo'} aria-pressed={tab.watchActive}
-        className={`ui-btn ui-btn-ghost ui-btn-sm gap-1.5 flex-shrink-0 ${tab.watchActive ? ACTIVE : ''}`}>
+        className={`ui-btn ui-btn-ghost ui-btn-sm gap-1.5 shrink-0 ${tab.watchActive ? ACTIVE : ''}`}>
         {tab.watchActive ? <Eye size={13} /> : <EyeOff size={13} />}
         Monitorear
       </button>
 
       {tab.watchActive && (
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${tab.frozen ? 'bg-on-surface-variant/50' : 'bg-success'}`} />
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${tab.frozen ? 'bg-on-surface-variant/50' : 'bg-success'}`} />
           <span className="text-on-surface-variant">{tab.frozen ? 'Pausado' : 'En vivo'}</span>
         </div>
       )}
 
       {logMode && (
         <>
-          <span className="hairline-l h-4 flex-shrink-0" aria-hidden />
-          <div className="flex items-center gap-0.5 flex-shrink-0" role="group" aria-label="Filtrar por nivel">
+          <span className="hairline-l h-4 shrink-0" aria-hidden />
+          <div className="flex items-center gap-0.5 shrink-0" role="group" aria-label="Filtrar por nivel">
             {LEVELS.map((l) => (
               <button key={l.value} onClick={() => setLevel(l.value)} aria-pressed={view.level === l.value}
                 className={`ui-btn ui-btn-ghost ui-btn-sm ${view.level === l.value ? ACTIVE : ''}`}>
@@ -141,11 +141,11 @@ export function LogToolbar({
             ))}
           </div>
 
-          <div className="ui-input flex items-center gap-1.5 !py-0.5 !px-2 w-44 min-w-[7rem] flex-shrink">
-            <Filter size={12} className="text-on-surface-variant/50 flex-shrink-0" />
+          <div className="ui-input flex items-center gap-1.5 py-0.5! px-2! w-44 min-w-28 shrink">
+            <Filter size={12} className="text-on-surface-variant/50 shrink-0" />
             <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Filtrar líneas…" aria-label="Filtrar líneas"
               onKeyDown={(e) => { if (e.key === 'Escape' && text) { e.stopPropagation(); setText('') } }}
-              className="bg-transparent t-footnote text-on-surface outline-none placeholder:text-on-surface-variant/50 flex-1 min-w-0" />
+              className="bg-transparent t-footnote text-on-surface outline-hidden placeholder:text-on-surface-variant/50 flex-1 min-w-0" />
             {text && (
               <button onClick={() => setText('')} aria-label="Limpiar filtro" className="text-on-surface-variant/50 hover:text-on-surface">
                 <X size={11} />
@@ -153,13 +153,13 @@ export function LogToolbar({
             )}
           </div>
 
-          <span className="tabular-nums flex-shrink-0 text-on-surface-variant" aria-live="polite">
+          <span className="tabular-nums shrink-0 text-on-surface-variant" aria-live="polite">
             <span className={counts.errors > 0 ? 'text-error font-medium' : ''}>{counts.errors} {counts.errors === 1 ? 'error' : 'errores'}</span>
             {' · '}
             <span className={counts.warnings > 0 ? 'text-warning font-medium' : ''}>{counts.warnings} {counts.warnings === 1 ? 'warning' : 'warnings'}</span>
           </span>
 
-          <div className="flex items-center flex-shrink-0">
+          <div className="flex items-center shrink-0">
             <Tooltip label="Error anterior" shortcut="Shift+F8">
               <button onClick={() => editorRef.current?.gotoLogError?.(-1)} disabled={counts.errors === 0} aria-label="Error anterior"
                 className="ui-btn ui-btn-ghost ui-btn-icon">
@@ -176,13 +176,13 @@ export function LogToolbar({
 
           {cleared ? (
             <Tooltip label={`Volver a mostrar las ${view.fromLine - 1} líneas anteriores`}>
-              <button onClick={() => onViewChange({ ...view, fromLine: 1 })} className={`ui-btn ui-btn-ghost ui-btn-sm gap-1 flex-shrink-0 ${ACTIVE}`}>
+              <button onClick={() => onViewChange({ ...view, fromLine: 1 })} className={`ui-btn ui-btn-ghost ui-btn-sm gap-1 shrink-0 ${ACTIVE}`}>
                 <RotateCcw size={12} />Mostrar todo
               </button>
             </Tooltip>
           ) : (
             <Tooltip label="Ocultar lo que hay hasta ahora y mostrar sólo lo nuevo">
-              <button onClick={() => onViewChange({ ...view, fromLine: lineAfterEnd(tab.content) })} className="ui-btn ui-btn-ghost ui-btn-sm gap-1 flex-shrink-0">
+              <button onClick={() => onViewChange({ ...view, fromLine: lineAfterEnd(tab.content) })} className="ui-btn ui-btn-ghost ui-btn-sm gap-1 shrink-0">
                 <Eraser size={12} />Limpiar vista
               </button>
             </Tooltip>
@@ -191,7 +191,7 @@ export function LogToolbar({
       )}
 
       {tab.watchActive && (
-        <div className="ml-auto flex items-center gap-1 flex-shrink-0">
+        <div className="ml-auto flex items-center gap-1 shrink-0">
           {pausedByScroll && !tab.tailMode ? (
             <button onClick={resumeFollow} title="Volver al final y seguir las líneas nuevas"
               className="ui-btn ui-btn-outline ui-btn-sm gap-1">

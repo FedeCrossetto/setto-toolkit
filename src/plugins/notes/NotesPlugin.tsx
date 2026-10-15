@@ -438,8 +438,8 @@ export function NotesPlugin(): JSX.Element {
         onDoubleClick={() => { setPreview(false); focusEditorEnd() }}
         onContextMenu={(e) => { e.preventDefault(); setMenu({ id: note.id, x: e.clientX, y: e.clientY }) }}
         onKeyDown={onListKey}
-        className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors duration-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 ${
-          active ? 'bg-selected' : 'hover:bg-on-surface/[0.03] dark:hover:bg-white/[0.04]'
+        className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors duration-100 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/45 ${
+          active ? 'bg-selected' : 'hover:bg-on-surface/3 dark:hover:bg-white/4'
         }`}
       >
         <div className="flex items-center gap-1.5 min-w-0">
@@ -513,7 +513,7 @@ export function NotesPlugin(): JSX.Element {
                     aria-pressed={on}
                     onClick={() => setTagFilter(on ? null : t)}
                     className={`inline-flex items-center gap-1 h-[22px] px-2 rounded-full text-[11px] font-medium transition-colors ${
-                      on ? 'bg-primary text-on-primary' : 'bg-on-surface/[0.06] text-on-surface-variant hover:bg-on-surface/[0.1] hover:text-on-surface'
+                      on ? 'bg-primary text-on-primary' : 'bg-on-surface/6 text-on-surface-variant hover:bg-on-surface/10 hover:text-on-surface'
                     }`}
                   >
                     #{t}
@@ -600,7 +600,7 @@ export function NotesPlugin(): JSX.Element {
                   type="button"
                   onClick={() => setReminderFor(selected.id)}
                   title="Cambiar recordatorio"
-                  className="inline-flex items-center gap-1 h-[20px] px-2 rounded-full bg-primary/10 text-primary text-[11px] font-medium shrink-0 hover:bg-primary/[0.16]"
+                  className="inline-flex items-center gap-1 h-[20px] px-2 rounded-full bg-primary/10 text-primary text-[11px] font-medium shrink-0 hover:bg-primary/16"
                 >
                   <BellRing size={11} weight="fill" /> {formatReminder(reminders.get(selected.id)!.at)}
                 </button>
@@ -686,7 +686,7 @@ export function NotesPlugin(): JSX.Element {
                     spellCheck
                     placeholder="Empezá a escribir… La primera línea es el título."
                     aria-label="Contenido de la nota"
-                    className="w-full flex-1 min-h-[55vh] resize-none bg-transparent border-0 outline-none text-[15px] leading-[1.7] text-on-surface placeholder:text-on-surface-variant/50"
+                    className="w-full flex-1 min-h-[55vh] resize-none bg-transparent border-0 outline-hidden text-[15px] leading-[1.7] text-on-surface placeholder:text-on-surface-variant/50"
                   />
                 </div>
               )}
@@ -735,7 +735,7 @@ export function NotesPlugin(): JSX.Element {
       {menu && menuNote && (
         <div
           role="menu"
-          className="ui-menu fixed z-[400] w-[200px] mac-pop-in"
+          className="ui-menu fixed z-400 w-[200px] mac-pop-in"
           style={{ left: Math.max(8, Math.min(menu.x, window.innerWidth - 210)), top: Math.min(menu.y, window.innerHeight - 180) }}
           onMouseDown={(e) => e.stopPropagation()}
         >

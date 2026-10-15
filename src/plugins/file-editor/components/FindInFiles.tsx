@@ -189,7 +189,7 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose, onReplaced }
       >
         {/* Search bar */}
         <div className="flex items-center gap-2 px-3 py-2.5 hairline-b">
-          <Search size={15} className="text-on-surface-variant flex-shrink-0" />
+          <Search size={15} className="text-on-surface-variant shrink-0" />
 
           <input
             ref={inputRef}
@@ -198,7 +198,7 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose, onReplaced }
             onKeyDown={(e) => { if (e.key === 'Enter') void run() }}
             placeholder="Buscar en archivos…"
             aria-label="Buscar en archivos"
-            className="flex-1 bg-transparent t-body text-on-surface outline-none ring-0 focus:ring-0 focus:outline-none placeholder:text-on-surface-variant/50 min-w-0"
+            className="flex-1 bg-transparent t-body text-on-surface outline-hidden ring-0 focus:ring-0 focus:outline-hidden placeholder:text-on-surface-variant/50 min-w-0"
           />
 
           <button
@@ -206,15 +206,15 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose, onReplaced }
             title="Reemplazar en archivos"
             aria-label="Reemplazar en archivos"
             aria-pressed={replaceMode}
-            className={`ui-btn ui-btn-ghost ui-btn-icon flex-shrink-0 ${replaceMode ? '!bg-primary/15 !text-on-surface' : ''}`}
+            className={`ui-btn ui-btn-ghost ui-btn-icon shrink-0 ${replaceMode ? 'bg-primary/15! text-on-surface!' : ''}`}
           ><Replace size={14} /></button>
 
           <button
             onClick={() => setRegex((v) => !v)}
             title="Expresión regular"
             aria-pressed={useRegex}
-            className={`ui-btn ui-btn-ghost ui-btn-sm font-mono flex-shrink-0 ${
-              useRegex ? '!bg-primary/15 !text-on-surface' : ''
+            className={`ui-btn ui-btn-ghost ui-btn-sm font-mono shrink-0 ${
+              useRegex ? 'bg-primary/15! text-on-surface!' : ''
             }`}
           >.*</button>
 
@@ -223,7 +223,7 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose, onReplaced }
               value={scope === 'tabs' ? 'tabs' : String(scope)}
               onChange={(e) => setScope(e.target.value === 'tabs' ? 'tabs' : Number(e.target.value))}
               aria-label="Alcance de la búsqueda"
-              className="ui-input !py-0.5 !px-1.5 t-footnote flex-shrink-0"
+              className="ui-input py-0.5! px-1.5! t-footnote shrink-0"
             >
               {scopeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -232,14 +232,14 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose, onReplaced }
           <button
             onClick={() => void run()}
             disabled={(replaceMode ? !canReplace : !canSearch) || searching}
-            className="ui-btn ui-btn-primary ui-btn-sm flex-shrink-0"
+            className="ui-btn ui-btn-primary ui-btn-sm shrink-0"
           >
             {searching ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
             {searching ? 'Buscando…' : replaceMode ? 'Vista previa' : 'Buscar'}
           </button>
 
           <button onClick={onClose} title="Cerrar (Esc)" aria-label="Cerrar"
-            className="ui-btn ui-btn-ghost ui-btn-icon flex-shrink-0">
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0">
             <X size={14} />
           </button>
         </div>
@@ -247,19 +247,19 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose, onReplaced }
         {/* Replace row */}
         {replaceMode && (
           <div className="flex items-center gap-2 px-3 py-2 hairline-b">
-            <Replace size={15} className="text-on-surface-variant flex-shrink-0" />
+            <Replace size={15} className="text-on-surface-variant shrink-0" />
             <input
               value={replacement}
               onChange={(e) => setReplacement(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') void previewReplace() }}
               placeholder={useRegex ? 'Reemplazar con… ($1, $& para grupos)' : 'Reemplazar con…'}
               aria-label="Reemplazar con"
-              className="flex-1 bg-transparent t-body text-on-surface outline-none placeholder:text-on-surface-variant/50 min-w-0"
+              className="flex-1 bg-transparent t-body text-on-surface outline-hidden placeholder:text-on-surface-variant/50 min-w-0"
             />
             <button
               onClick={() => void replaceAll()}
               disabled={!replacePreview || checked.size === 0 || replacing}
-              className="ui-btn ui-btn-danger ui-btn-sm flex-shrink-0"
+              className="ui-btn ui-btn-danger ui-btn-sm shrink-0"
             >
               {replacing && <Loader2 size={12} className="animate-spin" />}
               Reemplazar todo
@@ -286,17 +286,17 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose, onReplaced }
                     aria-label={`Incluir ${f.name}`}
                   />
                   <span className="font-semibold text-on-surface truncate">{f.name}</span>
-                  {dirtyPaths.has(f.path) && <span className="ui-badge ui-badge-warning flex-shrink-0">sin guardar en el editor</span>}
+                  {dirtyPaths.has(f.path) && <span className="ui-badge ui-badge-warning shrink-0">sin guardar en el editor</span>}
                   <span className="text-on-surface-variant/70 t-caption truncate flex-1">{f.path}</span>
-                  <span className="ml-auto t-caption tabular-nums text-on-surface-variant flex-shrink-0">{f.count}</span>
+                  <span className="ml-auto t-caption tabular-nums text-on-surface-variant shrink-0">{f.count}</span>
                 </label>
                 {f.samples.map((s) => (
                   <button
                     key={s.lineNumber}
                     onClick={() => { onOpenAt(f.path, s.lineNumber); onClose() }}
-                    className="flex items-start gap-2 w-full px-4 py-1 text-left hover:bg-on-surface/[0.05] transition-colors"
+                    className="flex items-start gap-2 w-full px-4 py-1 text-left hover:bg-on-surface/5 transition-colors"
                   >
-                    <span className="text-on-surface-variant/60 flex-shrink-0 tabular-nums w-8 text-right t-caption font-mono">{s.lineNumber}</span>
+                    <span className="text-on-surface-variant/60 shrink-0 tabular-nums w-8 text-right t-caption font-mono">{s.lineNumber}</span>
                     <span className="flex flex-col min-w-0 font-mono t-caption">
                       <span className="text-error truncate line-through decoration-error/40">{s.before}</span>
                       <span className="text-success truncate">{s.after}</span>
@@ -331,18 +331,18 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose, onReplaced }
           {Object.entries(grouped).map(([filePath, matches]) => (
             <div key={filePath}>
               <div className="flex items-center gap-2 px-3 py-1 sticky top-0 hairline-b bg-surface">
-                {(() => { const Icon = languageIcon(detectLanguage(matches[0]!.name)); return <Icon size={12} className="flex-shrink-0 text-on-surface-variant" /> })()}
+                {(() => { const Icon = languageIcon(detectLanguage(matches[0]!.name)); return <Icon size={12} className="shrink-0 text-on-surface-variant" /> })()}
                 <span className="font-semibold text-on-surface truncate">{matches[0]!.name}</span>
                 <span className="text-on-surface-variant/70 t-caption truncate hidden sm:block flex-1">{filePath}</span>
-                <span className="ml-auto t-caption tabular-nums text-on-surface-variant flex-shrink-0">{matches.length}</span>
+                <span className="ml-auto t-caption tabular-nums text-on-surface-variant shrink-0">{matches.length}</span>
               </div>
               {matches.map((r) => (
                 <button
                   key={`${r.path}:${r.lineNumber}`}
                   onClick={() => { onOpenAt(r.path, r.lineNumber); onClose() }}
-                  className="flex items-start gap-2 w-full px-4 py-1 text-left hover:bg-on-surface/[0.05] transition-colors group"
+                  className="flex items-start gap-2 w-full px-4 py-1 text-left hover:bg-on-surface/5 transition-colors group"
                 >
-                  <span className="text-on-surface-variant/60 flex-shrink-0 tabular-nums w-8 text-right t-caption font-mono">{r.lineNumber}</span>
+                  <span className="text-on-surface-variant/60 shrink-0 tabular-nums w-8 text-right t-caption font-mono">{r.lineNumber}</span>
                   <span className="text-on-surface-variant group-hover:text-on-surface truncate font-mono t-caption">{r.lineText}</span>
                 </button>
               ))}
@@ -355,8 +355,8 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose, onReplaced }
 
         {/* Footer hint */}
         <div className="px-3 py-1.5 hairline-t flex items-center gap-3 t-caption text-on-surface-variant">
-          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/[0.04] px-1 rounded">↵</kbd> buscar</span>
-          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/[0.04] px-1 rounded">Esc</kbd> cerrar</span>
+          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/4 px-1 rounded">↵</kbd> buscar</span>
+          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/4 px-1 rounded">Esc</kbd> cerrar</span>
           {replaceMode && replacePreview
             ? <span className="ml-auto">{replacePreview.totalMatches} coincidencias en {replacePreview.files.length} archivos · {checked.size} seleccionados</span>
             : searched && <span className="ml-auto">{results.length} coincidencias</span>}

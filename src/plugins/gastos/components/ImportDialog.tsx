@@ -202,7 +202,7 @@ export function ImportDialog({ open, onClose, existing, learning, onImport }: {
                 {rows.map((r) => {
                   const disabled = r.kind !== 'gasto' || Boolean(r.error)
                   return (
-                    <tr key={r.index} className={`border-b border-[var(--hairline)] last:border-0 ${disabled ? 'opacity-50' : ''}`}>
+                    <tr key={r.index} className={`border-b border-(--hairline) last:border-0 ${disabled ? 'opacity-50' : ''}`}>
                       <td className="px-3 py-1.5 text-center">
                         <input type="checkbox" disabled={disabled} checked={checked.has(r.index)} aria-label={`Importar ${r.descripcion}`}
                           onChange={(e) => setChecked((prev) => { const n = new Set(prev); if (e.target.checked) n.add(r.index); else n.delete(r.index); return n })} />

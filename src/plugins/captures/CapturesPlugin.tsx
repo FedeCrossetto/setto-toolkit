@@ -203,7 +203,7 @@ function ImagesView({ header, pending }: { header: React.ReactNode; pending: Plu
   const filtered = !!(debounced || ticket || appFilter || onlyPinned)
 
   return (
-    <div id="captures-root" tabIndex={-1} className="flex h-full w-full overflow-hidden bg-background outline-none">
+    <div id="captures-root" tabIndex={-1} className="flex h-full w-full overflow-hidden bg-background outline-hidden">
       <section className="flex-1 min-w-0 flex flex-col">
         {/* ── Barra ── */}
         <div className="px-6 pt-5 pb-3 flex flex-col gap-3">
@@ -401,9 +401,9 @@ function CaptureCard({ c, animate, selected, dragIds, onClick, onCopy, onAnnotat
         selected ? 'shadow-[0_0_0_2px_rgb(var(--c-primary))]' : 'hairline hover:shadow-md'
       }`}
     >
-      <span className="block relative aspect-[16/10] bg-surface-container overflow-hidden">
+      <span className="block relative aspect-16/10 bg-surface-container overflow-hidden">
         <img src={thumbUrl(c.file)} alt="" loading="lazy" decoding="async" draggable={false} className="w-full h-full object-cover object-top" />
-        {c.pinned && <Pin size={13} weight="fill" className="absolute top-1.5 left-1.5 text-primary drop-shadow" />}
+        {c.pinned && <Pin size={13} weight="fill" className="absolute top-1.5 left-1.5 text-primary drop-shadow-sm" />}
         {c.annotatedFrom && <span className="absolute bottom-1.5 left-1.5 t-caption font-medium px-1.5 rounded bg-black/55 text-white">anotada</span>}
         <span className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <IconBtn label="Copiar" onClick={onCopy}><Copy size={12} /></IconBtn>
@@ -428,7 +428,7 @@ function FilterChip({ active, onClick, icon, children }: { active: boolean; onCl
   return (
     <button type="button" aria-pressed={active} onClick={onClick}
       className={`inline-flex items-center gap-1 h-[26px] px-2.5 rounded-full text-[12px] font-medium transition-colors ${
-        active ? 'bg-primary text-on-primary' : 'bg-on-surface/[0.06] text-on-surface-variant hover:bg-on-surface/[0.1] hover:text-on-surface'
+        active ? 'bg-primary text-on-primary' : 'bg-on-surface/6 text-on-surface-variant hover:bg-on-surface/10 hover:text-on-surface'
       }`}>
       {icon}{children}
     </button>
@@ -539,7 +539,7 @@ function Detail({ id, onClose, onCopy, onAnnotate, onDelete, onReveal, onExport 
               </button>
             )}
           </div>
-          <pre className="ui-card px-3 py-2 t-caption text-on-surface whitespace-pre-wrap break-words max-h-48 overflow-auto select-text font-sans">
+          <pre className="ui-card px-3 py-2 t-caption text-on-surface whitespace-pre-wrap wrap-break-word max-h-48 overflow-auto select-text font-sans">
             {entry.ocr === null ? 'Leyendo el texto…' : entry.ocr || 'No se reconoció texto.'}
           </pre>
         </div>

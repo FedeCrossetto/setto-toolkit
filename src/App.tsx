@@ -142,7 +142,7 @@ function AppShell(): JSX.Element {
 
       {/* Update banner */}
       {updateStatus && (
-        <div className="fixed bottom-4 right-4 z-[500] flex items-center gap-3 mac-popover hairline px-4 py-2.5 t-body">
+        <div className="fixed bottom-4 right-4 z-500 flex items-center gap-3 mac-popover hairline px-4 py-2.5 t-body">
           <ArrowDownToLine size={18} className="text-accent" />
           {updateStatus.type === 'available' ? (
             <>

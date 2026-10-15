@@ -433,8 +433,8 @@ export function CredentialsPlugin(): JSX.Element {
   return (
     <div ref={rootRef} className="flex h-full overflow-hidden bg-background">
       {/* ── List ────────────────────────────────────────────────────────── */}
-      <aside className="w-80 flex-shrink-0 flex flex-col bg-surface hairline-r overflow-hidden">
-        <div className="px-3 pt-4 pb-2 flex-shrink-0 space-y-2.5">
+      <aside className="w-80 shrink-0 flex flex-col bg-surface hairline-r overflow-hidden">
+        <div className="px-3 pt-4 pb-2 shrink-0 space-y-2.5">
           <div className="flex items-center gap-1.5 pl-1.5">
             <h2 className="t-headline text-on-surface">Credenciales</h2>
             <span className="t-caption font-medium tabular-nums text-on-surface-variant/70">{items.length}</span>
@@ -451,7 +451,7 @@ export function CredentialsPlugin(): JSX.Element {
                 {lock.unlocked ? <LockOpen size={14} /> : <Lock size={14} />}
               </button>
             )}
-            <div className="ml-auto relative flex-shrink-0">
+            <div className="ml-auto relative shrink-0">
               <button
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => setSortOpen((v) => !v)}
@@ -511,7 +511,7 @@ export function CredentialsPlugin(): JSX.Element {
             </button>
           </div>
           <div className="ui-input flex items-center gap-2 h-8 pl-2.5">
-            <Search size={14} className="text-on-surface-variant/70 flex-shrink-0" />
+            <Search size={14} className="text-on-surface-variant/70 shrink-0" />
             <input
               ref={searchRef}
               value={search}
@@ -519,7 +519,7 @@ export function CredentialsPlugin(): JSX.Element {
               onKeyDown={(e) => { if (e.key === 'Escape' && search) { e.preventDefault(); setSearch('') } }}
               placeholder="Buscar por nombre, usuario, sitio…"
               aria-label="Buscar credenciales"
-              className="flex-1 min-w-0 bg-transparent t-body text-on-surface outline-none"
+              className="flex-1 min-w-0 bg-transparent t-body text-on-surface outline-hidden"
             />
             {search ? (
               <button onClick={() => setSearch('')} aria-label="Limpiar búsqueda" className="text-on-surface-variant hover:text-on-surface pr-2">
@@ -541,7 +541,7 @@ export function CredentialsPlugin(): JSX.Element {
           {fatal && !data ? (
             <div className="px-3 py-8 text-center flex flex-col items-center gap-2">
               <p className="t-body font-medium text-on-surface">No se pudieron cargar las credenciales</p>
-              <p className="t-caption text-on-surface-variant break-words">{fatal}</p>
+              <p className="t-caption text-on-surface-variant wrap-break-word">{fatal}</p>
               <button onClick={() => void load(true)} className="ui-btn ui-btn-outline ui-btn-sm mt-1">
                 <RefreshCw size={12} /> Reintentar
               </button>
@@ -706,23 +706,23 @@ function CredentialRow({
       tabIndex={active ? 0 : -1}
       onClick={onSelect}
       onDoubleClick={onCopyPassword}
-      className={`group relative w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left cursor-default transition-colors duration-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 ${
-        active ? 'bg-selected' : 'hover:bg-on-surface/[0.04]'
+      className={`group relative w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left cursor-default transition-colors duration-100 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/45 ${
+        active ? 'bg-selected' : 'hover:bg-on-surface/4'
       }`}
     >
       <Avatar name={c.nombre} url={c.url} size={30} />
       <span className="flex-1 min-w-0">
         <span className="flex items-center gap-1 min-w-0">
           <span className={`t-body truncate ${active ? 'font-semibold text-on-surface' : 'font-medium text-on-surface'}`}>{c.nombre}</span>
-          {favorite && <Star size={10} weight="fill" className="text-primary flex-shrink-0" aria-label="Favorita" />}
-          {c.pending && <span title="Pendiente de sincronizar" className="text-warning flex-shrink-0"><CloudUpload size={12} /></span>}
-          {risk && <span title={risk} className="text-warning flex-shrink-0"><ShieldAlert size={12} /></span>}
+          {favorite && <Star size={10} weight="fill" className="text-primary shrink-0" aria-label="Favorita" />}
+          {c.pending && <span title="Pendiente de sincronizar" className="text-warning shrink-0"><CloudUpload size={12} /></span>}
+          {risk && <span title={risk} className="text-warning shrink-0"><ShieldAlert size={12} /></span>}
         </span>
         <span className="block t-footnote text-on-surface-variant truncate">{c.usuario || displayHost(c.url) || '—'}</span>
       </span>
       {(usage.useCount > 0 || when) && (
         <span
-          className="flex-shrink-0 flex flex-col items-end t-caption text-on-surface-variant/70 tabular-nums transition-opacity group-hover:opacity-0"
+          className="shrink-0 flex flex-col items-end t-caption text-on-surface-variant/70 tabular-nums transition-opacity group-hover:opacity-0"
           title={hint}
         >
           <span>{when}</span>
@@ -746,7 +746,7 @@ function CredentialRow({
 // ── Home: quick access ───────────────────────────────────────────────────────
 
 function Kbd({ children }: { children: React.ReactNode }): JSX.Element {
-  return <kbd className="font-sans inline-flex items-center px-1.5 h-[18px] rounded-[var(--radius-xs)] bg-on-surface/[0.06] t-caption font-medium text-on-surface-variant">{children}</kbd>
+  return <kbd className="font-sans inline-flex items-center px-1.5 h-[18px] rounded-(--r-xs) bg-on-surface/6 t-caption font-medium text-on-surface-variant">{children}</kbd>
 }
 
 function QuickAccess({
@@ -774,7 +774,7 @@ function QuickAccess({
           <p className="t-footnote text-on-surface-variant mt-1">Las que más usás. Un clic copia la contraseña.</p>
         </div>
         {locked && (
-          <button onClick={onUnlock} className="ui-btn ui-btn-outline ui-btn-sm flex-shrink-0">
+          <button onClick={onUnlock} className="ui-btn ui-btn-outline ui-btn-sm shrink-0">
             <Lock size={12} /> Desbloquear
           </button>
         )}
@@ -793,7 +793,7 @@ function QuickAccess({
                 tabIndex={0}
                 onClick={() => { if (c.hasPassword) void onCopyPassword(c).then((ok) => { if (ok) flash(c.id) }); else onOpen(c) }}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click() } }}
-                className="ui-card ui-card-interactive group p-3.5 flex flex-col gap-3 min-w-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45"
+                className="ui-card ui-card-interactive group p-3.5 flex flex-col gap-3 min-w-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/45"
                 title={c.hasPassword ? `Copiar la contraseña de ${c.nombre}` : `Ver ${c.nombre}`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -827,7 +827,7 @@ function QuickAccess({
                   >
                     <MoreHorizontal size={13} />
                   </button>
-                  {c.hasPassword && <Copy size={13} className="text-on-surface-variant/60 group-hover:text-primary transition-colors flex-shrink-0" aria-hidden />}
+                  {c.hasPassword && <Copy size={13} className="text-on-surface-variant/60 group-hover:text-primary transition-colors shrink-0" aria-hidden />}
                 </div>
               </div>
             )
@@ -835,7 +835,7 @@ function QuickAccess({
         </div>
       ) : (
         <div className="ui-card p-5 flex items-center gap-3">
-          <span className="w-9 h-9 rounded-xl bg-selected text-primary flex items-center justify-center flex-shrink-0"><KeyRound size={17} /></span>
+          <span className="w-9 h-9 rounded-xl bg-selected text-primary flex items-center justify-center shrink-0"><KeyRound size={17} /></span>
           <p className="t-body text-on-surface-variant">Las credenciales que más copies (y tus favoritas) van a aparecer acá.</p>
         </div>
       )}
@@ -863,8 +863,8 @@ function SyncFooter({ data, loading, onRetry }: { data: CredentialsListResult | 
       : { icon: TriangleAlert, tone: 'text-error', text: 'Error al sincronizar', sub: data.error ?? '' }
   const Icon = loading ? RefreshCw : view.icon
   return (
-    <div className="px-3.5 py-2.5 hairline-t flex items-center gap-2 flex-shrink-0" title={data.error}>
-      <Icon size={14} className={`${loading ? 'text-on-surface-variant animate-spin' : view.tone} flex-shrink-0`} />
+    <div className="px-3.5 py-2.5 hairline-t flex items-center gap-2 shrink-0" title={data.error}>
+      <Icon size={14} className={`${loading ? 'text-on-surface-variant animate-spin' : view.tone} shrink-0`} />
       <div className="flex-1 min-w-0">
         <p className="t-caption font-medium text-on-surface truncate">{loading ? 'Sincronizando…' : view.text}</p>
         <p className="t-caption text-on-surface-variant/80 truncate">

@@ -92,10 +92,10 @@ export function TabSwitcher<T extends TabLike>({ tabs, activeId, onCommit, rende
               return (
                 <div key={id} role="option" aria-selected={selected}
                   onMouseDown={(e) => { e.preventDefault(); setSw(null); onCommit(id) }}
-                  className={`flex items-center gap-2.5 h-[30px] px-2.5 rounded-lg cursor-default ${selected ? 'bg-selected text-on-surface' : 'text-on-surface/80 hover:bg-on-surface/[0.04]'}`}>
-                  <span className="flex-shrink-0 flex">{renderIcon(tab)}</span>
+                  className={`flex items-center gap-2.5 h-[30px] px-2.5 rounded-lg cursor-default ${selected ? 'bg-selected text-on-surface' : 'text-on-surface/80 hover:bg-on-surface/4'}`}>
+                  <span className="shrink-0 flex">{renderIcon(tab)}</span>
                   <span className={`text-[13px] truncate ${selected ? 'font-semibold' : 'font-medium'}`}>{tab.name}</span>
-                  {tab.isDirty && <span title="Sin guardar" className="w-1.5 h-1.5 rounded-full bg-on-surface-variant flex-shrink-0" />}
+                  {tab.isDirty && <span title="Sin guardar" className="w-1.5 h-1.5 rounded-full bg-on-surface-variant shrink-0" />}
                   {tab.path && <span className="ml-auto t-caption text-on-surface-variant truncate min-w-0 max-w-[45%]" title={tab.path}>{tab.path.replace(/[/\\][^/\\]+$/, '')}</span>}
                 </div>
               )

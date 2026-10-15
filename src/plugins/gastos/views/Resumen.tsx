@@ -99,11 +99,11 @@ export function Resumen({ data, mes, presupuesto, onSelectMes, onEditPresupuesto
           {top.length === 0 ? (
             <p className="t-footnote text-on-surface-variant px-4 py-6 text-center">Todavía no hay movimientos este mes.</p>
           ) : (
-            <ul className="divide-y divide-[var(--hairline)]">
+            <ul className="divide-y divide-(--hairline)">
               {top.map((m) => (
                 <li key={m.id}>
                   <button type="button" onClick={() => onOpenMovimiento(m)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-on-surface/[0.03] dark:hover:bg-on-surface/[0.05] transition-colors">
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-on-surface/3 dark:hover:bg-on-surface/5 transition-colors">
                     <span className="t-caption text-on-surface-variant w-12 tabular-nums">{fechaCorta(m.fecha)}</span>
                     <span className="flex-1 min-w-0">
                       <span className="block t-body text-on-surface truncate">{m.descripcion}</span>
@@ -192,7 +192,7 @@ function PorPagar({ pendientes, pagos, svc, faltantes, onPagar, onEditPago, onGe
           {faltantes ? 'Generá los pendientes para tener el checklist del mes.' : 'Todo pagado este mes.'}
         </p>
       ) : (
-        <ul className="divide-y divide-[var(--hairline)]">
+        <ul className="divide-y divide-(--hairline)">
           {pendientes.length > 1 && (
             <li className="flex items-center gap-3 px-4 py-1.5 t-caption text-on-surface-variant">
               <input type="checkbox" checked={allOn} aria-label="Seleccionar todos"
@@ -205,7 +205,7 @@ function PorPagar({ pendientes, pagos, svc, faltantes, onPagar, onEditPago, onGe
             const value = amounts[p.id] ?? amountText(montoSugerido(pagos, p))
             const valid = amountOf(p) !== null
             return (
-              <li key={p.id} className={`flex items-center gap-3 px-4 py-2 transition-colors ${selected.has(p.id) ? 'bg-selected' : 'hover:bg-on-surface/[0.03] dark:hover:bg-on-surface/[0.05]'}`}>
+              <li key={p.id} className={`flex items-center gap-3 px-4 py-2 transition-colors ${selected.has(p.id) ? 'bg-selected' : 'hover:bg-on-surface/3 dark:hover:bg-on-surface/5'}`}>
                 <input type="checkbox" checked={selected.has(p.id)} aria-label={`Seleccionar ${sv?.nombre ?? ''}`}
                   onChange={(e) => toggle(p.id, e.target.checked)} />
                 <ServiceTile icon={sv?.emoji ?? 'receipt'} />

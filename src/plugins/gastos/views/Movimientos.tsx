@@ -56,7 +56,7 @@ function EditableCell({ display, initial, kind, options, onCommit, label, classN
 
   if (!editing) {
     return (
-      <button type="button" className={`text-inherit rounded-md px-1.5 -mx-1.5 py-0.5 hover:bg-on-surface/[0.06] focus-visible:bg-on-surface/[0.06] cursor-text ${className ?? ''}`}
+      <button type="button" className={`text-inherit rounded-md px-1.5 -mx-1.5 py-0.5 hover:bg-on-surface/6 focus-visible:bg-on-surface/6 cursor-text ${className ?? ''}`}
         onClick={start} onKeyDown={(e) => { if (e.key === 'Enter') start(e) }} aria-label={`Editar ${label}`} title="Clic para editar">
         {display}
       </button>
@@ -235,7 +235,7 @@ export function Movimientos({ data, mes, onOpen, onDelete, onExport, onUpdateGas
                 const sel = m.id === selectedId
                 return (
                   <motion.tr {...rowMotion} key={m.id} data-mov={m.id} aria-selected={sel}
-                    className={`group border-b border-[var(--hairline)] last:border-0 transition-colors cursor-default ${sel ? 'bg-selected' : 'hover:bg-on-surface/[0.03] dark:hover:bg-on-surface/[0.05]'}`}
+                    className={`group border-b border-(--hairline) last:border-0 transition-colors cursor-default ${sel ? 'bg-selected' : 'hover:bg-on-surface/3 dark:hover:bg-on-surface/5'}`}
                     onClick={() => setSelectedId(m.id)} onDoubleClick={() => onOpen(m)}>
                     <td className="px-4 py-2 tabular-nums text-on-surface-variant whitespace-nowrap">
                       <EditableCell kind="date" label="fecha" initial={m.fecha} display={fechaCorta(m.fecha)} onCommit={(v) => update(m, 'fecha', v)} />

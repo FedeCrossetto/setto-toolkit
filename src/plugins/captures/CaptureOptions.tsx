@@ -74,7 +74,7 @@ export function CaptureOptions({ open, settings, facets, dir, onClose, onChange 
             Sugeridas:
             {suggestions.slice(0, 8).map((a) => (
               <button key={a} type="button" onClick={() => addExcluded(a)}
-                className="inline-flex items-center gap-1 h-[22px] px-2 rounded-full hairline hover:bg-on-surface/[0.05] text-on-surface">
+                className="inline-flex items-center gap-1 h-[22px] px-2 rounded-full hairline hover:bg-on-surface/5 text-on-surface">
                 <Plus size={10} /> {a}
               </button>
             ))}

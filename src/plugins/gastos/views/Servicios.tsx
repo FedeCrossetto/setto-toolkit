@@ -31,11 +31,11 @@ export function Servicios({ servicios, pagos, onAdd, onEdit, onDelete, onToggle 
       {cats.map((cat) => (
         <section key={cat} className="flex flex-col gap-2">
           <h3 className="t-callout font-semibold text-on-surface px-1">{cat || 'Sin categoría'}</h3>
-          <div className="ui-card overflow-hidden divide-y divide-[var(--hairline)]">
+          <div className="ui-card overflow-hidden divide-y divide-(--hairline)">
             {servicios.filter((s) => s.categoria === cat).map((svc) => {
               const ultimo = lastKnownMonto(pagos, svc.id, mes)
               return (
-                <div key={svc.id} className={`group flex items-center gap-3 px-4 py-2.5 min-h-[52px] hover:bg-on-surface/[0.03] dark:hover:bg-on-surface/[0.05] transition-colors ${svc.activo ? '' : 'opacity-55'}`}>
+                <div key={svc.id} className={`group flex items-center gap-3 px-4 py-2.5 min-h-[52px] hover:bg-on-surface/3 dark:hover:bg-on-surface/5 transition-colors ${svc.activo ? '' : 'opacity-55'}`}>
                   <ServiceTile icon={svc.emoji} />
                   <button type="button" className="flex-1 min-w-0 text-left" onClick={() => onEdit(svc)}>
                     <div className="t-body font-medium text-on-surface truncate">{svc.nombre}</div>

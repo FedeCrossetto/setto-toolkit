@@ -41,10 +41,10 @@ function RowCopy({ value, label, secret = false }: { value: string; label: strin
 
 function DetailRow({ label, children, actions }: { label: string; children: React.ReactNode; actions?: React.ReactNode }): JSX.Element {
   return (
-    <div className="group flex items-center gap-4 px-6 py-2.5 min-h-[50px] hover:bg-on-surface/[0.025] transition-colors">
-      <span className="w-24 flex-shrink-0 t-footnote font-medium text-on-surface-variant">{label}</span>
+    <div className="group flex items-center gap-4 px-6 py-2.5 min-h-[50px] hover:bg-on-surface/2.5 transition-colors">
+      <span className="w-24 shrink-0 t-footnote font-medium text-on-surface-variant">{label}</span>
       <div className="flex-1 min-w-0 t-body text-on-surface">{children}</div>
-      {actions && <div className="flex items-center gap-0.5 flex-shrink-0 opacity-70 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">{actions}</div>}
+      {actions && <div className="flex items-center gap-0.5 shrink-0 opacity-70 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">{actions}</div>}
     </div>
   )
 }
@@ -102,7 +102,7 @@ export function CredentialView({
             <h1 className="t-title2 text-on-surface truncate">{c.nombre}</h1>
             <button
               onClick={onToggleFavorite}
-              className={`ui-btn ui-btn-ghost ui-btn-icon rounded-lg flex-shrink-0 ${favorite ? 'text-primary' : 'text-on-surface-variant'}`}
+              className={`ui-btn ui-btn-ghost ui-btn-icon rounded-lg shrink-0 ${favorite ? 'text-primary' : 'text-on-surface-variant'}`}
               title={favorite ? 'Quitar de favoritas' : 'Marcar como favorita'}
               aria-label={favorite ? 'Quitar de favoritas' : 'Marcar como favorita'}
               aria-pressed={favorite}
@@ -124,7 +124,7 @@ export function CredentialView({
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           <button onClick={onDelete} className="ui-btn ui-btn-ghost ui-btn-icon rounded-lg hover:text-error" title="Eliminar (Supr)" aria-label="Eliminar">
             <Trash2 size={16} />
           </button>
@@ -147,7 +147,7 @@ export function CredentialView({
       </div>
 
       <div className={SECTION}>Acceso</div>
-      <div className="hairline-t divide-y divide-[var(--hairline)]">
+      <div className="hairline-t divide-y divide-(--hairline)">
         <DetailRow label="Usuario" actions={c.usuario ? <RowCopy value={c.usuario} label="Copiar usuario" /> : undefined}>
           {c.usuario ? <span className="select-all break-all">{c.usuario}</span> : <span className="text-on-surface-variant">—</span>}
         </DetailRow>
@@ -184,8 +184,8 @@ export function CredentialView({
         </DetailRow>
 
         {(reusedWith.length > 0 || weak) && (
-          <div className="flex items-start gap-2.5 px-6 py-3 bg-warning/[0.06]">
-            <ShieldAlert size={15} className="text-warning mt-px flex-shrink-0" />
+          <div className="flex items-start gap-2.5 px-6 py-3 bg-warning/6">
+            <ShieldAlert size={15} className="text-warning mt-px shrink-0" />
             <p className="t-footnote text-on-surface">
               {reusedWith.length > 0 && <>La misma contraseña se usa en {reusedWith.join(', ')}. </>}
               {weak && 'Es una contraseña débil. '}
@@ -217,7 +217,7 @@ export function CredentialView({
         <>
           <div className={`${SECTION} pt-4`}>Notas</div>
           <div className="hairline-t px-6 pt-3 pb-5">
-            <div className="group relative rounded-xl bg-surface-container dark:bg-white/[0.04] px-4 py-3 pr-12 t-body text-on-surface whitespace-pre-wrap break-words">
+            <div className="group relative rounded-xl bg-surface-container dark:bg-white/4 px-4 py-3 pr-12 t-body text-on-surface whitespace-pre-wrap wrap-break-word">
               {c.notas}
               <div className="absolute top-1.5 right-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
                 <RowCopy value={c.notas} label="Copiar notas" />
@@ -326,7 +326,7 @@ export function CredentialEditor({
           <div className="relative">
             <div className="ui-input w-full flex items-center gap-1 py-0 pr-1">
               <input
-                className="flex-1 min-w-0 bg-transparent outline-none py-[5px] font-mono"
+                className="flex-1 min-w-0 bg-transparent outline-hidden py-[5px] font-mono"
                 type={showPass ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setDirty(true) }}

@@ -17,10 +17,10 @@ import { Modal, useConfirm } from '../../core/components/Modal'
 import { SegmentedControl } from '../../core/components/SegmentedControl'
 
 /** Segmented-control look for inline tab rows (matches core SegmentedControl). */
-const SEG_GROUP = 'inline-flex items-center gap-0.5 p-[2px] rounded-lg bg-on-surface/[0.06]'
+const SEG_GROUP = 'inline-flex items-center gap-0.5 p-[2px] rounded-lg bg-on-surface/6'
 const segBtn = (active: boolean): string =>
   `flex items-center gap-1.5 px-3 py-[3px] rounded-[7px] t-footnote font-medium transition-colors ${
-    active ? 'bg-surface dark:bg-white/[0.16] text-on-surface shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`
+    active ? 'bg-surface dark:bg-white/16 text-on-surface shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 const METHOD_COLOR: Record<HttpMethod, string> = {
@@ -36,8 +36,8 @@ const METHOD_BG: Record<HttpMethod, string> = {
   PUT:     'bg-warning/15 text-warning',
   PATCH:   'bg-warning/15 text-warning',
   DELETE:  'bg-error/15 text-error',
-  HEAD:    'bg-on-surface/[0.06] text-on-surface-variant',
-  OPTIONS: 'bg-on-surface/[0.06] text-on-surface-variant',
+  HEAD:    'bg-on-surface/6 text-on-surface-variant',
+  OPTIONS: 'bg-on-surface/6 text-on-surface-variant',
 }
 
 /** Thin wrapper over the shared core Modal (kept so call sites stay the same). */
@@ -64,12 +64,12 @@ function MethodSelect({ value, onChange }: { value: HttpMethod; onChange: (m: Ht
   }, [open])
 
   return (
-    <div ref={ref} className="relative flex-shrink-0">
+    <div ref={ref} className="relative shrink-0">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-label="Método HTTP"
-        className={`flex items-center gap-1.5 rounded-md px-2.5 py-[5px] t-footnote font-semibold font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-colors ${METHOD_BG[value]}`}
+        className={`flex items-center gap-1.5 rounded-md px-2.5 py-[5px] t-footnote font-semibold font-mono focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/40 transition-colors ${METHOD_BG[value]}`}
       >
         {value}
         <ChevronDown size={12} className="opacity-50" />
@@ -89,7 +89,7 @@ function MethodSelect({ value, onChange }: { value: HttpMethod; onChange: (m: Ht
                 onClick={() => { onChange(m); setOpen(false) }}
                 className="ui-menu-item w-full text-left font-mono t-footnote font-semibold"
               >
-                <span className="w-3 flex-shrink-0">{m === value ? <Check size={12} /> : null}</span>
+                <span className="w-3 shrink-0">{m === value ? <Check size={12} /> : null}</span>
                 {m}
               </button>
             ))}
@@ -119,9 +119,9 @@ function HistoryItem({
   const date = d.toLocaleDateString([], { month: 'short', day: 'numeric' })
 
   return (
-    <div className="group mx-1.5 px-2 py-1.5 rounded-md hover:bg-on-surface/[0.05] transition-colors">
+    <div className="group mx-1.5 px-2 py-1.5 rounded-md hover:bg-on-surface/5 transition-colors">
       <button onClick={onRestore} className="w-full flex items-start gap-2 text-left">
-        <span className={`t-caption font-bold px-1.5 py-0.5 rounded-md flex-shrink-0 ${METHOD_BG[entry.request.method]}`}>
+        <span className={`t-caption font-bold px-1.5 py-0.5 rounded-md shrink-0 ${METHOD_BG[entry.request.method]}`}>
           {entry.request.method}
         </span>
         <div className="flex-1 min-w-0">
@@ -145,7 +145,7 @@ function HistoryItem({
           ) : (
             <div className="flex gap-1 items-center">
               <select defaultValue="" onChange={(e) => { if (e.target.value) { onSave(e.target.value); setShowSave(false) } }}
-                aria-label="Colección" className="ui-input !py-0 !px-1 t-caption">
+                aria-label="Colección" className="ui-input py-0! px-1! t-caption">
                 <option value="" disabled>Colección…</option>
                 {collections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
@@ -182,7 +182,7 @@ function HistoryPanel({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="px-3 pt-3 pb-2 hairline-b flex-shrink-0">
+      <div className="px-3 pt-3 pb-2 hairline-b shrink-0">
         <div className="flex items-center justify-between mb-2">
           <span className="t-section">
             {history.length} request{history.length !== 1 ? 's' : ''}
@@ -195,13 +195,13 @@ function HistoryPanel({
         </div>
         {history.length > 0 && (
           <>
-            <div className="ui-input flex items-center gap-1.5 !px-2 !py-1 mb-2">
+            <div className="ui-input flex items-center gap-1.5 px-2! py-1! mb-2">
               <Search size={12} className="text-on-surface-variant" />
               <input
                 value={urlSearch} onChange={(e) => setUrlSearch(e.target.value)}
                 placeholder="Filtrar por URL…"
                 aria-label="Filtrar por URL"
-                className="flex-1 bg-transparent t-footnote text-on-surface placeholder:text-on-surface-variant/50 outline-none"
+                className="flex-1 bg-transparent t-footnote text-on-surface placeholder:text-on-surface-variant/50 outline-hidden"
               />
               {urlSearch && (
                 <button onClick={() => setUrlSearch('')} aria-label="Limpiar filtro" className="text-on-surface-variant hover:text-on-surface">
@@ -215,7 +215,7 @@ function HistoryPanel({
                   className={`px-2 py-0.5 t-caption font-semibold rounded-md transition-colors ${
                     methodFilter === m
                       ? 'bg-primary text-on-primary'
-                      : 'bg-on-surface/[0.05] text-on-surface-variant hover:text-on-surface'
+                      : 'bg-on-surface/5 text-on-surface-variant hover:text-on-surface'
                   }`}>
                   {m === 'ALL' ? 'Todos' : m}
                 </button>
@@ -446,10 +446,10 @@ export function ApiLab(): JSX.Element {
     <div className="flex h-full overflow-hidden">
 
       {/* ── Left panel: collections / environments ───────────────────────── */}
-      <aside className="w-64 flex-shrink-0 hairline-r flex flex-col bg-sidebar/40 overflow-hidden">
+      <aside className="w-64 shrink-0 hairline-r flex flex-col bg-sidebar/40 overflow-hidden">
 
         {/* Tab toggle */}
-        <div className="flex items-center justify-center h-10 hairline-b flex-shrink-0 px-2">
+        <div className="flex items-center justify-center h-10 hairline-b shrink-0 px-2">
           <SegmentedControl
             options={[
               { value: 'collections', label: 'Guardado' },
@@ -463,7 +463,7 @@ export function ApiLab(): JSX.Element {
 
         {leftTab === 'collections' ? (
           <>
-            <div className="px-3 pt-3 pb-2 flex-shrink-0">
+            <div className="px-3 pt-3 pb-2 shrink-0">
               <div className="flex items-center justify-between">
                 <span className="t-section">Colecciones</span>
                 <div className="flex items-center gap-0.5">
@@ -478,7 +478,7 @@ export function ApiLab(): JSX.Element {
               {showNewCol && (
                 <form onSubmit={async (e) => { e.preventDefault(); if (newColName.trim()) { await createCollection(newColName.trim()); setNewColName(''); setShowNewCol(false) } }} className="flex gap-1 mt-2">
                   <input autoFocus value={newColName} onChange={(e) => setNewColName(e.target.value)} placeholder="Nombre de la colección"
-                    className="ui-input flex-1 !py-1 t-footnote" />
+                    className="ui-input flex-1 py-1! t-footnote" />
                   <button type="submit" aria-label="Crear colección" className="ui-btn ui-btn-ghost ui-btn-icon"><Check size={14} /></button>
                 </form>
               )}
@@ -528,7 +528,7 @@ export function ApiLab(): JSX.Element {
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* URL bar */}
-        <div className="flex items-center gap-2 px-3 py-2 hairline-b bg-surface flex-shrink-0">
+        <div className="flex items-center gap-2 px-3 py-2 hairline-b bg-surface shrink-0">
           <MethodSelect value={active.method} onChange={(m) => setActive((a) => ({ ...a, method: m }))} />
 
           <input value={active.url} onChange={(e) => setActive((a) => ({ ...a, url: e.target.value }))}
@@ -538,7 +538,7 @@ export function ApiLab(): JSX.Element {
             className="ui-input flex-1 font-mono t-footnote" />
 
           {activeEnvName && (
-            <span className="ui-badge flex-shrink-0 bg-on-surface/[0.06] text-on-surface-variant" title="Entorno activo">
+            <span className="ui-badge shrink-0 bg-on-surface/6 text-on-surface-variant" title="Entorno activo">
               <Network size={11} />
               {activeEnvName}
             </span>
@@ -576,7 +576,7 @@ export function ApiLab(): JSX.Element {
         </div>
 
         {/* Request tabs */}
-        <div className="flex items-center px-3 h-10 hairline-b bg-surface flex-shrink-0">
+        <div className="flex items-center px-3 h-10 hairline-b bg-surface shrink-0">
           <div className={SEG_GROUP}>
           {([
             { id: 'params',  label: 'Parámetros',  dot: active.params.some((p) => p.enabled && p.key) },
@@ -587,7 +587,7 @@ export function ApiLab(): JSX.Element {
           ] as { id: RequestTab; label: string; dot: boolean }[]).map(({ id, label, dot }) => (
             <button key={id} onClick={() => setReqTab(id)} aria-pressed={reqTab === id} className={segBtn(reqTab === id)}>
               {label}
-              {dot && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-primary" />}
+              {dot && <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-primary" />}
             </button>
           ))}
           </div>
@@ -597,7 +597,7 @@ export function ApiLab(): JSX.Element {
         <div className="flex-1 overflow-auto p-4 bg-surface min-h-0">
           {reqTab === 'body' && (
             <div className="h-full flex flex-col gap-2">
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                 <div className="flex-1">
                   <div className={SEG_GROUP}>
                   {(['none', 'json', 'text', 'xml', 'form', 'form-data'] as BodyType[]).map((t) => (
@@ -634,7 +634,7 @@ export function ApiLab(): JSX.Element {
               ) : active.body.type !== 'none' && (
                 <>
                   <textarea value={active.body.content} onChange={(e) => setActive((a) => ({ ...a, body: { ...a.body, content: e.target.value } }))}
-                    className="ui-input flex-1 font-mono t-footnote !p-3 resize-none"
+                    className="ui-input flex-1 font-mono t-footnote p-3! resize-none"
                     aria-label="Cuerpo del request"
                     placeholder={
                       active.body.type === 'json' ? '{\n  "key": "value"\n}' :
@@ -642,7 +642,7 @@ export function ApiLab(): JSX.Element {
                       'Cuerpo del request…'
                     } />
                   {extractTemplateVars(active.body.content).length > 0 && (
-                    <div className="flex-shrink-0 hairline rounded-lg overflow-hidden">
+                    <div className="shrink-0 hairline rounded-lg overflow-hidden">
                       <div className="flex items-center gap-1.5 px-3 py-1.5 bg-sidebar/40 hairline-b">
                         <Eye size={11} className="text-on-surface-variant" />
                         <span className="t-caption font-semibold text-on-surface-variant">Vista previa resuelta</span>
@@ -690,12 +690,12 @@ export function ApiLab(): JSX.Element {
         <div
           onMouseDown={startResize}
           title="Arrastrar para redimensionar"
-          className="h-[5px] -mb-[5px] relative z-10 flex-shrink-0 cursor-row-resize hover:bg-primary/30 transition-colors"
+          className="h-[5px] mb-[-5px] relative z-10 shrink-0 cursor-row-resize hover:bg-primary/30 transition-colors"
         />
 
         {/* Response panel */}
-        <div className="relative flex-shrink-0 hairline-t flex flex-col bg-surface overflow-hidden" style={{ height: responseHeight }}>
-          <div className="flex items-center gap-3 px-3 h-10 hairline-b bg-sidebar/40 flex-shrink-0">
+        <div className="relative shrink-0 hairline-t flex flex-col bg-surface overflow-hidden" style={{ height: responseHeight }}>
+          <div className="flex items-center gap-3 px-3 h-10 hairline-b bg-sidebar/40 shrink-0">
             {/* ── Status / loading / idle ───────────────────────────── */}
             {status === 'loading' && (
               <span className="inline-flex items-center gap-2 t-footnote text-on-surface-variant">
@@ -711,7 +711,7 @@ export function ApiLab(): JSX.Element {
                   : response.status < 400 ? 'ui-badge-primary'
                   : response.status < 500 ? 'ui-badge-warning'
                   : 'ui-badge-error'}`}>
-                  <span className="w-1.5 h-1.5 rounded-full inline-block flex-shrink-0" style={{ background: 'currentColor' }} />
+                  <span className="w-1.5 h-1.5 rounded-full inline-block shrink-0" style={{ background: 'currentColor' }} />
                   {response.status} {response.statusText}
                 </span>
                 {/* Timing */}
@@ -725,7 +725,7 @@ export function ApiLab(): JSX.Element {
             )}
             {error && (
               <div className="flex items-center gap-2">
-                <CircleAlert size={14} className="text-error flex-shrink-0" />
+                <CircleAlert size={14} className="text-error shrink-0" />
                 <span className="t-footnote text-on-surface">{error}</span>
                 <button onClick={handleExecute} disabled={!active.url.trim()}
                   className="ui-btn ui-btn-outline ui-btn-sm">
@@ -789,12 +789,12 @@ export function ApiLab(): JSX.Element {
                 {/* Headers */}
                 <div>
                   <p className="t-section mb-1.5">Encabezados</p>
-                  <div className="space-y-1 bg-on-surface/[0.04] rounded-md p-2 font-mono">
+                  <div className="space-y-1 bg-on-surface/4 rounded-md p-2 font-mono">
                     {sentSnapshot.headers.length === 0
                       ? <span className="text-on-surface-variant t-footnote italic">ninguno</span>
                       : sentSnapshot.headers.map((h, i) => (
                         <div key={i} className="flex gap-2 t-footnote">
-                          <span className="text-primary flex-shrink-0">{h.key}:</span>
+                          <span className="text-primary shrink-0">{h.key}:</span>
                           <span className="text-on-surface break-all">{h.value}</span>
                         </div>
                       ))
@@ -808,7 +808,7 @@ export function ApiLab(): JSX.Element {
                     <p className="t-section mb-1.5">
                       Cuerpo <span className="font-normal text-on-surface-variant">({sentSnapshot.bodyType})</span>
                     </p>
-                    <pre className="whitespace-pre-wrap break-all bg-on-surface/[0.04] rounded-md p-2 font-mono t-footnote text-on-surface leading-relaxed"
+                    <pre className="whitespace-pre-wrap break-all bg-on-surface/4 rounded-md p-2 font-mono t-footnote text-on-surface leading-relaxed"
                       dangerouslySetInnerHTML={{ __html: highlightJson(tryFormatJson(sentSnapshot.body)) }} />
                   </div>
                 )}
@@ -983,7 +983,7 @@ function ImportCurlModal({ onImport, onClose, activeEnvName }: {
 
       {detectedVars.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 t-footnote">
-          <span className="text-on-surface font-semibold flex-shrink-0">Variables detectadas:</span>
+          <span className="text-on-surface font-semibold shrink-0">Variables detectadas:</span>
           {detectedVars.map((v) => (
             <span key={v} className="ui-badge ui-badge-primary font-mono">{`{{${v}}}`}</span>
           ))}
@@ -1054,7 +1054,7 @@ function CollectionItem({ collection, activeRequestId, onSelectRequest, onNewReq
 
   return (
     <div className="mb-0.5">
-      <div className="flex items-center gap-1 mx-1.5 px-1.5 h-[26px] group hover:bg-on-surface/[0.05] rounded-md cursor-default" onClick={() => setOpen((o) => !o)}>
+      <div className="flex items-center gap-1 mx-1.5 px-1.5 h-[26px] group hover:bg-on-surface/5 rounded-md cursor-default" onClick={() => setOpen((o) => !o)}>
         {open ? <ChevronDown size={13} className="text-on-surface-variant" /> : <ChevronRight size={13} className="text-on-surface-variant" />}
         <span className="t-footnote font-semibold text-on-surface flex-1 truncate min-w-0">{collection.name}</span>
         <button onClick={(e) => { e.stopPropagation(); onNewRequest() }} className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-on-surface" title="Nuevo request" aria-label="Nuevo request">
@@ -1069,8 +1069,8 @@ function CollectionItem({ collection, activeRequestId, onSelectRequest, onNewReq
         <div key={req.id}
           onClick={() => { if (renamingId !== req.id) onSelectRequest(req.id) }}
           onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, reqId: req.id }) }}
-          className={`flex items-center gap-2 mx-1.5 pl-6 pr-2 h-[26px] group rounded-md cursor-default ${activeRequestId === req.id ? 'bg-primary/15' : 'hover:bg-on-surface/[0.05]'}`}>
-          <span className={`t-caption font-semibold font-mono w-12 flex-shrink-0 ${METHOD_COLOR[req.method]}`}>{req.method}</span>
+          className={`flex items-center gap-2 mx-1.5 pl-6 pr-2 h-[26px] group rounded-md cursor-default ${activeRequestId === req.id ? 'bg-primary/15' : 'hover:bg-on-surface/5'}`}>
+          <span className={`t-caption font-semibold font-mono w-12 shrink-0 ${METHOD_COLOR[req.method]}`}>{req.method}</span>
 
           {renamingId === req.id ? (
             <input
@@ -1081,7 +1081,7 @@ function CollectionItem({ collection, activeRequestId, onSelectRequest, onNewReq
               onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null) }}
               onClick={(e) => e.stopPropagation()}
               aria-label="Nombre del request"
-              className="flex-1 t-footnote bg-surface rounded px-1.5 py-0 text-on-surface focus:outline-none shadow-[0_0_0_2px_rgb(var(--c-primary)/0.5)]"
+              className="flex-1 t-footnote bg-surface rounded px-1.5 py-0 text-on-surface focus:outline-hidden shadow-[0_0_0_2px_rgb(var(--c-primary)/0.5)]"
             />
           ) : (
             <span className="t-footnote text-on-surface truncate flex-1 min-w-0" title={req.name}>{req.name}</span>
@@ -1103,7 +1103,7 @@ function CollectionItem({ collection, activeRequestId, onSelectRequest, onNewReq
           if (!req) return null
           return (
             <motion.div
-              className="ui-menu fixed z-[300] min-w-[140px]"
+              className="ui-menu fixed z-300 min-w-[140px]"
               style={{ top: ctxMenu.y, left: ctxMenu.x }}
               onMouseDown={(e) => e.stopPropagation()}
               initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}
@@ -1116,7 +1116,7 @@ function CollectionItem({ collection, activeRequestId, onSelectRequest, onNewReq
                 <Copy size={14} /> Duplicar
               </button>
               <div className="hairline-t my-1" />
-              <button onClick={() => { onDeleteRequest(req.id); setCtxMenu(null) }} className="ui-menu-item !text-error hover:!text-on-primary">
+              <button onClick={() => { onDeleteRequest(req.id); setCtxMenu(null) }} className="ui-menu-item text-error! hover:text-on-primary!">
                 <Trash2 size={14} /> Eliminar
               </button>
             </motion.div>
@@ -1140,9 +1140,9 @@ function KVEditor({ pairs, onChange }: { pairs: KeyValuePair[]; onChange: (p: Ke
         <div key={p.id} className="flex items-center gap-2">
           <input type="checkbox" checked={p.enabled} onChange={(e) => update(p.id, 'enabled', e.target.checked)} className="accent-primary" />
           <input value={p.key} onChange={(e) => update(p.id, 'key', e.target.value)} placeholder="Clave"
-            className="ui-input flex-1 !py-1 font-mono t-footnote" />
+            className="ui-input flex-1 py-1! font-mono t-footnote" />
           <input value={p.value} onChange={(e) => update(p.id, 'value', e.target.value)} placeholder="Valor"
-            className="ui-input flex-1 !py-1 font-mono t-footnote" />
+            className="ui-input flex-1 py-1! font-mono t-footnote" />
           <button onClick={() => remove(p.id)} title="Quitar fila" aria-label="Quitar fila" className="ui-btn ui-btn-ghost ui-btn-icon">
             <X size={13} />
           </button>
@@ -1185,9 +1185,9 @@ function FormDataEditor({ fields, onChange }: { fields: FormDataField[]; onChang
         <div key={f.id} className="flex items-center gap-2">
           <input type="checkbox" checked={f.enabled} onChange={(e) => update(f.id, { enabled: e.target.checked })} className="accent-primary" />
           <input value={f.key} onChange={(e) => update(f.id, { key: e.target.value })} placeholder="Clave"
-            className="ui-input flex-1 !py-1 font-mono t-footnote" />
+            className="ui-input flex-1 py-1! font-mono t-footnote" />
           {f.isFile ? (
-            <div className="ui-input flex-1 flex items-center gap-1 !py-1 t-footnote text-on-surface-variant">
+            <div className="ui-input flex-1 flex items-center gap-1 py-1! t-footnote text-on-surface-variant">
               <Paperclip size={12} />
               <span className="truncate">{getFileLabel(f.value)}</span>
               <button onClick={() => update(f.id, { value: '', isFile: false })} aria-label="Quitar archivo" className="ml-auto text-on-surface-variant hover:text-on-surface">
@@ -1196,7 +1196,7 @@ function FormDataEditor({ fields, onChange }: { fields: FormDataField[]; onChang
             </div>
           ) : (
             <input value={f.value} onChange={(e) => update(f.id, { value: e.target.value })} placeholder="Valor"
-              className="ui-input flex-1 !py-1 font-mono t-footnote" />
+              className="ui-input flex-1 py-1! font-mono t-footnote" />
           )}
           <label title="Adjuntar archivo" className="ui-btn ui-btn-ghost ui-btn-icon cursor-pointer">
             <FileUp size={13} />
@@ -1297,7 +1297,7 @@ function EnvironmentPanel({ environments, onChange }: {
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       {/* Environment list */}
-      <div className="px-3 pt-3 pb-2 hairline-b flex-shrink-0">
+      <div className="px-3 pt-3 pb-2 hairline-b shrink-0">
         <div className="flex items-center justify-between mb-2">
           <span className="t-section">Entornos</span>
           <button onClick={() => setShowNew(true)} title="Nuevo entorno" aria-label="Nuevo entorno" className="ui-btn ui-btn-ghost ui-btn-icon">
@@ -1307,17 +1307,17 @@ function EnvironmentPanel({ environments, onChange }: {
         {showNew && (
           <form onSubmit={(e) => { e.preventDefault(); void handleAddEnv() }} className="flex gap-1 mb-2">
             <input autoFocus value={newEnvName} onChange={(e) => setNewEnvName(e.target.value)} placeholder="Nombre del entorno"
-              className="ui-input flex-1 !py-1 t-footnote" />
+              className="ui-input flex-1 py-1! t-footnote" />
             <button type="submit" aria-label="Crear entorno" className="ui-btn ui-btn-ghost ui-btn-icon"><Check size={14} /></button>
           </form>
         )}
         <div className="space-y-0.5 max-h-36 overflow-y-auto">
           {environments.map((env) => (
             <div key={env.id} onClick={() => setSelectedId(env.id)}
-              className={`flex items-center gap-2 px-2 h-[26px] rounded-md cursor-default group transition-colors ${selectedId === env.id ? 'bg-primary/15' : 'hover:bg-on-surface/[0.05]'}`}>
+              className={`flex items-center gap-2 px-2 h-[26px] rounded-md cursor-default group transition-colors ${selectedId === env.id ? 'bg-primary/15' : 'hover:bg-on-surface/5'}`}>
               <button
                 onClick={(e) => { e.stopPropagation(); void handleSetActive(env.id) }}
-                className={`w-2.5 h-2.5 rounded-full flex-shrink-0 border transition-colors ${env.isActive ? 'bg-success border-success' : 'border-hairline-strong hover:border-success'}`}
+                className={`w-2.5 h-2.5 rounded-full shrink-0 border transition-colors ${env.isActive ? 'bg-success border-success' : 'border-hairline-strong hover:border-success'}`}
                 title={env.isActive ? 'Entorno activo' : 'Marcar como activo'}
                 aria-label={env.isActive ? 'Entorno activo' : 'Marcar como activo'}
               />
@@ -1338,12 +1338,12 @@ function EnvironmentPanel({ environments, onChange }: {
       {/* Variable editor */}
       {selected && (
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="px-3 pt-3 pb-1 flex-shrink-0 flex items-center justify-between gap-2">
+          <div className="px-3 pt-3 pb-1 shrink-0 flex items-center justify-between gap-2">
             <p className="t-caption text-on-surface-variant">
-              Usá <code className="bg-on-surface/[0.06] px-1 rounded font-mono">{`{{variable}}`}</code> en URLs, encabezados y cuerpo.
+              Usá <code className="bg-on-surface/6 px-1 rounded font-mono">{`{{variable}}`}</code> en URLs, encabezados y cuerpo.
             </p>
             {varsSaved && (
-              <span className="flex items-center gap-0.5 t-caption text-success flex-shrink-0" style={{ animation: 'fe-saved-pop 0.2s ease both' }}>
+              <span className="flex items-center gap-0.5 t-caption text-success shrink-0" style={{ animation: 'fe-saved-pop 0.2s ease both' }}>
                 <Check size={11} /> Guardado
               </span>
             )}
@@ -1357,14 +1357,14 @@ function EnvironmentPanel({ environments, onChange }: {
                   <div key={p.id} className="flex items-center gap-1.5">
                     <input value={p.key} onChange={(e) => setVarPairs((ps) => ps.map((x) => x.id === p.id ? { ...x, key: e.target.value } : x))}
                       placeholder="Variable"
-                      className="ui-input flex-1 !py-1 font-mono t-footnote" />
+                      className="ui-input flex-1 py-1! font-mono t-footnote" />
                     <div className="relative flex-1">
                       <input
                         type={isSecret && !isRevealed ? 'password' : 'text'}
                         value={p.value}
                         onChange={(e) => setVarPairs((ps) => ps.map((x) => x.id === p.id ? { ...x, value: e.target.value } : x))}
                         placeholder="Valor"
-                        className="ui-input w-full !py-1 !pr-6 font-mono t-footnote"
+                        className="ui-input w-full py-1! pr-6! font-mono t-footnote"
                       />
                       {isSecret && (
                         <button
@@ -1383,16 +1383,16 @@ function EnvironmentPanel({ environments, onChange }: {
                       onClick={() => toggleSecret(p.key)}
                       title={isSecret ? 'Desmarcar como secreto' : 'Marcar como secreto'}
                       aria-label={isSecret ? 'Desmarcar como secreto' : 'Marcar como secreto'}
-                      className={`flex-shrink-0 transition-colors ${isSecret ? 'text-on-surface' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+                      className={`shrink-0 transition-colors ${isSecret ? 'text-on-surface' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
                     >
                       {isSecret ? <Lock size={13} /> : <LockOpen size={13} />}
                     </button>
                     <button onClick={() => void handleSaveVars()} title="Guardar" aria-label="Guardar"
-                      className="text-on-surface-variant hover:text-success transition-colors flex-shrink-0">
+                      className="text-on-surface-variant hover:text-success transition-colors shrink-0">
                       <Check size={13} />
                     </button>
                     <button onClick={() => setVarPairs((ps) => ps.filter((x) => x.id !== p.id))} title="Quitar variable" aria-label="Quitar variable"
-                      className="text-on-surface-variant hover:text-on-surface transition-colors flex-shrink-0">
+                      className="text-on-surface-variant hover:text-on-surface transition-colors shrink-0">
                       <X size={13} />
                     </button>
                   </div>
@@ -1447,7 +1447,7 @@ function ScriptEditor({
 }): JSX.Element {
   return (
     <div className="flex flex-col gap-1 flex-1 min-h-0">
-      <div className="flex-shrink-0">
+      <div className="shrink-0">
         <span className="t-footnote font-semibold text-on-surface">{label}</span>
         <p className="t-caption text-on-surface-variant mt-0.5">{description}</p>
       </div>

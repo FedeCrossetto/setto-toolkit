@@ -115,7 +115,7 @@ export function ConnectionProblem({ health, onRetry, checking }: { health: Supab
   const isAuth = health.reachable && !health.authOk
   return (
     <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-surface hairline shadow-sm t-footnote text-on-surface-variant">
-      <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${isAuth ? 'bg-error/[0.12] text-error' : 'bg-warning/[0.14] text-warning'}`}>
+      <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${isAuth ? 'bg-error/12 text-error' : 'bg-warning/[0.14] text-warning'}`}>
         <Plug size={14} />
       </span>
       <span className="flex-1">

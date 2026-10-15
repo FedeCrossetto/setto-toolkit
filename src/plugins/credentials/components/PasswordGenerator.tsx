@@ -65,7 +65,7 @@ export function PasswordGenerator({ onUse, onClose }: { onUse: (pwd: string) => 
       className="mac-popover hairline absolute right-0 top-full mt-2 z-50 w-[340px] p-4 flex flex-col gap-3.5"
       style={{ animation: 'mac-pop-in 0.14s ease both' }}
     >
-      <div className="flex items-center gap-1.5 rounded-lg bg-surface-container dark:bg-white/[0.05] pl-3 pr-1 py-1">
+      <div className="flex items-center gap-1.5 rounded-lg bg-surface-container dark:bg-white/5 pl-3 pr-1 py-1">
         <span className="flex-1 min-w-0 font-mono t-footnote text-on-surface break-all select-all py-1">{value}</span>
         <button type="button" onClick={() => regenerate(opts)} className="ui-btn ui-btn-ghost ui-btn-icon rounded-lg" title="Generar otra" aria-label="Generar otra">
           <RefreshCw size={14} />

@@ -153,7 +153,7 @@ export const QuickAdd = forwardRef<QuickAddHandle, {
   return (
     <div className="ui-card p-2">
       <div className="relative">
-        <div className="flex items-center gap-2 rounded-lg bg-on-surface/[0.04] dark:bg-on-surface/[0.06] focus-within:bg-surface focus-within:ring-2 focus-within:ring-primary/25 transition-colors pl-3 pr-1.5 py-1">
+        <div className="flex items-center gap-2 rounded-lg bg-on-surface/4 dark:bg-on-surface/6 focus-within:bg-surface focus-within:ring-2 focus-within:ring-primary/25 transition-colors pl-3 pr-1.5 py-1">
           <Zap size={14} className="text-primary shrink-0" aria-hidden />
           <input
             ref={inputRef}
@@ -191,7 +191,7 @@ export const QuickAdd = forwardRef<QuickAddHandle, {
             aria-autocomplete="list"
             aria-controls="gastos-quick-suggest"
             aria-activedescendant={active >= 0 ? `gastos-quick-suggest-${active}` : undefined}
-            className="flex-1 min-w-0 bg-transparent outline-none t-callout text-on-surface placeholder:text-on-surface-variant/60 py-1.5"
+            className="flex-1 min-w-0 bg-transparent outline-hidden t-callout text-on-surface placeholder:text-on-surface-variant/60 py-1.5"
           />
           <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon" onClick={() => { onMore(draft()); setText('') }}
             aria-label="Abrir formulario completo" title="Más detalles">
@@ -261,7 +261,7 @@ export const QuickAdd = forwardRef<QuickAddHandle, {
             </button>
           </>
         }>
-        <ul className="flex flex-col divide-y divide-[var(--hairline)] -mx-1">
+        <ul className="flex flex-col divide-y divide-(--hairline) -mx-1">
           {batch?.map((b, i) => (
             <li key={i} className="flex items-center gap-2.5 px-1 py-1.5">
               <input type="checkbox" checked={b.checked} disabled={b.parsed.monto === null} aria-label={`Incluir ${b.line}`}

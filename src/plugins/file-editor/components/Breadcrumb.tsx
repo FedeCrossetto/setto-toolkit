@@ -16,19 +16,19 @@ export function Breadcrumb({ filePath, onPathCopied, inline = false }: Breadcrum
   }
 
   return (
-    <div className={`flex items-center overflow-x-auto scrollbar-hide select-none gap-0.5 ${inline ? 'min-w-0 flex-1' : 'px-2 h-7 hairline-b bg-surface flex-shrink-0'}`}>
+    <div className={`flex items-center overflow-x-auto scrollbar-hide select-none gap-0.5 ${inline ? 'min-w-0 flex-1' : 'px-2 h-7 hairline-b bg-surface shrink-0'}`}>
       {segments.map((seg, i) => {
         const isLast = i === segments.length - 1
         return (
-          <span key={i} className="flex items-center gap-0.5 flex-shrink-0">
-            {i > 0 && <ChevronRight size={10} className="text-on-surface-variant/40 flex-shrink-0" />}
+          <span key={i} className="flex items-center gap-0.5 shrink-0">
+            {i > 0 && <ChevronRight size={10} className="text-on-surface-variant/40 shrink-0" />}
             <button
               onClick={() => copySegment(i)}
               title={`Copiar: ${segments.slice(0, i + 1).join('/')}`}
               className={`px-1.5 py-px rounded t-caption transition-colors ${
                 isLast
-                  ? 'text-on-surface font-medium hover:bg-on-surface/[0.06]'
-                  : 'text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.06]'
+                  ? 'text-on-surface font-medium hover:bg-on-surface/6'
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-on-surface/6'
               }`}
             >
               {seg}

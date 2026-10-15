@@ -20,7 +20,7 @@ export function Avatar({ name, url, size = 30 }: { name: string; url?: string; s
   const box = { width: size, height: size }
   if (src && !failed) {
     return (
-      <span className="flex items-center justify-center flex-shrink-0 rounded-full bg-surface hairline overflow-hidden" style={box} aria-hidden>
+      <span className="flex items-center justify-center shrink-0 rounded-full bg-surface hairline overflow-hidden" style={box} aria-hidden>
         <img
           src={src}
           alt=""
@@ -35,7 +35,7 @@ export function Avatar({ name, url, size = 30 }: { name: string; url?: string; s
   }
   return (
     <span
-      className={`flex items-center justify-center flex-shrink-0 rounded-full font-semibold ${TINTS[tintIndex(name, TINTS.length)]}`}
+      className={`flex items-center justify-center shrink-0 rounded-full font-semibold ${TINTS[tintIndex(name, TINTS.length)]}`}
       style={{ ...box, fontSize: Math.round(size * 0.36) }}
       aria-hidden
     >

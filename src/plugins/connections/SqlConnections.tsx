@@ -74,7 +74,7 @@ export function SqlConnections(): JSX.Element {
       {items !== null && items.length === 0 ? (
         <button onClick={() => setEditing('new')}
           className="ui-card flex items-center gap-3 px-4 py-4 text-left hover:shadow-card-hover transition-shadow">
-          <span className="w-9 h-9 rounded-xl bg-selected text-primary grid place-items-center flex-shrink-0"><Server size={17} /></span>
+          <span className="w-9 h-9 rounded-xl bg-selected text-primary grid place-items-center shrink-0"><Server size={17} /></span>
           <span className="flex-1 min-w-0">
             <span className="block t-body font-medium text-on-surface">Guardá tus servidores SQL</span>
             <span className="block t-footnote text-on-surface-variant">Main, LPS, QA… Probás la conexión y copiás el servidor o la cadena con un clic (también desde Ctrl+K).</span>
@@ -127,16 +127,16 @@ function ProfileCard({ p, testing, onTest, onCopy, onEdit, onDelete }: {
   return (
     <article className="ui-card p-4 flex flex-col gap-3 h-full">
       <div className="flex items-start gap-3">
-        <span className="w-9 h-9 rounded-xl bg-selected text-primary grid place-items-center flex-shrink-0"><Server size={17} /></span>
+        <span className="w-9 h-9 rounded-xl bg-selected text-primary grid place-items-center shrink-0"><Server size={17} /></span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <h3 className="t-body font-semibold text-on-surface truncate">{p.name}</h3>
-            {p.tag && <span className="t-caption px-1.5 py-px rounded-full bg-on-surface/[0.06] text-on-surface-variant flex-shrink-0">{p.tag}</span>}
+            {p.tag && <span className="t-caption px-1.5 py-px rounded-full bg-on-surface/6 text-on-surface-variant shrink-0">{p.tag}</span>}
           </div>
           <p className="t-footnote text-on-surface-variant font-mono truncate" title={p.server}>{p.server}{p.database ? ` · ${p.database}` : ''}</p>
           <p className="t-caption text-on-surface-variant/80 truncate">{p.auth === 'windows' ? 'Windows' : `SQL · ${p.user}`}</p>
         </div>
-        <span className="flex items-center gap-0.5 -mt-1 -mr-1.5 flex-shrink-0">
+        <span className="flex items-center gap-0.5 -mt-1 -mr-1.5 shrink-0">
           <span title={t?.detail ?? 'Sin probar'} className={`w-2 h-2 rounded-full mr-1 ${!t ? 'bg-on-surface/20' : t.ok ? 'bg-success' : 'bg-error'}`} />
           <button className="ui-btn ui-btn-ghost ui-btn-icon" onClick={onEdit} aria-label="Editar" title="Editar"><Pencil size={13} /></button>
           <button className="ui-btn ui-btn-ghost ui-btn-icon" onClick={onDelete} aria-label="Eliminar" title="Eliminar"><Trash2 size={13} /></button>
@@ -144,7 +144,7 @@ function ProfileCard({ p, testing, onTest, onCopy, onEdit, onDelete }: {
       </div>
 
       {t && !t.ok && (
-        <p className="t-caption text-error flex items-start gap-1.5"><CircleAlert size={12} className="mt-px flex-shrink-0" /><span className="line-clamp-2">{t.detail}</span></p>
+        <p className="t-caption text-error flex items-start gap-1.5"><CircleAlert size={12} className="mt-px shrink-0" /><span className="line-clamp-2">{t.detail}</span></p>
       )}
       {t?.ok && <p className="t-caption text-on-surface-variant truncate" title={t.detail}><Check size={11} className="inline -mt-px mr-1 text-success" />{t.detail} · {relTime(t.at)}</p>}
 
@@ -271,14 +271,14 @@ function ProfileSheet({ profile, onClose, onSaved }: { profile: SqlProfile | nul
           <Toggle checked={d.trustCert} onChange={(trustCert) => set({ trustCert })} label="Confiar en el certificado" />
         </label>
 
-        <div className="rounded-lg bg-on-surface/[0.04] px-3 py-2">
+        <div className="rounded-lg bg-on-surface/4 px-3 py-2">
           <div className="t-caption text-on-surface-variant mb-0.5">Cadena (sin contraseña)</div>
           <code className="block t-caption font-mono text-on-surface break-all">{buildConnectionString(d, null)}</code>
         </div>
 
         {result && (
           <p className={`t-footnote flex items-start gap-1.5 ${result.ok ? 'text-success' : 'text-error'}`}>
-            {result.ok ? <Check size={13} className="mt-px flex-shrink-0" /> : <CircleAlert size={13} className="mt-px flex-shrink-0" />}
+            {result.ok ? <Check size={13} className="mt-px shrink-0" /> : <CircleAlert size={13} className="mt-px shrink-0" />}
             <span>{result.detail}{result.ms ? ` (${result.ms} ms)` : ''}</span>
           </p>
         )}

@@ -148,7 +148,7 @@ function OverviewRuler({
     <div
       ref={rulerRef}
       onClick={handleClick}
-      className="w-3.5 flex-shrink-0 relative cursor-pointer bg-sidebar/40 border-x border-hairline select-none"
+      className="w-3.5 shrink-0 relative cursor-pointer bg-sidebar/40 border-x border-hairline select-none"
       title="Clic para saltar"
     >
       {removedBlocks.map((b, i) => (
@@ -242,9 +242,9 @@ function CodePane({
         </div>
       )}
       {/* Pane header */}
-      <div className="flex items-center gap-2 px-3 h-8 hairline-b bg-sidebar/40 flex-shrink-0">
+      <div className="flex items-center gap-2 px-3 h-8 hairline-b bg-sidebar/40 shrink-0">
         <span className="flex items-center gap-1.5 t-footnote font-medium text-on-surface">
-          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: dotColor }} />
+          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
           {isLeft ? 'Original' : 'Modificado'}
         </span>
         <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileInput} />
@@ -297,7 +297,7 @@ function CodePane({
           onChange={(e) => onChange(e.target.value)}
           placeholder={isLeft ? 'Pegá el código original o arrastrá un archivo…' : 'Pegá el código modificado o arrastrá un archivo…'}
           aria-label={isLeft ? 'Código original' : 'Código modificado'}
-          className="flex-1 bg-surface resize-none p-4 text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none"
+          className="flex-1 bg-surface resize-none p-4 text-on-surface placeholder:text-on-surface-variant/60 focus:outline-hidden"
           style={{ fontFamily: monoFont, fontSize: `${fontSize}px`, lineHeight: '1.7' }}
           spellCheck={false}
         />
@@ -313,12 +313,12 @@ function FileCard({ label, dotColor, info, onClear }: {
   return (
     <div className="px-3 py-2.5">
       <div className="flex items-center gap-1.5 mb-1.5">
-        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: dotColor }} />
+        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
         <span className="t-section">{label}</span>
       </div>
       {info ? (
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-on-surface/[0.05] group">
-          {(() => { const Icon = fileIcon(info.name); return <Icon size={14} className="text-on-surface-variant flex-shrink-0" /> })()}
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-on-surface/5 group">
+          {(() => { const Icon = fileIcon(info.name); return <Icon size={14} className="text-on-surface-variant shrink-0" /> })()}
           <div className="min-w-0 flex-1">
             <p className="t-footnote font-medium text-on-surface truncate">{info.name}</p>
             <p className="t-caption text-on-surface-variant">{formatBytes(info.size)}</p>
@@ -327,7 +327,7 @@ function FileCard({ label, dotColor, info, onClear }: {
             onClick={onClear}
             title="Quitar archivo"
             aria-label="Quitar archivo"
-            className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-on-surface transition-opacity flex-shrink-0"
+            className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-on-surface transition-opacity shrink-0"
           >
             <X size={13} />
           </button>
@@ -474,11 +474,11 @@ export function SmartDiff(): JSX.Element {
     <div className="flex h-full overflow-hidden">
 
       {/* ── Sidebar (collapsible — same pattern as File Editor) ───────────── */}
-      <aside className={`flex-shrink-0 flex flex-col hairline-r bg-sidebar/40 overflow-hidden transition-[width] duration-200 ${sidebarCollapsed ? 'w-9' : 'w-56'}`}>
+      <aside className={`shrink-0 flex flex-col hairline-r bg-sidebar/40 overflow-hidden transition-[width] duration-200 ${sidebarCollapsed ? 'w-9' : 'w-56'}`}>
         {sidebarCollapsed ? (
           <button type="button" onClick={() => setSidebarCollapsed(false)} title="Expandir barra lateral" aria-label="Expandir barra lateral"
-            className="flex-1 flex flex-col items-center justify-center gap-3 hover:bg-on-surface/[0.05] transition-colors w-full min-h-0 py-4">
-            <ChevronRight size={13} className="text-on-surface-variant flex-shrink-0" />
+            className="flex-1 flex flex-col items-center justify-center gap-3 hover:bg-on-surface/5 transition-colors w-full min-h-0 py-4">
+            <ChevronRight size={13} className="text-on-surface-variant shrink-0" />
             <span className="t-section select-none"
               style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}>
               Comparar
@@ -486,10 +486,10 @@ export function SmartDiff(): JSX.Element {
           </button>
         ) : (
           <>
-            <div className="flex items-center justify-between px-3 h-10 hairline-b flex-shrink-0 gap-2">
+            <div className="flex items-center justify-between px-3 h-10 hairline-b shrink-0 gap-2">
               <span className="t-section truncate">Comparar archivos</span>
               <button type="button" onClick={() => setSidebarCollapsed(true)} title="Colapsar barra lateral" aria-label="Colapsar barra lateral"
-                className="ui-btn ui-btn-ghost ui-btn-icon flex-shrink-0">
+                className="ui-btn ui-btn-ghost ui-btn-icon shrink-0">
                 <ChevronLeft size={14} />
               </button>
             </div>
@@ -513,12 +513,12 @@ export function SmartDiff(): JSX.Element {
                     ) : (
                       <div className="mt-2 flex flex-col gap-1">
                         <div className="flex items-center gap-2 t-footnote">
-                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: ADDED() }} />
+                          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: ADDED() }} />
                           <span className="text-on-surface-variant">Agregadas</span>
                           <span className="ml-auto font-mono font-medium" style={{ color: ADDED() }}>+{addedCount}</span>
                         </div>
                         <div className="flex items-center gap-2 t-footnote">
-                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: REMOVED() }} />
+                          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: REMOVED() }} />
                           <span className="text-on-surface-variant">Eliminadas</span>
                           <span className="ml-auto font-mono font-medium" style={{ color: REMOVED() }}>-{removedCount}</span>
                         </div>
@@ -545,14 +545,14 @@ export function SmartDiff(): JSX.Element {
             </div>
 
             {/* Sidebar actions */}
-            <div className="hairline-t px-3 py-2 flex-shrink-0 flex flex-col gap-1.5">
+            <div className="hairline-t px-3 py-2 shrink-0 flex flex-col gap-1.5">
               <button type="button" onClick={swapSides} disabled={!original && !modified}
-                className="ui-btn ui-btn-ghost ui-btn-sm w-full !justify-start">
+                className="ui-btn ui-btn-ghost ui-btn-sm w-full justify-start!">
                 <ArrowLeftRight size={14} />
                 Intercambiar lados
               </button>
               <button type="button" onClick={clearAll} disabled={!original && !modified}
-                className="ui-btn ui-btn-ghost ui-btn-sm w-full !justify-start">
+                className="ui-btn ui-btn-ghost ui-btn-sm w-full justify-start!">
                 <Trash2 size={14} />
                 Vaciar todo
               </button>
@@ -565,7 +565,7 @@ export function SmartDiff(): JSX.Element {
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* Toolbar */}
-        <div className="px-3 h-10 bg-surface hairline-b flex items-center gap-2 flex-shrink-0">
+        <div className="px-3 h-10 bg-surface hairline-b flex items-center gap-2 shrink-0">
           <button onClick={runDiff} disabled={!original.trim() || !modified.trim()}
             className="ui-btn ui-btn-primary ui-btn-sm">
             <Diff size={14} />
@@ -590,7 +590,7 @@ export function SmartDiff(): JSX.Element {
           {/* Settings */}
           <div className="ml-auto relative" ref={settingsRef}>
             <button onClick={() => setSettingsOpen((v) => !v)} title="Ajustes de visualización" aria-label="Ajustes de visualización" aria-pressed={settingsOpen}
-              className={`ui-btn ui-btn-ghost ui-btn-icon ${settingsOpen ? '!bg-on-surface/[0.08] !text-on-surface' : ''}`}>
+              className={`ui-btn ui-btn-ghost ui-btn-icon ${settingsOpen ? 'bg-on-surface/8! text-on-surface!' : ''}`}>
               <Settings size={15} />
             </button>
 
@@ -606,10 +606,10 @@ export function SmartDiff(): JSX.Element {
                     <span className="t-section">Tamaño de fuente</span>
                     <div className="flex items-center gap-2">
                       <button onClick={() => updatePrefs({ fontSize: Math.max(FONT_SIZE_MIN, prefs.fontSize - 1) })}
-                        aria-label="Achicar fuente" className="ui-btn ui-btn-outline ui-btn-sm w-7 !px-0">−</button>
+                        aria-label="Achicar fuente" className="ui-btn ui-btn-outline ui-btn-sm w-7 px-0!">−</button>
                       <span className="flex-1 text-center t-footnote tabular-nums text-on-surface">{prefs.fontSize} px</span>
                       <button onClick={() => updatePrefs({ fontSize: Math.min(FONT_SIZE_MAX, prefs.fontSize + 1) })}
-                        aria-label="Agrandar fuente" className="ui-btn ui-btn-outline ui-btn-sm w-7 !px-0">+</button>
+                        aria-label="Agrandar fuente" className="ui-btn ui-btn-outline ui-btn-sm w-7 px-0!">+</button>
                     </div>
                   </div>
 
@@ -619,7 +619,7 @@ export function SmartDiff(): JSX.Element {
                     <div className="flex flex-col">
                       {FONT_FAMILIES.map((f) => (
                         <button key={f} onClick={() => updatePrefs({ fontFamily: f })}
-                          className={`text-left px-2.5 py-1 rounded-md t-footnote transition-colors ${prefs.fontFamily === f ? 'bg-primary text-on-primary' : 'text-on-surface hover:bg-on-surface/[0.06]'}`}
+                          className={`text-left px-2.5 py-1 rounded-md t-footnote transition-colors ${prefs.fontFamily === f ? 'bg-primary text-on-primary' : 'text-on-surface hover:bg-on-surface/6'}`}
                           style={{ fontFamily: f }}>
                           {f}
                         </button>

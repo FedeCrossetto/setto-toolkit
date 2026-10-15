@@ -53,7 +53,7 @@ export function useUndoToast(durationMs = 6000): {
   const undoElement = item
     ? createPortal(
       <div key={item.id} role="status" aria-live="polite"
-        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[700] mac-pop-in flex items-center gap-3 pl-4 pr-2 py-2 rounded-xl bg-surface hairline shadow-2xl t-footnote text-on-surface max-w-[calc(100vw-32px)]">
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-700 mac-pop-in flex items-center gap-3 pl-4 pr-2 py-2 rounded-xl bg-surface hairline shadow-2xl t-footnote text-on-surface max-w-[calc(100vw-32px)]">
         <span className="truncate">{item.message}</span>
         <button type="button" className="ui-btn ui-btn-outline ui-btn-sm" onClick={runUndo}>
           <RotateCcw size={12} /> Deshacer

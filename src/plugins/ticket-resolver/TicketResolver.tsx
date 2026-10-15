@@ -67,7 +67,7 @@ function TokenCounter({ usage, onReset }: { usage:SessionUsage; onReset:()=>void
   const fmt   = (n:number) => n >= 1000 ? `${(n/1000).toFixed(1)}k` : String(n)
   if (usage.calls === 0) return <></>
   return (
-    <div className="flex items-center gap-2 t-footnote text-on-surface-variant flex-shrink-0">
+    <div className="flex items-center gap-2 t-footnote text-on-surface-variant shrink-0">
       <Ticket size={13} />
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-1.5">
@@ -78,7 +78,7 @@ function TokenCounter({ usage, onReset }: { usage:SessionUsage; onReset:()=>void
           <span className="text-on-surface-variant/60">·</span>
           <span>{pct.toFixed(1)}%</span>
         </div>
-        <div className="w-20 h-1 bg-on-surface/[0.08] rounded-full overflow-hidden">
+        <div className="w-20 h-1 bg-on-surface/8 rounded-full overflow-hidden">
           <div className="h-full rounded-full transition-all duration-700"
             style={{width:`${Math.max(pct,pct>0?3:0)}%`, background:pct>80?'rgb(var(--c-error))':pct>50?'rgb(var(--c-warning))':'rgb(var(--c-primary))'}} />
         </div>
@@ -104,7 +104,7 @@ const PRIORITY_BG: Record<string,string> = {
 // ── Spinner ────────────────────────────────────────────────────────────────────
 function Spinner({ size=16 }: { size?:number }): JSX.Element {
   return (
-    <svg className="animate-spin flex-shrink-0 text-primary" style={{width:size,height:size}} viewBox="0 0 24 24" fill="none">
+    <svg className="animate-spin shrink-0 text-primary" style={{width:size,height:size}} viewBox="0 0 24 24" fill="none">
       <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
       <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
     </svg>
@@ -113,7 +113,7 @@ function Spinner({ size=16 }: { size?:number }): JSX.Element {
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 function Skel({ h='h-4', w='w-full', className='' }: { h?:string; w?:string; className?:string }): JSX.Element {
-  return <div className={`${h} ${w} rounded-lg bg-on-surface/[0.06] tr-shimmer ${className}`} />
+  return <div className={`${h} ${w} rounded-lg bg-on-surface/6 tr-shimmer ${className}`} />
 }
 
 // ── Diff view ──────────────────────────────────────────────────────────────────
@@ -127,12 +127,12 @@ function DiffView({ diff }: { diff:DiffChunk[] }): JSX.Element {
             <FileText size={11} />
             {chunk.file} · línea {chunk.lineStart}
           </div>
-          <div className="bg-error/[0.08] px-3 py-2 whitespace-pre-wrap text-error/80 hairline-b">
+          <div className="bg-error/8 px-3 py-2 whitespace-pre-wrap text-error/80 hairline-b">
             {chunk.original.split('\n').map((l,j) => (
               <div key={j}><span className="select-none text-error/30 mr-2">−</span>{l}</div>
             ))}
           </div>
-          <div className="bg-success/[0.08] px-3 py-2 whitespace-pre-wrap text-success/80">
+          <div className="bg-success/8 px-3 py-2 whitespace-pre-wrap text-success/80">
             {chunk.modified.split('\n').map((l,j) => (
               <div key={j}><span className="select-none text-success/30 mr-2">+</span>{l}</div>
             ))}
@@ -252,7 +252,7 @@ function PlanCard({ plan, skeleton }: { plan?:AnalysisPlan|null; skeleton?:boole
           <div className="flex flex-col gap-1">
             {plan.steps.map(s=>(
               <div key={s.id} className="flex items-start gap-1.5">
-                <span className="flex-shrink-0 w-3.5 h-3.5 rounded-full bg-primary/10 text-primary t-caption font-bold flex items-center justify-center mt-0.5">{s.id}</span>
+                <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-primary/10 text-primary t-caption font-bold flex items-center justify-center mt-0.5">{s.id}</span>
                 <div>
                   <div className="t-footnote font-medium text-on-surface">{s.label}</div>
                   <div className="t-caption text-on-surface-variant">{s.detail}</div>
@@ -285,7 +285,7 @@ function AnalyzingPanel({ steps }: { steps:AnalysisStepUI[] }): JSX.Element {
           </div>
           <span className="t-footnote font-bold text-primary tabular-nums">{pct}%</span>
         </div>
-        <div className="h-1.5 bg-on-surface/[0.08] rounded-full overflow-hidden">
+        <div className="h-1.5 bg-on-surface/8 rounded-full overflow-hidden">
           <div className="h-full rounded-full transition-all duration-700"
             style={{width:`${Math.max(pct,pct>0?4:0)}%`, background:'rgb(var(--c-primary))'}} />
         </div>
@@ -303,12 +303,12 @@ function AnalyzingPanel({ steps }: { steps:AnalysisStepUI[] }): JSX.Element {
           return (
             <div key={step.id} className={['rounded-xl p-4 border transition-all duration-500',
               run  ? 'bg-primary/5 border-primary/20' : '',
-              done ? 'bg-success/[0.04] border-success/15' : '',
+              done ? 'bg-success/4 border-success/15' : '',
               pend ? 'bg-surface-container/30 border-hairline opacity-40' : '',
             ].join(' ')}>
               <div className="flex items-center gap-3">
-                <div className={['w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all',
-                  run?'bg-primary/[0.12]':done?'bg-success/10':'bg-on-surface/[0.06]',
+                <div className={['w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all',
+                  run?'bg-primary/12':done?'bg-success/10':'bg-on-surface/6',
                 ].join(' ')}>
                   {run  && <Spinner size={18} />}
                   {done && <CheckCircle2 size={18} className="text-success tr-pop" />}
@@ -324,8 +324,8 @@ function AnalyzingPanel({ steps }: { steps:AnalysisStepUI[] }): JSX.Element {
                     </div>
                   )}
                 </div>
-                {done && <span className="t-caption text-success/60 font-semibold flex-shrink-0 tr-fadein">Listo</span>}
-                {run  && <span className="t-caption text-primary/50 font-semibold flex-shrink-0 tr-pulse">En progreso</span>}
+                {done && <span className="t-caption text-success/60 font-semibold shrink-0 tr-fadein">Listo</span>}
+                {run  && <span className="t-caption text-primary/50 font-semibold shrink-0 tr-pulse">En progreso</span>}
               </div>
             </div>
           )
@@ -373,9 +373,9 @@ function CommentCard({ comment, disp }: { comment:TicketComment; disp:DisplayCfg
 function DisplaySettings({ disp, onChange }: { disp:DisplayCfg; onChange:(k:keyof DisplayCfg,v:string)=>void }): JSX.Element {
   const btnCls = (active:boolean) =>
     `flex-1 py-1 t-footnote font-medium rounded-md transition-colors ${active
-      ? 'bg-surface dark:bg-white/[0.16] text-on-surface shadow-sm'
+      ? 'bg-surface dark:bg-white/16 text-on-surface shadow-sm'
       : 'text-on-surface-variant hover:text-on-surface'}`
-  const group = 'flex gap-0.5 p-[2px] rounded-lg bg-on-surface/[0.06]'
+  const group = 'flex gap-0.5 p-[2px] rounded-lg bg-on-surface/6'
 
   const FONT_FAMILY_LABELS: Record<FontFamily, string> = {
     system: 'Sistema', sans: 'Sans', mono: 'Mono', serif: 'Serif',
@@ -556,7 +556,7 @@ function AwaitingPanel({ plan, onExecute, onReset }: { plan:AnalysisPlan; onExec
           <div className="flex flex-col bg-surface/50 rounded-lg overflow-hidden hairline mb-3">
             {plan.steps.map((s,i)=>(
               <div key={s.id} className={`flex items-start gap-2 px-3 py-2 ${i>0?'hairline-t':''}`}>
-                <span className="flex-shrink-0 w-4 h-4 rounded-full bg-primary/10 text-primary t-caption font-bold flex items-center justify-center mt-0.5">{i+1}</span>
+                <span className="shrink-0 w-4 h-4 rounded-full bg-primary/10 text-primary t-caption font-bold flex items-center justify-center mt-0.5">{i+1}</span>
                 <div>
                   <div className="t-footnote font-medium text-on-surface">{s.label}</div>
                   <div className="t-caption text-on-surface-variant/60 mt-0.5">{s.detail}</div>
@@ -635,24 +635,24 @@ function ApplyChangesModal({ diff, onClose }: { diff:DiffChunk[]; onClose:()=>vo
                     selected.has(i) ? 'border-primary/25 bg-primary/5' : 'border-hairline bg-surface-container/40 opacity-60',
                   ].join(' ')}>
                   <div className="flex items-center gap-3 px-4 py-2.5">
-                    <div className={['w-4 h-4 rounded flex items-center justify-center border transition-all flex-shrink-0',
+                    <div className={['w-4 h-4 rounded flex items-center justify-center border transition-all shrink-0',
                       selected.has(i) ? 'bg-primary border-primary' : 'border-hairline'
                     ].join(' ')}>
                       {selected.has(i) && <Check size={10} className="text-on-primary" />}
                     </div>
-                    <FileText size={12} className="text-on-surface-variant/60 flex-shrink-0"/>
+                    <FileText size={12} className="text-on-surface-variant/60 shrink-0"/>
                     <span className="font-mono t-footnote text-on-surface flex-1 truncate">{chunk.file}</span>
-                    <span className="t-caption text-on-surface-variant/60 flex-shrink-0">línea {chunk.lineStart}</span>
+                    <span className="t-caption text-on-surface-variant/60 shrink-0">línea {chunk.lineStart}</span>
                   </div>
                   <div className="t-footnote font-mono leading-relaxed">
                     {chunk.original.split('\n').map((l,j)=>(
-                      <div key={j} className="flex gap-2 px-4 py-0.5 bg-error/[0.08] text-error/70 border-t border-error/[0.08]">
-                        <span className="text-error/40 select-none w-3 flex-shrink-0">−</span><span>{l}</span>
+                      <div key={j} className="flex gap-2 px-4 py-0.5 bg-error/8 text-error/70 border-t border-error/8">
+                        <span className="text-error/40 select-none w-3 shrink-0">−</span><span>{l}</span>
                       </div>
                     ))}
                     {chunk.modified.split('\n').map((l,j)=>(
-                      <div key={j} className="flex gap-2 px-4 py-0.5 bg-success/[0.08] text-success/70">
-                        <span className="text-success/40 select-none w-3 flex-shrink-0">+</span><span>{l}</span>
+                      <div key={j} className="flex gap-2 px-4 py-0.5 bg-success/8 text-success/70">
+                        <span className="text-success/40 select-none w-3 shrink-0">+</span><span>{l}</span>
                       </div>
                     ))}
                   </div>
@@ -663,19 +663,19 @@ function ApplyChangesModal({ diff, onClose }: { diff:DiffChunk[]; onClose:()=>vo
             <div className="flex flex-col gap-2.5">
               {allOk && (
                 <div className="flex items-center gap-2.5 text-success bg-success/10 rounded-lg px-4 py-3">
-                  <CheckCircle2 size={16} className="flex-shrink-0"/>
+                  <CheckCircle2 size={16} className="shrink-0"/>
                   <span className="t-body font-medium">Todos los cambios aplicados correctamente</span>
                 </div>
               )}
               {results.map((r,i)=>(
                 <div key={i} className={['flex items-start gap-3 rounded-lg px-4 py-3',
-                  r.status==='applied'   ? 'bg-success/[0.08]' :
-                  r.status==='not_found' ? 'bg-warning/[0.08]' :
-                                           'bg-error/[0.08]',
+                  r.status==='applied'   ? 'bg-success/8' :
+                  r.status==='not_found' ? 'bg-warning/8' :
+                                           'bg-error/8',
                 ].join(' ')}>
-                  {r.status==='applied'   ? <Check size={14} className="text-success flex-shrink-0 mt-0.5"/> :
-                   r.status==='not_found' ? <TriangleAlert size={14} className="text-warning flex-shrink-0 mt-0.5"/> :
-                                            <CircleAlert size={14} className="text-error flex-shrink-0 mt-0.5"/>}
+                  {r.status==='applied'   ? <Check size={14} className="text-success shrink-0 mt-0.5"/> :
+                   r.status==='not_found' ? <TriangleAlert size={14} className="text-warning shrink-0 mt-0.5"/> :
+                                            <CircleAlert size={14} className="text-error shrink-0 mt-0.5"/>}
                   <div>
                     {r.file && <div className="t-footnote font-mono text-on-surface">{r.file}</div>}
                     {r.message && <div className="t-footnote text-on-surface-variant mt-0.5">{r.message}</div>}
@@ -704,8 +704,8 @@ function ResultsPanel({
   const SectionHeader = ({ color, icon: Icon, label, copyKey, copyText }: {
     color:string; icon:IconComponent; label:string; copyKey?:string; copyText?:string
   }) => (
-    <div className={`flex items-center gap-2 px-4 py-2 hairline-b bg-on-surface/[0.02]`}>
-      <Icon size={13} className={`flex-shrink-0 ${color}`}/>
+    <div className={`flex items-center gap-2 px-4 py-2 hairline-b bg-on-surface/2`}>
+      <Icon size={13} className={`shrink-0 ${color}`}/>
       <span className="t-section">{label}</span>
       {copyKey && copyText && (
         <button onClick={()=>copy(copyText,copyKey)} title="Copiar" aria-label="Copiar" className="ml-auto ui-btn ui-btn-ghost ui-btn-icon">
@@ -723,7 +723,7 @@ function ResultsPanel({
 
         {/* Banner */}
         <div className="flex items-center gap-3 rounded-xl hairline px-4 py-3 bg-surface-container/50 tr-fadein">
-          <CheckCircle2 size={18} className="text-success flex-shrink-0"/>
+          <CheckCircle2 size={18} className="text-success shrink-0"/>
           <div className="flex-1 min-w-0">
             <div className="t-body font-semibold text-on-surface">Análisis completado</div>
             <div className="t-footnote text-on-surface-variant truncate">
@@ -732,7 +732,7 @@ function ResultsPanel({
             </div>
           </div>
           {hasDiff && (
-            <button onClick={()=>setShowApply(true)} className="ui-btn ui-btn-primary flex-shrink-0">
+            <button onClick={()=>setShowApply(true)} className="ui-btn ui-btn-primary shrink-0">
               <Wrench size={13}/>Aplicar cambios
             </button>
           )}
@@ -765,8 +765,8 @@ function ResultsPanel({
             <SectionHeader color="text-on-surface-variant" icon={FolderOpen} label={`Archivos modificados · ${result.affectedFiles.length}`}/>
             <div className="px-3 py-2.5 flex flex-col gap-1">
               {result.affectedFiles.map(f=>(
-                <div key={f} className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-on-surface/[0.04]">
-                  <FileText size={12} className="text-on-surface-variant/60 flex-shrink-0"/>
+                <div key={f} className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-on-surface/4">
+                  <FileText size={12} className="text-on-surface-variant/60 shrink-0"/>
                   <span className="font-mono t-footnote text-on-surface-variant/60 truncate">{f}</span>
                 </div>
               ))}
@@ -977,12 +977,12 @@ export function TicketResolver(): JSX.Element {
       )}
 
       {/* History sidebar — collapsible */}
-      <aside className={`flex-shrink-0 flex flex-col hairline-r bg-sidebar/40 overflow-hidden transition-all duration-200 ${histOpen?'w-56':'w-9'}`}>
+      <aside className={`shrink-0 flex flex-col hairline-r bg-sidebar/40 overflow-hidden transition-all duration-200 ${histOpen?'w-56':'w-9'}`}>
         {/* Toggle strip */}
-        <div className={`flex-shrink-0 flex items-center h-10 hairline-b ${histOpen?'justify-between px-2':'justify-center'}`}>
+        <div className={`shrink-0 flex items-center h-10 hairline-b ${histOpen?'justify-between px-2':'justify-center'}`}>
           {histOpen && <span className="t-section pl-1">Historial</span>}
           <button onClick={()=>setHistOpen(o=>!o)} title={histOpen?'Colapsar historial':'Ver historial'} aria-label={histOpen?'Colapsar historial':'Ver historial'}
-            className="ui-btn ui-btn-ghost ui-btn-icon flex-shrink-0">
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0">
             <ChevronRight size={13} className={`transition-transform duration-200 ${histOpen?'rotate-180':''}`}/>
           </button>
         </div>
@@ -1002,7 +1002,7 @@ export function TicketResolver(): JSX.Element {
         {/* Expanded list */}
         {histOpen && (
           <div className="flex-1 overflow-y-auto pb-1">
-            <button onClick={resetToIdle} className="flex items-center gap-1.5 w-[calc(100%-12px)] mx-1.5 mt-1.5 px-2 h-[26px] rounded-md t-footnote text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.05] transition-colors">
+            <button onClick={resetToIdle} className="flex items-center gap-1.5 w-[calc(100%-12px)] mx-1.5 mt-1.5 px-2 h-[26px] rounded-md t-footnote text-on-surface-variant hover:text-on-surface hover:bg-on-surface/5 transition-colors">
               <Plus size={12}/>Nuevo ticket
             </button>
             {history.length===0 ? (
@@ -1010,15 +1010,15 @@ export function TicketResolver(): JSX.Element {
             ) : history.map(entry=>(
               <div key={entry.id} onClick={()=>handleSelectHistory(entry)}
                 className={['group relative flex flex-col gap-0.5 px-2 py-1.5 mx-1.5 mt-0.5 rounded-md cursor-default transition-colors',
-                  selectedId===entry.id ? 'bg-primary/15' : 'hover:bg-on-surface/[0.05]',
+                  selectedId===entry.id ? 'bg-primary/15' : 'hover:bg-on-surface/5',
                 ].join(' ')}>
                 <div className="flex items-center justify-between gap-1 min-w-0">
                   <span className="t-footnote font-semibold truncate text-on-surface">{entry.ticketKey}</span>
-                  <span className="t-caption text-on-surface-variant/70 flex-shrink-0 tabular-nums group-hover:opacity-0">{relativeTime(entry.createdAt)}</span>
+                  <span className="t-caption text-on-surface-variant/70 shrink-0 tabular-nums group-hover:opacity-0">{relativeTime(entry.createdAt)}</span>
                 </div>
                 <span className="t-caption text-on-surface-variant truncate leading-snug">{entry.summary}</span>
                 <button onClick={e=>{void handleDeleteHistory(entry.id,e)}} title="Eliminar del historial" aria-label="Eliminar del historial"
-                  className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-100 w-4 h-4 flex items-center justify-center rounded text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.08] transition-opacity">
+                  className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-100 w-4 h-4 flex items-center justify-center rounded text-on-surface-variant hover:text-on-surface hover:bg-on-surface/8 transition-opacity">
                   <X size={10}/>
                 </button>
               </div>
@@ -1031,9 +1031,9 @@ export function TicketResolver(): JSX.Element {
       <div className="flex-1 flex flex-col overflow-hidden min-w-0" style={{fontFamily:FONT_FAMILY_MAP[disp.fontFamily]}}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-3 h-10 hairline-b flex-shrink-0 gap-2">
+        <div className="flex items-center justify-between px-3 h-10 hairline-b shrink-0 gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <Ticket size={14} className="text-on-surface-variant flex-shrink-0"/>
+            <Ticket size={14} className="text-on-surface-variant shrink-0"/>
             {ticket && <span className="t-footnote font-medium text-on-surface truncate">{ticket.key}</span>}
             {(phase==='analyzing'||phase==='planning') && (
               <span className="flex items-center gap-1.5 t-caption text-on-surface-variant tr-fadein">
@@ -1046,7 +1046,7 @@ export function TicketResolver(): JSX.Element {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <TokenCounter usage={sessionUsage} onReset={()=>void window.api.invoke('ticket-resolver:ai-usage-reset').then(()=>setSessionUsage(p=>({...p,inputTokens:0,outputTokens:0,calls:0})))} />
             {/* Font size quick controls */}
             <div className="flex items-center">
@@ -1054,18 +1054,18 @@ export function TicketResolver(): JSX.Element {
                 onClick={()=>{ const i=FONT_SIZE_ORDER.indexOf(disp.fontSize); if(i>0) void handleDisplayChange('fontSize',FONT_SIZE_ORDER[i-1]!) }}
                 disabled={disp.fontSize==='small'}
                 title="Reducir fuente" aria-label="Reducir fuente"
-                className="ui-btn ui-btn-ghost ui-btn-sm !px-1.5 t-caption font-semibold">
+                className="ui-btn ui-btn-ghost ui-btn-sm px-1.5! t-caption font-semibold">
                 A−
               </button>
               <button
                 onClick={()=>{ const i=FONT_SIZE_ORDER.indexOf(disp.fontSize); if(i<2) void handleDisplayChange('fontSize',FONT_SIZE_ORDER[i+1]!) }}
                 disabled={disp.fontSize==='large'}
                 title="Aumentar fuente" aria-label="Aumentar fuente"
-                className="ui-btn ui-btn-ghost ui-btn-sm !px-1.5 font-semibold">
+                className="ui-btn ui-btn-ghost ui-btn-sm px-1.5! font-semibold">
                 A+
               </button>
             </div>
-            <button onClick={()=>setShowConfig(true)} className="ui-btn ui-btn-ghost ui-btn-sm !gap-1" title="Configuración" aria-label="Configuración">
+            <button onClick={()=>setShowConfig(true)} className="ui-btn ui-btn-ghost ui-btn-sm gap-1!" title="Configuración" aria-label="Configuración">
               <Settings size={14}/>
               {!isConfigured && <span className="text-warning t-caption font-medium">Sin configurar</span>}
             </button>
@@ -1077,9 +1077,9 @@ export function TicketResolver(): JSX.Element {
           <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-6 py-6 gap-4">
             {!isConfigured && (
               <div className="flex items-center gap-2 text-on-surface t-footnote bg-warning/10 px-3 py-2 rounded-lg w-full max-w-sm">
-                <TriangleAlert size={13} className="flex-shrink-0 text-warning"/>
+                <TriangleAlert size={13} className="shrink-0 text-warning"/>
                 <span>Configurá las credenciales de Jira primero.</span>
-                <button onClick={()=>setShowConfig(true)} className="ui-btn ui-btn-outline ui-btn-sm ml-auto flex-shrink-0">Configurar</button>
+                <button onClick={()=>setShowConfig(true)} className="ui-btn ui-btn-outline ui-btn-sm ml-auto shrink-0">Configurar</button>
               </div>
             )}
             <div className="w-full max-w-xs">
@@ -1108,8 +1108,8 @@ export function TicketResolver(): JSX.Element {
                 <div className="flex flex-col gap-1">
                   {history.slice(0,5).map(e=>(
                     <button key={e.id} onClick={()=>handleSelectHistory(e)}
-                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-on-surface/[0.05] transition-colors text-left">
-                      <span className="t-footnote font-semibold text-on-surface w-20 flex-shrink-0">{e.ticketKey}</span>
+                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-on-surface/5 transition-colors text-left">
+                      <span className="t-footnote font-semibold text-on-surface w-20 shrink-0">{e.ticketKey}</span>
                       <span className="t-footnote text-on-surface-variant truncate">{e.summary}</span>
                     </button>
                   ))}
@@ -1124,16 +1124,16 @@ export function TicketResolver(): JSX.Element {
           <div className="flex-1 flex overflow-hidden">
 
             {/* Left col */}
-            <div className="w-[280px] flex-shrink-0 overflow-y-auto hairline-r bg-sidebar/40 flex flex-col gap-2 p-3">
+            <div className="w-[280px] shrink-0 overflow-y-auto hairline-r bg-sidebar/40 flex flex-col gap-2 p-3">
               <TicketDetailCard ticket={ticket} skeleton={phase==='fetching'} disp={disp} />
               {phase !== 'fetching' && <PlanCard plan={plan} skeleton={phase==='planning'} />}
               {snippets.length > 0 && (
                 <div className="rounded-xl hairline overflow-hidden tr-fadein">
-                  <button className="flex items-center gap-1.5 w-full px-3 py-2 t-section hover:bg-on-surface/[0.03] transition-colors"
+                  <button className="flex items-center gap-1.5 w-full px-3 py-2 t-section hover:bg-on-surface/3 transition-colors"
                     onClick={e=>{const el=e.currentTarget.nextElementSibling as HTMLElement; el.style.display=el.style.display==='none'?'':'none'}}>
                     <Code2 size={10}/>Código encontrado · {snippets.length}
                   </button>
-                  <div style={{display:'none'}} className="flex flex-col divide-y divide-[var(--hairline)]">
+                  <div style={{display:'none'}} className="flex flex-col divide-y divide-(--hairline)">
                     {snippets.map((s,i)=>(
                       <div key={i} className="px-3 py-1.5">
                         <div className="t-caption font-mono text-on-surface-variant/60 truncate mb-1">{s.file}:{s.line}</div>

@@ -86,11 +86,11 @@ export function GlobalTooltip(): JSX.Element | null {
   const x = Math.min(Math.max(tip.x, 12), window.innerWidth - 12)
   return createPortal(
     <div role="tooltip"
-      className="pointer-events-none fixed z-[700] flex items-center gap-1.5 max-w-[320px] px-2 py-[5px] rounded-md bg-[rgb(var(--c-topbar))] text-white text-[12px] font-medium leading-[15px] shadow-md"
+      className="pointer-events-none fixed z-700 flex items-center gap-1.5 max-w-[320px] px-2 py-[5px] rounded-md bg-[rgb(var(--c-topbar))] text-white text-[12px] font-medium leading-[15px] shadow-md"
       style={{ left: x, top: tip.y, transform: tip.below ? 'translateX(-50%)' : 'translate(-50%, -100%)', animation: 'fadeIn 0.12s ease both' }}>
       {tip.label && <span className="whitespace-pre-line">{tip.label}</span>}
       {tip.keys.length > 0 && (
-        <span className="flex items-center gap-0.5 flex-shrink-0">
+        <span className="flex items-center gap-0.5 shrink-0">
           {tip.keys.map((k, i) => <kbd key={i} className="font-sans px-1 py-[2px] rounded-[4px] bg-white/[0.14] text-white/80 text-[11px] font-medium leading-none">{k}</kbd>)}
         </span>
       )}

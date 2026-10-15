@@ -229,7 +229,7 @@ export function Annotator({ entry, onClose, onSave }: {
   const changed = shapes.length > 0 || !!crop
 
   return createPortal(
-    <motion.div {...backdropMotion} className="fixed inset-0 z-[700] bg-black/60 backdrop-blur-[2px] flex flex-col p-4 gap-3">
+    <motion.div {...backdropMotion} className="fixed inset-0 z-700 bg-black/60 backdrop-blur-[2px] flex flex-col p-4 gap-3">
       <motion.div {...dialogMotion} className="flex items-center gap-2 bg-surface hairline rounded-xl shadow-2xl px-2 py-1.5 self-center">
         {TOOLS.map((t) => {
           const Icon = t.icon
@@ -241,13 +241,13 @@ export function Annotator({ entry, onClose, onSave }: {
             </button>
           )
         })}
-        <span className="w-px h-6 bg-[var(--hairline-strong)] mx-1" />
+        <span className="w-px h-6 bg-(--hairline-strong) mx-1" />
         {COLORS.map((c) => (
           <button key={c} type="button" onClick={() => setColor(c)} aria-label={`Color ${c}`} aria-pressed={color === c}
             className="w-5 h-5 rounded-full transition-transform hover:scale-110"
             style={{ background: c, boxShadow: color === c ? `0 0 0 2px rgb(var(--c-surface)), 0 0 0 4px ${c === '#FFFFFF' ? '#999' : c}` : 'inset 0 0 0 1px var(--hairline-strong)' }} />
         ))}
-        <span className="w-px h-6 bg-[var(--hairline-strong)] mx-1" />
+        <span className="w-px h-6 bg-(--hairline-strong) mx-1" />
         <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon" onClick={undo} disabled={!changed} title="Deshacer (Ctrl+Z)"><Undo2 size={15} /></button>
         <button type="button" className="ui-btn ui-btn-outline ui-btn-sm" disabled={busy || !changed} onClick={() => void save(false)}>
           <Save size={13} /> Guardar copia
@@ -304,7 +304,7 @@ function TextInput({ x, y, color, onDone }: { x: number; y: number; color: strin
       }}
       placeholder="Texto… (Enter)"
       rows={1}
-      className="absolute bg-white/90 dark:bg-black/70 rounded px-1.5 py-0.5 text-[14px] font-semibold outline-none shadow-lg resize min-w-[160px]"
+      className="absolute bg-white/90 dark:bg-black/70 rounded px-1.5 py-0.5 text-[14px] font-semibold outline-hidden shadow-lg resize min-w-[160px]"
       style={{ left: x, top: y, color }}
     />
   )

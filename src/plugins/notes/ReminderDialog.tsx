@@ -56,7 +56,7 @@ export function ReminderDialog({ open, noteTitle, current, onClose, onSet, onCle
             key={p.label}
             type="button"
             onClick={() => onSet(p.at.getTime())}
-            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-left hover:bg-on-surface/[0.05] transition-colors"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-left hover:bg-on-surface/5 transition-colors"
           >
             <Bell size={14} className="text-primary shrink-0" />
             <span className="t-body text-on-surface flex-1">{p.label}</span>

@@ -74,7 +74,7 @@ export function UtilitiesPlugin(): JSX.Element {
                 onClick={() => setTool(t.id)}
                 aria-current={active ? 'page' : undefined}
                 className={`group relative w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
-                  active ? '' : 'hover:bg-on-surface/[0.03] dark:hover:bg-white/[0.04]'
+                  active ? '' : 'hover:bg-on-surface/3 dark:hover:bg-white/4'
                 }`}
               >
                 {active && <motion.span layoutId="utilities-active" className="absolute inset-0 z-0 rounded-lg bg-selected" transition={SPRING.snappy} />}
@@ -164,7 +164,7 @@ function Output({ label, result, rows }: { label: string; result: Result<string>
         )}
       </div>
       {result && !result.ok ? (
-        <p className="t-footnote text-error bg-error/[0.08] rounded-lg px-3 py-2.5 font-mono break-words">{result.error}</p>
+        <p className="t-footnote text-error bg-error/8 rounded-lg px-3 py-2.5 font-mono wrap-break-word">{result.error}</p>
       ) : (
         <pre
           className="ui-card px-3 py-2.5 font-mono text-[12.5px] leading-5 text-on-surface whitespace-pre-wrap break-all overflow-auto select-text"
@@ -377,9 +377,9 @@ function RegexTool(): JSX.Element {
           <span className="t-footnote font-medium text-on-surface-variant">Expresión</span>
           <div className="flex items-center ui-input font-mono gap-1 focus-within:shadow-[0_0_0_3px_rgb(var(--c-primary)/0.16)]">
             <span className="text-on-surface-variant">/</span>
-            <input value={pattern} onChange={(e) => setPattern(e.target.value)} autoFocus spellCheck={false} className="flex-1 min-w-0 bg-transparent outline-none" />
+            <input value={pattern} onChange={(e) => setPattern(e.target.value)} autoFocus spellCheck={false} className="flex-1 min-w-0 bg-transparent outline-hidden" />
             <span className="text-on-surface-variant">/</span>
-            <input value={flags} onChange={(e) => setFlags(e.target.value.replace(/[^dgimsuy]/g, ''))} spellCheck={false} className="w-12 bg-transparent outline-none" aria-label="Flags" />
+            <input value={flags} onChange={(e) => setFlags(e.target.value.replace(/[^dgimsuy]/g, ''))} spellCheck={false} className="w-12 bg-transparent outline-hidden" aria-label="Flags" />
           </div>
         </label>
       </div>
@@ -387,7 +387,7 @@ function RegexTool(): JSX.Element {
       {result && !result.ok && <Output label="Error" result={result} />}
       {result?.ok && (
         <>
-          <div className="ui-card px-3 py-2.5 font-mono text-[12.5px] leading-6 whitespace-pre-wrap break-words">{highlighted}</div>
+          <div className="ui-card px-3 py-2.5 font-mono text-[12.5px] leading-6 whitespace-pre-wrap wrap-break-word">{highlighted}</div>
           <p className="t-footnote text-on-surface-variant">
             {result.value.length === 0 ? 'Sin coincidencias' : `${result.value.length} coincidencia${result.value.length === 1 ? '' : 's'}`}
           </p>

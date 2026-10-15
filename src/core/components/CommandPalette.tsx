@@ -191,7 +191,7 @@ export function CommandPalette(): JSX.Element | null {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[650] flex items-start justify-center px-4 bg-black/20 dark:bg-black/50 backdrop-blur-[2px]"
+      className="fixed inset-0 z-650 flex items-start justify-center px-4 bg-black/20 dark:bg-black/50 backdrop-blur-[2px]"
       style={{ paddingTop: '16vh', animation: 'fadeIn 0.1s ease both' }}
       onMouseDown={(e) => { if (e.target === e.currentTarget) close() }}
     >
@@ -204,8 +204,8 @@ export function CommandPalette(): JSX.Element | null {
       >
         {/* Search field */}
         <div className="p-2.5 hairline-b">
-        <div className="flex items-center gap-3 px-3.5 h-12 rounded-xl bg-surface-container dark:bg-white/[0.05] focus-within:bg-surface focus-within:shadow-[0_0_0_3px_rgb(var(--c-primary)/0.16)] focus-within:border-primary/60 border border-transparent transition-colors">
-          <Search size={18} className="text-on-surface-variant flex-shrink-0" />
+        <div className="flex items-center gap-3 px-3.5 h-12 rounded-xl bg-surface-container dark:bg-white/5 focus-within:bg-surface focus-within:shadow-[0_0_0_3px_rgb(var(--c-primary)/0.16)] focus-within:border-primary/60 border border-transparent transition-colors">
+          <Search size={18} className="text-on-surface-variant shrink-0" />
           <input
             ref={inputRef}
             value={query}
@@ -214,11 +214,11 @@ export function CommandPalette(): JSX.Element | null {
             placeholder="Buscar notas, snippets, gastos, módulos y acciones…"
             aria-label="Buscar"
             spellCheck={false}
-            className="flex-1 min-w-0 bg-transparent border-none outline-none t-callout text-on-surface"
+            className="flex-1 min-w-0 bg-transparent border-none outline-hidden t-callout text-on-surface"
             style={{ fontSize: 16, lineHeight: '24px' }}
           />
           {loading && query.trim() && (
-            <span className="w-3.5 h-3.5 rounded-full border-2 border-on-surface/15 border-t-primary animate-spin flex-shrink-0" aria-label="Buscando" />
+            <span className="w-3.5 h-3.5 rounded-full border-2 border-on-surface/15 border-t-primary animate-spin shrink-0" aria-label="Buscando" />
           )}
           <Kbd>Esc</Kbd>
         </div>
@@ -254,7 +254,7 @@ export function CommandPalette(): JSX.Element | null {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-4 px-4 h-10 hairline-t bg-background/50 dark:bg-white/[0.02] t-caption text-on-surface-variant">
+        <div className="flex items-center gap-4 px-4 h-10 hairline-t bg-background/50 dark:bg-white/2 t-caption text-on-surface-variant">
           <span className="flex items-center gap-1.5"><Kbd><CornerDownLeft size={10} /></Kbd> Abrir</span>
           <span className="flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> Moverse</span>
           <span className="flex items-center gap-1.5"><Kbd>Tab</Kbd> Siguiente grupo</span>
@@ -275,7 +275,7 @@ export function CommandPalette(): JSX.Element | null {
 
 function Kbd({ children }: { children: React.ReactNode }): JSX.Element {
   return (
-    <kbd className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-[6px] bg-surface hairline shadow-sm text-[11px] font-medium font-sans text-on-surface-variant flex-shrink-0">
+    <kbd className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-[6px] bg-surface hairline shadow-sm text-[11px] font-medium font-sans text-on-surface-variant shrink-0">
       {children}
     </kbd>
   )
@@ -301,8 +301,8 @@ function PaletteRow({ item, selected, onHover, onRun }: {
       }`}
     >
       <span
-        className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
-          selected ? 'bg-surface dark:bg-white/[0.08] text-primary shadow-sm' : 'bg-on-surface/[0.05] text-on-surface-variant'
+        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+          selected ? 'bg-surface dark:bg-white/8 text-primary shadow-sm' : 'bg-on-surface/5 text-on-surface-variant'
         }`}
       >
         {Icon ? <Icon size={15} /> : <Search size={14} />}
@@ -316,8 +316,8 @@ function PaletteRow({ item, selected, onHover, onRun }: {
         )}
       </span>
       {(item.hint || selected) && (
-        <kbd className={`flex-shrink-0 inline-flex items-center gap-1 h-[20px] px-1.5 rounded-[6px] text-[11px] font-medium font-sans ${
-          selected ? 'bg-surface dark:bg-white/[0.08] hairline text-on-surface-variant' : 'bg-on-surface/[0.05] text-on-surface-variant/80'
+        <kbd className={`shrink-0 inline-flex items-center gap-1 h-[20px] px-1.5 rounded-[6px] text-[11px] font-medium font-sans ${
+          selected ? 'bg-surface dark:bg-white/8 hairline text-on-surface-variant' : 'bg-on-surface/5 text-on-surface-variant/80'
         }`}>
           {item.hint ?? <><CornerDownLeft size={10} /> Abrir</>}
         </kbd>

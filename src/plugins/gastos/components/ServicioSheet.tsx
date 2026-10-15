@@ -71,11 +71,11 @@ export function ServicioSheet({ open, initial, categorias, diaVencimiento, onSav
           <input className="ui-input w-full" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Edesur" autoFocus />
         </Field>
         <Field label="Ícono">
-          <div className="grid grid-cols-7 gap-1 p-1.5 rounded-lg bg-on-surface/[0.04] dark:bg-on-surface/[0.06]">
+          <div className="grid grid-cols-7 gap-1 p-1.5 rounded-lg bg-on-surface/4 dark:bg-on-surface/6">
             {ICON_OPTIONS.map((key) => (
               <button key={key} type="button" onClick={() => setIcon(key)} aria-label={`Ícono ${key}`} aria-pressed={icon === key}
                 className={`flex items-center justify-center h-8 rounded-md transition-colors ${
-                  icon === key ? 'bg-surface text-primary shadow-sm' : 'text-on-surface-variant hover:bg-on-surface/[0.06] hover:text-on-surface'
+                  icon === key ? 'bg-surface text-primary shadow-sm' : 'text-on-surface-variant hover:bg-on-surface/6 hover:text-on-surface'
                 }`}>
                 <ServiceIcon icon={key} size={15} />
               </button>
@@ -99,7 +99,7 @@ export function ServicioSheet({ open, initial, categorias, diaVencimiento, onSav
           <input className="ui-input w-24 tabular-nums" type="number" min={1} max={31} value={dia}
             onChange={(e) => setDia(e.target.value)} placeholder="15" />
         </Field>
-        <div className="flex items-center justify-between rounded-lg bg-on-surface/[0.04] dark:bg-on-surface/[0.06] px-3 py-2.5">
+        <div className="flex items-center justify-between rounded-lg bg-on-surface/4 dark:bg-on-surface/6 px-3 py-2.5">
           <span className="t-body font-medium text-on-surface">{activo ? 'Activo' : 'Inactivo'}</span>
           <Toggle checked={activo} onChange={setActivo} label="Servicio activo" />
         </div>

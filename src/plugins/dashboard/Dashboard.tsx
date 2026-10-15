@@ -85,7 +85,7 @@ function Widget({ title, icon: Icon, action, children, className = '' }: {
   return (
     <section className={`ui-card flex flex-col min-h-[240px] ${className}`}>
       <header className="flex items-center gap-2.5 pl-4 pr-3 pt-3.5 pb-2.5">
-        <span className="w-7 h-7 rounded-lg flex items-center justify-center bg-selected text-primary flex-shrink-0">
+        <span className="w-7 h-7 rounded-lg flex items-center justify-center bg-selected text-primary shrink-0">
           <Icon size={15} />
         </span>
         <h2 className="t-headline text-on-surface flex-1 min-w-0 truncate">{title}</h2>
@@ -118,14 +118,14 @@ function Row({ title, subtitle, meta, icon, onClick, trailing }: {
   trailing?: ReactNode
 }): JSX.Element {
   return (
-    <div className="group flex items-center rounded-lg hover:bg-on-surface/[0.03] dark:hover:bg-on-surface/[0.05] transition-colors">
+    <div className="group flex items-center rounded-lg hover:bg-on-surface/3 dark:hover:bg-on-surface/5 transition-colors">
       <button onClick={onClick} className="flex-1 min-w-0 flex items-center gap-3 px-2.5 py-2.5 text-left">
         {icon}
         <span className="flex-1 min-w-0">
           <span className="block t-body font-medium text-on-surface truncate">{title}</span>
           {subtitle && <span className="block t-footnote text-on-surface-variant truncate">{subtitle}</span>}
         </span>
-        {meta && <span className="t-caption text-on-surface-variant/80 flex-shrink-0 tabular-nums">{meta}</span>}
+        {meta && <span className="t-caption text-on-surface-variant/80 shrink-0 tabular-nums">{meta}</span>}
       </button>
       {trailing}
     </div>
@@ -194,8 +194,8 @@ function QuickCapture({ enabled, onNoteCreated }: {
 
   return (
     <div className="ui-card p-2 flex flex-col gap-2 shadow-md">
-      <div className="flex items-center gap-2 rounded-lg bg-on-surface/[0.04] dark:bg-on-surface/[0.06] focus-within:bg-surface focus-within:ring-2 focus-within:ring-primary/25 transition-colors pl-3 pr-1.5 py-1.5">
-        <Sparkles size={16} className="text-primary flex-shrink-0" />
+      <div className="flex items-center gap-2 rounded-lg bg-on-surface/4 dark:bg-on-surface/6 focus-within:bg-surface focus-within:ring-2 focus-within:ring-primary/25 transition-colors pl-3 pr-1.5 py-1.5">
+        <Sparkles size={16} className="text-primary shrink-0" />
         <input
           ref={inputRef}
           value={text}
@@ -206,7 +206,7 @@ function QuickCapture({ enabled, onNoteCreated }: {
           }}
           placeholder={placeholder}
           aria-label="Captura rápida"
-          className="flex-1 min-w-0 bg-transparent outline-none text-on-surface px-1 py-2"
+          className="flex-1 min-w-0 bg-transparent outline-hidden text-on-surface px-1 py-2"
           style={{ fontSize: 15 }}
         />
         {options.length > 1 && (
@@ -269,7 +269,7 @@ function NotesWidget({ notes, onRetry }: { notes: Loadable<NoteMeta[]>; onRetry:
             title={n.title || 'Sin título'}
             subtitle={n.preview || undefined}
             meta={relTime(n.updatedAt)}
-            icon={n.pinned ? <Pin size={12} className="text-on-surface-variant flex-shrink-0" /> : undefined}
+            icon={n.pinned ? <Pin size={12} className="text-on-surface-variant shrink-0" /> : undefined}
             onClick={() => dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'notes', action: 'open', payload: n.id })}
           />
         ))
@@ -336,7 +336,7 @@ function SnippetsWidget({ snippets, onUsed }: { snippets: Loadable<Snippet[]>; o
               key={s.id}
               title={s.title}
               subtitle={s.description || s.content.split('\n')[0]}
-              icon={s.pinned ? <Pin size={12} className="text-on-surface-variant flex-shrink-0" /> : undefined}
+              icon={s.pinned ? <Pin size={12} className="text-on-surface-variant shrink-0" /> : undefined}
               meta={hasVars ? 'Completar' : undefined}
               onClick={() => void use(s)}
               trailing={
@@ -391,7 +391,7 @@ function ExpensesSummary({ s, onOpen }: { s: GastosMonthSummary; onOpen: () => v
   const budgetPct = s.presupuesto && s.presupuesto > 0 ? s.total / s.presupuesto : null
   const over = budgetPct !== null && budgetPct > 1
   return (
-    <button onClick={onOpen} className="text-left px-2.5 py-2 flex flex-col gap-4 rounded-lg hover:bg-on-surface/[0.03] dark:hover:bg-on-surface/[0.05] transition-colors">
+    <button onClick={onOpen} className="text-left px-2.5 py-2 flex flex-col gap-4 rounded-lg hover:bg-on-surface/3 dark:hover:bg-on-surface/5 transition-colors">
       <div className="flex flex-col gap-1.5">
         <div className="t-display text-on-surface tabular-nums">{fmtMoney(s.total)}</div>
         <div className="flex items-center gap-2 t-footnote text-on-surface-variant min-w-0">
@@ -437,7 +437,7 @@ function ExpensesSummary({ s, onOpen }: { s: GastosMonthSummary; onOpen: () => v
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: 'warning' }): JSX.Element {
   return (
-    <div className="rounded-lg bg-on-surface/[0.04] dark:bg-on-surface/[0.06] px-3 py-2.5 min-w-0">
+    <div className="rounded-lg bg-on-surface/4 dark:bg-on-surface/6 px-3 py-2.5 min-w-0">
       <div className="t-caption text-on-surface-variant">{label}</div>
       <div className={`t-callout font-semibold tabular-nums truncate mt-0.5 ${tone === 'warning' ? 'text-warning' : 'text-on-surface'}`}>{value}</div>
     </div>
@@ -461,7 +461,7 @@ function RecentFilesWidget({ recents }: { recents: Loadable<RecentEntry[]> }): J
             title={r.name}
             subtitle={dir}
             meta={relTime(new Date(r.openedAt).getTime())}
-            icon={<span className="w-4 flex justify-center text-on-surface-variant flex-shrink-0"><LangIcon size={14} /></span>}
+            icon={<span className="w-4 flex justify-center text-on-surface-variant shrink-0"><LangIcon size={14} /></span>}
             onClick={() => dispatch({ type: 'OPEN_IN_EDITOR', path: r.path })}
           />
         )
@@ -509,7 +509,7 @@ function TicketsWidget({ tickets }: { tickets: Loadable<TicketRow[]> }): JSX.Ele
           title={t.ticket}
           subtitle={[t.captures ? `${t.captures} captura${t.captures === 1 ? '' : 's'}` : null, t.copied ? 'copiado' : null].filter(Boolean).join(' · ')}
           meta={relTime(t.at)}
-          icon={<span className="w-7 h-7 rounded-lg grid place-items-center bg-on-surface/[0.05] text-on-surface-variant flex-shrink-0"><Ticket size={14} /></span>}
+          icon={<span className="w-7 h-7 rounded-lg grid place-items-center bg-on-surface/5 text-on-surface-variant shrink-0"><Ticket size={14} /></span>}
           onClick={() => dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'captures', action: 'ticket', payload: t.ticket })}
         />
       ))}
@@ -542,7 +542,7 @@ function KeysWidget({ keys }: { keys: Loadable<Credential[]> }): JSX.Element {
           key={c.id}
           title={c.nombre}
           subtitle={[c.usuario, usageHint(c.useCount, c.lastUsedAt ? relTime(c.lastUsedAt) : '')].filter(Boolean).join(' · ')}
-          icon={<span className="w-7 h-7 rounded-lg grid place-items-center bg-on-surface/[0.05] text-on-surface-variant flex-shrink-0">{c.favorite ? <Pin size={13} /> : <KeyRound size={13} />}</span>}
+          icon={<span className="w-7 h-7 rounded-lg grid place-items-center bg-on-surface/5 text-on-surface-variant shrink-0">{c.favorite ? <Pin size={13} /> : <KeyRound size={13} />}</span>}
           onClick={() => open(c.id)}
           trailing={c.hasPassword ? (
             <button onClick={() => void copy(c)} title="Copiar contraseña"
@@ -575,7 +575,7 @@ function ClipboardWidget({ clips }: { clips: Loadable<ClipView[]> }): JSX.Elemen
           title={c.sensitive ? (c.masked ?? '••••••') : c.text.replace(/\s+/g, ' ').trim().slice(0, 140)}
           subtitle={[c.sensitive ? 'Oculto' : KIND_LABEL[c.kind], c.app].filter(Boolean).join(' · ')}
           meta={relTime(c.at)}
-          icon={<span className="w-7 h-7 rounded-lg grid place-items-center bg-on-surface/[0.05] text-on-surface-variant flex-shrink-0">{c.sensitive ? <Lock size={13} /> : <Copy size={13} />}</span>}
+          icon={<span className="w-7 h-7 rounded-lg grid place-items-center bg-on-surface/5 text-on-surface-variant shrink-0">{c.sensitive ? <Lock size={13} /> : <Copy size={13} />}</span>}
           onClick={() => void copy(c)}
         />
       ))}

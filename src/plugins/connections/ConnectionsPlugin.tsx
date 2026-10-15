@@ -193,7 +193,7 @@ function ConnPill({ status }: { status: ConnStatus }): JSX.Element {
   const p = PILL[status.state]
   const label = status.state === 'error' ? `Error: ${shortError(status.detail, 22)}` : p.label
   return (
-    <span title={status.state === 'error' ? status.detail : undefined} className="flex-shrink-0">
+    <span title={status.state === 'error' ? status.detail : undefined} className="shrink-0">
       <StatusPill tone={p.tone} label={label} pulse={p.pulse} />
     </span>
   )
@@ -202,7 +202,7 @@ function ConnPill({ status }: { status: ConnStatus }): JSX.Element {
 function LogoTile({ Logo, size = 36 }: { Logo: Logo; size?: number }): JSX.Element {
   return (
     <span
-      className="rounded-lg flex items-center justify-center flex-shrink-0 bg-surface hairline shadow-sm text-on-surface"
+      className="rounded-lg flex items-center justify-center shrink-0 bg-surface hairline shadow-sm text-on-surface"
       style={{ width: size, height: size }}
     >
       <Logo size={Math.round(size / 2)} />
@@ -237,7 +237,7 @@ function FormField({
       </div>
       {children}
       {error
-        ? <span className="flex items-start gap-1.5 t-caption text-error"><CircleAlert size={12} className="mt-px flex-shrink-0" />{error}</span>
+        ? <span className="flex items-start gap-1.5 t-caption text-error"><CircleAlert size={12} className="mt-px shrink-0" />{error}</span>
         : help && <span className="t-caption text-on-surface-variant/80">{help}</span>}
     </div>
   )
@@ -257,7 +257,7 @@ function SecretInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={configured && !value ? '••••••••' : (placeholder ?? '')}
-          className="flex-1 min-w-0 bg-transparent outline-none py-[5px] font-mono"
+          className="flex-1 min-w-0 bg-transparent outline-hidden py-[5px] font-mono"
           autoComplete="off"
           spellCheck={false}
         />
@@ -299,9 +299,9 @@ function TextInput({ value, onChange, placeholder, type = 'text', invalid }: {
 function Outcome({ result }: { result: { ok: boolean; detail: string } | null }): JSX.Element | null {
   if (!result) return null
   return (
-    <div className={`flex items-start gap-2 rounded-xl px-3.5 py-2.5 t-footnote ${result.ok ? 'bg-success/[0.10] text-success' : 'bg-error/[0.08] text-error'}`}>
-      {result.ok ? <CheckCircle2 size={14} className="mt-px flex-shrink-0" /> : <CircleAlert size={14} className="mt-px flex-shrink-0" />}
-      <span className="min-w-0 break-words">{result.detail}</span>
+    <div className={`flex items-start gap-2 rounded-xl px-3.5 py-2.5 t-footnote ${result.ok ? 'bg-success/10 text-success' : 'bg-error/8 text-error'}`}>
+      {result.ok ? <CheckCircle2 size={14} className="mt-px shrink-0" /> : <CircleAlert size={14} className="mt-px shrink-0" />}
+      <span className="min-w-0 wrap-break-word">{result.detail}</span>
     </div>
   )
 }
@@ -323,10 +323,10 @@ function StatusBanner({ meta, status }: { meta: IntegrationMeta; status: ConnSta
 
 function HowTo({ steps }: { steps: React.ReactNode[] }): JSX.Element {
   return (
-    <ol className="flex flex-col gap-2 rounded-xl bg-on-surface/[0.035] dark:bg-on-surface/[0.05] px-4 py-3.5">
+    <ol className="flex flex-col gap-2 rounded-xl bg-on-surface/[0.035] dark:bg-on-surface/5 px-4 py-3.5">
       {steps.map((s, i) => (
         <li key={i} className="flex gap-2.5 t-footnote text-on-surface-variant">
-          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-selected text-primary t-caption font-semibold flex items-center justify-center">{i + 1}</span>
+          <span className="shrink-0 w-5 h-5 rounded-full bg-selected text-primary t-caption font-semibold flex items-center justify-center">{i + 1}</span>
           <span className="min-w-0">{s}</span>
         </li>
       ))}
@@ -336,7 +336,7 @@ function HowTo({ steps }: { steps: React.ReactNode[] }): JSX.Element {
 
 function SessionRow({ username, extra, onLogout }: { username: string | null; extra?: string | null; onLogout: () => void }): JSX.Element {
   return (
-    <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-on-surface/[0.035] dark:bg-on-surface/[0.05]">
+    <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-on-surface/[0.035] dark:bg-on-surface/5">
       <span className="t-footnote text-on-surface-variant">Sesión iniciada como</span>
       <span className="t-body font-medium text-on-surface flex-1 truncate">
         {username}{extra && <span className="text-on-surface-variant font-normal"> · {extra}</span>}
@@ -850,7 +850,7 @@ const KEY_KIND_INFO: Record<SupabaseKeyKind, { tone: 'ok' | 'warn' | 'none'; tex
 function CheckRow({ ok, pending, label, detail }: { ok: boolean | null; pending?: boolean; label: string; detail?: string }): JSX.Element {
   return (
     <li className="flex items-start gap-2.5 t-footnote">
-      <span className="mt-px flex-shrink-0">
+      <span className="mt-px shrink-0">
         {pending ? <Spinner />
           : ok === true ? <CheckCircle2 size={14} className="text-success" />
           : ok === false ? <CircleAlert size={14} className="text-error" />
@@ -949,7 +949,7 @@ function SupabaseSheet({ meta, onStatus }: SheetProps): JSX.Element {
 
   const step = (n: number, title: string, body: React.ReactNode, done?: boolean): JSX.Element => (
     <section className="flex gap-3">
-      <span className={`flex-shrink-0 w-6 h-6 rounded-full t-caption font-semibold flex items-center justify-center ${done ? 'bg-success/[0.14] text-success' : 'bg-selected text-primary'}`}>
+      <span className={`shrink-0 w-6 h-6 rounded-full t-caption font-semibold flex items-center justify-center ${done ? 'bg-success/[0.14] text-success' : 'bg-selected text-primary'}`}>
         {done ? <Check size={12} /> : n}
       </span>
       <div className="flex-1 min-w-0 flex flex-col gap-3 pt-0.5">
@@ -977,7 +977,7 @@ function SupabaseSheet({ meta, onStatus }: SheetProps): JSX.Element {
         </>
       }
     >
-      <div className="rounded-xl bg-on-surface/[0.035] dark:bg-on-surface/[0.05] px-3.5 py-2.5 t-footnote text-on-surface-variant flex flex-col gap-0.5">
+      <div className="rounded-xl bg-on-surface/[0.035] dark:bg-on-surface/5 px-3.5 py-2.5 t-footnote text-on-surface-variant flex flex-col gap-0.5">
         <span>
           En uso: <span className="font-mono text-on-surface break-all">{current?.url || '—'}</span>
         </span>
@@ -1132,7 +1132,7 @@ function IntegrationCard({
       </p>
       {/* La hora de la última prueba va en su propia línea: en el pie no entra junto a los botones. */}
       <p className="t-caption text-on-surface-variant/80 -mt-2 truncate inline-flex items-center gap-1">
-        <Clock size={11} className="flex-shrink-0" />{formatCheckedAt(status.checkedAt)}
+        <Clock size={11} className="shrink-0" />{formatCheckedAt(status.checkedAt)}
       </p>
       <div className="flex items-center justify-end gap-2 hairline-t pt-3 -mx-4 px-4">
         <button className="ui-btn ui-btn-ghost ui-btn-sm" disabled={checking} onClick={onTest}>

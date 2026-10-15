@@ -22,7 +22,7 @@ export const APP_FONT_FAMILIES = [
 
 /**
  * Base de `rem` (espaciados de Tailwind). Los tamaños de letra son px enteros
- * (tailwind.config + clases .t-*), así achicar la interfaz no deja texto borroso.
+ * (@theme en globals.css + clases .t-*), así achicar la interfaz no deja texto borroso.
  */
 export const APP_FONT_SIZES: Record<AppFontPrefs['fontSize'], string> = {
   small:  '12px',

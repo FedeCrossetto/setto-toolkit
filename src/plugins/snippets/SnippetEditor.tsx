@@ -21,7 +21,7 @@ export function emptyForm(partial: Partial<SnippetFormState> = {}): SnippetFormS
   return { title: '', language: 'plaintext', content: '', tags: [], description: '', pinned: false, collectionId: null, images: {}, ...partial }
 }
 
-/** Replace full data URLs with `![img:N]` placeholders for editing. */
+/** Replace full data URLs with `[img:N]!` placeholders for editing. */
 export function collapseImages(content: string): { content: string; images: Record<string, string> } {
   const images: Record<string, string> = {}
   let counter = 0
@@ -190,7 +190,7 @@ export function SnippetEditor({
                 }}
                 onBlur={addTag}
                 placeholder={form.tags.length ? '' : 'Escribí y apretá Enter'}
-                className="flex-1 min-w-[120px] bg-transparent outline-none t-body"
+                className="flex-1 min-w-[120px] bg-transparent outline-hidden t-body"
               />
             </div>
           </div>
@@ -213,7 +213,7 @@ export function SnippetEditor({
             />
           </Field>
 
-          <div className="flex items-center justify-between rounded-xl bg-surface-container dark:bg-white/[0.04] px-3.5 py-2.5">
+          <div className="flex items-center justify-between rounded-xl bg-surface-container dark:bg-white/4 px-3.5 py-2.5">
             <span className="t-body text-on-surface">Fijar arriba</span>
             <Toggle checked={form.pinned} onChange={(v) => setForm((f) => ({ ...f, pinned: v }))} label="Fijar snippet" />
           </div>

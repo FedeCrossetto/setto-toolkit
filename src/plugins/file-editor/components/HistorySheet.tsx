@@ -104,14 +104,14 @@ export function HistorySheet({ open, tab, onClose, onRestore, onCompare }: Histo
         </div>
       ) : (
         <div className="flex gap-4 h-[min(64vh,560px)] -mx-2">
-          <ul className="w-56 flex-shrink-0 overflow-y-auto flex flex-col gap-0.5" role="listbox" aria-label="Versiones">
+          <ul className="w-56 shrink-0 overflow-y-auto flex flex-col gap-0.5" role="listbox" aria-label="Versiones">
             {entries.map((e) => (
               <li key={e.id}>
                 <button
                   role="option"
                   aria-selected={e.id === selected}
                   onClick={() => setSelected(e.id)}
-                  className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors ${e.id === selected ? 'bg-selected text-on-surface' : 'hover:bg-on-surface/[0.04] text-on-surface'}`}
+                  className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors ${e.id === selected ? 'bg-selected text-on-surface' : 'hover:bg-on-surface/4 text-on-surface'}`}
                   title={new Date(e.ts).toLocaleString('es')}
                 >
                   <span className="block t-footnote font-medium">{relativeTime(e.ts)}</span>
@@ -134,7 +134,7 @@ export function HistorySheet({ open, tab, onClose, onRestore, onCompare }: Histo
             {preview === null ? (
               <div className="flex items-center gap-2 p-3 t-footnote text-on-surface-variant"><Loader2 size={14} className="animate-spin" />Cargando…</div>
             ) : (
-              <pre className="flex-1 overflow-auto p-3 t-caption font-mono text-on-surface bg-on-surface/[0.02] whitespace-pre" aria-label="Vista previa (solo lectura)">{preview}</pre>
+              <pre className="flex-1 overflow-auto p-3 t-caption font-mono text-on-surface bg-on-surface/2 whitespace-pre" aria-label="Vista previa (solo lectura)">{preview}</pre>
             )}
           </div>
         </div>

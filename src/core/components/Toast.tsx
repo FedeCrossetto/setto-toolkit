@@ -45,8 +45,8 @@ const ICON_COLOR: Record<ToastType, string> = {
 }
 
 const ICON_BG: Record<ToastType, string> = {
-  success: 'bg-success/[0.12]',
-  error:   'bg-error/[0.12]',
+  success: 'bg-success/12',
+  error:   'bg-error/12',
   warning: 'bg-warning/[0.14]',
   info:    'bg-primary/10',
 }
@@ -69,14 +69,14 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
       className="flex items-center gap-2.5 pl-2 pr-2 py-1.5 rounded-full bg-surface hairline shadow-2xl t-body text-on-surface"
       style={{ minWidth: 220, maxWidth: 400 }}
     >
-      <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${ICON_BG[toast.type]}`}>
+      <span className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${ICON_BG[toast.type]}`}>
         <Icon size={15} weight="fill" className={ICON_COLOR[toast.type]} />
       </span>
       <span className="flex-1 leading-snug font-medium pr-1">{toast.message}</span>
       <button
         onClick={handleDismiss}
         aria-label="Cerrar"
-        className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-on-surface-variant/60 hover:text-on-surface hover:bg-on-surface/[0.06] transition-colors"
+        className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-on-surface-variant/60 hover:text-on-surface hover:bg-on-surface/6 transition-colors"
       >
         <X size={13} />
       </button>
@@ -107,7 +107,7 @@ export function ToastProvider({ children }: { children: ReactNode }): JSX.Elemen
       {/* Toasts — arriba a la derecha */}
       <div
         aria-live="polite"
-        className="fixed top-14 right-4 z-[9999] flex flex-col gap-2 items-end pointer-events-none"
+        className="fixed top-14 right-4 z-9999 flex flex-col gap-2 items-end pointer-events-none"
       >
         <AnimatePresence initial={false}>
           {toasts.map((t) => (

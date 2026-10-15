@@ -16,7 +16,7 @@ export function StrengthMeter({ score, detail }: { score: number; detail?: strin
     <div className="flex items-center gap-2.5" title={detail}>
       <div className="flex gap-1" aria-hidden>
         {[1, 2, 3, 4].map((i) => (
-          <span key={i} className={`h-1 w-6 rounded-full ${i <= Math.max(s, 1) ? tone.bar : 'bg-on-surface/[0.10]'}`} />
+          <span key={i} className={`h-1 w-6 rounded-full ${i <= Math.max(s, 1) ? tone.bar : 'bg-on-surface/10'}`} />
         ))}
       </div>
       <span className={`t-caption font-medium ${tone.text}`}>{STRENGTH_LABELS[s]}</span>

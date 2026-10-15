@@ -112,7 +112,7 @@ export function PagoSheet({ open, initial, servicios, pagos, onSave, onDelete, o
         <Field label="Notas">
           <input className="ui-input w-full" value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Opcional" />
         </Field>
-        <div className="flex items-center justify-between rounded-lg bg-on-surface/[0.04] dark:bg-on-surface/[0.06] px-3 py-2.5">
+        <div className="flex items-center justify-between rounded-lg bg-on-surface/4 dark:bg-on-surface/6 px-3 py-2.5">
           <span className="t-body font-medium text-on-surface">{pagado ? 'Pagado' : 'Pendiente'}</span>
           <Toggle checked={pagado} onChange={setPagado} label="Pagado" />
         </div>

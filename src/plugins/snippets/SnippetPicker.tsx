@@ -295,7 +295,7 @@ export function SnippetPicker(): JSX.Element {
                 onChange={(e) => { setQuery(e.target.value); setSel(0); setMode('list') }}
                 placeholder="Buscar en lo copiado, capturas y snippets…"
                 spellCheck={false}
-                className="flex-1 min-w-0 bg-transparent outline-none text-on-surface"
+                className="flex-1 min-w-0 bg-transparent outline-hidden text-on-surface"
                 style={{ fontSize: 16 }}
               />
               <button type="button" onClick={() => void ocr()} className="ui-btn ui-btn-ghost ui-btn-sm shrink-0" title="Copiar el texto de la imagen que hay en el portapapeles (Ctrl+T)">
@@ -306,7 +306,7 @@ export function SnippetPicker(): JSX.Element {
               {FILTERS.map((f, i) => (
                 <button key={f.id} type="button" onClick={() => { setFilter(f.id); setSel(0); inputRef.current?.focus() }}
                   title={`Ctrl+${i + 1}`}
-                  className={`h-6 px-2.5 rounded-full text-[12px] font-medium transition-colors ${filter === f.id ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-on-surface/[0.06]'}`}>
+                  className={`h-6 px-2.5 rounded-full text-[12px] font-medium transition-colors ${filter === f.id ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-on-surface/6'}`}>
                   {f.label}
                 </button>
               ))}

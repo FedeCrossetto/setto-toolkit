@@ -250,7 +250,7 @@ export function SettingsPage(): JSX.Element {
   return (
     <div className="px-8 py-7 max-w-[1000px] mx-auto w-full flex gap-10">
       {/* ── Índice de secciones ────────────────────────────────────────────── */}
-      <nav aria-label="Secciones de ajustes" className="hidden lg:flex flex-col gap-0.5 w-44 flex-shrink-0 sticky top-7 self-start pt-[76px]">
+      <nav aria-label="Secciones de ajustes" className="hidden lg:flex flex-col gap-0.5 w-44 shrink-0 sticky top-7 self-start pt-[76px]">
         {SECTIONS.map(({ id, label, icon: Icon }) => {
           const on = activeSection === id
           return (
@@ -260,7 +260,7 @@ export function SettingsPage(): JSX.Element {
               onClick={() => goToSection(id)}
               aria-current={on ? 'true' : undefined}
               className={`flex items-center gap-2.5 h-8 px-2.5 rounded-lg t-body text-left transition-colors ${
-                on ? 'bg-selected text-on-surface font-medium' : 'text-on-surface-variant hover:bg-on-surface/[0.05] hover:text-on-surface'
+                on ? 'bg-selected text-on-surface font-medium' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'
               }`}
             >
               <Icon size={15} weight={on ? 'fill' : undefined} className={on ? 'text-primary' : ''} />
@@ -278,7 +278,7 @@ export function SettingsPage(): JSX.Element {
 
       {!encryptionAvailable && (
         <div className="ui-card flex items-start gap-3 px-4 py-3">
-          <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-warning/[0.14] text-warning">
+          <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-warning/[0.14] text-warning">
             <TriangleAlert size={15} />
           </span>
           <p className="t-footnote text-on-surface-variant">
@@ -545,5 +545,5 @@ export function SettingsPage(): JSX.Element {
 
 /** Sub-encabezado dentro de una tarjeta de grupo (Personal / Desarrollo / Sistema). */
 function SubHeader({ children }: { children: ReactNode }): JSX.Element {
-  return <div className="px-4 pt-3 pb-2 t-footnote font-semibold text-on-surface-variant bg-on-surface/[0.02]">{children}</div>
+  return <div className="px-4 pt-3 pb-2 t-footnote font-semibold text-on-surface-variant bg-on-surface/2">{children}</div>
 }

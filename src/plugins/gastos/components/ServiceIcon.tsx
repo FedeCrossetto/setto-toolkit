@@ -21,7 +21,7 @@ export function ServiceIcon({ icon, size = 15, className }: { icon: string; size
 /** Ícono en un cuadradito neutro (listas). */
 export function ServiceTile({ icon, size = 13 }: { icon: string; size?: number }): JSX.Element {
   return (
-    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-on-surface/[0.06] text-on-surface-variant">
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-on-surface/6 text-on-surface-variant">
       <ServiceIcon icon={icon} size={size} />
     </span>
   )

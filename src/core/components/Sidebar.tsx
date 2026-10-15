@@ -32,11 +32,11 @@ function SidebarItem({
   // Minimalista: un solo acento. Inactivo = ícono gris sin fondo; activo = baldosa llena del tema.
   const tile = (
     <span
-      className={`relative z-10 grid place-items-center flex-shrink-0 rounded-[9px] transition-[background-color,color,transform] duration-150 group-active:scale-95 ${
+      className={`relative z-10 grid place-items-center shrink-0 rounded-[9px] transition-[background-color,color,transform] duration-150 group-active:scale-95 ${
         collapsed ? 'w-[34px] h-[28px]' : 'w-[24px] h-[24px] rounded-[7px]'} ${
         active ? 'bg-primary text-on-primary shadow-[0_2px_8px_-2px_rgb(var(--c-primary)/0.5)]' : 'text-on-surface-variant group-hover:text-on-surface'}`}
     >
-      <PluginIcon icon={plugin.icon} size={collapsed ? 16 : 14} weight={active ? 'fill' : 'regular'} className="flex-shrink-0" />
+      <PluginIcon icon={plugin.icon} size={collapsed ? 16 : 14} weight={active ? 'fill' : 'regular'} className="shrink-0" />
       {dirty && (
         <span title="Cambios sin guardar" className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-warning ring-2 ring-[rgb(var(--c-sidebar))]" />
       )}
@@ -49,8 +49,8 @@ function SidebarItem({
       aria-label={plugin.name}
       aria-current={active ? 'page' : undefined}
       className={`group relative flex w-full rounded-[10px] transition-colors duration-100 no-drag ${
-        collapsed ? 'flex-col items-center justify-center gap-[3px] py-[6px]' : 'items-center gap-2.5 h-[var(--nav-row-h)] px-2'
-      } ${active ? '' : 'hover:bg-on-surface/[0.045] dark:hover:bg-white/[0.05]'}`}
+        collapsed ? 'flex-col items-center justify-center gap-[3px] py-[6px]' : 'items-center gap-2.5 h-(--nav-row-h) px-2'
+      } ${active ? '' : 'hover:bg-on-surface/4.5 dark:hover:bg-white/5'}`}
     >
       {/* La pastilla de selección se desliza de un ítem al otro (mismo layoutId). */}
       {active && (
@@ -100,7 +100,7 @@ export function Sidebar(): JSX.Element {
 
   return (
     <aside
-      className="relative z-50 h-full flex-shrink-0 flex flex-col bg-sidebar hairline-r transition-[width] duration-200"
+      className="relative z-50 h-full shrink-0 flex flex-col bg-sidebar hairline-r transition-[width] duration-200"
       style={{ width: collapsed ? SIDEBAR_WIDTH.collapsed : SIDEBAR_WIDTH.expanded, transitionTimingFunction: 'var(--ease-mac)' }}
     >
       {/* layoutScroll: la pastilla mide bien aunque la lista esté scrolleada. */}
@@ -108,7 +108,7 @@ export function Sidebar(): JSX.Element {
         {sections.map((g, i) => (
           <div key={g.key} className={i > 0 ? (collapsed ? 'mt-2' : 'mt-4') : ''}>
             {collapsed
-              ? (i > 0 && <div className="mx-3 mb-2 h-px bg-[var(--hairline)]" />)
+              ? (i > 0 && <div className="mx-3 mb-2 h-px bg-(--hairline)" />)
               : <div className="px-2.5 mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant/70">{SECTION_LABEL[g.key] ?? g.key}</div>}
             <div className="flex flex-col gap-0.5">
               {g.items.map(p => (
@@ -126,7 +126,7 @@ export function Sidebar(): JSX.Element {
         ))}
       </motion.nav>
 
-      <div className={`flex flex-col gap-0.5 pb-3 pt-2 hairline-t flex-shrink-0 ${collapsed ? 'px-1.5' : 'px-2.5'}`}>
+      <div className={`flex flex-col gap-0.5 pb-3 pt-2 hairline-t shrink-0 ${collapsed ? 'px-1.5' : 'px-2.5'}`}>
         {pinned.map(p => (
           <SidebarItem
             key={p.id}
@@ -140,7 +140,7 @@ export function Sidebar(): JSX.Element {
         <button
           onClick={() => dispatch({ type: 'TOGGLE_SIDEBAR' })}
           title={collapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'}
-          className={`flex items-center h-[var(--nav-row-h)] rounded-[10px] text-on-surface-variant hover:bg-on-surface/[0.04] hover:text-on-surface transition-colors ${
+          className={`flex items-center h-(--nav-row-h) rounded-[10px] text-on-surface-variant hover:bg-on-surface/4 hover:text-on-surface transition-colors ${
             collapsed ? 'justify-center' : 'gap-2.5 px-2'
           }`}
         >

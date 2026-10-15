@@ -65,7 +65,7 @@ export function Tabla({ servicios, pagos, year, onEditPago, onAddPago }: {
         <table className="w-full t-footnote border-collapse">
           <thead>
             <tr className="[&>th]:sticky [&>th]:top-0 [&>th]:bg-surface [&>th]:z-10 [&>th]:shadow-[inset_0_-1px_0_var(--hairline)]">
-              <th className="t-footnote font-medium text-left text-on-surface-variant px-3 py-2.5 !left-0 !z-20 min-w-[180px]">Servicio</th>
+              <th className="t-footnote font-medium text-left text-on-surface-variant px-3 py-2.5 left-0! z-20! min-w-[180px]">Servicio</th>
               {months.map((m) => (
                 <th key={m} className="t-footnote font-medium text-right text-on-surface-variant px-2 py-2.5 min-w-[78px]">{mesShort(m)}</th>
               ))}
@@ -81,7 +81,7 @@ export function Tabla({ servicios, pagos, year, onEditPago, onAddPago }: {
                 {activos.filter((s) => s.categoria === cat).map((svc) => {
                   let totalSvc = 0
                   return (
-                    <tr key={svc.id} className="group/row border-b border-[var(--hairline)] hover:bg-on-surface/[0.03] dark:hover:bg-on-surface/[0.05]">
+                    <tr key={svc.id} className="group/row border-b border-(--hairline) hover:bg-on-surface/3 dark:hover:bg-on-surface/5">
                       <td className="px-3 py-1.5 sticky left-0 bg-surface whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <ServiceIcon icon={svc.emoji} size={13} className="text-on-surface-variant" />
@@ -96,12 +96,12 @@ export function Tabla({ servicios, pagos, year, onEditPago, onAddPago }: {
                             {p ? (
                               <button type="button" onClick={() => onEditPago(p)}
                                 title={[p.pagado ? 'Pagado' : 'Pendiente', p.fecha, p.metodoPago, p.notas].filter(Boolean).join(' · ')}
-                                className={`w-full text-right px-1.5 py-1 rounded-md tabular-nums hover:bg-on-surface/[0.06] ${p.pagado ? 'text-on-surface' : 'text-warning'}`}>
+                                className={`w-full text-right px-1.5 py-1 rounded-md tabular-nums hover:bg-on-surface/6 ${p.pagado ? 'text-on-surface' : 'text-warning'}`}>
                                 {fmt(p.monto)}
                               </button>
                             ) : (
                               <button type="button" onClick={() => onAddPago(svc.id, mes)} aria-label={`Cargar ${svc.nombre} ${mesShort(mes)}`}
-                                className="group/empty w-full flex justify-end px-1.5 py-1 rounded-md text-on-surface-variant/30 hover:bg-on-surface/[0.06] hover:text-on-surface-variant">
+                                className="group/empty w-full flex justify-end px-1.5 py-1 rounded-md text-on-surface-variant/30 hover:bg-on-surface/6 hover:text-on-surface-variant">
                                 <span className="group-hover/empty:hidden">—</span>
                                 <Plus size={12} className="hidden group-hover/empty:block my-[3px]" />
                               </button>
@@ -115,7 +115,7 @@ export function Tabla({ servicios, pagos, year, onEditPago, onAddPago }: {
                 })}
               </Fragment>
             ))}
-            <tr className="hairline-t bg-on-surface/[0.02]">
+            <tr className="hairline-t bg-on-surface/2">
               <td className="px-3 py-2.5 sticky left-0 bg-surface t-body font-semibold text-on-surface">Total</td>
               {months.map((mes) => (
                 <td key={mes} className="px-2.5 py-2 text-right tabular-nums font-semibold text-on-surface">

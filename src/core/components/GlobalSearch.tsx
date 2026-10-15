@@ -68,15 +68,15 @@ export function GlobalSearch(): JSX.Element | null {
   const hasResults = result && result.matches > 0
   const noResults  = result && result.matches === 0 && query.trim().length > 0
 
-  const iconBtn = 'ui-btn ui-btn-ghost ui-btn-icon !p-1'
+  const iconBtn = 'ui-btn ui-btn-ghost ui-btn-icon p-1!'
 
   return (
     <div
       role="search"
-      className="mac-popover hairline mac-pop-in fixed top-12 right-4 z-[250] flex items-center gap-1 pl-2.5 pr-1.5 py-1.5"
-      style={{ borderRadius: 'var(--radius-lg)' }}
+      className="mac-popover hairline mac-pop-in fixed top-12 right-4 z-250 flex items-center gap-1 pl-2.5 pr-1.5 py-1.5"
+      style={{ borderRadius: 'var(--r-lg)' }}
     >
-      <Search size={14} className="text-on-surface-variant flex-shrink-0" />
+      <Search size={14} className="text-on-surface-variant shrink-0" />
 
       <input
         ref={inputRef}
@@ -85,17 +85,17 @@ export function GlobalSearch(): JSX.Element | null {
         onKeyDown={handleKey}
         placeholder="Buscar en la página"
         aria-label="Buscar en la página"
-        className={`w-44 bg-transparent t-body outline-none ml-1 ${noResults ? 'text-error' : 'text-on-surface'}`}
+        className={`w-44 bg-transparent t-body outline-hidden ml-1 ${noResults ? 'text-error' : 'text-on-surface'}`}
         spellCheck={false}
       />
 
       {query.trim() && (
-        <span className={`t-caption tabular-nums flex-shrink-0 min-w-[3.5rem] text-right ${noResults ? 'text-error' : 'text-on-surface-variant'}`}>
+        <span className={`t-caption tabular-nums shrink-0 min-w-14 text-right ${noResults ? 'text-error' : 'text-on-surface-variant'}`}>
           {noResults ? 'Sin resultados' : result ? `${result.activeMatchOrdinal} de ${result.matches}` : ''}
         </span>
       )}
 
-      <div className="w-px h-4 bg-[var(--hairline-strong)] mx-1" />
+      <div className="w-px h-4 bg-(--hairline-strong) mx-1" />
 
       <button onClick={() => doFind(query, false, true)} disabled={!hasResults} title="Anterior (Shift+Enter)" aria-label="Anterior" className={iconBtn}>
         <ChevronUp size={14} />
@@ -108,7 +108,7 @@ export function GlobalSearch(): JSX.Element | null {
         title="Distinguir mayúsculas"
         aria-label="Distinguir mayúsculas"
         aria-pressed={matchCase}
-        className={`ui-btn ui-btn-sm !px-1.5 t-caption font-semibold ${matchCase ? 'bg-primary/[0.14] text-primary' : 'ui-btn-ghost'}`}
+        className={`ui-btn ui-btn-sm px-1.5! t-caption font-semibold ${matchCase ? 'bg-primary/[0.14] text-primary' : 'ui-btn-ghost'}`}
       >
         Aa
       </button>

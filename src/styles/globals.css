@@ -1,6 +1,120 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-background: rgb(var(--c-background));
+  --color-surface: rgb(var(--c-surface));
+  --color-surface-container-low: rgb(var(--c-surface-container-low));
+  --color-surface-container: rgb(var(--c-surface-container));
+  --color-surface-container-high: rgb(var(--c-surface-container-high));
+  --color-surface-container-highest: rgb(var(--c-surface-container-highest));
+  --color-on-surface: rgb(var(--c-on-surface));
+  --color-on-surface-variant: rgb(var(--c-on-surface-variant));
+  --color-primary: rgb(var(--c-primary));
+  --color-primary-light: rgb(var(--c-primary-light));
+  --color-on-primary: rgb(var(--c-on-primary));
+  --color-secondary: rgb(var(--c-secondary));
+  --color-on-secondary: rgb(var(--c-on-secondary));
+  --color-accent: rgb(var(--c-accent));
+  --color-outline-variant: rgb(var(--c-outline-variant));
+  --color-outline: rgb(var(--c-outline));
+  --color-error: rgb(var(--c-error));
+  --color-warning: rgb(var(--c-warning));
+  --color-success: rgb(var(--c-success));
+  --color-sidebar: rgb(var(--c-sidebar));
+  --color-chart-1: rgb(var(--c-chart-1));
+  --color-chart-2: rgb(var(--c-chart-2));
+  --color-chart-3: rgb(var(--c-chart-3));
+  --color-chart-4: rgb(var(--c-chart-4));
+  --color-chart-5: rgb(var(--c-chart-5));
+  --color-chart-6: rgb(var(--c-chart-6));
+  --color-chart-7: rgb(var(--c-chart-7));
+  --color-chart-8: rgb(var(--c-chart-8));
+
+  --text-2xs: 10px;
+  --text-2xs--line-height: 14px;
+  --text-xs: 11px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 18px;
+  --text-base: 14px;
+  --text-base--line-height: 20px;
+  --text-lg: 16px;
+  --text-lg--line-height: 24px;
+  --text-xl: 18px;
+  --text-xl--line-height: 26px;
+  --text-2xl: 22px;
+  --text-2xl--line-height: 28px;
+  --text-3xl: 28px;
+  --text-3xl--line-height: 34px;
+  --text-4xl: 34px;
+  --text-4xl--line-height: 40px;
+
+  --font-sans:
+    var(--app-font-family), Inter Variable, Inter, Segoe UI Variable Text,
+    Segoe UI, system-ui, sans-serif;
+
+  /* Clases de radio → tokens de forma de la app (--r-*, en "Forma"). Mismo mapeo que en v3:
+     los nombres de la app no pueden ser --radius-* porque son los del tema de Tailwind. */
+  --radius-xs: var(--r-xs);
+  --radius-sm: var(--r-xs);
+  --radius: var(--r-sm);
+  --radius-md: var(--r-sm);
+  --radius-lg: var(--r-md);
+  --radius-xl: var(--r-lg);
+  --radius-2xl: var(--r-xl);
+  --radius-3xl: var(--r-2xl);
+  --radius-full: 9999px;
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-lg);
+  --shadow-2xl: var(--shadow-pop);
+  --shadow-card: var(--shadow-sm);
+  --shadow-card-hover: var(--shadow-md);
+  --shadow-card-dark: var(--shadow-sm);
+  --shadow-card-dark-hover: var(--shadow-md);
+  --shadow-neon: var(--shadow-sm);
+  --shadow-neon-primary: var(--shadow-sm);
+  --shadow-neon-secondary: var(--shadow-sm);
+  --shadow-neon-btn: var(--shadow-sm);
+
+  --border-color-hairline: var(--hairline);
+  --border-color-hairline-strong: var(--hairline-strong);
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+  /* v4 dejó el cursor por defecto en los botones; la app usa la manito como en v3. */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/*
+  Todo el CSS propio de la app va en la capa de utilidades, DESPUÉS de las de Tailwind:
+  así gana la especificidad y el orden, como en Tailwind 3. Fuera de capa le ganaría
+  SIEMPRE a cualquier utilidad (p. ej. el reset "* { padding: 0 }" anularía todos los p-*).
+*/
+@layer utilities {
 
 @keyframes fadeSlideUp {
   from { opacity: 0; transform: translateY(12px); }
@@ -158,12 +272,12 @@
    y las primitivas .ui-* leen estas variables, así que cambiar un valor acá
    cambia toda la app. ─────────────────────────────────────────────────────── */
 :root {
-  --radius-xs:   6px;    /* chips, kbd, badges chicos */
-  --radius-sm:   8px;    /* botones, inputs, items de lista */
-  --radius-md:  10px;    /* botones grandes, segmentos */
-  --radius-lg:  14px;    /* cards, menús */
-  --radius-xl:  18px;    /* paneles, modales */
-  --radius-2xl: 24px;    /* hero, splash */
+  --r-xs:   6px;    /* chips, kbd, badges chicos */
+  --r-sm:   8px;    /* botones, inputs, items de lista */
+  --r-md:  10px;    /* botones grandes, segmentos */
+  --r-lg:  14px;    /* cards, menús */
+  --r-xl:  18px;    /* paneles, modales */
+  --r-2xl: 24px;    /* hero, splash */
 
   --border-w: 1px;
   --hairline: rgb(0 0 0 / 0.07);        /* borde fino */
@@ -217,7 +331,7 @@
   background: rgb(var(--c-surface) / 0.86);
   backdrop-filter: saturate(180%) blur(30px);
   -webkit-backdrop-filter: saturate(180%) blur(30px);
-  border-radius: var(--radius-xl);
+  border-radius: var(--r-xl);
   box-shadow: var(--shadow-pop);
 }
 .hairline   { border: var(--border-w) solid var(--hairline); }
@@ -408,7 +522,7 @@ select option {
 :where(.ui-card) {
   background: rgb(var(--c-surface));
   border: var(--border-w) solid var(--hairline);
-  border-radius: var(--radius-lg);
+  border-radius: var(--r-lg);
   box-shadow: var(--shadow-sm);
   /* brillo sutil en el borde superior (tarjetas tipo SaaS) */
   background-image: linear-gradient(180deg, rgb(255 255 255 / 0.035), transparent 40%);
@@ -427,7 +541,7 @@ select option {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   font-size: 13px;
   font-weight: 500;
   line-height: 18px;
@@ -469,14 +583,14 @@ select option {
 .ui-btn-ghost:hover { background: rgb(var(--c-on-surface) / 0.06); color: rgb(var(--c-on-surface)); }
 .ui-btn-danger { background: rgb(var(--c-error)); color: #fff; }
 .ui-btn-danger:hover { filter: brightness(1.08); }
-:where(.ui-btn-sm), button:where(.ui-btn-sm), a:where(.ui-btn-sm) { padding: 3px 9px; font-size: 12px; border-radius: var(--radius-xs); }
+:where(.ui-btn-sm), button:where(.ui-btn-sm), a:where(.ui-btn-sm) { padding: 3px 9px; font-size: 12px; border-radius: var(--r-xs); }
 :where(.ui-btn-icon), button:where(.ui-btn-icon), a:where(.ui-btn-icon) { padding: 5px; }
 
 /* Inputs */
 :where(.ui-input), input:where(.ui-input), textarea:where(.ui-input), select:where(.ui-input) {
   background: rgb(var(--c-surface-container));
   border: var(--border-w) solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   color: rgb(var(--c-on-surface));
   padding: 5px 10px;
   font-size: 13px;
@@ -531,7 +645,7 @@ select option {
   backdrop-filter: saturate(180%) blur(30px);
   -webkit-backdrop-filter: saturate(180%) blur(30px);
   border: var(--border-w) solid var(--hairline);
-  border-radius: var(--radius-lg);
+  border-radius: var(--r-lg);
   box-shadow: var(--shadow-pop);
   padding: 5px;
 }
@@ -539,7 +653,7 @@ select option {
   display: flex;
   align-items: center;
   gap: 8px;
-  border-radius: var(--radius-xs);
+  border-radius: var(--r-xs);
   padding: 4px 9px;
   font-size: 13px;
   color: rgb(var(--c-on-surface));
@@ -636,7 +750,7 @@ select option {
   );
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
-  border-radius: var(--radius-xs);
+  border-radius: var(--r-xs);
 }
 
 
@@ -646,8 +760,8 @@ select option {
 .json-bool   { color: rgb(var(--c-primary)); }
 .md-preview h1, .md-preview h2 { border-bottom-color: var(--hairline); }
 .md-preview a { color: rgb(var(--c-primary)); }
-.md-preview code { background: rgb(var(--c-on-surface) / 0.06); border-color: transparent; border-radius: var(--radius-xs); }
-.md-preview pre { background: rgb(var(--c-on-surface) / 0.04); border-color: var(--hairline); border-radius: var(--radius-md); }
+.md-preview code { background: rgb(var(--c-on-surface) / 0.06); border-color: transparent; border-radius: var(--r-xs); }
+.md-preview pre { background: rgb(var(--c-on-surface) / 0.04); border-color: var(--hairline); border-radius: var(--r-md); }
 .md-preview blockquote { border-left-color: var(--hairline-strong); background: transparent; }
 .md-preview th, .md-preview td { border-color: var(--hairline); }
 .md-preview th { background: rgb(var(--c-on-surface) / 0.04); }
@@ -708,3 +822,4 @@ html[data-ui-size="small"] .text-\[11px\]   { font-size: 10.5px; }
 .t-title1, .t-title2, .t-title3, .t-display { font-family: var(--app-font-family, Inter), sans-serif; }
 /* Controles nativos heredan la fuente de la app (los <button>/<input> no lo hacen solos en todos los casos). */
 button, input, select, textarea { font-family: inherit; }
+} /* @layer utilities */

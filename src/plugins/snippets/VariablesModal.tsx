@@ -87,7 +87,7 @@ export function VariablesModal({
         ))}
         <div className="flex flex-col gap-1.5">
           <span className="t-footnote font-medium text-on-surface-variant">Vista previa</span>
-          <pre className="t-footnote font-mono text-on-surface bg-on-surface/[0.04] hairline rounded-md px-3 py-2 max-h-40 overflow-auto whitespace-pre-wrap break-words">
+          <pre className="t-footnote font-mono text-on-surface bg-on-surface/4 hairline rounded-md px-3 py-2 max-h-40 overflow-auto whitespace-pre-wrap wrap-break-word">
             {rendered}
           </pre>
         </div>

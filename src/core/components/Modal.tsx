@@ -40,7 +40,7 @@ export function Modal({
     {open && (
     <motion.div
       {...backdropMotion}
-      className="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-black/20 dark:bg-black/50 backdrop-blur-[2px]"
+      className="fixed inset-0 z-600 flex items-center justify-center p-4 bg-black/20 dark:bg-black/50 backdrop-blur-[2px]"
       onMouseDown={(e) => { if (closeOnBackdrop && e.target === e.currentTarget) onClose() }}
     >
       <motion.div
@@ -62,7 +62,7 @@ export function Modal({
           </div>
         )}
         {children && <div className="px-6 pb-5 overflow-y-auto t-body text-on-surface">{children}</div>}
-        {footer && <div className="flex justify-end items-center gap-2 px-6 py-3.5 hairline-t bg-background/40 dark:bg-white/[0.02]">{footer}</div>}
+        {footer && <div className="flex justify-end items-center gap-2 px-6 py-3.5 hairline-t bg-background/40 dark:bg-white/2">{footer}</div>}
       </motion.div>
     </motion.div>
     )}
@@ -101,7 +101,7 @@ export function Sheet({
     {open && (
     <motion.div
       {...backdropMotion}
-      className="fixed inset-0 z-[550] flex justify-end bg-black/20 dark:bg-black/50 backdrop-blur-[2px]"
+      className="fixed inset-0 z-550 flex justify-end bg-black/20 dark:bg-black/50 backdrop-blur-[2px]"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <motion.aside
@@ -119,7 +119,7 @@ export function Sheet({
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-5 t-body text-on-surface">{children}</div>
-        {footer && <div className="flex justify-end items-center gap-2 px-6 py-3.5 hairline-t bg-background/40 dark:bg-white/[0.02]">{footer}</div>}
+        {footer && <div className="flex justify-end items-center gap-2 px-6 py-3.5 hairline-t bg-background/40 dark:bg-white/2">{footer}</div>}
       </motion.aside>
     </motion.div>
     )}
@@ -178,7 +178,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }): JSX.Elem
         }
       >
         <div className="pt-6 flex items-start gap-3.5">
-          <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+          <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
             opts?.destructive ? 'bg-error/10 text-error' : 'bg-selected text-primary'
           }`}>
             <TriangleAlert size={19} weight="fill" />

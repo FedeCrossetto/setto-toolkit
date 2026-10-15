@@ -54,14 +54,14 @@ function TerminalPtySetupSteps(): JSX.Element {
         </li>
         <li>
           Abrí una terminal en la <strong>carpeta raíz del repo</strong> y ejecutá:{' '}
-          <code className="rounded px-1.5 py-px font-mono t-caption bg-on-surface/[0.06] text-on-surface">
+          <code className="rounded px-1.5 py-px font-mono t-caption bg-on-surface/6 text-on-surface">
             npm run rebuild
           </code>
           {' '}
           (recompila <code className="font-mono t-caption">node-pty</code> para tu Node/Electron).
         </li>
         <li>
-          Cerrá la app y volvé a ejecutar <code className="rounded px-1 font-mono t-caption bg-on-surface/[0.06] text-on-surface">npm run dev</code> o abrí el ejecutable de nuevo.
+          Cerrá la app y volvé a ejecutar <code className="rounded px-1 font-mono t-caption bg-on-surface/6 text-on-surface">npm run dev</code> o abrí el ejecutable de nuevo.
         </li>
       </ol>
       <p className="t-caption text-on-surface-variant/70">
@@ -82,9 +82,9 @@ function Row({ label, value, className }: { label: string; value: string; classN
 
 /** Token class for the Claude context-usage level. */
 function usageTone(pct: number): { text: string; bg: string } {
-  if (pct >= 80) return { text: '!text-error', bg: 'bg-error' }
-  if (pct >= 50) return { text: '!text-warning', bg: 'bg-warning' }
-  return { text: '!text-success', bg: 'bg-success' }
+  if (pct >= 80) return { text: 'text-error!', bg: 'bg-error' }
+  if (pct >= 50) return { text: 'text-warning!', bg: 'bg-warning' }
+  return { text: 'text-success!', bg: 'bg-success' }
 }
 
 export function Terminal(): JSX.Element {
@@ -484,7 +484,7 @@ export function Terminal(): JSX.Element {
     <div className="flex flex-col h-full overflow-hidden bg-surface">
 
       {/* ── Tab bar ───────────────────────────────────────────────────────── */}
-      <div className="flex items-stretch flex-shrink-0 h-9 hairline-b bg-sidebar/40">
+      <div className="flex items-stretch shrink-0 h-9 hairline-b bg-sidebar/40">
         {/* Session tabs — scrollable, NO picker button inside here */}
         <div
           className="flex items-stretch flex-1 min-w-0 overflow-x-auto"
@@ -502,8 +502,8 @@ export function Terminal(): JSX.Element {
                 key={id}
                 onClick={() => handleTabClick(id, baseLabel)}
                 title={isActive && !isEditing ? 'Clic para renombrar' : undefined}
-                className={`group flex items-center gap-1.5 pl-3 pr-1.5 flex-shrink-0 select-none hairline-r t-footnote transition-colors ${
-                  isActive ? 'bg-surface font-medium' : 'hover:bg-on-surface/[0.04]'
+                className={`group flex items-center gap-1.5 pl-3 pr-1.5 shrink-0 select-none hairline-r t-footnote transition-colors ${
+                  isActive ? 'bg-surface font-medium' : 'hover:bg-on-surface/4'
                 } ${
                   isExited ? 'text-on-surface-variant/50' : isActive ? 'text-on-surface' : 'text-on-surface-variant'
                 }`}
@@ -513,7 +513,7 @@ export function Terminal(): JSX.Element {
                   minWidth: 96,
                 }}
               >
-                <SquareTerminal size={12} className="flex-shrink-0 opacity-60" />
+                <SquareTerminal size={12} className="shrink-0 opacity-60" />
 
                 {isEditing ? (
                   <input
@@ -524,7 +524,7 @@ export function Terminal(): JSX.Element {
                     onBlur={commitRename}
                     onClick={(e) => e.stopPropagation()}
                     aria-label="Nombre de la sesión"
-                    className="bg-surface text-on-surface outline-none t-footnote min-w-0 flex-1 rounded px-1 shadow-[0_0_0_2px_rgb(var(--c-primary)/0.5)]"
+                    className="bg-surface text-on-surface outline-hidden t-footnote min-w-0 flex-1 rounded px-1 shadow-[0_0_0_2px_rgb(var(--c-primary)/0.5)]"
                     style={{ width: 90 }}
                   />
                 ) : (
@@ -532,7 +532,7 @@ export function Terminal(): JSX.Element {
                 )}
 
                 {isExited && !isEditing && (
-                  <span title="El proceso terminó" className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-on-surface-variant/50" />
+                  <span title="El proceso terminó" className="w-1.5 h-1.5 rounded-full shrink-0 bg-on-surface-variant/50" />
                 )}
 
                 {!isEditing && (
@@ -540,7 +540,7 @@ export function Terminal(): JSX.Element {
                     onClick={(e) => { e.stopPropagation(); void closeTab(id) }}
                     title="Cerrar sesión"
                     aria-label="Cerrar sesión"
-                    className="opacity-0 group-hover:opacity-100 flex-shrink-0 w-4 h-4 rounded flex items-center justify-center transition-opacity text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.08]"
+                    className="opacity-0 group-hover:opacity-100 shrink-0 w-4 h-4 rounded flex items-center justify-center transition-opacity text-on-surface-variant hover:text-on-surface hover:bg-on-surface/8"
                   >
                     <X size={11} />
                   </button>
@@ -569,7 +569,7 @@ export function Terminal(): JSX.Element {
           disabled={starting}
           title="Nueva sesión (Ctrl+T)"
           aria-label="Nueva sesión"
-          className="ui-btn ui-btn-ghost ui-btn-sm self-center mx-1 !px-1.5 !gap-0.5 flex-shrink-0"
+          className="ui-btn ui-btn-ghost ui-btn-sm self-center mx-1 px-1.5! gap-0.5! shrink-0"
         >
           {starting
             ? <RefreshCw size={13} className="animate-spin" />
@@ -578,7 +578,7 @@ export function Terminal(): JSX.Element {
         </button>
 
         {/* Right: Claude buttons + Send to Diff + History + Settings */}
-        <div className="flex items-center flex-shrink-0 gap-0.5 pr-2 pl-1 hairline-l">
+        <div className="flex items-center shrink-0 gap-0.5 pr-2 pl-1 hairline-l">
 
           {/* ── Button 1: Launch Claude with full permissions ───────────── */}
           <button
@@ -598,7 +598,7 @@ export function Terminal(): JSX.Element {
               setTimeout(() => refreshUsage(), 5000)
             }}
             title="Abrir Claude Code (con todos los permisos)"
-            className="ui-btn ui-btn-ghost ui-btn-sm !gap-1 flex-shrink-0"
+            className="ui-btn ui-btn-ghost ui-btn-sm gap-1! shrink-0"
           >
             <Bot size={14} />
             Claude
@@ -615,13 +615,13 @@ export function Terminal(): JSX.Element {
             }}
             title="Enviar Ctrl+C (interrumpir o salir de Claude)"
             aria-label="Enviar Ctrl+C"
-            className="ui-btn ui-btn-ghost ui-btn-icon flex-shrink-0"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
           >
             <StopCircle size={14} />
           </button>
 
           {/* ── Button 2: Claude context usage % ───────────────────────── */}
-          <div className="relative flex-shrink-0">
+          <div className="relative shrink-0">
             <button
               ref={usageBtnRef}
               onClick={() => {
@@ -629,7 +629,7 @@ export function Terminal(): JSX.Element {
                 setUsageOpen((o) => !o)
               }}
               title="Uso de la ventana de contexto de Claude (clic para actualizar)"
-              className={`ui-btn ui-btn-ghost ui-btn-sm !gap-1 tabular-nums ${claudeUsagePct === null ? '' : usageTone(claudeUsagePct).text}`}
+              className={`ui-btn ui-btn-ghost ui-btn-sm gap-1! tabular-nums ${claudeUsagePct === null ? '' : usageTone(claudeUsagePct).text}`}
             >
               <Activity size={13} />
               {claudeUsagePct !== null ? `${claudeUsagePct}%` : '—'}
@@ -639,7 +639,7 @@ export function Terminal(): JSX.Element {
             <AnimatePresence>
               {usageOpen && claudeUsagePct !== null && (
                 <motion.div
-                  className="mac-popover hairline absolute right-0 top-full mt-1 z-[9999] py-3 px-4 min-w-[240px]"
+                  className="mac-popover hairline absolute right-0 top-full mt-1 z-9999 py-3 px-4 min-w-[240px]"
                   initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}
                   transition={{ duration: 0.12, ease: 'easeOut' }}
                 >
@@ -655,7 +655,7 @@ export function Terminal(): JSX.Element {
                     const remaining = 100 - pct
                     return (
                       <>
-                        <div className="w-full rounded-full mb-3 bg-on-surface/[0.08]" style={{ height: 4 }}>
+                        <div className="w-full rounded-full mb-3 bg-on-surface/8" style={{ height: 4 }}>
                           <div className={`rounded-full h-full transition-all ${tone.bg}`} style={{ width: `${Math.min(pct, 100)}%` }} />
                         </div>
                         <div className="flex flex-col gap-1.5">
@@ -700,7 +700,7 @@ export function Terminal(): JSX.Element {
               title={panel === 'history' ? 'Historial de sesiones' : 'Ajustes de la terminal'}
               aria-label={panel === 'history' ? 'Historial de sesiones' : 'Ajustes de la terminal'}
               aria-pressed={sidePanel === panel}
-              className={`ui-btn ui-btn-ghost ui-btn-icon ${sidePanel === panel ? '!bg-on-surface/[0.08] !text-on-surface' : ''}`}
+              className={`ui-btn ui-btn-ghost ui-btn-icon ${sidePanel === panel ? 'bg-on-surface/8! text-on-surface!' : ''}`}
             >
               {panel === 'history' ? <History size={14} /> : <Settings size={14} />}
             </button>
@@ -772,7 +772,7 @@ export function Terminal(): JSX.Element {
         {/* Side panel */}
         {sidePanel && (
           <div
-            className="flex-shrink-0 overflow-hidden flex flex-col hairline-l bg-sidebar/40"
+            className="shrink-0 overflow-hidden flex flex-col hairline-l bg-sidebar/40"
             style={{ width: 340 }}
           >
             {sidePanel === 'history' && (
@@ -789,7 +789,7 @@ export function Terminal(): JSX.Element {
       <AnimatePresence>
         {shellPickerOpen && pickerPos && (
           <motion.div
-            className="ui-menu z-[9999]"
+            className="ui-menu z-9999"
             style={{ position: 'fixed', top: pickerPos.top, left: pickerPos.left, minWidth: 220 }}
             initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.1, ease: 'easeOut' }}

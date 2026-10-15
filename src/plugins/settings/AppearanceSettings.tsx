@@ -40,7 +40,7 @@ export function AppearanceSettings({ isDark }: { isDark: boolean }): JSX.Element
                 aria-checked={active}
                 onClick={() => { previewAppearance(null); setAppearance({ preset: p.id }) }}
                 {...hover({ preset: p.id })}
-                className={`group text-left rounded-xl p-1.5 transition-shadow focus:outline-none ${
+                className={`group text-left rounded-xl p-1.5 transition-shadow focus:outline-hidden ${
                   active ? 'shadow-[0_0_0_2px_rgb(var(--c-primary))]' : 'hairline hover:shadow-md'
                 }`}
               >
@@ -91,7 +91,7 @@ export function AppearanceSettings({ isDark }: { isDark: boolean }): JSX.Element
                     onClick={() => { previewAppearance(null); setAppearance({ palette: p.id }) }}
                     {...hover({ palette: p.id })}
                     title={p.label}
-                    className="flex flex-col items-center gap-1.5 w-[64px] rounded-lg py-1 focus:outline-none focus-visible:bg-on-surface/[0.05] group"
+                    className="flex flex-col items-center gap-1.5 w-[64px] rounded-lg py-1 focus:outline-hidden focus-visible:bg-on-surface/5 group"
                   >
                     <span
                       className="relative w-7 h-7 rounded-full flex items-center justify-center transition-transform duration-150 group-hover:scale-105"
@@ -153,7 +153,7 @@ export function AppearanceSettings({ isDark }: { isDark: boolean }): JSX.Element
 function SectionTitle({ title, subtitle }: { title: string; subtitle: string }): JSX.Element {
   return (
     <div className="flex items-center gap-3 mb-3">
-      <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-selected text-primary">
+      <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-selected text-primary">
         <Palette size={15} />
       </span>
       <div className="flex-1 min-w-0">

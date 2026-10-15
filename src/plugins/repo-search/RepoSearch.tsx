@@ -147,13 +147,13 @@ function PathBreadcrumb({ path, branch }: { path: string; branch: string }): JSX
     <div className="flex items-center gap-0.5 flex-wrap min-w-0">
       {parts.map((part, i) => (
         <span key={i} className="flex items-center gap-0.5 min-w-0">
-          {i > 0 && <span className="text-on-surface-variant/60 t-caption flex-shrink-0">/</span>}
+          {i > 0 && <span className="text-on-surface-variant/60 t-caption shrink-0">/</span>}
           <span className={`t-caption font-mono truncate ${
             i === parts.length - 1 ? 'text-on-surface' : 'text-on-surface-variant'
           }`}>{part}</span>
         </span>
       ))}
-      <span className="t-caption text-on-surface-variant/60 ml-1.5 flex-shrink-0">@ {branch}</span>
+      <span className="t-caption text-on-surface-variant/60 ml-1.5 shrink-0">@ {branch}</span>
     </div>
   )
 }
@@ -177,23 +177,23 @@ function ResultCard({ result, query = '' }: { result: SearchResult; query?: stri
       {/* Header */}
       <div className="px-3 h-9 flex items-center justify-between hairline-b">
         <div className="flex items-center gap-2 min-w-0">
-          <FileText size={14} className="text-on-surface-variant flex-shrink-0" />
+          <FileText size={14} className="text-on-surface-variant shrink-0" />
           <span className="t-body font-medium text-on-surface truncate">{fileName}</span>
           {result.line != null && (
-            <span className="t-caption text-on-surface-variant flex-shrink-0 font-mono">:{result.line}</span>
+            <span className="t-caption text-on-surface-variant shrink-0 font-mono">:{result.line}</span>
           )}
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0 ml-3 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1 shrink-0 ml-3 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={copySnippet}
-            className="ui-btn ui-btn-ghost ui-btn-sm !gap-1"
+            className="ui-btn ui-btn-ghost ui-btn-sm gap-1!"
           >
             {copied ? <Check size={13} /> : <Copy size={13} />}
             {copied ? 'Copiado' : 'Copiar'}
           </button>
           <button
             onClick={() => window.open(result.link, '_blank')}
-            className="ui-btn ui-btn-ghost ui-btn-sm !gap-1"
+            className="ui-btn ui-btn-ghost ui-btn-sm gap-1!"
           >
             Abrir
             <ExternalLink size={12} />
@@ -203,9 +203,9 @@ function ResultCard({ result, query = '' }: { result: SearchResult; query?: stri
 
       {/* Code snippet */}
       <div className="px-3 py-2 font-mono t-footnote">
-        <div className="flex gap-3 bg-on-surface/[0.04] px-2 py-1.5 rounded-md">
+        <div className="flex gap-3 bg-on-surface/4 px-2 py-1.5 rounded-md">
           {result.line != null && (
-            <span className="w-6 text-right select-none text-on-surface-variant/60 flex-shrink-0 t-caption pt-px">{result.line}</span>
+            <span className="w-6 text-right select-none text-on-surface-variant/60 shrink-0 t-caption pt-px">{result.line}</span>
           )}
           <span className="break-all">
             <SyntaxHighlight code={result.fragment || '(match)'} ext={ext} highlight={query} />
@@ -229,16 +229,16 @@ function RepoGroup({ repo, results, defaultOpen, query }: { repo: string; result
     <div className="hairline rounded-xl overflow-hidden">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-2.5 px-3 h-10 bg-sidebar/40 hover:bg-on-surface/[0.04] transition-colors text-left"
+        className="w-full flex items-center gap-2.5 px-3 h-10 bg-sidebar/40 hover:bg-on-surface/4 transition-colors text-left"
       >
         <ChevronDown
           size={14}
-          className="text-on-surface-variant transition-transform duration-200 flex-shrink-0"
+          className="text-on-surface-variant transition-transform duration-200 shrink-0"
           style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}
         />
-        <FolderOpen size={15} className="text-primary flex-shrink-0" />
+        <FolderOpen size={15} className="text-primary shrink-0" />
         <span className="t-body font-semibold text-on-surface flex-1 truncate">{repo}</span>
-        <span className="t-caption tabular-nums text-on-surface-variant flex-shrink-0">
+        <span className="t-caption tabular-nums text-on-surface-variant shrink-0">
           {results.length} {results.length === 1 ? 'coincidencia' : 'coincidencias'}
         </span>
       </button>
@@ -386,7 +386,7 @@ function LoginForm({ provider, onLogin }: { provider: Provider; onLogin: (auth: 
               </div>
 
               {showTokenHelp && (
-                <div className="mb-3 bg-on-surface/[0.04] rounded-md px-3 py-2.5 t-footnote text-on-surface-variant leading-relaxed">
+                <div className="mb-3 bg-on-surface/4 rounded-md px-3 py-2.5 t-footnote text-on-surface-variant leading-relaxed">
                   {provider === 'github' && (
                     <ol className="flex flex-col gap-1 list-none">
                       <li><span className="text-primary font-semibold">1.</span> github.com → tu avatar → <strong>Settings</strong></li>
@@ -502,22 +502,22 @@ function GitHubRepoPanel({
       className={`w-[calc(100%-12px)] mx-1.5 flex items-center gap-2 px-2 h-[26px] rounded-md t-footnote transition-colors text-left ${
         selectedRepo === repo.full_name
           ? 'bg-primary/15 text-on-surface'
-          : 'text-on-surface hover:bg-on-surface/[0.05]'
+          : 'text-on-surface hover:bg-on-surface/5'
       }`}
     >
       <span
-        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+        className="w-1.5 h-1.5 rounded-full shrink-0"
         style={{ background: repo.language ? (LANG_COLORS[repo.language] ?? 'rgb(var(--c-on-surface-variant) / 0.6)') : 'rgb(var(--c-on-surface-variant) / 0.35)' }}
       />
       <span className="truncate">{repo.name}</span>
       {repo.private && (
-        <Lock size={10} className="flex-shrink-0 text-on-surface-variant/60" />
+        <Lock size={10} className="shrink-0 text-on-surface-variant/60" />
       )}
     </button>
   )
 
   return (
-    <div className="w-60 hairline-r bg-sidebar/40 flex flex-col overflow-hidden flex-shrink-0">
+    <div className="w-60 hairline-r bg-sidebar/40 flex flex-col overflow-hidden shrink-0">
       {/* Header */}
       <div className="px-3 pt-3 pb-2 hairline-b">
         <p className="t-section mb-2">
@@ -529,7 +529,7 @@ function GitHubRepoPanel({
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filtrar…"
           aria-label="Filtrar repositorios"
-          className="ui-input w-full !py-1 t-footnote"
+          className="ui-input w-full py-1! t-footnote"
         />
       </div>
 
@@ -547,12 +547,12 @@ function GitHubRepoPanel({
               className={`w-[calc(100%-12px)] mx-1.5 flex items-center gap-2 px-2 h-[26px] rounded-md t-footnote transition-colors text-left ${
                 selectedRepo === null
                   ? 'bg-primary/15 text-on-surface'
-                  : 'text-on-surface hover:bg-on-surface/[0.05]'
+                  : 'text-on-surface hover:bg-on-surface/5'
               }`}
             >
-              <User size={13} className="flex-shrink-0 text-on-surface-variant" />
+              <User size={13} className="shrink-0 text-on-surface-variant" />
               <span className="font-medium truncate">Mis repos</span>
-              <span className="ml-auto t-caption text-on-surface-variant flex-shrink-0">{personalRepos.length}</span>
+              <span className="ml-auto t-caption text-on-surface-variant shrink-0">{personalRepos.length}</span>
             </button>
 
             {/* Personal repos */}
@@ -763,7 +763,7 @@ export function RepoSearch(): JSX.Element {
     <div className="flex flex-col h-full overflow-hidden">
 
       {/* Provider tabs */}
-      <div className="px-4 h-10 hairline-b flex items-center justify-center flex-shrink-0">
+      <div className="px-4 h-10 hairline-b flex items-center justify-center shrink-0">
         <SegmentedControl
           options={PROVIDERS.map((p) => ({ value: p.id, label: p.name }))}
           value={provider}
@@ -810,7 +810,7 @@ export function RepoSearch(): JSX.Element {
             {/* No-token banner: logged in with Google but no provider PAT stored */}
             {error === 'NOT_AUTHENTICATED' && (
               <div className="mx-6 mt-4 flex items-start gap-3 px-4 py-3 rounded-lg bg-warning/10 t-body text-on-surface">
-                <KeyRound size={16} className="flex-shrink-0 text-warning mt-0.5" />
+                <KeyRound size={16} className="shrink-0 text-warning mt-0.5" />
                 <span className="flex-1">
                   <span className="font-semibold">Falta el token del proveedor.</span>
                   {' '}Tu sesión de Google te identifica, pero para buscar en{' '}
@@ -849,9 +849,9 @@ export function RepoSearch(): JSX.Element {
                         : 'Buscar código…'
                   }
                   aria-label="Buscar código"
-                  className="ui-input w-full !pl-9 !pr-10"
+                  className="ui-input w-full pl-9! pr-10!"
                 />
-                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 t-caption text-on-surface-variant font-mono bg-on-surface/[0.04] px-1.5 rounded hairline pointer-events-none">
+                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 t-caption text-on-surface-variant font-mono bg-on-surface/4 px-1.5 rounded hairline pointer-events-none">
                   /
                 </kbd>
 
@@ -889,7 +889,7 @@ export function RepoSearch(): JSX.Element {
               <button
                 onClick={() => void handleSearch()}
                 disabled={loading || !query.trim()}
-                className="ui-btn ui-btn-primary flex-shrink-0"
+                className="ui-btn ui-btn-primary shrink-0"
               >
                 {loading ? (
                   <span className="flex items-center gap-2">
@@ -904,7 +904,7 @@ export function RepoSearch(): JSX.Element {
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
               {error && error !== 'NOT_AUTHENTICATED' && (
                 <div className="flex items-center gap-3 text-on-surface bg-error/10 px-4 py-3 rounded-lg">
-                  <CircleAlert size={16} className="text-error flex-shrink-0" />
+                  <CircleAlert size={16} className="text-error shrink-0" />
                   <span className="t-body">{error}</span>
                 </div>
               )}
@@ -946,7 +946,7 @@ export function RepoSearch(): JSX.Element {
                     {SUGGESTIONS.map((s) => (
                       <button key={s}
                         onClick={() => { setQuery(s); void handleSearch(s) }}
-                        className="ui-btn ui-btn-outline ui-btn-sm font-mono !font-normal"
+                        className="ui-btn ui-btn-outline ui-btn-sm font-mono font-normal!"
                       >
                         <Search size={12} />
                         {s}
@@ -983,10 +983,10 @@ export function RepoSearch(): JSX.Element {
                         src={auth.picture}
                         alt={auth.username ?? ''}
                         referrerPolicy="no-referrer"
-                        className="w-6 h-6 rounded-full flex-shrink-0 hairline"
+                        className="w-6 h-6 rounded-full shrink-0 hairline"
                       />
                     ) : (
-                      <div className="w-6 h-6 rounded-full bg-on-surface/[0.08] flex items-center justify-center flex-shrink-0">
+                      <div className="w-6 h-6 rounded-full bg-on-surface/8 flex items-center justify-center shrink-0">
                         <User size={14} className="text-on-surface-variant" />
                       </div>
                     )}
@@ -1000,7 +1000,7 @@ export function RepoSearch(): JSX.Element {
                       )}
                     </div>
                   </div>
-                  <button onClick={handleLogout} className="ui-btn ui-btn-ghost ui-btn-sm flex-shrink-0">
+                  <button onClick={handleLogout} className="ui-btn ui-btn-ghost ui-btn-sm shrink-0">
                     Salir
                   </button>
                 </div>
@@ -1012,7 +1012,7 @@ export function RepoSearch(): JSX.Element {
               <div>
                 <h3 className="t-section mb-2">Buscando en</h3>
                 <div className="ui-card shadow-none px-3 py-2 t-footnote text-on-surface-variant flex items-center gap-2">
-                  <FolderOpen size={14} className="flex-shrink-0 text-primary" />
+                  <FolderOpen size={14} className="shrink-0 text-primary" />
                   <span className="truncate">
                     {selectedRepo
                       ? <>
@@ -1040,14 +1040,14 @@ export function RepoSearch(): JSX.Element {
                         className={`w-full flex items-center justify-between px-2 h-[26px] rounded-md t-footnote transition-colors ${
                           filterRepo === repo
                             ? 'bg-primary/15 text-on-surface'
-                            : 'text-on-surface hover:bg-on-surface/[0.05]'
+                            : 'text-on-surface hover:bg-on-surface/5'
                         }`}
                       >
                         <span className="flex items-center gap-2 min-w-0">
-                          {repo === 'All' ? <LayoutGrid size={13} className="flex-shrink-0 text-on-surface-variant" /> : <Folder size={13} className="flex-shrink-0 text-on-surface-variant" />}
+                          {repo === 'All' ? <LayoutGrid size={13} className="shrink-0 text-on-surface-variant" /> : <Folder size={13} className="shrink-0 text-on-surface-variant" />}
                           <span className="truncate">{repo === 'All' ? 'Todos' : repo}</span>
                         </span>
-                        <span className="t-caption tabular-nums text-on-surface-variant flex-shrink-0 ml-2">{c}</span>
+                        <span className="t-caption tabular-nums text-on-surface-variant shrink-0 ml-2">{c}</span>
                       </button>
                     )
                   })}
@@ -1063,9 +1063,9 @@ export function RepoSearch(): JSX.Element {
                   <p className="t-caption text-on-surface-variant px-1">No hay alias definidos.</p>
                 )}
                 {aliases.map((a, i) => (
-                  <div key={i} className="flex items-center gap-1.5 bg-on-surface/[0.05] rounded-md px-2 py-1.5">
+                  <div key={i} className="flex items-center gap-1.5 bg-on-surface/5 rounded-md px-2 py-1.5">
                     <span className="t-caption font-mono text-on-surface flex-1 truncate">{a.from}</span>
-                    <ArrowRight size={11} className="text-on-surface-variant flex-shrink-0" />
+                    <ArrowRight size={11} className="text-on-surface-variant shrink-0" />
                     <span className="t-caption font-mono text-primary flex-1 truncate">{a.to}</span>
                     <button
                       onClick={() => {
@@ -1074,7 +1074,7 @@ export function RepoSearch(): JSX.Element {
                         void window.api.invoke('settings:set', ALIAS_KEY, JSON.stringify(updated))
                       }}
                       title="Quitar alias" aria-label="Quitar alias"
-                      className="text-on-surface-variant hover:text-on-surface transition-colors flex-shrink-0"
+                      className="text-on-surface-variant hover:text-on-surface transition-colors shrink-0"
                     >
                       <X size={13} />
                     </button>
@@ -1088,7 +1088,7 @@ export function RepoSearch(): JSX.Element {
                   placeholder="repo"
                   className="ui-input flex-1 min-w-0 t-footnote font-mono"
                 />
-                <ArrowRight size={12} className="text-on-surface-variant self-center flex-shrink-0" />
+                <ArrowRight size={12} className="text-on-surface-variant self-center shrink-0" />
                 <input
                   value={newAliasTo}
                   onChange={(e) => setNewAliasTo(e.target.value)}

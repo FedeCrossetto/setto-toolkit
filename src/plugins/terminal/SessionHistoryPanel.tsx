@@ -52,7 +52,7 @@ export function SessionHistoryPanel({ onNewSession }: Props): JSX.Element {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 h-10 hairline-b flex-shrink-0">
+      <div className="flex items-center justify-between px-3 h-10 hairline-b shrink-0">
         <span className="t-headline text-on-surface">Historial</span>
         <div className="flex items-center gap-1">
           <button onClick={load} className="ui-btn ui-btn-ghost ui-btn-icon" title="Actualizar" aria-label="Actualizar">
@@ -81,12 +81,12 @@ export function SessionHistoryPanel({ onNewSession }: Props): JSX.Element {
             {sessions.map((s) => (
               <div
                 key={s.id}
-                className="group flex items-center gap-3 px-2.5 py-2 rounded-md hover:bg-on-surface/[0.05] transition-colors"
+                className="group flex items-center gap-3 px-2.5 py-2 rounded-md hover:bg-on-surface/5 transition-colors"
               >
                 {/* Status dot */}
                 <div
                   title={!s.closedAt ? 'Activa' : s.exitCode === 0 ? 'Terminó bien' : s.exitCode == null ? 'Cerrada' : `Salió con código ${s.exitCode}`}
-                  className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  className={`w-2 h-2 rounded-full shrink-0 ${
                     !s.closedAt
                       ? 'bg-primary'
                       : s.exitCode === 0

@@ -35,7 +35,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
   return (
     <motion.div
       ref={ref}
-      className="ui-menu fixed z-[200] min-w-[200px]"
+      className="ui-menu fixed z-200 min-w-[200px]"
       style={{ left: safeX, top: safeY }}
       initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.1, ease: 'easeOut' }}
@@ -47,10 +47,10 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
           <button
             key={i}
             onClick={() => { item.action(); onClose() }}
-            className={`ui-menu-item w-full text-left ${item.danger ? '!text-error hover:!text-on-primary' : ''}`}
+            className={`ui-menu-item w-full text-left ${item.danger ? 'text-error! hover:text-on-primary!' : ''}`}
           >
             {item.icon && (
-              <item.icon size={14} className="flex-shrink-0 opacity-80" />
+              <item.icon size={14} className="shrink-0 opacity-80" />
             )}
             {item.label}
           </button>

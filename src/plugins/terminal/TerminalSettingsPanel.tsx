@@ -24,11 +24,11 @@ const FONT_FAMILIES = [
 ]
 
 export function TerminalSettingsPanel({ prefs, onChange }: Props): JSX.Element {
-  const select = 'ui-input !py-1 t-footnote cursor-pointer max-w-[160px]'
+  const select = 'ui-input py-1! t-footnote cursor-pointer max-w-[160px]'
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex items-center px-3 h-10 hairline-b flex-shrink-0">
+      <div className="flex items-center px-3 h-10 hairline-b shrink-0">
         <span className="t-headline text-on-surface">Ajustes de la terminal</span>
       </div>
 

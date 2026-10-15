@@ -54,7 +54,7 @@ export function NoteLinks({ note, notes, onOpenTitle }: {
                 onClick={() => onOpenTitle(title)}
                 title={exists ? 'Abrir nota' : 'No existe: clic para crearla'}
                 className={`inline-flex items-center gap-1 h-6 px-2 rounded-md t-footnote transition-colors ${
-                  exists ? 'bg-primary/10 text-primary hover:bg-primary/[0.16]' : 'bg-on-surface/[0.05] text-on-surface-variant hover:bg-on-surface/[0.09] border border-dashed border-[var(--hairline-strong)]'
+                  exists ? 'bg-primary/10 text-primary hover:bg-primary/16' : 'bg-on-surface/5 text-on-surface-variant hover:bg-on-surface/9 border border-dashed border-(--hairline-strong)'
                 }`}
               >
                 {exists ? <Link size={11} /> : <Plus size={11} />}
@@ -72,7 +72,7 @@ export function NoteLinks({ note, notes, onOpenTitle }: {
               key={n.id}
               type="button"
               onClick={() => onOpenTitle(n.title)}
-              className="inline-flex items-center gap-1 h-6 px-2 rounded-md t-footnote bg-on-surface/[0.05] text-on-surface hover:bg-on-surface/[0.09] transition-colors"
+              className="inline-flex items-center gap-1 h-6 px-2 rounded-md t-footnote bg-on-surface/5 text-on-surface hover:bg-on-surface/9 transition-colors"
             >
               <ArrowUpRight size={11} className="text-on-surface-variant" />
               {n.title}

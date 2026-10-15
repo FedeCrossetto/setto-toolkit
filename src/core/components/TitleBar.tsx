@@ -17,7 +17,7 @@ export function WindowControls(): JSX.Element | null {
       <button onClick={() => window.api.send('window:maximize')} title="Maximizar" className={`${btn} hover:bg-white/10`}>
         <Square size={11} strokeWidth={1.4} />
       </button>
-      <button onClick={() => window.api.send('window:close')} title="Cerrar" className={`${btn} hover:!bg-[#e81123] hover:!text-white`}>
+      <button onClick={() => window.api.send('window:close')} title="Cerrar" className={`${btn} hover:bg-[#e81123]! hover:text-white!`}>
         <X size={15} strokeWidth={1.4} />
       </button>
     </div>

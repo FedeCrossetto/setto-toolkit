@@ -42,7 +42,7 @@ export function Toggle({
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-[22px] w-[38px] flex-shrink-0 items-center rounded-full transition-colors duration-200 disabled:opacity-40 ${
+      className={`relative inline-flex h-[22px] w-[38px] shrink-0 items-center rounded-full transition-colors duration-200 disabled:opacity-40 ${
         checked ? 'bg-brand' : 'bg-on-surface/15'
       }`}
     >
@@ -82,7 +82,7 @@ export function SettingsGroup({
           {description && <p className="t-footnote text-on-surface-variant mt-0.5">{description}</p>}
         </header>
       )}
-      <div className="ui-card overflow-hidden divide-y divide-[var(--hairline)]">{children}</div>
+      <div className="ui-card overflow-hidden divide-y divide-(--hairline)">{children}</div>
       {footer && <p className="t-caption text-on-surface-variant px-1">{footer}</p>}
     </section>
   )
@@ -106,7 +106,7 @@ export function SettingsRow({
     <div className="flex items-center gap-3 px-4 py-2.5 min-h-[52px]">
       {Icon && (
         <span
-          className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${iconColor ? 'text-white' : 'bg-selected text-primary'}`}
+          className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconColor ? 'text-white' : 'bg-selected text-primary'}`}
           style={iconColor ? { background: iconColor } : undefined}
         >
           <Icon size={15} />
@@ -116,7 +116,7 @@ export function SettingsRow({
         <div className="t-body font-medium text-on-surface">{title}</div>
         {description && <div className="t-footnote text-on-surface-variant mt-0.5">{description}</div>}
       </div>
-      {children && <div className="flex items-center justify-end gap-2 flex-shrink-0">{children}</div>}
+      {children && <div className="flex items-center justify-end gap-2 shrink-0">{children}</div>}
     </div>
   )
 }
@@ -126,14 +126,14 @@ type KpiTone = 'primary' | 'success' | 'warning' | 'error' | 'neutral'
 /** Small rounded pill for deltas / statuses ("+12%", "Conectado"). */
 export function DeltaPill({ tone = 'neutral', children }: { tone?: KpiTone; children: ReactNode }): JSX.Element {
   const cls = {
-    primary: 'bg-primary/[0.12] text-primary',
-    success: 'bg-success/[0.13] text-success',
-    warning: 'bg-warning/[0.15] text-warning',
-    error: 'bg-error/[0.12] text-error',
-    neutral: 'bg-on-surface/[0.06] text-on-surface-variant',
+    primary: 'bg-primary/12 text-primary',
+    success: 'bg-success/13 text-success',
+    warning: 'bg-warning/15 text-warning',
+    error: 'bg-error/12 text-error',
+    neutral: 'bg-on-surface/6 text-on-surface-variant',
   }[tone]
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-[1px] t-caption font-semibold tabular-nums whitespace-nowrap ${cls}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-px t-caption font-semibold tabular-nums whitespace-nowrap ${cls}`}>
       {children}
     </span>
   )
@@ -164,8 +164,8 @@ export function KpiCard({
     primary: 'bg-selected text-primary',
     success: 'bg-selected text-primary', // un estado OK se muestra con el acento de la app
     warning: 'bg-warning/[0.14] text-warning',
-    error: 'bg-error/[0.12] text-error',
-    neutral: 'bg-on-surface/[0.06] text-on-surface-variant',
+    error: 'bg-error/12 text-error',
+    neutral: 'bg-on-surface/6 text-on-surface-variant',
   }[tone]
   return (
     <div
@@ -175,7 +175,7 @@ export function KpiCard({
       <div className="flex items-center gap-2">
         <span className="t-footnote font-medium text-on-surface-variant flex-1 min-w-0 truncate">{label}</span>
         {Icon && (
-          <span className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${tile}`}>
+          <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${tile}`}>
             <Icon size={15} />
           </span>
         )}
@@ -209,7 +209,7 @@ export function PageHeader({
         <h1 className="t-title2 text-on-surface">{title}</h1>
         {subtitle && <p className="t-callout text-on-surface-variant mt-1">{subtitle}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2 flex-shrink-0">{actions}</div>}
+      {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
     </div>
   )
 }

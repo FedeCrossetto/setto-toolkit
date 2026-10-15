@@ -1,6 +1,6 @@
 {
   "name": "mytools-app",
-  "version": "2.12.0",
+  "version": "2.13.0",
   "description": "Setto — modular developer utilities",
   "main": "out/main/main.js",
   "scripts": {
@@ -75,6 +75,7 @@
     "@electron/rebuild": "^4.2.1",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.61.1",
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/diff": "^5.2.1",
     "@types/node": "^24.0.0",
     "@types/react": "^18.3.3",
@@ -82,7 +83,6 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.2.0",
     "@vitest/coverage-v8": "^5.0.4",
-    "autoprefixer": "^10.4.19",
     "electron": "^43.0.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
@@ -98,7 +98,7 @@
     "react-dom": "^18.3.1",
     "sharp": "^0.35.5",
     "simple-git-hooks": "^2.13.1",
-    "tailwindcss": "^3.4.4",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.5.2",
     "typescript-eslint": "^8.62.1",
     "vite": "^7.3.7",

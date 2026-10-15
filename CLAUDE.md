@@ -18,7 +18,7 @@
 - IPC bridge: `electron/preload.ts` (explicit allowlist, 46 INVOKE + 51 SEND channels)
 - Settings persistence: electron-store 11 with safeStorage encryption
 - AI providers: OpenAI 4.47, Anthropic SDK, Ollama — abstracted in `electron/core/services/ai.service.ts`
-- Styling: Tailwind CSS 3.4 with custom MD3 token palette in `tailwind.config.ts`
+- Styling: Tailwind CSS 4 (`@tailwindcss/postcss`). Theme lives in `src/styles/globals.css` (`@theme`): colors map to the `--c-*` RGB tokens; radius classes map to the app's shape tokens `--r-*` (not `--radius-*`, which is Tailwind's namespace). All app CSS sits inside `@layer utilities` after Tailwind's: unlayered CSS would beat every utility (e.g. the `* { padding: 0 }` reset).
 - Tests: Vitest 2.0 + @vitest/coverage-v8
 
 ## Important commands
@@ -91,7 +91,7 @@ Use `src/plugins/_template/` as the starting point for new plugins.
 ## UX and product constraints
 
 - Follow `docs/DESIGN.md`. Both light and dark themes must look right.
-- Use design tokens from `tailwind.config.ts` and `src/styles/globals.css` instead of hardcoding color or spacing values.
+- Use design tokens from `src/styles/globals.css` (`@theme` + `:root`) instead of hardcoding color or spacing values.
 - The shell uses a tab model — plugins open in tabs, not in a single-page replacement. Preserve this mental model.
 - Prefer intentional, keyboard-accessible UI. CommandPalette (Ctrl+K) is a first-class navigation surface.
 - Copy in the UI is in Spanish unless the task explicitly requires another language.
@@ -127,7 +127,7 @@ Use `src/plugins/_template/` as the starting point for new plugins.
 
 - IPC issues: `electron/preload.ts`, `electron/core/plugin-loader.ts`, `electron/core/ipc-registry.ts`
 - Plugin not loading: `src/core/plugin-registry.ts`, `electron/core/plugin-loader.ts`
-- Visual changes: `tailwind.config.ts`, `src/styles/globals.css`, `src/core/components/`
+- Visual changes: `src/styles/globals.css`, `src/core/components/`
 - Settings or credentials: `electron/core/services/settings.service.ts`, `electron/plugins/settings/handlers.ts`
 - AI integration: `electron/core/services/ai.service.ts`
 - Auth flows: `electron/core/services/auth.service.ts`, `electron/plugins/auth/handlers.ts`

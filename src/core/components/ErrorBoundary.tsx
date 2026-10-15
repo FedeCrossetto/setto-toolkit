@@ -41,7 +41,7 @@ export class ErrorBoundary extends Component<Props, State> {
     return (
       <div className="flex items-center justify-center h-full w-full p-8">
         <div className="ui-card max-w-sm w-full px-6 py-6 text-center flex flex-col items-center">
-          <span className="w-10 h-10 rounded-[var(--radius-lg)] flex items-center justify-center bg-warning/[0.14] text-warning mb-3">
+          <span className="w-10 h-10 rounded-(--r-lg) flex items-center justify-center bg-warning/[0.14] text-warning mb-3">
             <TriangleAlert size={20} />
           </span>
           <h2 className="t-headline text-on-surface">
@@ -51,7 +51,7 @@ export class ErrorBoundary extends Component<Props, State> {
             No se perdió nada del resto de la app. Probá de nuevo; si sigue fallando, exportá los logs desde Ajustes.
           </p>
           {error.message && (
-            <p className="t-caption text-on-surface-variant/80 font-mono mt-3 px-2 py-1.5 rounded-[var(--radius-xs)] bg-on-surface/[0.05] w-full break-words">
+            <p className="t-caption text-on-surface-variant/80 font-mono mt-3 px-2 py-1.5 rounded-(--r-xs) bg-on-surface/5 w-full wrap-break-word">
               {error.message}
             </p>
           )}

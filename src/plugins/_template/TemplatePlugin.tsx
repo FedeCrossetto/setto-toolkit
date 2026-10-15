@@ -6,7 +6,7 @@
  *   const result = await window.api.invoke<MyReturnType>('my-plugin:action', payload)
  *
  * Design system (tokens only — no hex, no raw Tailwind palette colors, no gradients):
- *   - Surfaces: bg-surface, bg-sidebar/40 (side panes), bg-on-surface/[0.06] (neutral fills)
+ *   - Surfaces: bg-surface, bg-sidebar/40 (side panes), bg-on-surface/6 (neutral fills)
  *   - Text: text-on-surface, text-on-surface-variant, text-success|warning|error
  *   - Type scale: .t-title1|2|3, .t-headline, .t-body, .t-callout, .t-footnote, .t-caption, .t-section
  *   - Borders: hairline, hairline-b|t|l|r, border-hairline
@@ -35,7 +35,7 @@ export function TemplatePlugin(): JSX.Element {
         </div>
         <p className="t-body text-on-surface-variant">
           Reemplazá esto con el contenido del módulo. Usá{' '}
-          <code className="font-mono t-footnote bg-on-surface/[0.06] px-1 rounded">window.api.invoke()</code>{' '}
+          <code className="font-mono t-footnote bg-on-surface/6 px-1 rounded">window.api.invoke()</code>{' '}
           para hablar con el proceso principal de Electron.
         </p>
       </div>

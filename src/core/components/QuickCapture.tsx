@@ -128,9 +128,9 @@ export function QuickCapture(): JSX.Element {
       footer={
         <>
           <span className="t-caption text-on-surface-variant/80 mr-auto flex items-center gap-1.5">
-            <kbd className="px-1.5 py-[2px] rounded-[5px] bg-on-surface/[0.06] font-sans text-[11px] font-medium">{multiline ? 'Ctrl+Enter' : 'Enter'}</kbd>
+            <kbd className="px-1.5 py-[2px] rounded-[5px] bg-on-surface/6 font-sans text-[11px] font-medium">{multiline ? 'Ctrl+Enter' : 'Enter'}</kbd>
             guarda
-            <kbd className="ml-1.5 px-1.5 py-[2px] rounded-[5px] bg-on-surface/[0.06] font-sans text-[11px] font-medium">Shift+Enter</kbd>
+            <kbd className="ml-1.5 px-1.5 py-[2px] rounded-[5px] bg-on-surface/6 font-sans text-[11px] font-medium">Shift+Enter</kbd>
             nueva línea
           </span>
           <button type="button" className="ui-btn ui-btn-outline" onClick={close}>Cancelar</button>

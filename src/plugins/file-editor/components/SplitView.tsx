@@ -44,7 +44,7 @@ export function SplitLayout({ secondary, ratio, onRatioChange, focused, onFocusP
   return (
     <div ref={rootRef} className="flex h-full min-w-0">
       <div
-        className={`relative min-w-0 h-full ${split ? 'flex-shrink-0' : 'flex-1'}`}
+        className={`relative min-w-0 h-full ${split ? 'shrink-0' : 'flex-1'}`}
         style={split ? { width: `${ratio * 100}%` } : undefined}
         onPointerDownCapture={split ? () => onFocusPane('main') : undefined}
         onFocusCapture={split ? () => onFocusPane('main') : undefined}
@@ -57,13 +57,13 @@ export function SplitLayout({ secondary, ratio, onRatioChange, focused, onFocusP
           <div
             onPointerDown={onDividerDown}
             onDoubleClick={() => onRatioChange(0.5)}
-            className="flex-shrink-0 w-[5px] -mx-[2px] z-10 cursor-col-resize group relative"
+            className="shrink-0 w-[5px] mx-[-2px] z-10 cursor-col-resize group relative"
             style={{ touchAction: 'none' }}
             title="Arrastrar para redimensionar · doble clic para centrar"
             role="separator"
             aria-orientation="vertical"
           >
-            <div className="absolute inset-y-0 left-[2px] w-[1px] bg-[var(--hairline)] group-hover:bg-primary/50 group-active:bg-primary/50 transition-colors duration-150" />
+            <div className="absolute inset-y-0 left-[2px] w-px bg-(--hairline) group-hover:bg-primary/50 group-active:bg-primary/50 transition-colors duration-150" />
           </div>
           <div
             className="relative flex-1 min-w-0 h-full flex flex-col"
@@ -87,19 +87,19 @@ export function SplitPaneHeader({ tabs, tab, onPick, onClose }: {
   onClose: () => void
 }): JSX.Element {
   return (
-    <div className="flex items-center gap-1.5 h-8 px-2 hairline-b fe-chrome flex-shrink-0">
+    <div className="flex items-center gap-1.5 h-8 px-2 hairline-b fe-chrome shrink-0">
       <select
         value={tab.id}
         onChange={(e) => onPick(e.target.value)}
         aria-label="Archivo del panel derecho"
         title={tab.path ?? tab.name}
-        className="ui-input !py-0.5 !px-2 t-footnote min-w-0 max-w-[70%] truncate"
+        className="ui-input py-0.5! px-2! t-footnote min-w-0 max-w-[70%] truncate"
       >
         {tabs.map((t) => (
           <option key={t.id} value={t.id}>{t.isDirty ? `● ${t.name}` : t.name}</option>
         ))}
       </select>
-      {tab.isDirty && <span title="Sin guardar" className="w-1.5 h-1.5 rounded-full bg-on-surface-variant flex-shrink-0" />}
+      {tab.isDirty && <span title="Sin guardar" className="w-1.5 h-1.5 rounded-full bg-on-surface-variant shrink-0" />}
       <div className="ml-auto flex items-center">
         <Tooltip label="Cerrar división" shortcut="Ctrl+\">
           <button onClick={onClose} aria-label="Cerrar división" className="ui-btn ui-btn-ghost ui-btn-icon">

@@ -24,7 +24,7 @@ function ThemePreview({ def }: { def: EditorThemeDef }): JSX.Element {
     >
       {SNIPPET.map((line, i) => (
         <div key={i} className="flex">
-          <span className="w-3.5 flex-shrink-0 select-none" style={{ color: i === 2 ? c.gutterActiveFg : c.gutterFg }}>{i + 1}</span>
+          <span className="w-3.5 shrink-0 select-none" style={{ color: i === 2 ? c.gutterActiveFg : c.gutterFg }}>{i + 1}</span>
           <span className="flex-1 min-w-0 truncate rounded-[2px]" style={i === 2 ? { background: c.activeLine } : undefined}>
             {line.map(([text, key], j) => (
               <span key={j} style={{
@@ -87,8 +87,8 @@ export function ThemeGrid({ value, editorTheme, appDark, onChange, onPreview, co
                     <span className={`t-caption font-medium truncate flex-1 ${selected ? 'text-on-surface' : 'text-on-surface-variant group-hover:text-on-surface'}`}>
                       {def.followsApp ? f.name : def.name}
                     </span>
-                    {selected && <Check size={12} className="text-primary flex-shrink-0" />}
-                    <span className="px-1.5 rounded-full bg-on-surface/[0.06] t-caption text-on-surface-variant flex-shrink-0">
+                    {selected && <Check size={12} className="text-primary shrink-0" />}
+                    <span className="px-1.5 rounded-full bg-on-surface/6 t-caption text-on-surface-variant shrink-0">
                       {def.variant === 'dark' ? 'Oscuro' : 'Claro'}
                     </span>
                   </span>

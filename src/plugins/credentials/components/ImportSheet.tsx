@@ -137,11 +137,11 @@ export function ImportSheet({ open, onClose, onImported }: { open: boolean; onCl
             </div>
           )}
           <div className="bg-surface hairline rounded-xl overflow-hidden">
-            <div className="max-h-[52vh] overflow-y-auto divide-y divide-[var(--hairline)]">
+            <div className="max-h-[52vh] overflow-y-auto divide-y divide-(--hairline)">
               {preview.rows.map((r) => {
                 const on = selected.has(r.index)
                 return (
-                  <label key={r.index} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-on-surface/[0.02]">
+                  <label key={r.index} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-on-surface/2">
                     <input
                       type="checkbox"
                       className="accent-primary"

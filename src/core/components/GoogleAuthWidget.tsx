@@ -46,7 +46,7 @@ export function GoogleAuthWidget({ collapsed, onSignIn }: GoogleAuthWidgetProps)
   }
 
   const GoogleIcon = (): JSX.Element => (
-    <svg viewBox="0 0 24 24" className="w-5 h-5 flex-shrink-0" aria-hidden>
+    <svg viewBox="0 0 24 24" className="w-5 h-5 shrink-0" aria-hidden>
       <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
       <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
       <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
@@ -62,8 +62,8 @@ export function GoogleAuthWidget({ collapsed, onSignIn }: GoogleAuthWidgetProps)
           onClick={() => setShowMenu((s) => !s)}
           title={collapsed ? `${user.name}\n${user.email}` : undefined}
           className={[
-            'flex items-center w-full rounded-[var(--radius-md)] transition-colors duration-150',
-            'hover:bg-on-surface/[0.06] text-on-surface-variant hover:text-on-surface',
+            'flex items-center w-full rounded-(--r-md) transition-colors duration-150',
+            'hover:bg-on-surface/6 text-on-surface-variant hover:text-on-surface',
             collapsed ? 'justify-center h-11' : 'gap-2.5 px-3 h-11',
           ].join(' ')}
         >
@@ -71,7 +71,7 @@ export function GoogleAuthWidget({ collapsed, onSignIn }: GoogleAuthWidgetProps)
             src={user.picture}
             alt={user.name}
             referrerPolicy="no-referrer"
-            className="w-7 h-7 rounded-full flex-shrink-0 hairline"
+            className="w-7 h-7 rounded-full shrink-0 hairline"
           />
           {!collapsed && (
             <div className="flex-1 min-w-0 text-left">
@@ -80,7 +80,7 @@ export function GoogleAuthWidget({ collapsed, onSignIn }: GoogleAuthWidgetProps)
             </div>
           )}
           {!collapsed && (
-            <MoreVertical size={14} className="text-on-surface-variant/40 flex-shrink-0" />
+            <MoreVertical size={14} className="text-on-surface-variant/40 shrink-0" />
           )}
         </button>
 
@@ -116,14 +116,14 @@ export function GoogleAuthWidget({ collapsed, onSignIn }: GoogleAuthWidgetProps)
         disabled={loading}
         title={collapsed ? 'Iniciar sesión con Google' : undefined}
         className={[
-          'flex items-center w-full rounded-[var(--radius-md)] transition-colors duration-150',
-          'text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.06]',
+          'flex items-center w-full rounded-(--r-md) transition-colors duration-150',
+          'text-on-surface-variant hover:text-on-surface hover:bg-on-surface/6',
           'disabled:opacity-50 disabled:cursor-wait',
           collapsed ? 'justify-center h-11' : 'gap-3 px-1 h-10',
         ].join(' ')}
       >
         {loading
-          ? <span className="inline-block w-5 h-5 border-2 border-on-surface/15 border-t-on-surface-variant rounded-full animate-spin flex-shrink-0" />
+          ? <span className="inline-block w-5 h-5 border-2 border-on-surface/15 border-t-on-surface-variant rounded-full animate-spin shrink-0" />
           : <GoogleIcon />
         }
         {!collapsed && (

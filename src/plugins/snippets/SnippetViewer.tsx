@@ -113,7 +113,7 @@ export function MixedContentViewer({ content }: { content: string }): JSX.Elemen
             <img src={block.value} alt="" className="max-w-full rounded-lg hairline object-contain" style={{ maxHeight: 400 }} />
           </div>
         ) : block.value.trim() ? (
-          <pre key={i} className="t-footnote font-mono text-on-surface whitespace-pre-wrap break-words">{block.value}</pre>
+          <pre key={i} className="t-footnote font-mono text-on-surface whitespace-pre-wrap wrap-break-word">{block.value}</pre>
         ) : null,
       )}
     </div>

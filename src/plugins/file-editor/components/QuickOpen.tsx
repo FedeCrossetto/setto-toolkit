@@ -79,7 +79,7 @@ export function QuickOpen({ folders, openTabs = [], onOpen, onClose }: QuickOpen
 
   return (
     <motion.div
-      className="fixed inset-0 z-[100] flex items-start justify-center pt-[12vh] bg-black/15 dark:bg-black/35"
+      className="fixed inset-0 z-100 flex items-start justify-center pt-[12vh] bg-black/15 dark:bg-black/35"
       onMouseDown={onClose}
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.15, ease: 'easeOut' }}
     >
@@ -91,7 +91,7 @@ export function QuickOpen({ folders, openTabs = [], onOpen, onClose }: QuickOpen
       >
         {/* Input */}
         <div className="flex items-center gap-2.5 px-4 py-3 hairline-b">
-          <Search size={16} className="text-on-surface-variant flex-shrink-0" />
+          <Search size={16} className="text-on-surface-variant shrink-0" />
           <input
             ref={inputRef}
             value={query}
@@ -99,9 +99,9 @@ export function QuickOpen({ folders, openTabs = [], onOpen, onClose }: QuickOpen
             onKeyDown={handleKey}
             placeholder="Buscar archivos por nombre…"
             aria-label="Buscar archivos por nombre"
-            className="flex-1 bg-transparent t-callout text-on-surface outline-none placeholder:text-on-surface-variant/50"
+            className="flex-1 bg-transparent t-callout text-on-surface outline-hidden placeholder:text-on-surface-variant/50"
           />
-          <kbd className="t-caption text-on-surface-variant hairline px-1.5 rounded bg-on-surface/[0.04]">Esc</kbd>
+          <kbd className="t-caption text-on-surface-variant hairline px-1.5 rounded bg-on-surface/4">Esc</kbd>
         </div>
 
         {/* Results */}
@@ -122,10 +122,10 @@ export function QuickOpen({ folders, openTabs = [], onOpen, onClose }: QuickOpen
                   key={f.path}
                   onClick={() => open(i)}
                   className={`flex items-center gap-3 w-[calc(100%-12px)] mx-1.5 px-2.5 py-1.5 rounded-md text-left transition-colors ${
-                    isSel ? 'bg-primary/15' : 'hover:bg-on-surface/[0.05]'
+                    isSel ? 'bg-primary/15' : 'hover:bg-on-surface/5'
                   }`}
                 >
-                  <Icon size={15} className="flex-shrink-0 text-on-surface-variant" />
+                  <Icon size={15} className="shrink-0 text-on-surface-variant" />
                   <div className="flex-1 min-w-0">
                     <p className="t-body font-medium text-on-surface truncate">
                       <HighlightMatch text={f.name} query={query} />
@@ -141,9 +141,9 @@ export function QuickOpen({ folders, openTabs = [], onOpen, onClose }: QuickOpen
         </div>
 
         <div className="px-4 py-2 hairline-t mt-1 flex items-center gap-4 t-caption text-on-surface-variant">
-          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/[0.04] px-1 rounded">↑↓</kbd> navegar</span>
-          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/[0.04] px-1 rounded">↵</kbd> abrir</span>
-          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/[0.04] px-1 rounded">Esc</kbd> cerrar</span>
+          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/4 px-1 rounded">↑↓</kbd> navegar</span>
+          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/4 px-1 rounded">↵</kbd> abrir</span>
+          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/4 px-1 rounded">Esc</kbd> cerrar</span>
           <span className="ml-auto">{filtered.length} archivos</span>
         </div>
       </motion.div>

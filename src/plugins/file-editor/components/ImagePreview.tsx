@@ -63,7 +63,7 @@ export function ImagePreview({ path }: { path: string }): JSX.Element {
           onLoad={(e) => setDims({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
         />
       </div>
-      <div className="flex items-center gap-3 px-3 h-6 hairline-t bg-sidebar/40 flex-shrink-0 select-none t-caption text-on-surface-variant tabular-nums">
+      <div className="flex items-center gap-3 px-3 h-6 hairline-t bg-sidebar/40 shrink-0 select-none t-caption text-on-surface-variant tabular-nums">
         {dims && (
           <span>{dims.w} × {dims.h} px</span>
         )}

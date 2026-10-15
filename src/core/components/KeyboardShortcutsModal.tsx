@@ -79,7 +79,7 @@ const RIGHT: ShortcutGroup[] = [
 export function Kbd({ children }: { children: ReactNode }): JSX.Element {
   return (
     <kbd
-      className="inline-flex items-center justify-center min-w-[22px] h-[20px] px-1.5 rounded-[6px] text-[11px] font-medium font-sans text-on-surface bg-surface dark:bg-white/[0.08] hairline shadow-sm whitespace-nowrap"
+      className="inline-flex items-center justify-center min-w-[22px] h-[20px] px-1.5 rounded-[6px] text-[11px] font-medium font-sans text-on-surface bg-surface dark:bg-white/8 hairline shadow-sm whitespace-nowrap"
     >
       {children}
     </kbd>
@@ -99,9 +99,9 @@ function Group({ group }: { group: ShortcutGroup }): JSX.Element {
     <section className="flex flex-col">
       <h3 className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant/70">{group.title}</h3>
       {group.items.map((s) => (
-        <div key={s.description} className="flex items-center justify-between gap-3 px-2.5 h-9 rounded-lg hover:bg-on-surface/[0.03] transition-colors">
+        <div key={s.description} className="flex items-center justify-between gap-3 px-2.5 h-9 rounded-lg hover:bg-on-surface/3 transition-colors">
           <span className="t-body text-on-surface-variant">{s.description}</span>
-          <span className="flex items-center gap-1 flex-shrink-0">
+          <span className="flex items-center gap-1 shrink-0">
             {s.combos.map((c, i) => (
               <span key={i} className="flex items-center gap-1">
                 {i > 0 && <span className="t-caption text-on-surface-variant/60">o</span>}

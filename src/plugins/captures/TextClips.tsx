@@ -98,7 +98,7 @@ export function TextClips({ header }: { header: React.ReactNode }): JSX.Element 
             {([{ id: 'all', label: 'Todo' }, ...CLIP_CATEGORIES, { id: 'pinned', label: 'Fijados' }] as { id: Filter; label: string }[]).map((c) => (
               <button key={c.id} type="button" aria-pressed={filter === c.id} onClick={() => setFilter(c.id)}
                 className={`inline-flex items-center gap-1 h-[26px] px-2.5 rounded-full text-[12px] font-medium transition-colors ${
-                  filter === c.id ? 'bg-primary text-on-primary' : 'bg-on-surface/[0.06] text-on-surface-variant hover:bg-on-surface/[0.1] hover:text-on-surface'
+                  filter === c.id ? 'bg-primary text-on-primary' : 'bg-on-surface/6 text-on-surface-variant hover:bg-on-surface/10 hover:text-on-surface'
                 }`}>
                 {c.label} <span className="opacity-60 tabular-nums">{counts[c.id] ?? 0}</span>
               </button>
@@ -138,7 +138,7 @@ export function TextClips({ header }: { header: React.ReactNode }): JSX.Element 
                 const order = marked.indexOf(e.id)
                 const cat = catOf(e)
                 return (
-                  <div key={e.id} className={`group flex items-start gap-3 px-4 py-2.5 hairline-b last:border-b-0 cursor-default ${selectedId === e.id ? 'bg-selected' : 'hover:bg-on-surface/[0.03]'}`}
+                  <div key={e.id} className={`group flex items-start gap-3 px-4 py-2.5 hairline-b last:border-b-0 cursor-default ${selectedId === e.id ? 'bg-selected' : 'hover:bg-on-surface/3'}`}
                     onClick={() => setSelectedId(e.id)} onDoubleClick={() => copy(e)}>
                     <button type="button" title="Marcar para pegar en secuencia"
                       onClick={(ev) => { ev.stopPropagation(); setMarked((s) => (s.includes(e.id) ? s.filter((x) => x !== e.id) : [...s, e.id])) }}
@@ -201,7 +201,7 @@ export function TextClips({ header }: { header: React.ReactNode }): JSX.Element 
                 <CodeViewer content={selected.text} language={LANG[guessLanguage(selected.text, selected.kind)] ?? 'plaintext'} dark={state.theme === 'dark'} />
               </div>
             ) : (
-              <pre className="ui-card px-3 py-2.5 text-[12.5px] leading-5 text-on-surface whitespace-pre-wrap break-words max-h-[42vh] overflow-auto select-text font-sans">{selected.text}</pre>
+              <pre className="ui-card px-3 py-2.5 text-[12.5px] leading-5 text-on-surface whitespace-pre-wrap wrap-break-word max-h-[42vh] overflow-auto select-text font-sans">{selected.text}</pre>
             )}
             <button type="button" className="ui-btn ui-btn-primary" onClick={() => copy(selected)}><Copy size={13} /> Copiar</button>
             {!selected.sensitive && (
@@ -226,7 +226,7 @@ export function TextClips({ header }: { header: React.ReactNode }): JSX.Element 
                   <span className="t-footnote font-medium text-on-surface-variant flex items-center gap-1"><Wand2 size={12} /> Copiar transformado</span>
                   <div className="flex flex-wrap gap-1.5">
                     {transformsFor(selected.kind).map((t) => (
-                      <button key={t.id} type="button" className="h-7 px-2.5 rounded-md bg-on-surface/[0.06] hover:bg-on-surface/[0.1] t-footnote text-on-surface"
+                      <button key={t.id} type="button" className="h-7 px-2.5 rounded-md bg-on-surface/6 hover:bg-on-surface/10 t-footnote text-on-surface"
                         onClick={() => { void navigator.clipboard.writeText(t.apply(selected.text)).then(() => toast.show(`Copiado: ${t.label}`, 'success')) }}>
                         {t.label}
                       </button>

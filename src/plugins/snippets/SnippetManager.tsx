@@ -40,7 +40,7 @@ function relativeTime(ms: number): string {
 
 function LangBadge({ lang }: { lang: SnippetLanguage }): JSX.Element {
   return (
-    <span className="inline-flex items-center h-[20px] px-2 rounded-full text-[11px] font-medium leading-none bg-on-surface/[0.06] text-on-surface-variant whitespace-nowrap">
+    <span className="inline-flex items-center h-[20px] px-2 rounded-full text-[11px] font-medium leading-none bg-on-surface/6 text-on-surface-variant whitespace-nowrap">
       {langLabel(lang)}
     </span>
   )
@@ -86,7 +86,7 @@ function NavRow({
         onClick={onClick}
         aria-current={active ? 'true' : undefined}
         className={`w-full flex items-center gap-2.5 h-[32px] px-2.5 rounded-lg text-[13px] transition-colors duration-100 ${
-          active ? 'bg-selected text-on-surface font-semibold' : 'text-on-surface/75 font-medium hover:bg-on-surface/[0.04] dark:hover:bg-white/[0.05] hover:text-on-surface'
+          active ? 'bg-selected text-on-surface font-semibold' : 'text-on-surface/75 font-medium hover:bg-on-surface/4 dark:hover:bg-white/5 hover:text-on-surface'
         }`}
       >
         <Icon size={16} weight={active ? 'fill' : 'regular'} className={active ? 'text-primary' : 'text-on-surface-variant'} />
@@ -115,7 +115,7 @@ function Chip({ active, label, onClick }: { active: boolean; label: string; onCl
       onClick={onClick}
       aria-pressed={active}
       className={`h-[22px] px-2 rounded-full text-[11px] font-medium transition-colors ${
-        active ? 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/25' : 'bg-on-surface/[0.06] text-on-surface-variant hover:bg-on-surface/[0.1] hover:text-on-surface'
+        active ? 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/25' : 'bg-on-surface/6 text-on-surface-variant hover:bg-on-surface/10 hover:text-on-surface'
       }`}
     >
       {label}
@@ -431,20 +431,20 @@ export function SnippetManager(): JSX.Element {
   return (
     <div ref={rootRef} className="flex h-full overflow-hidden bg-background">
       {/* ── Sidebar ─────────────────────────────────────────────────────── */}
-      <aside className="w-56 flex-shrink-0 flex flex-col bg-surface hairline-r overflow-hidden">
-        <div className="px-3 pt-4 pb-2 flex-shrink-0 space-y-3">
+      <aside className="w-56 shrink-0 flex flex-col bg-surface hairline-r overflow-hidden">
+        <div className="px-3 pt-4 pb-2 shrink-0 space-y-3">
           <div className="flex items-center gap-2 pl-1.5">
             <h2 className="t-headline text-on-surface">Snippets</h2>
             <span className="t-caption font-medium tabular-nums text-on-surface-variant/70">{snippets.length}</span>
           </div>
           <div className="ui-input flex items-center gap-2 h-8 pl-2.5">
-            <Search size={14} className="text-on-surface-variant/70 flex-shrink-0" />
+            <Search size={14} className="text-on-surface-variant/70 shrink-0" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar snippets"
               aria-label="Buscar snippets"
-              className="flex-1 min-w-0 bg-transparent t-body text-on-surface outline-none"
+              className="flex-1 min-w-0 bg-transparent t-body text-on-surface outline-hidden"
             />
             {search && (
               <button onClick={() => setSearch('')} aria-label="Limpiar búsqueda" className="text-on-surface-variant hover:text-on-surface">
@@ -532,7 +532,7 @@ export function SnippetManager(): JSX.Element {
           )}
         </nav>
 
-        <div className="flex items-center gap-1 px-2.5 h-11 hairline-t flex-shrink-0">
+        <div className="flex items-center gap-1 px-2.5 h-11 hairline-t shrink-0">
           <button onClick={() => void importAll()} className="ui-btn ui-btn-ghost ui-btn-sm flex-1 justify-center" title="Importar snippets desde un JSON">
             <Upload size={13} /> Importar
           </button>
@@ -543,8 +543,8 @@ export function SnippetManager(): JSX.Element {
       </aside>
 
       {/* ── List ────────────────────────────────────────────────────────── */}
-      <section className="w-72 flex-shrink-0 flex flex-col bg-surface hairline-r overflow-hidden">
-        <div className="h-14 pl-4 pr-3 flex items-center gap-2 hairline-b flex-shrink-0">
+      <section className="w-72 shrink-0 flex flex-col bg-surface hairline-r overflow-hidden">
+        <div className="h-14 pl-4 pr-3 flex items-center gap-2 hairline-b shrink-0">
           <div className="flex-1 min-w-0">
             <div className="t-headline text-on-surface truncate">{sourceTitle}</div>
             <div className="t-caption text-on-surface-variant/80 mt-0.5">
@@ -584,11 +584,11 @@ export function SnippetManager(): JSX.Element {
                   onClick={() => { setSelectedId(s.id); setEditing(null) }}
                   onDoubleClick={() => applySnippet(s, 'copy')}
                   className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors duration-100 ${
-                    active ? 'bg-selected' : 'hover:bg-on-surface/[0.03] dark:hover:bg-white/[0.04]'
+                    active ? 'bg-selected' : 'hover:bg-on-surface/3 dark:hover:bg-white/4'
                   }`}
                 >
                   <div className="flex items-center gap-1.5">
-                    {s.pinned && <Pin size={12} weight="fill" className={`flex-shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant/70'}`} />}
+                    {s.pinned && <Pin size={12} weight="fill" className={`shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant/70'}`} />}
                     <span className={`text-[13px] truncate flex-1 ${active ? 'font-semibold text-on-surface' : 'font-medium text-on-surface/90'}`}>{s.title || 'Sin título'}</span>
                     {s.lastUsedAt && (
                       <span className="t-caption text-on-surface-variant/70 whitespace-nowrap">{relativeTime(s.lastUsedAt)}</span>
@@ -688,17 +688,17 @@ function SnippetDetail({
   return (
     <div className="h-full overflow-y-auto px-6 py-6 flex flex-col">
       <article className="w-full max-w-[920px] mx-auto flex-1 min-h-[420px] flex flex-col bg-surface hairline rounded-2xl shadow-sm overflow-hidden">
-        <header className="pl-6 pr-4 pt-5 pb-4 flex items-start gap-3 hairline-b flex-shrink-0">
+        <header className="pl-6 pr-4 pt-5 pb-4 flex items-start gap-3 hairline-b shrink-0">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 min-w-0">
               <h1 className="t-title3 text-on-surface truncate">{snippet.title || 'Sin título'}</h1>
-              <span className="inline-flex items-center h-[20px] px-2 rounded-full bg-primary/10 text-primary text-[11px] font-medium leading-none whitespace-nowrap flex-shrink-0">
+              <span className="inline-flex items-center h-[20px] px-2 rounded-full bg-primary/10 text-primary text-[11px] font-medium leading-none whitespace-nowrap shrink-0">
                 {langLabel(snippet.language)}
               </span>
             </div>
             {snippet.description && <p className="t-body text-on-surface-variant mt-1">{snippet.description}</p>}
           </div>
-          <div className="flex items-center gap-0.5 flex-shrink-0">
+          <div className="flex items-center gap-0.5 shrink-0">
             <button onClick={onTogglePin} className={`ui-btn ui-btn-ghost ui-btn-icon rounded-lg ${snippet.pinned ? 'text-primary' : ''}`}
               title={snippet.pinned ? 'Desfijar' : 'Fijar'} aria-label={snippet.pinned ? 'Desfijar' : 'Fijar'} aria-pressed={snippet.pinned}>
               <Pin size={16} weight={snippet.pinned ? 'fill' : 'regular'} />
@@ -706,7 +706,7 @@ function SnippetDetail({
             <button onClick={onEdit} className="ui-btn ui-btn-ghost ui-btn-icon rounded-lg" title="Editar" aria-label="Editar"><Pencil size={16} /></button>
             <button onClick={onDuplicate} className="ui-btn ui-btn-ghost ui-btn-icon rounded-lg" title="Duplicar" aria-label="Duplicar"><CopyPlus size={16} /></button>
             <button onClick={onDelete} className="ui-btn ui-btn-ghost ui-btn-icon rounded-lg hover:text-error" title="Eliminar" aria-label="Eliminar"><Trash2 size={16} /></button>
-            <span className="w-px h-5 bg-[var(--hairline-strong)] mx-1.5" aria-hidden />
+            <span className="w-px h-5 bg-(--hairline-strong) mx-1.5" aria-hidden />
             {canRun && (
               <button onClick={onRun} className="ui-btn ui-btn-outline mr-1.5" title="Ejecutar en la terminal">
                 <SquareTerminal size={14} /> Ejecutar
@@ -719,9 +719,9 @@ function SnippetDetail({
           </div>
         </header>
 
-        <div className="px-6 py-2.5 flex items-center gap-2 flex-wrap hairline-b flex-shrink-0">
+        <div className="px-6 py-2.5 flex items-center gap-2 flex-wrap hairline-b shrink-0">
           {collectionName && (
-            <span className="inline-flex items-center gap-1 h-[20px] px-2 rounded-full bg-on-surface/[0.06] text-[11px] font-medium text-on-surface-variant">
+            <span className="inline-flex items-center gap-1 h-[20px] px-2 rounded-full bg-on-surface/6 text-[11px] font-medium text-on-surface-variant">
               <Folder size={11} /> {collectionName}
             </span>
           )}
@@ -729,7 +729,7 @@ function SnippetDetail({
             <button
               key={t}
               onClick={() => onTag(t)}
-              className="inline-flex items-center h-[20px] px-2 rounded-full bg-on-surface/[0.06] text-[11px] font-medium text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-colors"
+              className="inline-flex items-center h-[20px] px-2 rounded-full bg-on-surface/6 text-[11px] font-medium text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-colors"
             >
               #{t}
             </button>
