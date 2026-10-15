@@ -20,6 +20,7 @@ import { registerClipboardHistory, teardownClipboardHistory } from './core/clipb
 import { registerClipboardActions, teardownClipboardActions } from './core/clipboard-actions'
 import { closeStartupSplash, showStartupSplash } from './core/startup-splash'
 import { destroyDock, registerDock } from './core/dock'
+import { registerBackup } from './core/backup-service'
 import { registerCaptureScheme } from './plugins/captures/handlers'
 
 // E2E tests pass --user-data-dir so each run gets an isolated profile.
@@ -407,6 +408,7 @@ app.whenReady().then(() => {
   registerClipboardActions(ipcMain)
   // Barra flotante a la derecha (Ajustes → Escritorio)
   registerDock(ipcMain, settings, getWindowIcon(), () => mainWindow)
+  registerBackup(ipcMain, db)
 
   // Sincronización opcional de Notas y Snippets con Supabase (Ajustes → Sincronización)
   syncService = new SyncService(db, settings, gastosStorage, () => mainWindow)

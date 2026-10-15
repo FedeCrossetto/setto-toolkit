@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react'
 import {
   Bot, Check, Download, Eye, EyeOff, FileText, Info, Keyboard, Lock, Monitor, Moon,
-  LayoutGrid, Palette, Plug, RefreshCw, Sun, TriangleAlert, Type, Upload, ZoomIn,
+  LayoutGrid, Palette, Plug, RefreshCw, ShieldCheck, Sun, TriangleAlert, Type, Upload, ZoomIn,
 } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
 import { allPlugins } from '../../core/plugin-registry'
@@ -14,6 +14,7 @@ import { SettingsGroup, SettingsRow, Toggle } from '../../core/components/Form'
 import { SegmentedControl } from '../../core/components/SegmentedControl'
 import { useToast } from '../../core/components/Toast'
 import { DesktopSettings } from './DesktopSettings'
+import { BackupSettings } from './BackupSettings'
 import { SyncSettings } from './SyncSettings'
 import type { IconComponent, PluginManifest } from '../../core/types'
 
@@ -51,6 +52,7 @@ const SECTIONS = [
   { id: 'ajustes-modulos', label: 'Módulos', icon: LayoutGrid },
   { id: 'ajustes-ia', label: 'IA', icon: Bot },
   { id: 'ajustes-integraciones', label: 'Integraciones', icon: Plug },
+  { id: 'ajustes-respaldo', label: 'Respaldo', icon: ShieldCheck },
   { id: 'ajustes-datos', label: 'Datos', icon: Download },
   { id: 'ajustes-acerca', label: 'Acerca de', icon: Info },
 ] as const
@@ -511,6 +513,8 @@ export function SettingsPage(): JSX.Element {
         )}
         <button onClick={() => void handleSave()} className="ui-btn ui-btn-primary">Guardar cambios</button>
       </div>
+
+      <BackupSettings />
 
       {/* ── Datos ──────────────────────────────────────────────────────────── */}
       <SettingsGroup id="ajustes-datos" title="Datos" footer="Las API keys nunca se incluyen en la exportación.">
