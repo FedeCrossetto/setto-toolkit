@@ -12,6 +12,7 @@ import {
   SUPABASE_TABLES, detectSupabaseKeyKind, formatCheckedAt, isPublicSupabaseKey, missingTables, normalizeSupabaseUrl,
   shortError, statusFromHealth, statusFromResult, summarizeStatuses, supabaseApiKeysUrl, supabaseSqlEditorUrl,
 } from './helpers'
+import { SqlConnections } from './SqlConnections'
 
 // ── Brand SVG logos ────────────────────────────────────────────────────────────
 
@@ -1129,10 +1130,11 @@ function IntegrationCard({
       >
         {checking ? 'Probando conexión…' : status.detail ?? 'Todavía no se verificó'}
       </p>
-      <div className="flex items-center gap-2 hairline-t pt-3 -mx-4 px-4">
-        <span className="t-caption text-on-surface-variant flex-1 truncate inline-flex items-center gap-1">
-          <Clock size={11} />{formatCheckedAt(status.checkedAt)}
-        </span>
+      {/* La hora de la última prueba va en su propia línea: en el pie no entra junto a los botones. */}
+      <p className="t-caption text-on-surface-variant/80 -mt-2 truncate inline-flex items-center gap-1">
+        <Clock size={11} className="flex-shrink-0" />{formatCheckedAt(status.checkedAt)}
+      </p>
+      <div className="flex items-center justify-end gap-2 hairline-t pt-3 -mx-4 px-4">
         <button className="ui-btn ui-btn-ghost ui-btn-sm" disabled={checking} onClick={onTest}>
           {checking ? <Spinner /> : <Zap size={12} />}Probar
         </button>
@@ -1214,6 +1216,8 @@ export function ConnectionsPlugin(): JSX.Element {
           </div>
         </section>
       ))}
+
+      <SqlConnections />
 
       <p className="t-caption text-on-surface-variant">
         Las claves se guardan cifradas en esta computadora y nunca se muestran en texto plano.

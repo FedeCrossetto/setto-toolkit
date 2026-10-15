@@ -65,6 +65,7 @@ const INVOKE_CHANNELS = new Set([
   'clipboard:ocr-image', 'clipboard:shortcuts', 'snippet-picker:paste-current',
   'dock:state', 'dock:enabled', 'dock:set-enabled', 'dock:paste',
   'sync:status', 'sync:run', 'sync:set-enabled',
+  'sql:list', 'sql:save', 'sql:delete', 'sql:test', 'sql:copy',
   'captures:query', 'captures:get', 'captures:settings', 'captures:update', 'captures:update-many', 'captures:delete',
   'captures:copy', 'captures:reveal', 'captures:export', 'captures:save-annotated',
 ])

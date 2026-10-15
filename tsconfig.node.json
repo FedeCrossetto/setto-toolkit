@@ -9,7 +9,8 @@
     "src/plugins/credentials/offline-queue.ts",
     "src/plugins/credentials/usage.ts",
     "src/core/clip-utils.ts",
-    "src/plugins/captures/naming.ts"
+    "src/plugins/captures/naming.ts",
+    "src/plugins/connections/sql.ts"
   ],
   "compilerOptions": {
     "composite": true,
