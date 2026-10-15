@@ -32,7 +32,7 @@ const INVOKE_CHANNELS = new Set([
   'credentials:copy-secret',
   'credentials:list', 'credentials:save', 'credentials:delete',
   'credentials:toggle-favorite', 'credentials:mark-used',
-  'credentials:copy-password', 'credentials:reveal',
+  'credentials:copy-password', 'credentials:copy-username', 'credentials:top', 'credentials:reveal',
   'credentials:password-audit', 'credentials:check-reuse',
   'credentials:lock-status', 'credentials:lock', 'credentials:pin-verify', 'credentials:pin-set',
   'credentials:import-pick', 'credentials:import-commit', 'credentials:import-cancel', 'credentials:export-csv',
@@ -81,6 +81,7 @@ const SEND_CHANNELS = new Set([
   'captures:start-drag',
   'app:open-in-main',
   'dock:expand', 'dock:collapse', 'dock:pin', 'dock:want-focus', 'dock:quick-capture', 'dock:move', 'dock:move-end',
+  'dock:move-reset', 'dock:set-side',
 ])
 
 /** Channels the renderer may subscribe to (main → renderer) */
@@ -93,7 +94,7 @@ const ON_CHANNELS = new Set([
   'snippet-picker:opened',
   'sync:changed',
   'captures:changed',
-  'dock:state', 'dock:bump',
+  'dock:state', 'dock:bump', 'dock:drag',
 ])
 
 const api = {

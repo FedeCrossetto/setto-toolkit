@@ -14,10 +14,10 @@ import type { NoteMeta } from '../../plugins/notes/types'
  */
 type Mode = 'nota' | 'gasto' | 'snippet'
 
-const MODES: { value: Mode; label: string }[] = [
-  { value: 'nota', label: 'Nota' },
-  { value: 'gasto', label: 'Gasto' },
-  { value: 'snippet', label: 'Snippet' },
+const MODES: { value: Mode; label: string; pluginId: string }[] = [
+  { value: 'gasto', label: 'Gasto', pluginId: 'gastos' },
+  { value: 'snippet', label: 'Snippet', pluginId: 'snippets' },
+  { value: 'nota', label: 'Nota', pluginId: 'notes' },
 ]
 
 const PLACEHOLDER: Record<Mode, string> = {
@@ -33,17 +33,23 @@ interface CaptureRequest { action?: 'capture' | 'new-note'; mode?: Mode }
 function readMode(): Mode {
   try {
     const m = localStorage.getItem(MODE_KEY)
-    return m === 'gasto' || m === 'snippet' ? m : 'nota'
+    return m === 'nota' || m === 'snippet' ? m : 'gasto'
   } catch {
-    return 'nota'
+    return 'gasto'
   }
 }
 
 export function QuickCapture(): JSX.Element {
-  const { dispatch } = useApp()
+  const { state, dispatch } = useApp()
   const { show: notify } = useToast()
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<Mode>(readMode)
+  // Sólo los modos de módulos activos (p. ej. Notas puede estar oculto)
+  const modes = MODES.filter((m) => !state.disabledPlugins.includes(m.pluginId))
+  const firstMode = modes[0]?.value ?? 'gasto'
+  useEffect(() => {
+    if (!modes.some((m) => m.value === mode)) setMode(firstMode)
+  }, [modes, mode, firstMode])
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -135,7 +141,7 @@ export function QuickCapture(): JSX.Element {
       }
     >
       <div className="space-y-3 pt-1">
-        <SegmentedControl options={MODES} value={mode} onChange={setMode} />
+        {modes.length > 1 && <SegmentedControl options={modes} value={mode} onChange={setMode} />}
         <textarea
           ref={inputRef}
           value={text}

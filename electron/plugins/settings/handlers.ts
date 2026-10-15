@@ -41,7 +41,8 @@ const ALLOWED_KEYS = new Set([
   'app.notifications',             // '0' = sin notificaciones del sistema (default: activadas)
   'snippets.auto_paste',           // '0' = el selector global sólo copia (default: pega)
   'app.clipboard_history',         // '0' = sin historial del portapapeles (default: activado)
-  'app.dock',                      // '0' = sin barra flotante a la derecha (default: activada)
+  'app.dock',                      // '0' = sin barra flotante (default: activada)
+  'app.dock_side',                 // 'left' | 'right' (default: right)
   'ticket-resolver.jira_url',
   'ticket-resolver.jira_user',
   'ticket-resolver.jira_token',

@@ -72,3 +72,15 @@ describe('initials / tintIndex', () => {
     expect(tintIndex('x', 5)).toBeLessThan(5)
   })
 })
+
+describe('rankCredentials by usage', () => {
+  const now = Date.UTC(2026, 9, 14)
+  it('breaks ties by usage', () => {
+    const list = [c({ id: 'a', nombre: 'Git A' }), { ...c({ id: 'b', nombre: 'Git B' }), useCount: 8, lastUsedAt: now - 3600_000 }]
+    expect(rankCredentials(list, 'git', 6, now).map((r) => r.item.id)).toEqual(['b', 'a'])
+  })
+  it('never lets usage beat a better name match', () => {
+    const list = [{ ...c({ id: 'a', nombre: 'Otro', usuario: 'git' }), useCount: 500, lastUsedAt: now }, c({ id: 'b', nombre: 'GitHub' })]
+    expect(rankCredentials(list, 'git', 6, now).map((r) => r.item.id)).toEqual(['b', 'a'])
+  })
+})

@@ -34,7 +34,7 @@ function SidebarItem({
       onClick={onClick}
       title={collapsed ? plugin.name : undefined}
       aria-current={active ? 'page' : undefined}
-      className={`group relative flex items-center w-full h-[32px] rounded-lg transition-colors duration-100 no-drag ${
+      className={`group relative flex items-center w-full h-[var(--nav-row-h)] rounded-lg transition-colors duration-100 no-drag ${
         collapsed ? 'justify-center' : 'gap-2.5 px-2.5'
       } ${active ? '' : 'hover:bg-on-surface/[0.04] dark:hover:bg-white/[0.05]'}`}
     >
@@ -133,7 +133,7 @@ export function Sidebar(): JSX.Element {
         <button
           onClick={() => dispatch({ type: 'TOGGLE_SIDEBAR' })}
           title={collapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'}
-          className={`flex items-center h-[32px] rounded-lg text-on-surface-variant hover:bg-on-surface/[0.04] hover:text-on-surface transition-colors ${
+          className={`flex items-center h-[var(--nav-row-h)] rounded-lg text-on-surface-variant hover:bg-on-surface/[0.04] hover:text-on-surface transition-colors ${
             collapsed ? 'justify-center' : 'gap-2.5 px-2.5'
           }`}
         >

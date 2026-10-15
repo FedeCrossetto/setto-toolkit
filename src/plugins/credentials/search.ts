@@ -1,7 +1,7 @@
 import { KeyRound } from 'lucide-react'
 import type { SearchProvider } from '../../core/search'
 import type { Credential } from './types'
-import { copyToClipboard, displayHost, loadCredentials, rankCredentials } from './data'
+import { copyToClipboard, credentialsApi, displayHost, invalidateCredentials, loadCredentials, rankCredentials } from './data'
 
 export const credentialsSearchProvider: SearchProvider = {
   id: 'credentials',
@@ -24,10 +24,15 @@ export const credentialsSearchProvider: SearchProvider = {
       score,
       run: async ({ dispatch, notify }) => {
         // Only the username is ever copied from the palette, never the password.
+        // Copied through main so it counts as a use (ranking by usage).
         if (c.usuario) {
           try {
-            await copyToClipboard(c.usuario)
-            notify('Usuario copiado', 'success')
+            const r = await credentialsApi.copyUsername(c.id).catch(async () => {
+              await copyToClipboard(c.usuario)
+              return { ok: true as const, usedAt: Date.now() }
+            })
+            if (r.ok) { invalidateCredentials(); notify('Usuario copiado', 'success') }
+            else notify(r.error, 'error')
           } catch {
             notify('No se pudo copiar al portapapeles', 'error')
           }

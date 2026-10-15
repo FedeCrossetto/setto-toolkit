@@ -36,6 +36,12 @@ function getInitialDisabledPlugins(): string[] {
     // recarga antes del primer render dejaría el flag puesto con la lista vieja.
     localStorage.setItem(DISABLED_KEY, JSON.stringify(stored))
   }
+  // v3: Notas pasa a estar oculto (se reactiva en Ajustes → Módulos)
+  if (!localStorage.getItem('plugins-defaults-v3')) {
+    localStorage.setItem('plugins-defaults-v3', '1')
+    if (!stored.includes('notes')) stored = [...stored, 'notes']
+    localStorage.setItem(DISABLED_KEY, JSON.stringify(stored))
+  }
   return stored
 }
 

@@ -1,8 +1,9 @@
 import { matchesQuery, normalize } from '../../core/search'
 import type {
-  Credential, CredentialDraft, CredentialsListResult, ImportPreview, LockStatus, PasswordAudit,
+  Credential, CopyResult, CredentialDraft, CredentialsListResult, ImportPreview, LockStatus, PasswordAudit,
   PinVerifyResult, SaveResult, SecretResult,
 } from './types'
+import { usageScore } from './usage'
 
 export const CLIPBOARD_CLEAR_MS = 30_000
 
@@ -39,7 +40,11 @@ export const credentialsApi = {
   remove: (id: string) => window.api.invoke<SaveResult>('credentials:delete', id),
   toggleFavorite: (id: string) => window.api.invoke<string[]>('credentials:toggle-favorite', id),
   markUsed: (id: string) => window.api.invoke<number>('credentials:mark-used', id),
-  copyPassword: (id: string) => window.api.invoke<SecretResult<{ usedAt: number }>>('credentials:copy-password', id),
+  /** Copies in main (30 s auto-clear). `{ ok:false, locked:true }` when the PIN lock is on. */
+  copyPassword: (id: string) => window.api.invoke<CopyResult>('credentials:copy-password', id),
+  copyUsername: (id: string) => window.api.invoke<CopyResult>('credentials:copy-username', id),
+  /** Most used first (favorites on top), local only. */
+  top: (limit = 8) => window.api.invoke<Credential[]>('credentials:top', limit),
   reveal: (id: string) => window.api.invoke<SecretResult<{ password: string }>>('credentials:reveal', id),
   audit: () => window.api.invoke<PasswordAudit>('credentials:password-audit'),
   checkReuse: (password: string, excludeId?: string) => window.api.invoke<string[]>('credentials:check-reuse', password, excludeId),
@@ -85,14 +90,20 @@ export function filterCredentials<T extends Searchable>(items: T[], query: strin
   return items.filter((c) => matchesQuery(q, c.nombre, c.usuario, c.url, c.categoria))
 }
 
-/** Palette ranking: name prefix > name contains > other fields. */
-export function rankCredentials<T extends Searchable>(items: T[], query: string, max = 6): { item: T; score: number }[] {
+/**
+ * Palette ranking: name prefix > name contains > other fields; within the same
+ * tier, the most used first (`usageScore`, capped so usage never beats a better match).
+ */
+export function rankCredentials<T extends Searchable & { useCount?: number; lastUsedAt?: number }>(
+  items: T[], query: string, max = 6, now = Date.now(),
+): { item: T; score: number }[] {
   const q = normalize(query.trim())
   return filterCredentials(items, query)
     .map((c) => {
       const name = normalize(c.nombre)
-      const score = name.startsWith(q) ? 20 : name.includes(q) ? 10 : 0
-      return { item: c, score }
+      const match = name.startsWith(q) ? 20 : name.includes(q) ? 10 : 0
+      const usage = Math.min(9, usageScore(c.useCount, c.lastUsedAt, now))
+      return { item: c, score: match + usage }
     })
     .sort((a, b) => b.score - a.score || a.item.nombre.localeCompare(b.item.nombre))
     .slice(0, max)

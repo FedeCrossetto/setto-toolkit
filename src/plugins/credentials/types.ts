@@ -18,6 +18,12 @@ export interface Credential extends CredentialMeta {
   hasPassword: boolean
   /** Saved locally but not yet uploaded to Supabase. */
   pending?: boolean
+  /** Times it was copied (user or password) on this computer. */
+  useCount: number
+  /** Last copy/use on this computer (epoch ms). */
+  lastUsedAt?: number
+  /** Marked as favorite (only filled by `credentials:top`). */
+  favorite?: boolean
 }
 
 /** Payload for `credentials:save`. `password` omitted = keep the stored one. */
@@ -57,6 +63,9 @@ export interface PasswordAudit {
 }
 
 export type SecretResult<T> = ({ ok: true } & T) | { ok: false; locked: true }
+
+/** Result of `credentials:copy-password` / `credentials:copy-username`. */
+export type CopyResult = { ok: true; usedAt: number } | { ok: false; error: string; locked?: boolean }
 
 export interface LockStatus {
   pinEnabled: boolean

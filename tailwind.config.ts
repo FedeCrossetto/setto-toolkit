@@ -29,8 +29,21 @@ const config: Config = {
         // Colores de datos (gráficos/categorías): chart-1 = primary, el resto rota el matiz.
         ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`chart-${i + 1}`, `rgb(var(--c-chart-${i + 1}) / <alpha-value>)`])),
       },
+      // Tamaños de letra en px enteros: la base de rem cambia con "Tamaño de la interfaz"
+      // (achica espaciados) pero el texto nunca queda en medio píxel (borroso en Windows).
+      fontSize: {
+        '2xs': ['10px', { lineHeight: '14px' }],
+        xs:   ['11px', { lineHeight: '16px' }],
+        sm:   ['13px', { lineHeight: '18px' }],
+        base: ['14px', { lineHeight: '20px' }],
+        lg:   ['16px', { lineHeight: '24px' }],
+        xl:   ['18px', { lineHeight: '26px' }],
+        '2xl': ['22px', { lineHeight: '28px' }],
+        '3xl': ['28px', { lineHeight: '34px' }],
+        '4xl': ['34px', { lineHeight: '40px' }],
+      },
       fontFamily: {
-        sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'Inter', 'Segoe UI Variable Text', 'system-ui', 'sans-serif'],
+        sans: ['var(--app-font-family)', 'Inter', 'Segoe UI Variable Text', 'Segoe UI', 'system-ui', 'sans-serif'],
       },
       // Radios y sombras salen de variables CSS (globals.css → "Forma") para poder
       // cambiar el look de toda la app desde un solo lugar.

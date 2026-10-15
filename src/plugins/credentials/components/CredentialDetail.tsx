@@ -7,6 +7,7 @@ import { Badge } from '../../../core/components/Badge'
 import { useToast } from '../../../core/components/Toast'
 import type { Credential, CredentialDraft, SecretResult } from '../types'
 import { absoluteUrl, copyToClipboard, credentialsApi, displayHost, relativeTime } from '../data'
+import { usageHint } from '../usage'
 import { estimateStrength } from '../strength'
 import { Avatar } from './Avatar'
 import { StrengthMeter } from './StrengthMeter'
@@ -16,7 +17,7 @@ export const REVEAL_MS = 20_000
 
 export type WithSecret = <T>(fn: () => Promise<SecretResult<T>>) => Promise<({ ok: true } & T) | null>
 
-const SECTION = 'px-6 pb-1.5 pt-1 t-section'
+const SECTION = 'px-6 pb-2 pt-2 t-section'
 
 function RowCopy({ value, label, secret = false }: { value: string; label: string; secret?: boolean }): JSX.Element {
   const { show: toast } = useToast()
@@ -40,8 +41,8 @@ function RowCopy({ value, label, secret = false }: { value: string; label: strin
 
 function DetailRow({ label, children, actions }: { label: string; children: React.ReactNode; actions?: React.ReactNode }): JSX.Element {
   return (
-    <div className="group flex items-center gap-4 px-6 py-2 min-h-[52px] hover:bg-on-surface/[0.02] transition-colors">
-      <span className="w-24 flex-shrink-0 t-footnote text-on-surface-variant">{label}</span>
+    <div className="group flex items-center gap-4 px-6 py-2.5 min-h-[50px] hover:bg-on-surface/[0.025] transition-colors">
+      <span className="w-24 flex-shrink-0 t-footnote font-medium text-on-surface-variant">{label}</span>
       <div className="flex-1 min-w-0 t-body text-on-surface">{children}</div>
       {actions && <div className="flex items-center gap-0.5 flex-shrink-0 opacity-70 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">{actions}</div>}
     </div>
@@ -51,12 +52,12 @@ function DetailRow({ label, children, actions }: { label: string; children: Reac
 // ── View ──────────────────────────────────────────────────────────────────────
 
 export function CredentialView({
-  c, favorite, usedAt, score, reusedWith, weak, withSecret,
+  c, favorite, usage, score, reusedWith, weak, withSecret,
   onEdit, onDelete, onToggleFavorite, onCopyPassword, onCopyUser, onOpenAndCopy,
 }: {
   c: Credential
   favorite: boolean
-  usedAt?: number
+  usage: { useCount: number; lastUsedAt?: number }
   score?: number
   reusedWith: string[]
   weak: boolean
@@ -94,8 +95,8 @@ export function CredentialView({
 
   return (
     <article className="bg-surface hairline rounded-2xl shadow-sm overflow-hidden">
-      <header className="flex items-start gap-4 px-6 pt-6 pb-5">
-        <Avatar name={c.nombre} url={c.url} size={56} />
+      <header className="flex items-start gap-4 px-6 pt-6 pb-4">
+        <Avatar name={c.nombre} url={c.url} size={52} />
         <div className="flex-1 min-w-0 pt-0.5">
           <div className="flex items-center gap-2 min-w-0">
             <h1 className="t-title2 text-on-surface truncate">{c.nombre}</h1>
@@ -131,7 +132,7 @@ export function CredentialView({
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center gap-2 px-6 pb-5">
+      <div className="flex flex-wrap items-center gap-2 px-6 pb-6">
         <button onClick={onCopyPassword} disabled={!c.hasPassword} className="ui-btn ui-btn-primary" title="Copiar contraseña (Enter)">
           <Copy size={13} /> Copiar contraseña
         </button>
@@ -148,7 +149,7 @@ export function CredentialView({
       <div className={SECTION}>Acceso</div>
       <div className="hairline-t divide-y divide-[var(--hairline)]">
         <DetailRow label="Usuario" actions={c.usuario ? <RowCopy value={c.usuario} label="Copiar usuario" /> : undefined}>
-          {c.usuario ? <span className="font-mono t-footnote select-all break-all">{c.usuario}</span> : <span className="text-on-surface-variant">—</span>}
+          {c.usuario ? <span className="select-all break-all">{c.usuario}</span> : <span className="text-on-surface-variant">—</span>}
         </DetailRow>
 
         <DetailRow
@@ -172,7 +173,7 @@ export function CredentialView({
         >
           {c.hasPassword ? (
             <div className="flex flex-col gap-1.5 py-1">
-              <span className={`font-mono t-footnote break-all ${revealed !== null ? 'select-all' : 'select-none tracking-widest'}`}>
+              <span className={`break-all ${revealed !== null ? 'font-mono t-footnote select-all' : 'select-none tracking-[0.2em] text-on-surface-variant'}`}>
                 {revealed !== null ? revealed : '••••••••••••'}
               </span>
               {shownScore !== undefined && <StrengthMeter score={shownScore} />}
@@ -227,7 +228,7 @@ export function CredentialView({
       )}
 
       <footer className="hairline-t px-6 py-3 t-caption text-on-surface-variant">
-        {usedAt ? `Último uso: ${relativeTime(usedAt)}` : 'Todavía no la usaste desde acá'}
+        {usageHint(usage.useCount, relativeTime(usage.lastUsedAt)) || 'Todavía no la usaste desde acá'}
       </footer>
     </article>
   )

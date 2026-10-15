@@ -49,7 +49,7 @@ export function TabBar(): JSX.Element {
   const iconBtn = 'no-drag w-7 h-7 flex items-center justify-center rounded-md text-white/60 hover:text-white hover:bg-white/10 transition-colors'
 
   return (
-    <header className="topbar drag-region h-[46px] flex items-center gap-2 pl-3 pr-3 flex-shrink-0 text-white">
+    <header className="topbar drag-region h-[var(--topbar-h)] flex items-center gap-2 pl-3 pr-3 flex-shrink-0 text-white">
       {/* Marca */}
       <div className="flex items-center gap-2 pr-3 mr-1 border-r border-white/10 h-6 flex-shrink-0">
         <img src="./setto-logo.png" alt="" draggable={false} className="w-[22px] h-[22px] rounded-[6px] select-none" />
@@ -77,7 +77,7 @@ export function TabBar(): JSX.Element {
               tabIndex={0}
               aria-selected={active}
               title={plugin.description}
-              className={`no-drag relative flex items-center gap-1.5 h-[28px] pl-2.5 pr-1.5 text-[13px] cursor-default whitespace-nowrap group rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30 transition-colors ${
+              className={`no-drag relative flex items-center gap-1.5 h-[var(--control-h)] pl-2.5 pr-1.5 text-[13px] cursor-default whitespace-nowrap group rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30 transition-colors ${
                 active ? 'text-white font-medium' : 'text-white/55 hover:text-white/90 hover:bg-white/[0.06]'
               }`}
               onMouseDown={(e) => { if (e.button === 1) { e.preventDefault(); requestClose(tab.tabId, tab.pluginId, plugin.name) } }}
@@ -124,7 +124,7 @@ export function TabBar(): JSX.Element {
       {/* Buscador (abre Ctrl+K) */}
       <button
         onClick={() => dispatch({ type: 'TOGGLE_COMMAND_PALETTE' })}
-        className="no-drag flex items-center gap-2 h-[28px] w-[240px] max-w-[28vw] px-2.5 rounded-lg bg-white/[0.07] text-white/55 hover:bg-white/[0.11] hover:text-white/80 transition-colors flex-shrink-0"
+        className="no-drag flex items-center gap-2 h-[var(--control-h)] w-[240px] max-w-[28vw] px-2.5 rounded-lg bg-white/[0.07] text-white/55 hover:bg-white/[0.11] hover:text-white/80 transition-colors flex-shrink-0"
       >
         <Search size={13} />
         <span className="text-[13px] flex-1 text-left truncate">Buscar en Setto…</span>
@@ -135,7 +135,7 @@ export function TabBar(): JSX.Element {
       <button
         onClick={() => window.dispatchEvent(new CustomEvent('setto:quick-capture'))}
         title="Captura rápida (Ctrl+Shift+Espacio)"
-        className="no-drag ui-btn ui-btn-primary ui-btn-sm h-[28px] px-3 flex-shrink-0"
+        className="no-drag ui-btn ui-btn-primary ui-btn-sm h-[var(--control-h)] px-3 flex-shrink-0"
       >
         <Plus size={13} strokeWidth={2.4} />
         Nuevo

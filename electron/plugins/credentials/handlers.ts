@@ -8,7 +8,7 @@ import type { CoreServices, PluginHandlers } from '../../core/types'
 import { registerHandler } from '../../core/ipc-handler'
 import { logger } from '../../core/logger'
 import type {
-  Credential, CredentialDraft, CredentialMeta, CredentialsListResult, ImportPreview, LockStatus,
+  Credential, CopyResult, CredentialDraft, CredentialMeta, CredentialsListResult, ImportPreview, LockStatus,
   PasswordAudit, PinVerifyResult, SaveResult, SecretResult, SyncStatus,
 } from '../../../src/plugins/credentials/types'
 import { applyQueue, dequeue, enqueue, flushQueue, type QueueOp } from '../../../src/plugins/credentials/offline-queue'
@@ -16,6 +16,7 @@ import { estimateStrength, WEAK_MAX_SCORE } from '../../../src/plugins/credentia
 import {
   credentialsToCsv, markDuplicates, parseCredentialsCsv, type ImportedCredential,
 } from '../../../src/plugins/credentials/csv'
+import { topByUsage } from '../../../src/plugins/credentials/usage'
 
 // ── Files in <userData> ─────────────────────────────────────────────────────
 /** Owned by GastosStorageService; read-only here (writes go through saveCredencial/deleteCredencial). */
@@ -32,7 +33,8 @@ const NETWORK_TIMEOUT_MS = 12_000
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024
 
 interface CacheData { items: CredentialMeta[]; syncedAt: number | null }
-interface LocalData { favorites: string[]; usedAt: Record<string, number> }
+/** Per-computer metadata: favorites and usage (never synced to Supabase). */
+interface LocalData { favorites: string[]; usedAt: Record<string, number>; useCount: Record<string, number> }
 interface PinData { salt: string; hash: string; minutes: number }
 
 let pendingClear: ReturnType<typeof setTimeout> | null = null
@@ -114,13 +116,16 @@ export const handlers: PluginHandlers = {
     const writeQueue = (q: QueueOp[]): void => db.writeEncryptedJSON(QUEUE_FILE, q)
     const readLocal = (): LocalData => {
       const l = db.readEncryptedJSON<LocalData>(LOCAL_FILE)
-      return { favorites: Array.isArray(l?.favorites) ? l.favorites : [], usedAt: l?.usedAt && typeof l.usedAt === 'object' ? l.usedAt : {} }
+      const obj = <T>(v: unknown): Record<string, T> => (v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, T> : {})
+      return { favorites: Array.isArray(l?.favorites) ? l.favorites : [], usedAt: obj<number>(l?.usedAt), useCount: obj<number>(l?.useCount) }
     }
     const writeLocal = (l: LocalData): void => db.writeEncryptedJSON(LOCAL_FILE, l)
+    /** Records one use: bumps the counter and the timestamp. */
     const markUsed = (id: string): number => {
       const l = readLocal()
       const now = Date.now()
       l.usedAt[id] = now
+      l.useCount[id] = (Number(l.useCount[id]) || 0) + 1
       writeLocal(l)
       return now
     }
@@ -146,7 +151,11 @@ export const handlers: PluginHandlers = {
       const vault = readVault()
       const local = readLocal()
       const items: Credential[] = applyQueue(meta, queue)
-        .map((c) => ({ ...metaOf(c), hasPassword: !!vault[c.id], ...(c.pending ? { pending: true } : {}) }))
+        .map((c) => ({
+          ...metaOf(c), hasPassword: !!vault[c.id], ...(c.pending ? { pending: true } : {}),
+          useCount: Number(local.useCount[c.id]) || 0,
+          ...(local.usedAt[c.id] ? { lastUsedAt: local.usedAt[c.id] } : {}),
+        }))
         .sort((a, b) => a.orden - b.orden)
       return { items, status, error, syncedAt, pendingCount: queue.length, favorites: local.favorites, usedAt: local.usedAt }
     }
@@ -279,7 +288,8 @@ export const handlers: PluginHandlers = {
         writeCache({ ...cache, items: cache.items.filter((c) => c.id !== id) })
         const local = readLocal()
         delete local.usedAt[id]
-        writeLocal({ favorites: local.favorites.filter((f) => f !== id), usedAt: local.usedAt })
+        delete local.useCount[id]
+        writeLocal({ favorites: local.favorites.filter((f) => f !== id), usedAt: local.usedAt, useCount: local.useCount })
         try {
           await withTimeout(gastosStorage.deleteCredencial(id))
           writeQueue(dequeue(readQueue(), id))
@@ -305,13 +315,34 @@ export const handlers: PluginHandlers = {
     })
 
     /** Copies the stored password (it never crosses to the renderer); clears the clipboard after 30 s. */
-    registerHandler(ipcMain, 'credentials:copy-password', (_e, id: string): SecretResult<{ usedAt: number }> => {
-      if (!isUnlocked()) return { ok: false, locked: true }
+    registerHandler(ipcMain, 'credentials:copy-password', (_e, id: string): CopyResult => {
+      if (typeof id !== 'string' || !id) return { ok: false, error: 'Id inválido' }
+      if (!isUnlocked()) return { ok: false, error: 'Credenciales bloqueadas', locked: true }
       const pwd = readVault()[id]
-      if (!pwd) throw new Error('No hay contraseña guardada en esta computadora')
+      if (!pwd) return { ok: false, error: 'No hay contraseña guardada en esta computadora' }
       writeClipboard(pwd, PASSWORD_CLEAR_MS)
       touchUnlock()
       return { ok: true, usedAt: markUsed(id) }
+    })
+
+    /** Copies the username (not a secret: no PIN, no auto-clear, but kept out of the clipboard history). */
+    registerHandler(ipcMain, 'credentials:copy-username', (_e, id: string): CopyResult => {
+      if (typeof id !== 'string' || !id) return { ok: false, error: 'Id inválido' }
+      const c = currentItems().find((x) => x.id === id)
+      if (!c) return { ok: false, error: 'La credencial ya no existe' }
+      if (!c.usuario) return { ok: false, error: 'Esta credencial no tiene usuario' }
+      writeClipboard(c.usuario, 0)
+      return { ok: true, usedAt: markUsed(id) }
+    })
+
+    /** Most used credentials (favorites first), metadata only. Local, no network. */
+    registerHandler(ipcMain, 'credentials:top', (_e, limit?: number): Credential[] => {
+      const n = Math.min(50, Math.max(0, Math.round(Number(limit ?? 8)) || 0))
+      const cache = readCache()
+      const local = readLocal()
+      const favs = new Set(local.favorites)
+      const { items } = buildResult(cache.items, readQueue(), 'synced', cache.syncedAt)
+      return topByUsage(items, favs, n).map((c) => (favs.has(c.id) ? { ...c, favorite: true } : c))
     })
 
     /** Returns one password in plaintext (reveal / edit). Respects the PIN lock. */

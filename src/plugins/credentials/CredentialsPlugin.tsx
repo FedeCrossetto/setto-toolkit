@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  ChevronDown, CloudCheck, CloudOff, CloudUpload, Download, FileUp, KeyRound, Lock, LockOpen, MoreHorizontal,
-  Plus, RefreshCw, Search, ShieldAlert, ShieldCheck, Star, TriangleAlert, X,
+  ArrowUpDown, Check, ChevronDown, CloudCheck, CloudOff, CloudUpload, Copy, Download, ExternalLink, FileUp, KeyRound,
+  Lock, LockOpen, MoreHorizontal, Plus, RefreshCw, Search, ShieldAlert, ShieldCheck, Star, TriangleAlert, User, X,
 } from 'lucide-react'
 import { EmptyState } from '../../core/components/EmptyState'
 import { listItemMotion, shouldAnimateList } from '../../core/motion'
@@ -15,16 +15,31 @@ import {
   absoluteUrl, copyToClipboard, credentialsApi, displayHost, filterCredentials, groupCredentials,
   invalidateCredentials, loadCredentialList, loadLocalCredentialList, relativeTime, type CredentialGroup,
 } from './data'
+import { SORT_LABELS, sortCredentialsBy, topByUsage, usageHint, type CredentialSort } from './usage'
 import { Avatar } from './components/Avatar'
 import { CredentialEditor, CredentialView, type WithSecret } from './components/CredentialDetail'
 import { PinPrompt } from './components/PinPrompt'
 import { SecuritySheet } from './components/SecuritySheet'
 import { ImportSheet } from './components/ImportSheet'
 
-type Filter = 'all' | 'fav' | 'recent' | 'risk'
+type Filter = 'all' | 'fav' | 'risk'
 
 const RETRY_MS = 60_000
-const RECENT_MAX = 15
+const QUICK_MAX = 6
+const SORT_KEY = 'credentials.sort'
+const SORTS = Object.keys(SORT_LABELS) as CredentialSort[]
+
+function readSort(): CredentialSort {
+  try {
+    const v = localStorage.getItem(SORT_KEY)
+    return SORTS.includes(v as CredentialSort) ? v as CredentialSort : 'usage'
+  } catch {
+    return 'usage'
+  }
+}
+
+/** Live usage since the last load: updates hints right away without reordering under the cursor. */
+type LiveUsage = Record<string, { useCount: number; lastUsedAt: number }>
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err)
@@ -59,11 +74,20 @@ export function CredentialsPlugin(): JSX.Element {
   const [securityOpen, setSecurityOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [menuOpen, setMenuOpen]     = useState(false)
+  const [sortOpen, setSortOpen]     = useState(false)
+  const [sort, setSortState]        = useState<CredentialSort>(readSort)
+  const [live, setLive]             = useState<LiveUsage>({})
   const pinResolver = useRef<((ok: boolean) => void) | null>(null)
 
   const items = useMemo(() => data?.items ?? [], [data])
   const favorites = useMemo(() => new Set(data?.favorites ?? []), [data])
-  const usedAt = useMemo(() => data?.usedAt ?? {}, [data])
+  const usageOf = useCallback((c: Credential): { useCount: number; lastUsedAt?: number } => live[c.id] ?? c, [live])
+
+  const setSort = (v: CredentialSort): void => {
+    setSortState(v)
+    setSortOpen(false)
+    try { localStorage.setItem(SORT_KEY, v) } catch { /* storage no disponible */ }
+  }
 
   const refreshAudit = useCallback(() => {
     credentialsApi.audit().then(setAudit).catch(() => undefined)
@@ -74,6 +98,7 @@ export function CredentialsPlugin(): JSX.Element {
     try {
       const r = await loadCredentialList(force)
       setData(r)
+      setLive({})
       setFatal(null)
       refreshAudit()
     } catch (err) {
@@ -131,10 +156,6 @@ export function CredentialsPlugin(): JSX.Element {
 
   const groups = useMemo((): CredentialGroup[] => {
     const found = filterCredentials(items, search)
-    if (filter === 'recent') {
-      const list = found.filter((c) => usedAt[c.id]).sort((a, b) => (usedAt[b.id] ?? 0) - (usedAt[a.id] ?? 0)).slice(0, RECENT_MAX)
-      return list.length ? [{ key: 'Usadas recientemente', items: list }] : []
-    }
     if (filter === 'risk') {
       const byName = (a: Credential, b: Credential): number => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
       const reused = found.filter((c) => reusedOf.has(c.id)).sort(byName)
@@ -144,8 +165,26 @@ export function CredentialsPlugin(): JSX.Element {
         ...(weak.length ? [{ key: 'Contraseña débil', items: weak }] : []),
       ]
     }
-    return groupCredentials(filter === 'fav' ? found.filter((c) => favorites.has(c.id)) : found)
-  }, [items, search, filter, usedAt, favorites, reusedOf, weakSet])
+    const sorted = sortCredentialsBy(found, sort)
+    if (filter === 'fav') {
+      const favs = sorted.filter((c) => favorites.has(c.id))
+      return favs.length ? [{ key: 'Favoritas', items: favs }] : []
+    }
+    // Favorites pinned on top (not while searching: there the best match wins).
+    const pinned = search.trim() ? [] : sorted.filter((c) => favorites.has(c.id))
+    const rest = pinned.length ? sorted.filter((c) => !favorites.has(c.id)) : sorted
+    const head = pinned.length ? [{ key: 'Favoritas', items: pinned }] : []
+    if (sort === 'category') return [...head, ...groupCredentials(rest)]
+    if (!rest.length) return head
+    const label = search.trim() ? 'Resultados' : SORT_LABELS[sort]
+    return [...head, { key: label, items: rest }]
+  }, [items, search, filter, sort, favorites, reusedOf, weakSet])
+
+  /** "Acceso rápido": the most used (favorites first), in the order of the last load. */
+  const quick = useMemo(
+    () => topByUsage(items.filter((c) => c.useCount > 0 || favorites.has(c.id)), favorites, QUICK_MAX),
+    [items, favorites],
+  )
 
   const visible = useMemo(() => groups.flatMap((g) => (folded[g.key] ? [] : g.items)), [groups, folded])
   const rowMotion = listItemMotion(shouldAnimateList(visible.length))
@@ -182,29 +221,47 @@ export function CredentialsPlugin(): JSX.Element {
   }, [requireUnlock, toast])
 
   // ── Actions ───────────────────────────────────────────────────────────────
-  const setUsed = (id: string, ts: number): void => {
-    setData((d) => (d ? { ...d, usedAt: { ...d.usedAt, [id]: ts } } : d))
-  }
+  const setUsed = useCallback((c: Credential, ts: number): void => {
+    setLive((m) => ({ ...m, [c.id]: { useCount: (m[c.id]?.useCount ?? c.useCount) + 1, lastUsedAt: ts } }))
+    setData((d) => (d ? { ...d, usedAt: { ...d.usedAt, [c.id]: ts } } : d))
+    invalidateCredentials()
+  }, [])
 
   const copyPassword = useCallback(async (c: Credential): Promise<boolean> => {
     if (!c.hasPassword) { toast('Esta credencial no tiene contraseña guardada', 'warning'); return false }
-    const r = await withSecret(() => credentialsApi.copyPassword(c.id))
-    if (!r) return false
-    setUsed(c.id, r.usedAt)
-    toast('Contraseña copiada. Se borra del portapapeles en 30 s', 'success', 3000)
-    return true
-  }, [withSecret, toast])
+    try {
+      let r = await credentialsApi.copyPassword(c.id)
+      if (!r.ok && r.locked) {
+        if (!(await requireUnlock())) return false
+        r = await credentialsApi.copyPassword(c.id)
+      }
+      if (!r.ok) { toast(r.error, 'error', 4000); return false }
+      setUsed(c, r.usedAt)
+      toast('Contraseña copiada. Se borra del portapapeles en 30 s', 'success', 3000)
+      return true
+    } catch (err) {
+      toast(errorText(err), 'error', 4000)
+      return false
+    }
+  }, [requireUnlock, setUsed, toast])
 
   const copyUser = useCallback(async (c: Credential): Promise<void> => {
     if (!c.usuario) { toast('Esta credencial no tiene usuario', 'warning'); return }
     try {
-      await copyToClipboard(c.usuario)
+      const r = await credentialsApi.copyUsername(c.id)
+      if (!r.ok) { toast(r.error, 'error'); return }
+      setUsed(c, r.usedAt)
       toast('Usuario copiado', 'success', 1800)
-      credentialsApi.markUsed(c.id).then((ts) => setUsed(c.id, ts)).catch(() => undefined)
     } catch {
-      toast('No se pudo copiar al portapapeles', 'error')
+      // Main not reachable: plain copy (doesn't count as a use).
+      try {
+        await copyToClipboard(c.usuario)
+        toast('Usuario copiado', 'success', 1800)
+      } catch {
+        toast('No se pudo copiar al portapapeles', 'error')
+      }
     }
-  }, [toast])
+  }, [setUsed, toast])
 
   const openAndCopy = useCallback(async (c: Credential): Promise<void> => {
     if (!c.url) return
@@ -342,25 +399,27 @@ export function CredentialsPlugin(): JSX.Element {
       } else if (e.key === 'Delete' && selected) {
         e.preventDefault()
         void remove(selected)
+      } else if (e.key === 'Escape' && selected && !sortOpen && !menuOpen) {
+        e.preventDefault()
+        setSelectedId(null)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [editing, selected, selectedId, visible, pinOpen, securityOpen, importOpen, moveSelection, copyPassword, copyUser, remove])
+  }, [editing, selected, selectedId, visible, pinOpen, securityOpen, importOpen, sortOpen, menuOpen, moveSelection, copyPassword, copyUser, remove])
 
-  // Close the "more" menu on outside click.
+  // Close the menus on outside click.
   useEffect(() => {
-    if (!menuOpen) return
-    const close = (): void => setMenuOpen(false)
+    if (!menuOpen && !sortOpen) return
+    const close = (): void => { setMenuOpen(false); setSortOpen(false) }
     window.addEventListener('mousedown', close)
     window.addEventListener('blur', close)
     return () => { window.removeEventListener('mousedown', close); window.removeEventListener('blur', close) }
-  }, [menuOpen])
+  }, [menuOpen, sortOpen])
 
   const filterOptions = [
     { value: 'all' as const, label: 'Todas' },
-    { value: 'fav' as const, label: 'Favoritas' },
-    { value: 'recent' as const, label: 'Recientes' },
+    { value: 'fav' as const, label: 'Favoritas', ...(favorites.size ? { count: favorites.size } : {}) },
     { value: 'risk' as const, label: 'En riesgo', ...(riskCount ? { count: riskCount } : {}) },
   ]
 
@@ -368,7 +427,6 @@ export function CredentialsPlugin(): JSX.Element {
     ? 'Todavía no guardaste credenciales.'
     : search ? 'Sin resultados.'
     : filter === 'fav' ? 'Marcá credenciales con la estrella para verlas acá.'
-    : filter === 'recent' ? 'Las que copies van a aparecer acá.'
     : filter === 'risk' ? 'Ninguna contraseña débil ni repetida.'
     : 'Sin resultados.'
 
@@ -393,7 +451,32 @@ export function CredentialsPlugin(): JSX.Element {
                 {lock.unlocked ? <LockOpen size={14} /> : <Lock size={14} />}
               </button>
             )}
-            <div className="ml-auto relative">
+            <div className="ml-auto relative flex-shrink-0">
+              <button
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => setSortOpen((v) => !v)}
+                disabled={filter === 'risk'}
+                className="ui-btn ui-btn-ghost ui-btn-icon rounded-lg text-on-surface-variant disabled:opacity-40"
+                title={`Ordenar: ${SORT_LABELS[sort]}`}
+                aria-label={`Ordenar (${SORT_LABELS[sort]})`}
+                aria-haspopup="menu"
+                aria-expanded={sortOpen}
+              >
+                <ArrowUpDown size={15} />
+              </button>
+              {sortOpen && (
+                <div className="ui-menu absolute right-0 top-full mt-1 z-50 w-44 p-1" onMouseDown={(e) => e.stopPropagation()} role="menu">
+                  <p className="px-2 pt-1 pb-1.5 t-caption text-on-surface-variant">Ordenar por</p>
+                  {SORTS.map((s) => (
+                    <button key={s} role="menuitemradio" aria-checked={s === sort} className="ui-menu-item w-full px-2.5 py-1.5" onClick={() => setSort(s)}>
+                      <span className="flex-1 text-left">{SORT_LABELS[s]}</span>
+                      {s === sort && <Check size={13} />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="relative">
               <button
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => setMenuOpen((v) => !v)}
@@ -406,13 +489,13 @@ export function CredentialsPlugin(): JSX.Element {
               </button>
               {menuOpen && (
                 <div className="ui-menu absolute right-0 top-full mt-1 z-50 w-56 p-1" onMouseDown={(e) => e.stopPropagation()} role="menu">
-                  <button role="menuitem" className="ui-menu-item w-full" onClick={() => { setMenuOpen(false); setImportOpen(true) }}>
+                  <button role="menuitem" className="ui-menu-item w-full px-2.5 py-1.5" onClick={() => { setMenuOpen(false); setImportOpen(true) }}>
                     <FileUp size={14} /> Importar CSV…
                   </button>
-                  <button role="menuitem" className="ui-menu-item w-full" onClick={() => void exportCsv()} disabled={!items.length}>
+                  <button role="menuitem" className="ui-menu-item w-full px-2.5 py-1.5" onClick={() => void exportCsv()} disabled={!items.length}>
                     <Download size={14} /> Exportar CSV…
                   </button>
-                  <button role="menuitem" className="ui-menu-item w-full" onClick={() => { setMenuOpen(false); setSecurityOpen(true) }}>
+                  <button role="menuitem" className="ui-menu-item w-full px-2.5 py-1.5" onClick={() => { setMenuOpen(false); setSecurityOpen(true) }}>
                     <ShieldCheck size={14} /> Seguridad…
                   </button>
                 </div>
@@ -490,9 +573,11 @@ export function CredentialsPlugin(): JSX.Element {
                         active={c.id === selectedId}
                         favorite={favorites.has(c.id)}
                         risk={reusedOf.has(c.id) ? 'Contraseña repetida' : weakSet.has(c.id) ? 'Contraseña débil' : undefined}
-                        subtitle={filter === 'recent' ? relativeTime(usedAt[c.id]) : undefined}
+                        usage={usageOf(c)}
                         onSelect={() => { if (c.id !== selectedId || editing) { setSelectedId(c.id); setEditing(null) } }}
                         onToggleFavorite={() => void toggleFavorite(c)}
+                        onCopyUser={() => void copyUser(c)}
+                        onCopyPassword={() => void copyPassword(c)}
                       />
                       </motion.div>
                     ))}
@@ -527,7 +612,7 @@ export function CredentialsPlugin(): JSX.Element {
               key={selected.id}
               c={selected}
               favorite={favorites.has(selected.id)}
-              usedAt={usedAt[selected.id]}
+              usage={usageOf(selected)}
               score={audit?.scores[selected.id]}
               reusedWith={(reusedOf.get(selected.id) ?? []).map((id) => nameOf(id) ?? '').filter(Boolean)}
               weak={weakSet.has(selected.id)}
@@ -540,20 +625,28 @@ export function CredentialsPlugin(): JSX.Element {
               onOpenAndCopy={() => void openAndCopy(selected)}
             />
           </div>
+        ) : items.length ? (
+          <QuickAccess
+            quick={quick}
+            usageOf={usageOf}
+            lock={lock}
+            onUnlock={() => void requireUnlock()}
+            onCopyPassword={copyPassword}
+            onCopyUser={(c) => void copyUser(c)}
+            onOpen={(c) => { setSelectedId(c.id); setEditing(null) }}
+          />
         ) : (
           <div className="h-full flex items-center justify-center">
             <EmptyState
               icon={KeyRound}
-              title={items.length ? 'Elegí una credencial' : 'Sin credenciales guardadas'}
-              description={items.length
-                ? '↑/↓ para moverte · Enter copia la contraseña · Ctrl+B copia el usuario'
-                : 'Guardá tus usuarios y contraseñas, cifrados en esta computadora. También podés importarlos desde un CSV.'}
-              action={!items.length ? (
+              title={loading && !data ? 'Cargando credenciales…' : 'Sin credenciales guardadas'}
+              description={loading && !data ? undefined : 'Guardá tus usuarios y contraseñas, cifrados en esta computadora. También podés importarlos desde un CSV.'}
+              action={loading && !data ? undefined : (
                 <div className="flex gap-2">
                   <button onClick={() => setEditing('new')} className="ui-btn ui-btn-primary"><Plus size={14} /> Nueva credencial</button>
                   <button onClick={() => setImportOpen(true)} className="ui-btn ui-btn-outline"><FileUp size={14} /> Importar CSV</button>
                 </div>
-              ) : undefined}
+              )}
             />
           </div>
         )}
@@ -572,17 +665,39 @@ export function CredentialsPlugin(): JSX.Element {
 
 // ── List row ─────────────────────────────────────────────────────────────────
 
+type Usage = { useCount: number; lastUsedAt?: number }
+
+function QuickButton({ label, onClick, children, href }: { label: string; onClick?: () => void; children: React.ReactNode; href?: string }): JSX.Element {
+  const cls = 'w-6 h-6 inline-flex items-center justify-center rounded-md text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.07] transition-colors'
+  if (href) {
+    return (
+      <a href={href} target="_blank" rel="noreferrer" tabIndex={-1} onClick={(e) => e.stopPropagation()} className={cls} title={label} aria-label={label}>
+        {children}
+      </a>
+    )
+  }
+  return (
+    <button type="button" tabIndex={-1} onClick={(e) => { e.stopPropagation(); onClick?.() }} className={cls} title={label} aria-label={label}>
+      {children}
+    </button>
+  )
+}
+
 function CredentialRow({
-  c, active, favorite, risk, subtitle, onSelect, onToggleFavorite,
+  c, active, favorite, risk, usage, onSelect, onToggleFavorite, onCopyUser, onCopyPassword,
 }: {
   c: Credential
   active: boolean
   favorite: boolean
   risk?: string
-  subtitle?: string
+  usage: Usage
   onSelect: () => void
   onToggleFavorite: () => void
+  onCopyUser: () => void
+  onCopyPassword: () => void
 }): JSX.Element {
+  const when = relativeTime(usage.lastUsedAt)
+  const hint = usageHint(usage.useCount, when)
   return (
     <div
       data-id={c.id}
@@ -590,31 +705,148 @@ function CredentialRow({
       aria-selected={active}
       tabIndex={active ? 0 : -1}
       onClick={onSelect}
-      className={`group w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left cursor-default transition-colors duration-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 ${
-        active ? 'bg-selected' : 'hover:bg-on-surface/[0.03] dark:hover:bg-white/[0.04]'
+      onDoubleClick={onCopyPassword}
+      className={`group relative w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left cursor-default transition-colors duration-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 ${
+        active ? 'bg-selected' : 'hover:bg-on-surface/[0.04]'
       }`}
     >
       <Avatar name={c.nombre} url={c.url} size={30} />
       <span className="flex-1 min-w-0">
-        <span className={`block text-[13px] leading-[18px] truncate ${active ? 'font-semibold text-on-surface' : 'font-medium text-on-surface/90'}`}>{c.nombre}</span>
-        <span className="block t-footnote text-on-surface-variant/80 truncate">{subtitle || c.usuario || displayHost(c.url) || '—'}</span>
+        <span className="flex items-center gap-1 min-w-0">
+          <span className={`t-body truncate ${active ? 'font-semibold text-on-surface' : 'font-medium text-on-surface'}`}>{c.nombre}</span>
+          {favorite && <Star size={10} weight="fill" className="text-primary flex-shrink-0" aria-label="Favorita" />}
+          {c.pending && <span title="Pendiente de sincronizar" className="text-warning flex-shrink-0"><CloudUpload size={12} /></span>}
+          {risk && <span title={risk} className="text-warning flex-shrink-0"><ShieldAlert size={12} /></span>}
+        </span>
+        <span className="block t-footnote text-on-surface-variant truncate">{c.usuario || displayHost(c.url) || '—'}</span>
       </span>
-      {c.pending && (
-        <span title="Pendiente de sincronizar" className="text-warning flex-shrink-0"><CloudUpload size={13} /></span>
+      {(usage.useCount > 0 || when) && (
+        <span
+          className="flex-shrink-0 flex flex-col items-end t-caption text-on-surface-variant/70 tabular-nums transition-opacity group-hover:opacity-0"
+          title={hint}
+        >
+          <span>{when}</span>
+          {usage.useCount > 0 && <span>{usage.useCount === 1 ? '1 vez' : `${usage.useCount} veces`}</span>}
+        </span>
       )}
-      {risk && (
-        <span title={risk} className="text-warning flex-shrink-0"><ShieldAlert size={13} /></span>
-      )}
-      <button
-        type="button"
-        tabIndex={-1}
-        onClick={(e) => { e.stopPropagation(); onToggleFavorite() }}
-        className={`flex-shrink-0 p-0.5 rounded transition-opacity ${favorite ? 'text-primary opacity-100' : 'text-on-surface-variant opacity-0 group-hover:opacity-70 hover:!opacity-100'}`}
-        title={favorite ? 'Quitar de favoritas' : 'Marcar como favorita'}
-        aria-label={favorite ? 'Quitar de favoritas' : 'Marcar como favorita'}
+      <span
+        className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-px p-0.5 rounded-lg bg-surface hairline shadow-sm opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-100"
       >
-        <Star size={13} weight={favorite ? 'fill' : 'regular'} />
-      </button>
+        {c.usuario && <QuickButton label="Copiar usuario (Ctrl+B)" onClick={onCopyUser}><User size={13} /></QuickButton>}
+        {c.hasPassword && <QuickButton label="Copiar contraseña (Enter)" onClick={onCopyPassword}><KeyRound size={13} /></QuickButton>}
+        {c.url && <QuickButton label="Abrir sitio" href={absoluteUrl(c.url)}><ExternalLink size={13} /></QuickButton>}
+        <QuickButton label={favorite ? 'Quitar de favoritas' : 'Marcar como favorita'} onClick={onToggleFavorite}>
+          <Star size={13} weight={favorite ? 'fill' : 'regular'} className={favorite ? 'text-primary' : ''} />
+        </QuickButton>
+      </span>
+    </div>
+  )
+}
+
+// ── Home: quick access ───────────────────────────────────────────────────────
+
+function Kbd({ children }: { children: React.ReactNode }): JSX.Element {
+  return <kbd className="font-sans inline-flex items-center px-1.5 h-[18px] rounded-[var(--radius-xs)] bg-on-surface/[0.06] t-caption font-medium text-on-surface-variant">{children}</kbd>
+}
+
+function QuickAccess({
+  quick, usageOf, lock, onUnlock, onCopyPassword, onCopyUser, onOpen,
+}: {
+  quick: Credential[]
+  usageOf: (c: Credential) => Usage
+  lock: LockStatus | null
+  onUnlock: () => void
+  onCopyPassword: (c: Credential) => Promise<boolean>
+  onCopyUser: (c: Credential) => void
+  onOpen: (c: Credential) => void
+}): JSX.Element {
+  const [copied, setCopied] = useState<string | null>(null)
+  const flash = (id: string): void => {
+    setCopied(id)
+    setTimeout(() => setCopied((cur) => (cur === id ? null : cur)), 1400)
+  }
+  const locked = !!lock?.pinEnabled && !lock.unlocked
+  return (
+    <div className="max-w-[760px] mx-auto px-8 py-8" style={{ animation: 'fadeIn 0.2s ease both' }}>
+      <div className="flex items-end justify-between gap-4 mb-4">
+        <div>
+          <h1 className="t-title2 text-on-surface">Acceso rápido</h1>
+          <p className="t-footnote text-on-surface-variant mt-1">Las que más usás. Un clic copia la contraseña.</p>
+        </div>
+        {locked && (
+          <button onClick={onUnlock} className="ui-btn ui-btn-outline ui-btn-sm flex-shrink-0">
+            <Lock size={12} /> Desbloquear
+          </button>
+        )}
+      </div>
+
+      {quick.length ? (
+        <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
+          {quick.map((c) => {
+            const u = usageOf(c)
+            const hint = usageHint(u.useCount, relativeTime(u.lastUsedAt))
+            const done = copied === c.id
+            return (
+              <div
+                key={c.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => { if (c.hasPassword) void onCopyPassword(c).then((ok) => { if (ok) flash(c.id) }); else onOpen(c) }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click() } }}
+                className="ui-card ui-card-interactive group p-3.5 flex flex-col gap-3 min-w-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45"
+                title={c.hasPassword ? `Copiar la contraseña de ${c.nombre}` : `Ver ${c.nombre}`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Avatar name={c.nombre} url={c.url} size={34} />
+                  <div className="flex-1 min-w-0">
+                    <p className="t-body font-semibold text-on-surface truncate">{c.nombre}</p>
+                    <p className="t-footnote text-on-surface-variant truncate">{c.usuario || displayHost(c.url) || '—'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="flex-1 min-w-0 t-caption text-on-surface-variant/80 truncate">
+                    {done ? <span className="text-success inline-flex items-center gap-1"><Check size={11} /> Copiada</span> : hint || 'Favorita'}
+                  </span>
+                  {c.usuario && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onCopyUser(c) }}
+                      className="ui-btn ui-btn-ghost ui-btn-icon rounded-md w-6 h-6 hidden group-hover:inline-flex group-focus-within:inline-flex"
+                      title="Copiar usuario"
+                      aria-label={`Copiar usuario de ${c.nombre}`}
+                    >
+                      <User size={13} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onOpen(c) }}
+                    className="ui-btn ui-btn-ghost ui-btn-icon rounded-md w-6 h-6 hidden group-hover:inline-flex group-focus-within:inline-flex"
+                    title="Ver detalles"
+                    aria-label={`Ver detalles de ${c.nombre}`}
+                  >
+                    <MoreHorizontal size={13} />
+                  </button>
+                  {c.hasPassword && <Copy size={13} className="text-on-surface-variant/60 group-hover:text-primary transition-colors flex-shrink-0" aria-hidden />}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="ui-card p-5 flex items-center gap-3">
+          <span className="w-9 h-9 rounded-xl bg-selected text-primary flex items-center justify-center flex-shrink-0"><KeyRound size={17} /></span>
+          <p className="t-body text-on-surface-variant">Las credenciales que más copies (y tus favoritas) van a aparecer acá.</p>
+        </div>
+      )}
+
+      <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 t-footnote text-on-surface-variant">
+        <span className="inline-flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> moverse</span>
+        <span className="inline-flex items-center gap-1.5"><Kbd>Enter</Kbd> copia la contraseña</span>
+        <span className="inline-flex items-center gap-1.5"><Kbd>Ctrl B</Kbd> copia el usuario</span>
+        <span className="inline-flex items-center gap-1.5"><Kbd>Ctrl F</Kbd> buscar</span>
+        <span className="inline-flex items-center gap-1.5"><Kbd>N</Kbd> nueva</span>
+      </div>
     </div>
   )
 }

@@ -56,7 +56,7 @@ export function PinPrompt({ open, onDone }: { open: boolean; onDone: (ok: boolea
           autoComplete="off"
           value={pin}
           onChange={(e) => { setPin(e.target.value.replace(/\D/g, '').slice(0, 12)); setError(null) }}
-          className="ui-input w-40 text-center font-mono tracking-[0.3em]"
+          className="ui-input w-40 text-center tabular-nums tracking-[0.3em]"
           aria-label="PIN"
         />
         <p className="t-caption text-error min-h-[16px]" role="alert">{error ?? ''}</p>

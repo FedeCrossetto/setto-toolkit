@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { applyPaletteImmediate } from './core/hooks/useThemePalette'
+import { applyFontImmediate } from './core/hooks/useAppFont'
 import './styles/globals.css'
 
 // Apply persisted theme + palette before first paint to avoid a gray flash.
@@ -14,6 +15,7 @@ import './styles/globals.css'
   if (mode === 'system') localStorage.setItem('app-theme', isDark ? 'dark' : 'light')
   document.documentElement.classList.toggle('dark', isDark)
   applyPaletteImmediate()
+  applyFontImmediate()
 })()
 
 // Capture renderer-side errors into the main-process log (app.log) so failures

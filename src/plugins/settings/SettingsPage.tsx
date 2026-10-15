@@ -6,7 +6,7 @@ import {
 import { useApp } from '../../core/AppContext'
 import { allPlugins } from '../../core/plugin-registry'
 import { PluginIcon } from '../../core/pluginIcons'
-import { useAppFont, APP_FONT_FAMILIES, APP_FONT_SIZES, type AppFontPrefs } from '../../core/hooks/useAppFont'
+import { useAppFont, APP_FONT_FAMILIES, APP_FONT_SIZES, APP_SIZE_LABELS, type AppFontPrefs } from '../../core/hooks/useAppFont'
 import { useUiScale, UI_SCALE_MIN, UI_SCALE_MAX, UI_SCALE_STEP } from '../../core/hooks/useUiScale'
 import { AppearanceSettings } from './AppearanceSettings'
 import { useThemeMode, type ThemeMode } from '../../core/themeMode'
@@ -315,13 +315,13 @@ export function SettingsPage(): JSX.Element {
             {APP_FONT_FAMILIES.map((f) => <option key={f.label} value={f.label}>{f.label}</option>)}
           </select>
         </SettingsRow>
-        <SettingsRow icon={Type} title="Tamaño de texto">
+        <SettingsRow icon={Type} title="Tamaño de la interfaz" description="Compacto achica todo sin perder nitidez.">
           <SegmentedControl<AppFontPrefs['fontSize']>
             value={fontPrefs.fontSize}
             onChange={(size) => updateFont({ fontSize: size })}
             options={(Object.keys(APP_FONT_SIZES) as AppFontPrefs['fontSize'][]).map((size) => ({
               value: size,
-              label: size === 'small' ? 'Chico' : size === 'large' ? 'Grande' : 'Normal',
+              label: APP_SIZE_LABELS[size],
             }))}
           />
         </SettingsRow>

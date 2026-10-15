@@ -9,6 +9,7 @@ export const notesPlugin: PluginManifest = {
   description: 'Bloc de notas en Markdown con autoguardado',
   icon: 'notes',
   section: 'personal',
+  defaultDisabled: true,
   component: NotesPlugin,
   keywords: ['notas', 'notes', 'bloc', 'markdown', 'apuntes', 'hoy', 'diario'],
 }

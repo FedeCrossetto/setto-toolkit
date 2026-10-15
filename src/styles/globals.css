@@ -528,7 +528,7 @@ select option {
   box-shadow: var(--shadow-pop);
   padding: 5px;
 }
-:where(.ui-menu-item) {
+:where(.ui-menu-item), button:where(.ui-menu-item), a:where(.ui-menu-item) {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -658,3 +658,32 @@ select option {
   border-bottom: 1px solid rgb(0 0 0 / 0.35);
   box-shadow: inset 0 -1px 0 rgb(255 255 255 / 0.04);
 }
+
+/* ─── Tamaño de la interfaz (Ajustes → Compacto / Normal / Grande) ──────────
+   El texto siempre en px enteros (nítido en Windows); lo que cambia son alturas
+   de barras/filas y la base de rem (espaciados). html[data-ui-size] lo pone useAppFont. */
+:root {
+  --topbar-h: 46px;
+  --control-h: 28px;
+  --nav-row-h: 32px;
+}
+html[data-ui-size="small"] {
+  --topbar-h: 40px;
+  --control-h: 26px;
+  --nav-row-h: 29px;
+}
+html[data-ui-size="large"] {
+  --topbar-h: 50px;
+  --control-h: 30px;
+  --nav-row-h: 34px;
+}
+html[data-ui-size="small"] .t-display { font-size: 30px; line-height: 36px; }
+html[data-ui-size="small"] .t-title1  { font-size: 24px; line-height: 30px; }
+html[data-ui-size="small"] .t-title2  { font-size: 20px; line-height: 26px; }
+html[data-ui-size="small"] .t-title3  { font-size: 16px; line-height: 22px; }
+html[data-ui-size="small"] .t-headline { font-size: 14px; line-height: 19px; }
+
+/* Una sola fuente de interfaz: los títulos usan la misma (antes Manrope). */
+.t-title1, .t-title2, .t-title3, .t-display { font-family: var(--app-font-family, Inter), sans-serif; }
+/* Controles nativos heredan la fuente de la app (los <button>/<input> no lo hacen solos en todos los casos). */
+button, input, select, textarea { font-family: inherit; }

@@ -71,7 +71,7 @@ export function SecuritySheet({
         type="password"
         inputMode="numeric"
         autoComplete="off"
-        className="ui-input w-full font-mono tracking-[0.3em]"
+        className="ui-input w-full tabular-nums tracking-[0.3em]"
         value={value}
         onChange={(e) => { set(digits(e.target.value)); setError(null) }}
         onKeyDown={(e) => { if (e.key === 'Enter') submit() }}

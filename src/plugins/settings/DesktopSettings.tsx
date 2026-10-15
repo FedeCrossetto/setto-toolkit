@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Bell, ClipboardText, Code2, Monitor, PanelLeft } from 'lucide-react'
 import { SettingsGroup, SettingsRow, Toggle } from '../../core/components/Form'
+import { SegmentedControl } from '../../core/components/SegmentedControl'
 import { useToast } from '../../core/components/Toast'
 import { NOTIFICATIONS_SETTING, notify } from '../../core/notify'
 
@@ -22,6 +23,7 @@ export function DesktopSettings(): JSX.Element {
   const toast = useToast()
   const [flags, setFlags] = useState<Record<Flag, boolean>>(DEFAULTS)
   const [shortcut, setShortcut] = useState<string | null>(null)
+  const [dockSide, setDockSide] = useState<'right' | 'left'>('right')
 
   useEffect(() => {
     void (async () => {
@@ -34,6 +36,7 @@ export function DesktopSettings(): JSX.Element {
       }
       setFlags(next)
       try { setShortcut(await window.api.invoke<string | null>('snippet-picker:shortcut')) } catch { /* sin atajo */ }
+      try { if ((await window.api.invoke<string | null>('settings:get', 'app.dock_side')) === 'left') setDockSide('left') } catch { /* derecha */ }
     })()
   }, [])
 
@@ -75,9 +78,18 @@ export function DesktopSettings(): JSX.Element {
       <SettingsRow icon={ClipboardText} title="Historial del portapapeles" description="Lo último que copiaste, en Portapapeles → Texto y en Ctrl+K. Guarda los últimos 20 y los fijados (cifrados); nunca contraseñas.">
         <Toggle checked={flags['app.clipboard_history']} onChange={(v) => set('app.clipboard_history', v)} label="Historial del portapapeles" />
       </SettingsRow>
-      <SettingsRow icon={PanelLeft} title="Barra flotante a la derecha"
-        description="Pestaña con el logo en el borde derecho (arrastrala para moverla): al pasar el mouse (o Ctrl+Alt+D) muestra lo copiado, capturas, snippets y accesos. Se esconde en pantalla completa.">
-        <Toggle checked={flags['app.dock']} onChange={(v) => set('app.dock', v)} label="Barra flotante a la derecha" />
+      <SettingsRow icon={PanelLeft} title="Barra flotante"
+        description="Pestaña con el logo en el borde de la pantalla (arrastrala arriba o abajo; doble clic la centra): al pasar el mouse (o Ctrl+Alt+D) muestra lo copiado, capturas, snippets y claves. Se esconde en pantalla completa.">
+        <div className="flex items-center gap-2.5">
+          {flags['app.dock'] && (
+            <SegmentedControl<'right' | 'left'>
+              value={dockSide}
+              onChange={(v) => { setDockSide(v); try { window.api.send('dock:set-side', v) } catch { /* sin barra */ } }}
+              options={[{ value: 'left', label: 'Izquierda' }, { value: 'right', label: 'Derecha' }]}
+            />
+          )}
+          <Toggle checked={flags['app.dock']} onChange={(v) => set('app.dock', v)} label="Barra flotante" />
+        </div>
       </SettingsRow>
     </SettingsGroup>
   )
