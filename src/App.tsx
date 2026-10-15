@@ -8,6 +8,7 @@ import { Sidebar } from './core/components/Sidebar'
 import { TabBar } from './core/components/TabBar'
 import { CommandPalette } from './core/components/CommandPalette'
 import { KeyboardShortcutsModal } from './core/components/KeyboardShortcutsModal'
+import { GlobalTooltip } from './core/components/GlobalTooltip'
 import { EmptyState } from './core/components/EmptyState'
 import { PluginLoadingFallback } from './core/components/Skeleton'
 import { GlobalSearch } from './core/components/GlobalSearch'
@@ -95,6 +96,7 @@ function AppShell(): JSX.Element {
       <QuickCapture />
       <KeyboardShortcutsModal />
       <GlobalSearch />
+      <GlobalTooltip />
 
       {/* Contenido: toolbar unificada + módulo activo */}
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden bg-background">
