@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  AlertTriangle, ArrowUpRight, CheckCircle2, ChevronRight, Copy, Diff, Eye,
+  AlertTriangle, ArrowUpRight, CheckCircle2, ChevronRight, ChevronsDownUp, ChevronsUpDown, Copy, Diff, Eye,
   FileInput, FilePlus, FileSearch, FileText, Filter, Folder, Import,
   FolderOpen, FolderPlus, FolderSearch, Palette, PanelLeft, PanelLeftClose, Pencil,
   Save, SlidersHorizontal, SquareTerminal, Trash2, WrapText, X,
@@ -400,6 +400,21 @@ export function FileEditor(): JSX.Element {
     () => arrangeOpenFiles(tabs, { isPinned: openView.isPinned, query: openView.filter, groupByFolder: openView.groupByFolder }),
     [tabs, openView.isPinned, openView.filter, openView.groupByFolder],
   )
+  // Compactar: sólo las carpetas (como "Collapse Folders" de los IDE). Filtrando, se ve todo.
+  const foldableKeys = openGroups.filter((g) => g.label).map((g) => g.key)
+  const isGroupCollapsed = (key: string): boolean => !openView.filter && openView.collapsed.has(key)
+  const allCollapsed = openView.groupByFolder && foldableKeys.length > 0 && foldableKeys.every((k) => openView.collapsed.has(k))
+  const toggleCompact = (): void => {
+    if (allCollapsed) { openView.setAllCollapsed([]); return }
+    if (!openView.groupByFolder) {
+      // Lista plana: agrupar primero y plegar todas las carpetas que van a aparecer.
+      const grouped = arrangeOpenFiles(tabs, { isPinned: openView.isPinned, query: '', groupByFolder: true })
+      openView.setGroupByFolder(true)
+      openView.setAllCollapsed(grouped.filter((g) => g.label).map((g) => g.key))
+      return
+    }
+    openView.setAllCollapsed(foldableKeys)
+  }
   const selectTab = (id: string): void => { setSelectedIds(new Set()); split.routeSelect(id) }
 
   // Espejo de los abiertos para el proveedor de Ctrl+K (src/plugins/file-editor/search.ts)
@@ -1022,6 +1037,14 @@ export function FileEditor(): JSX.Element {
                 </Tooltip>
               )}
               {tabs.length > 1 && (
+                <Tooltip label={allCollapsed ? 'Expandir carpetas' : 'Compactar: sólo carpetas'}>
+                  <button onClick={toggleCompact} aria-label={allCollapsed ? 'Expandir carpetas' : 'Compactar carpetas'} aria-pressed={allCollapsed}
+                    className={`ui-btn ui-btn-ghost ui-btn-icon rounded-md ${allCollapsed ? '!bg-on-surface/[0.08] !text-on-surface' : ''}`}>
+                    {allCollapsed ? <ChevronsUpDown size={15} /> : <ChevronsDownUp size={15} />}
+                  </button>
+                </Tooltip>
+              )}
+              {tabs.length > 1 && (
                 <Tooltip label={openView.groupByFolder ? 'Lista plana' : 'Agrupar por carpeta'}>
                   <button onClick={() => openView.setGroupByFolder(!openView.groupByFolder)} aria-label="Agrupar por carpeta" aria-pressed={openView.groupByFolder}
                     className={`ui-btn ui-btn-ghost ui-btn-icon rounded-md ${openView.groupByFolder ? '!bg-on-surface/[0.08] !text-on-surface' : ''}`}>
@@ -1083,15 +1106,25 @@ export function FileEditor(): JSX.Element {
             ) : openGroups.length === 0 ? (
               <p className="t-footnote text-on-surface-variant/80 px-2.5 py-2">Ningún archivo coincide con «{openView.filter}»</p>
             ) : (
-              openGroups.map((group) => (
+              openGroups.map((group) => {
+              const isCollapsed = isGroupCollapsed(group.key)
+              const hasActive = group.items.some((t) => t.id === activeId)
+              const dirtyCount = group.items.filter((t) => t.isDirty).length
+              return (
               <div key={group.key} className="flex flex-col gap-0.5">
                 {group.label && (
-                  <div className="flex items-center gap-1.5 px-2.5 pt-2 pb-0.5 t-caption font-semibold text-on-surface-variant/80 select-none" title={group.title}>
-                    {group.key === 'pinned' ? <Pin size={11} className="flex-shrink-0" /> : <Folder size={11} className="flex-shrink-0" />}
-                    <span className="truncate">{group.label}</span>
-                  </div>
+                  <button type="button" onClick={() => openView.toggleCollapsed(group.key)} title={group.title}
+                    aria-expanded={!isCollapsed}
+                    className={`group/fold flex items-center gap-1.5 w-full text-left rounded-md px-1.5 ${isCollapsed ? 'py-1' : 'pt-2 pb-0.5'} t-caption font-semibold select-none transition-colors hover:bg-on-surface/[0.04] ${
+                      isCollapsed && hasActive ? 'text-primary' : 'text-on-surface-variant/80 hover:text-on-surface'}`}>
+                    <ChevronRight size={10} className={`flex-shrink-0 transition-transform duration-150 ${isCollapsed ? '' : 'rotate-90'}`} />
+                    {group.key === 'pinned' ? <Pin size={11} className="flex-shrink-0" /> : isCollapsed ? <Folder size={11} className="flex-shrink-0" /> : <FolderOpen size={11} className="flex-shrink-0" />}
+                    <span className="truncate flex-1">{group.label}</span>
+                    {dirtyCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-warning flex-shrink-0" title={`${dirtyCount} sin guardar`} />}
+                    {isCollapsed && <span className="tabular-nums font-normal text-on-surface-variant/60 flex-shrink-0">{group.items.length}</span>}
+                  </button>
                 )}
-                {group.items.map((tab) => (
+                {!isCollapsed && group.items.map((tab) => (
                 <div
                   key={tab.id}
                   onDragOver={(e) => {
@@ -1132,7 +1165,8 @@ export function FileEditor(): JSX.Element {
                 </div>
                 ))}
               </div>
-              ))
+              )
+              })
             )}
           </div>
         </div>

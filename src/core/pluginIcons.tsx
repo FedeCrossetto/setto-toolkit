@@ -59,6 +59,22 @@ const PLUGIN_ICON_MAP: Record<string, IconComponent> = {
  */
 export const PLUGIN_TINT: Record<string, string> = {}
 
+/** Nombre corto para la barra plegada (cabe debajo del ícono). */
+const SHORT_NAME: Record<string, string> = {
+  dashboard: 'Inicio',
+  credentials: 'Claves',
+  'file-editor': 'Editor',
+  'api-tester': 'API',
+  captures: 'Copiado',
+  'repo-search': 'Repos',
+  'smart-diff': 'Comparar',
+  'ticket-resolver': 'Tickets',
+  connections: 'Conexión',
+}
+export function shortName(pluginId: string, name: string): string {
+  return SHORT_NAME[pluginId] ?? name
+}
+
 /** CSS color for a plugin icon (defaults to the app accent). */
 export function pluginTint(pluginId: string, alpha = 1): string {
   const t = PLUGIN_TINT[pluginId] ?? 'var(--c-primary)'

@@ -32,7 +32,7 @@ Tailwind mapea `rounded-*` y `shadow-*` a esas variables: no hay que tocar compo
   (usar `rgb(var(--c-…))`).
 - **Un solo acento**: violeta eléctrico `--c-primary` (paleta `setto`). Botón principal sólido `ui-btn-primary`, CTA oscuro `ui-btn-dark`, selección `bg-selected` (lila suave) con texto `text-on-surface` e ícono `text-primary` peso `fill`. Degradé de marca (`--gradient-brand`, `bg-brand`, `text-brand`) sólo para marca/destacados puntuales. Nada de colores distintos por módulo; naranja/rojo/verde sólo para estados. Cuando hay que distinguir varias series o ítems (gráficos, categorías, iniciales), usar `chart-N`, nunca primary/secondary/accent con distinta opacidad.
 - **Superficies**: lienzo `bg-background` (gris), paneles/tarjetas `bg-surface` (blanco) con `hairline` y `shadow-sm`; paneles laterales internos `bg-surface` con `hairline-r`. Inputs `ui-input` (relleno gris, sin borde). Radios generosos (`rounded-lg` 10px controles, `rounded-xl` 14px tarjetas).
-- **Títulos** en Manrope (`.t-title1|2|3`, `.t-display`), UI en Inter.
+- **Una sola fuente:** Inter Variable incluida en la app (`@fontsource-variable/inter`, con tamaños ópticos: los títulos grandes usan el corte Display). Rasgos `cv11` + `ss01`; títulos en semibold (600–680) con tracking negativo. Mono sólo para código.
 - **Sin** degradados decorativos fuera del acento de marca, brillos/glow, neón, texturas, mascotas ni animaciones de borde.
   Botones primarios y selección usan el degradé (`ui-btn-primary`, `bg-brand`); texto e íconos de acento usan `text-primary`.
 - **Bordes**: `hairline` / `hairline-b|t|l|r` o `border-hairline`. Nada de `border-outline-variant/30`.

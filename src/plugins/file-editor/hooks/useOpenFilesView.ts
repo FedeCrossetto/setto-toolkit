@@ -3,6 +3,7 @@ import type { OpenFile } from '../types'
 
 const PINNED_KEY = 'file-editor:pinned'
 const GROUP_KEY = 'file-editor:group-by-folder'
+const COLLAPSED_KEY = 'file-editor:collapsed-groups'
 
 /** Clave estable para fijar: la ruta (sobrevive a reinicios) o el id para buffers. */
 const pinKey = (t: Pick<OpenFile, 'id' | 'path'>): string => t.path ?? `buffer:${t.id}`
@@ -25,6 +26,8 @@ export function useOpenFilesView() {
   const [pinned, setPinned] = useState<Set<string>>(() => new Set(readJSON<string[]>(PINNED_KEY, [])))
   const [filter, setFilter] = useState('')
   const [groupByFolder, setGroupByFolderState] = useState<boolean>(() => readJSON<boolean>(GROUP_KEY, false))
+  /** Carpetas plegadas en "Abiertos" (clave del grupo: `dir:<ruta>`, `buffers`, `pinned`). */
+  const [collapsed, setCollapsedState] = useState<Set<string>>(() => new Set(readJSON<string[]>(COLLAPSED_KEY, [])))
 
   const isPinned = useCallback((t: Pick<OpenFile, 'id' | 'path'>) => pinned.has(pinKey(t)), [pinned])
 
@@ -44,5 +47,17 @@ export function useOpenFilesView() {
     writeJSON(GROUP_KEY, v)
   }, [])
 
-  return { isPinned, togglePin, filter, setFilter, groupByFolder, setGroupByFolder }
+  const saveCollapsed = (next: Set<string>): Set<string> => { writeJSON(COLLAPSED_KEY, [...next]); return next }
+  const toggleCollapsed = useCallback((key: string) => {
+    setCollapsedState((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return saveCollapsed(next)
+    })
+  }, [])
+  /** Plegar todas las carpetas dadas, o desplegar todo con `[]`. */
+  const setAllCollapsed = useCallback((keys: string[]) => { setCollapsedState(saveCollapsed(new Set(keys))) }, [])
+
+  return { isPinned, togglePin, filter, setFilter, groupByFolder, setGroupByFolder, collapsed, toggleCollapsed, setAllCollapsed }
 }

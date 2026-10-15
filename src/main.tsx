@@ -2,6 +2,9 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { applyPaletteImmediate } from './core/hooks/useThemePalette'
 import { applyFontImmediate } from './core/hooks/useAppFont'
+// Inter Variable incluida en la app (sin depender de Google Fonts): pesos 100–900 y
+// tamaños ópticos (los títulos grandes usan el corte "Display", más fino y apretado).
+import '@fontsource-variable/inter/opsz.css'
 import './styles/globals.css'
 
 // Apply persisted theme + palette before first paint to avoid a gray flash.

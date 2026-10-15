@@ -70,8 +70,12 @@ const itemVariants: Variants = {
 }
 
 /** Sombras que caben en el aire transparente de la ventana (ver PAD / HANDLE en main). */
-const PANEL_SHADOW = 'shadow-[0_1px_2px_rgb(0_0_0/0.06),0_12px_28px_-14px_rgb(0_0_0/0.30)] dark:shadow-[0_1px_2px_rgb(0_0_0/0.4),0_12px_28px_-14px_rgb(0_0_0/0.6)]'
-const TAB_SHADOW = 'shadow-[0_1px_2px_rgb(0_0_0/0.08),0_6px_16px_-6px_rgb(0_0_0/0.28)] dark:shadow-[0_1px_2px_rgb(0_0_0/0.45),0_6px_16px_-6px_rgb(0_0_0/0.7)]'
+// Sobre fondos blancos el panel no puede ser blanco: en claro usa el gris lavanda de la app
+// (lo de adentro queda blanco y se despega solo), anillo fino y sombra en capas.
+const PANEL_SURFACE = 'bg-background dark:bg-surface border border-black/[0.13] dark:border-hairline-strong'
+const PANEL_SHADOW = 'shadow-[0_1px_2px_rgb(0_0_0/0.08),0_4px_10px_-2px_rgb(0_0_0/0.08),0_18px_36px_-14px_rgb(0_0_0/0.32)] dark:shadow-[0_1px_2px_rgb(0_0_0/0.4),0_12px_28px_-14px_rgb(0_0_0/0.6)]'
+const TAB_SURFACE = 'bg-background dark:bg-surface border border-black/[0.14] dark:border-hairline-strong'
+const TAB_SHADOW = 'shadow-[0_1px_2px_rgb(0_0_0/0.10),0_6px_16px_-6px_rgb(0_0_0/0.32)] dark:shadow-[0_1px_2px_rgb(0_0_0/0.45),0_6px_16px_-6px_rgb(0_0_0/0.7)]'
 
 /** Ícono y color de cada tipo de copiado (colores de datos del tema: chart-N). */
 const KIND_STYLE: Record<ClipKind, { icon: LucideIcon; cls: string; bar: string }> = {
@@ -439,7 +443,7 @@ export function Dock(): JSX.Element {
             initial={{ opacity: 0, x: left ? -22 : 22, scale: 0.985 }}
             animate={{ opacity: 1, x: 0, scale: 1, transition: { duration: 0.34, ease: EASE_OUT } }}
             exit={{ opacity: 0, x: left ? -18 : 18, scale: 0.985, transition: { duration: 0.2, ease: EASE_IN } }}>
-            <div className={`relative h-full flex flex-col rounded-[18px] overflow-hidden border border-hairline-strong bg-surface text-on-surface ${PANEL_SHADOW}`}>
+            <div className={`relative h-full flex flex-col rounded-[18px] overflow-hidden text-on-surface ${PANEL_SURFACE} ${PANEL_SHADOW}`}>
 
               {/* Encabezado */}
               <div className="flex items-center gap-2.5 px-3.5 pt-3 pb-2.5 shrink-0">
@@ -961,7 +965,7 @@ function Handle({ side, shortcut, unseen, bumpKey, kind }: { side: Side; shortcu
         role="button"
         aria-label="Abrir Setto"
         title={`Setto${shortcut ? ` · ${shortcut}` : ''}\nArrastrá para moverla · doble clic: al medio`}
-        className={`absolute top-1/2 -mt-[28px] h-[56px] w-[62px] flex items-center bg-surface border border-hairline-strong ${TAB_SHADOW} ${
+        className={`absolute top-1/2 -mt-[28px] h-[56px] w-[62px] flex items-center ${TAB_SURFACE} ${TAB_SHADOW} ${
           left ? '-left-4 rounded-r-[18px] flex-row-reverse pr-[6px]' : '-right-4 rounded-l-[18px] pl-[6px]'} ${dragging ? 'cursor-grabbing' : 'cursor-pointer'}`}
         initial={{ x: 56 * -out, opacity: 0 }}
         animate={{ x: (dragging ? 6 : hover ? 4 : 0) * out, opacity: 1, scale: dragging ? 1.03 : 1 }}
@@ -979,6 +983,8 @@ function Handle({ side, shortcut, unseen, bumpKey, kind }: { side: Side; shortcu
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
+        {/* Filo de color del tema: la pestaña se ve sobre cualquier fondo (también blanco). */}
+        <span className={`absolute top-[12px] bottom-[12px] w-[3px] rounded-full bg-primary/80 ${left ? 'right-[-1px]' : 'left-[-1px]'}`} aria-hidden />
         {/* Agarradera: aparece al pasar el mouse. */}
         <span className={`grid grid-cols-2 gap-[2px] w-[8px] shrink-0 transition-opacity duration-200 ${showGrip ? 'opacity-100' : 'opacity-0'}`} aria-hidden>
           {Array.from({ length: 6 }, (_, i) => <span key={i} className="w-[3px] h-[3px] rounded-full bg-on-surface-variant/50" />)}

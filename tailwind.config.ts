@@ -43,7 +43,7 @@ const config: Config = {
         '4xl': ['34px', { lineHeight: '40px' }],
       },
       fontFamily: {
-        sans: ['var(--app-font-family)', 'Inter', 'Segoe UI Variable Text', 'Segoe UI', 'system-ui', 'sans-serif'],
+        sans: ['var(--app-font-family)', 'Inter Variable', 'Inter', 'Segoe UI Variable Text', 'Segoe UI', 'system-ui', 'sans-serif'],
       },
       // Radios y sombras salen de variables CSS (globals.css → "Forma") para poder
       // cambiar el look de toda la app desde un solo lugar.

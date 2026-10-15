@@ -16,7 +16,7 @@ const DESIGN_KEY = 'app:design-v5-font'
 
 /** Fuentes de interfaz permitidas (la monoespaciada es sólo para código). */
 export const APP_FONT_FAMILIES = [
-  { label: 'Inter',   stack: "Inter, 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif" },
+  { label: 'Inter',   stack: "'Inter Variable', Inter, 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif" },
   { label: 'Sistema', stack: "-apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif" },
 ] as const
 
@@ -25,7 +25,7 @@ export const APP_FONT_FAMILIES = [
  * (tailwind.config + clases .t-*), así achicar la interfaz no deja texto borroso.
  */
 export const APP_FONT_SIZES: Record<AppFontPrefs['fontSize'], string> = {
-  small:  '13px',
+  small:  '12px',
   normal: '14px',
   large:  '16px',
 }
