@@ -164,7 +164,7 @@ function RestoreDialog({ onClose }: { onClose: () => void }): JSX.Element {
         {file && !preview && <PassFields pass={pass} setPass={(v) => { setPass(v); setError(null) }} autoFocus />}
         {error && <p className="t-footnote text-error">{error}</p>}
         {preview && (
-          <div className="rounded-lg bg-on-surface/4 px-3 py-2.5 flex flex-col gap-1">
+          <div className="rounded-lg hairline px-3 py-2.5 flex flex-col gap-1">
             <p className="t-body text-on-surface font-medium">Respaldo del {fmtDate(preview.createdAt)}</p>
             <p className="t-footnote text-on-surface-variant">{preview.files} archivos{preview.notes ? ` · ${preview.notes} notas` : ''}{preview.captures ? ` · ${preview.captures} capturas` : ''} · Setto {preview.appVersion}</p>
             <p className="t-footnote text-warning mt-1">Reemplaza los datos actuales. Antes se guarda una copia de lo que hay ahora, y después Setto se reinicia.</p>

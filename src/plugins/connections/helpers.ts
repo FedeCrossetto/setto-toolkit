@@ -11,6 +11,18 @@ export interface ConnStatus {
   latencyMs?: number
   /** epoch ms of the last finished check */
   checkedAt?: number
+  /** Supabase only: the user chose "solo local" (`app.local_only`), so it isn't used nor checked. */
+  localOnly?: boolean
+}
+
+/** `app.local_only` setting ('1' / 'true' = solo local). */
+export function isLocalOnly(value: string | null | undefined): boolean {
+  return value === '1' || value === 'true'
+}
+
+/** Supabase card while the app runs in local-only mode: calm, not an error. */
+export function localOnlyStatus(now = Date.now()): ConnStatus {
+  return { state: 'idle', localOnly: true, detail: 'Gastos y Claves se guardan sólo en esta computadora', checkedAt: now }
 }
 
 // ── Supabase URL / ref ─────────────────────────────────────────────────────────

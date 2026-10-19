@@ -69,11 +69,11 @@ export function MissingTablesCard({ health, onCheck, checking, pendingCount }: {
   return (
     <section className="ui-card px-5 py-4 flex flex-col gap-3" aria-label="Completar la base de datos">
       <div className="flex items-start gap-3">
-        <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-warning/[0.14] text-warning">
+        <span className="icon-tile w-8 h-8 text-warning">
           <Plug size={15} />
         </span>
         <div className="flex-1 min-w-0">
-          <h2 className="t-headline text-on-surface">Completar la base de datos</h2>
+          <h2 className="t-callout font-semibold text-on-surface">Completar la base de datos</h2>
           <p className="t-footnote text-on-surface-variant mt-0.5">
             A tu proyecto de Supabase le falta{missing.length > 1 ? 'n las tablas' : ' la tabla'}{' '}
             {missing.map((t, i) => <span key={t}>{i ? ', ' : ''}<b className="font-semibold text-on-surface">{TABLE_LABEL[t]}</b></span>)}.
@@ -114,8 +114,8 @@ export function ConnectionProblem({ health, onRetry, checking }: { health: Supab
   const openConexiones = useOpenConexiones()
   const isAuth = health.reachable && !health.authOk
   return (
-    <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-surface hairline shadow-sm t-footnote text-on-surface-variant">
-      <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${isAuth ? 'bg-error/12 text-error' : 'bg-warning/[0.14] text-warning'}`}>
+    <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-surface hairline t-footnote text-on-surface-variant">
+      <span className={`icon-tile w-7 h-7 ${isAuth ? 'text-error' : 'text-warning'}`}>
         <Plug size={14} />
       </span>
       <span className="flex-1">

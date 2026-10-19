@@ -5,7 +5,8 @@ import { backdropMotion, dialogMotion, sheetMotion } from '../motion'
 import { TriangleAlert, X } from 'lucide-react'
 
 /**
- * Diálogo centrado: tarjeta blanca rounded-2xl, hairline, sombra pop; Esc cierra.
+ * Diálogo centrado: tarjeta blanca de 14px, borde fino, sombra suave; encabezado y pie separados
+ * por líneas finas. Esc cierra.
  * Usarlo para cualquier modal de la app en vez de overlays armados a mano.
  */
 export function Modal({
@@ -47,22 +48,22 @@ export function Modal({
         {...dialogMotion}
         role="dialog"
         aria-modal="true"
-        className="bg-surface hairline rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden"
+        className="fl-dialog flex flex-col max-h-[85vh] overflow-hidden"
         style={{ width, maxWidth: 'calc(100vw - 32px)' }}
       >
         {(title || subtitle) && (
-          <div className="flex items-start gap-3 px-6 pt-5 pb-3">
+          <div className="flex items-start gap-3 px-6 pt-4 pb-3.5 hairline-b">
             <div className="flex-1 min-w-0">
               {title && <h2 className="t-headline text-on-surface">{title}</h2>}
-              {subtitle && <p className="t-footnote text-on-surface-variant mt-1">{subtitle}</p>}
+              {subtitle && <p className="t-footnote text-on-surface-variant mt-0.5">{subtitle}</p>}
             </div>
-            <button onClick={onClose} aria-label="Cerrar" className="ui-btn ui-btn-ghost ui-btn-icon rounded-lg -mr-2 -mt-1">
+            <button onClick={onClose} aria-label="Cerrar" className="ui-btn ui-btn-ghost ui-btn-icon rounded-lg -mr-1.5 -mt-0.5">
               <X size={15} />
             </button>
           </div>
         )}
-        {children && <div className="px-6 pb-5 overflow-y-auto t-body text-on-surface">{children}</div>}
-        {footer && <div className="flex justify-end items-center gap-2 px-6 py-3.5 hairline-t bg-background/40 dark:bg-white/2">{footer}</div>}
+        {children && <div className={`px-6 pb-5 overflow-y-auto t-body text-on-surface ${title || subtitle ? 'pt-4' : ''}`}>{children}</div>}
+        {footer && <div className="flex justify-end items-center gap-2 px-6 py-3 hairline-t">{footer}</div>}
       </motion.div>
     </motion.div>
     )}
@@ -106,20 +107,20 @@ export function Sheet({
     >
       <motion.aside
         {...sheetMotion}
-        className="bg-surface hairline rounded-2xl shadow-2xl m-2 flex flex-col overflow-hidden"
+        className="fl-dialog m-2 flex flex-col overflow-hidden"
         style={{ width, maxWidth: 'calc(100vw - 32px)' }}
       >
-        <div className="flex items-start gap-3 px-6 pt-5 pb-4 hairline-b">
+        <div className="flex items-start gap-3 px-6 pt-4 pb-3.5 hairline-b">
           <div className="flex-1 min-w-0">
             {title && <h2 className="t-headline text-on-surface">{title}</h2>}
             {subtitle && <p className="t-footnote text-on-surface-variant mt-1">{subtitle}</p>}
           </div>
-          <button onClick={onClose} aria-label="Cerrar" className="ui-btn ui-btn-ghost ui-btn-icon rounded-lg -mr-2 -mt-1">
+          <button onClick={onClose} aria-label="Cerrar" className="ui-btn ui-btn-ghost ui-btn-icon rounded-lg -mr-1.5 -mt-0.5">
             <X size={15} />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-5 t-body text-on-surface">{children}</div>
-        {footer && <div className="flex justify-end items-center gap-2 px-6 py-3.5 hairline-t bg-background/40 dark:bg-white/2">{footer}</div>}
+        {footer && <div className="flex justify-end items-center gap-2 px-6 py-3 hairline-t">{footer}</div>}
       </motion.aside>
     </motion.div>
     )}
@@ -177,11 +178,11 @@ export function ConfirmProvider({ children }: { children: ReactNode }): JSX.Elem
           </>
         }
       >
-        <div className="pt-6 flex items-start gap-3.5">
-          <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
-            opts?.destructive ? 'bg-error/10 text-error' : 'bg-selected text-primary'
+        <div className="pt-5 flex items-start gap-3.5">
+          <div className={`shrink-0 w-9 h-9 rounded-[10px] border flex items-center justify-center ${
+            opts?.destructive ? 'border-error/25 text-error' : 'border-hairline-strong text-on-surface-variant'
           }`}>
-            <TriangleAlert size={19} weight="fill" />
+            <TriangleAlert size={18} />
           </div>
           <div className="flex-1 min-w-0 pt-0.5">
             <p className="t-headline text-on-surface">{opts?.title}</p>

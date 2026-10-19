@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   normalizeSupabaseUrl, supabaseRef, supabaseSqlEditorUrl, jwtRole, detectSupabaseKeyKind,
-  isPublicSupabaseKey, summarizeStatuses, formatCheckedAt, shortError,
+  isPublicSupabaseKey, summarizeStatuses, formatCheckedAt, shortError, isLocalOnly, localOnlyStatus,
   statusFromResult, statusFromHealth, missingTables, type SupabaseHealth,
 } from './helpers'
 
@@ -112,5 +112,19 @@ describe('result mapping', () => {
     const h = health({ tables: { servicios: true, pagos: true, gastos: false, credenciales: true, queries: true }, missingSql: 'create table gastos ()' })
     expect(missingTables(h)).toEqual(['gastos'])
     expect(statusFromHealth(h)).toMatchObject({ state: 'error', detail: 'Faltan tablas: gastos' })
+  })
+})
+
+describe('local-only mode', () => {
+  it('reads the setting', () => {
+    expect(isLocalOnly('1')).toBe(true)
+    expect(isLocalOnly('true')).toBe(true)
+    expect(isLocalOnly('0')).toBe(false)
+    expect(isLocalOnly(null)).toBe(false)
+  })
+  it('is a calm status, not an error nor "sin configurar"', () => {
+    const s = localOnlyStatus(5)
+    expect(s).toMatchObject({ state: 'idle', localOnly: true, checkedAt: 5 })
+    expect(summarizeStatuses([s]).errors).toBe(0)
   })
 })

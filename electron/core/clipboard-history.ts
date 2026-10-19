@@ -7,6 +7,9 @@ import { detectKind, isSensitive, maskSecret, type ClipKind } from '../../src/co
 import { foregroundWindow } from './win-helper'
 import { normalizeSource } from '../plugins/captures/captures-utils'
 import { logger } from './logger'
+import {
+  prepareDoc, rankDocs, type ClipSearchItem, type ClipSearchKind, type ClipSearchOpts, type ClipSearchResult, type PreparedDoc,
+} from '../../src/plugins/captures/clip-search'
 
 /**
  * Historial del portapapeles (texto).
@@ -35,13 +38,13 @@ export interface ClipEntry {
 export type ClipEntryView = Omit<ClipEntry, 'text'> & { text: string; masked?: string }
 
 const POLL_MS = 800
-const MAX_ENTRIES = 80
+const MAX_ENTRIES = 300
 const MAX_TEXT = 20_000
 const SENSITIVE_TTL_MS = 60_000
 const PINS_FILE = 'clipboard-pins.json'
 const RECENT_FILE = 'clipboard-recent.json'
 /** Cuántos textos (no fijados ni sensibles) sobreviven al cerrar la app. */
-const RECENT_KEEP = 20
+const RECENT_KEEP = 200
 /** Formatos que, con sólo estar, marcan el contenido como privado. */
 const PRIVATE_FORMATS = ['ExcludeClipboardContentFromMonitorProcessing', 'Clipboard Viewer Ignore']
 
@@ -68,6 +71,15 @@ export function ignoreClipboardText(text: string): void {
   last = text
 }
 
+/**
+ * Escribir en el portapapeles sin que cuente como copia nueva (p. ej. devolver lo que
+ * el usuario tenía antes de un pegado automático). No borra nada del historial.
+ */
+export function writeClipboardSilently(text: string): void {
+  last = text
+  clipboard.writeText(text)
+}
+
 /** Lo que hay en el portapapeles lo marcó como privado otra app (gestores de contraseñas). */
 export function isPrivateClipboard(): boolean {
   try {
@@ -89,14 +101,22 @@ export function isPrivateClipboard(): boolean {
 const dataPath = (file: string): string => path.join(app.getPath('userData'), file)
 
 function readEncrypted(file: string): ClipEntry[] {
+  const p = dataPath(file)
+  let text: string
+  try { text = fs.readFileSync(p, 'utf-8') } catch { return [] }   // no existe: normal
   try {
-    const raw = JSON.parse(fs.readFileSync(dataPath(file), 'utf-8')) as { enc?: boolean; data?: string }
+    const raw = JSON.parse(text) as { enc?: boolean; data?: string }
     if (!raw.data) return []
+    if (raw.enc && !safeStorage.isEncryptionAvailable()) throw new Error('safeStorage no disponible')
     const json = raw.enc ? safeStorage.decryptString(Buffer.from(raw.data, 'base64')) : raw.data
     const list = JSON.parse(json) as ClipEntry[]
     // El tipo se recalcula: la detección mejora entre versiones.
     return Array.isArray(list) ? list.filter((e) => typeof e.text === 'string' && e.id).map((e) => ({ ...e, kind: detectKind(e.text), sensitive: false })) : []
-  } catch {
+  } catch (err) {
+    // Ilegible: se aparta para que el próximo guardado no pise los fijados.
+    const aside = `${p}.corrupt-${Date.now()}`
+    try { fs.renameSync(p, aside) } catch { /* nada */ }
+    logger.error('clipboard', `${file} ilegible — apartado`, { aside, error: err instanceof Error ? err.message : String(err) })
     return []
   }
 }
@@ -192,6 +212,52 @@ function stop(): void {
   try { writeEncrypted(RECENT_FILE, []) } catch { /* nada */ }
 }
 
+// ── Búsqueda unificada (textos + capturas) ───────────────────────────────────
+
+/** Lo pone el módulo Capturas: sus documentos ya preparados y los datos livianos de cada una. */
+export interface CaptureSearchSource {
+  docs: () => PreparedDoc[]
+  describe: (id: string) => Pick<ClipSearchItem, 'file' | 'title' | 'ticket' | 'app' | 'pinned' | 'ocrState'> | null
+}
+let captureSource: CaptureSearchSource | null = null
+export function setCaptureSearchSource(src: CaptureSearchSource | null): void { captureSource = src }
+
+const clipDocs = new Map<string, { text: string; at: number; pinned: boolean; app?: string; doc: PreparedDoc }>()
+function clipDoc(e: ClipEntry): PreparedDoc {
+  const c = clipDocs.get(e.id)
+  if (c && c.text === e.text && c.at === e.at && c.pinned === e.pinned && c.app === e.app) return c.doc
+  const doc = prepareDoc({ kind: 'text', id: e.id, at: e.at, pinned: e.pinned, fields: { text: e.text, app: e.app } })
+  clipDocs.set(e.id, { text: e.text, at: e.at, pinned: e.pinned, app: e.app, doc })
+  return doc
+}
+
+/** Busca en lo copiado (nunca lo sensible) y en las capturas; ver clip-search.ts. */
+export function searchClipboard(query: string, opts: ClipSearchOpts = {}): ClipSearchResult {
+  const kinds = new Set<ClipSearchKind>(opts.kinds?.length ? opts.kinds : ['text', 'capture'])
+  const docs: PreparedDoc[] = []
+  const byId = new Map<string, ClipEntry>()
+  if (kinds.has('text')) {
+    for (const e of entries) if (!e.sensitive) { docs.push(clipDoc(e)); byId.set(e.id, e) }
+    for (const id of clipDocs.keys()) if (!entries.some((e) => e.id === id)) clipDocs.delete(id)
+  }
+  if (kinds.has('capture') && captureSource) {
+    try { docs.push(...captureSource.docs()) } catch (err) { logger.warn('clipboard', 'capture search failed', String(err)) }
+  }
+  const { hits, total } = rankDocs(docs, String(query ?? '').slice(0, 200), Date.now(), opts.limit ?? 40)
+  const items: ClipSearchItem[] = []
+  for (const h of hits) {
+    const base = { kind: h.doc.kind, id: h.doc.id, at: h.doc.at, score: Math.round(h.score), tier: h.tier, field: h.field, snippet: h.snippet, ranges: h.ranges }
+    if (h.doc.kind === 'text') {
+      const e = byId.get(h.doc.id)
+      if (e) items.push({ ...base, clipKind: e.kind, app: e.app, pinned: e.pinned })
+    } else {
+      const d = captureSource?.describe(h.doc.id)
+      if (d) items.push({ ...base, ...d })
+    }
+  }
+  return { items, total }
+}
+
 const view = (e: ClipEntry): ClipEntryView => (e.sensitive ? { ...e, text: '', masked: maskSecret(e.text) } : e)
 
 // ── Pegado en secuencia ──────────────────────────────────────────────────────
@@ -230,6 +296,8 @@ export function registerClipboardHistory(ipcMain: IpcMain, enabled: () => boolea
   if (enabled()) start()
 
   ipcMain.handle('clipboard:history', () => entries.map(view))
+  ipcMain.handle('clipboard:search', (_e, query: unknown, opts: unknown) =>
+    searchClipboard(typeof query === 'string' ? query : '', (opts && typeof opts === 'object' ? opts : {}) as ClipSearchOpts))
   ipcMain.handle('clipboard:clear', () => {
     entries = entries.filter((e) => e.pinned)
     saveRecentSoon()

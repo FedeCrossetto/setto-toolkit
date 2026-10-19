@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { validatePath, assertInAuthorizedRoot, addAuthorizedRoot, _resetAuthorizedRoots } from './path-guard'
+import { validatePath, assertInAuthorizedRoot, addAuthorizedRoot, _resetAuthorizedRoots, validateRootDir } from './path-guard'
 
 describe('validatePath', () => {
   it('rejects empty / non-string input', () => {
@@ -61,17 +61,45 @@ describe('assertInAuthorizedRoot', () => {
     expect(() => assertInAuthorizedRoot(escaped)).toThrow('Operation denied')
   })
 
-  it('rejects a symlink that points outside the authorized root', () => {
+  it('rejects a symlink that points outside the authorized root', (ctx) => {
     const outsideDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'path-guard-outside-')))
     const outsideFile = path.join(outsideDir, 'secret.txt')
     fs.writeFileSync(outsideFile, 'secret')
 
     const linkPath = path.join(tmpDir, 'link-to-secret.txt')
-    fs.symlinkSync(outsideFile, linkPath)
+    try {
+      fs.symlinkSync(outsideFile, linkPath)
+    } catch (err) {
+      // Windows sin permisos de administrador ni Modo desarrollador no deja crear symlinks.
+      if ((err as NodeJS.ErrnoException).code === 'EPERM') return ctx.skip()
+      throw err
+    }
 
     addAuthorizedRoot(tmpDir)
     expect(() => assertInAuthorizedRoot(linkPath)).toThrow('Operation denied')
 
     fs.rmSync(outsideDir, { recursive: true, force: true })
+  })
+})
+
+describe('validateRootDir', () => {
+  it('accepts an existing absolute directory', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'root-'))
+    try {
+      expect(validateRootDir(dir)).toBe(path.resolve(dir))
+    } finally { fs.rmSync(dir, { recursive: true, force: true }) }
+  })
+  it('rejects relative, missing, file and junk input', () => {
+    expect(() => validateRootDir('relative/dir')).toThrow(/absoluta/)
+    expect(() => validateRootDir(path.join(os.tmpdir(), 'nope-' + Date.now()))).toThrow(/no existe/)
+    expect(() => validateRootDir(123)).toThrow()
+    expect(() => validateRootDir('')).toThrow()
+    expect(() => validateRootDir('/tmp/a\0b')).toThrow(/nulos/)
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'root-'))
+    const file = path.join(dir, 'f.txt')
+    fs.writeFileSync(file, 'x')
+    try {
+      expect(() => validateRootDir(file)).toThrow(/carpeta/)
+    } finally { fs.rmSync(dir, { recursive: true, force: true }) }
   })
 })

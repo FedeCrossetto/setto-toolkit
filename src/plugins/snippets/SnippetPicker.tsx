@@ -66,7 +66,12 @@ export function SnippetPicker(): JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null)
   const firstVarRef = useRef<HTMLInputElement>(null)
 
-  const say = (msg: string): void => { setFlash(msg); setTimeout(() => setFlash(null), 2500) }
+  const say = (msg: string, ms = 2500): void => { setFlash(msg); setTimeout(() => setFlash(null), ms) }
+  const cleanErr = (err: unknown): string => (err instanceof Error ? err.message : String(err)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+  /** Errores al pegar/copiar: aviso en la barra de abajo (la ventanita queda abierta para reintentar). */
+  const guard = async (what: string, fn: () => Promise<void>): Promise<void> => {
+    try { await fn() } catch (err) { say(`${what}: ${cleanErr(err)}`, 4000) }
+  }
 
   const loadStatic = useCallback(async (): Promise<void> => {
     try {
@@ -148,7 +153,8 @@ export function SnippetPicker(): JSX.Element {
     return null
   }
 
-  const choose = async (it: Item, copyOnly: boolean): Promise<void> => {
+  const choose = (it: Item, copyOnly: boolean): Promise<void> => guard('No se pudo pegar', () => chooseUnsafe(it, copyOnly))
+  const chooseUnsafe = async (it: Item, copyOnly: boolean): Promise<void> => {
     if (it.type === 'clip') {
       if (it.clip.sensitive) { await window.api.invoke('clipboard:copy', it.clip.id); await pasteCurrentClipboard(copyOnly) }
       else await pasteText(it.clip.text, copyOnly)
@@ -170,12 +176,12 @@ export function SnippetPicker(): JSX.Element {
     }
   }
 
-  const submitVars = async (copyOnly: boolean): Promise<void> => {
+  const submitVars = (copyOnly: boolean): Promise<void> => guard('No se pudo pegar', async () => {
     if (!filling) return
     saveRemembered(filling.id, values)
     await pasteText(renderTemplate(stripDataUrls(filling.content), values), copyOnly)
     void window.api.invoke('snippets:mark-used', filling.id).catch(() => undefined)
-  }
+  })
 
   /** Pegar en secuencia: el primero ahora, el resto con el atajo "siguiente". */
   const startSequence = async (): Promise<void> => {
@@ -186,9 +192,11 @@ export function SnippetPicker(): JSX.Element {
       return t ? [{ text: t }] : []
     })
     if (!queue.length) { say('Las capturas no se pueden pegar en secuencia'); return }
-    await window.api.invoke('clipboard:queue-set', queue)
-    await window.api.invoke('clipboard:queue-advance')
-    await pasteCurrentClipboard(false)
+    await guard('No se pudo armar la secuencia', async () => {
+      await window.api.invoke('clipboard:queue-set', queue)
+      await window.api.invoke('clipboard:queue-advance')
+      await pasteCurrentClipboard(false)
+    })
   }
 
   const toggleMark = (it: Item | undefined): void => {
@@ -264,7 +272,7 @@ export function SnippetPicker(): JSX.Element {
 
   return (
     <div className="h-screen w-screen p-3" onKeyDown={onKey}>
-      <div className="h-full flex flex-col bg-surface hairline rounded-2xl shadow-2xl overflow-hidden mac-pop-in">
+      <div className="h-full flex flex-col fl-dialog overflow-hidden mac-pop-in">
         {mode === 'vars' && filling ? (
           <>
             <div className="flex items-center gap-2 px-4 h-14 hairline-b">
@@ -306,7 +314,7 @@ export function SnippetPicker(): JSX.Element {
               {FILTERS.map((f, i) => (
                 <button key={f.id} type="button" onClick={() => { setFilter(f.id); setSel(0); inputRef.current?.focus() }}
                   title={`Ctrl+${i + 1}`}
-                  className={`h-6 px-2.5 rounded-full text-[12px] font-medium transition-colors ${filter === f.id ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-on-surface/6'}`}>
+                  className={`fl-chip h-6! transition-colors ${filter === f.id ? 'is-on' : 'border-transparent!'}`}>
                   {f.label}
                 </button>
               ))}
@@ -326,8 +334,8 @@ export function SnippetPicker(): JSX.Element {
                   <div className="overflow-y-auto p-2 max-h-[55%]">
                     {transforms.map((t, i) => (
                       <button key={t.id} type="button" onMouseMove={() => setTSel(i)} onClick={() => void pasteText(t.apply(currentText), false)}
-                        className={`w-full flex items-center gap-2 px-3 h-9 rounded-lg text-left t-body ${i === tSel ? 'bg-selected text-on-surface' : 'text-on-surface'}`}>
-                        <Wand2 size={13} className={i === tSel ? 'text-primary' : 'text-on-surface-variant'} />
+                        className={`w-full flex items-center gap-2 px-3 h-8 rounded-[9px] border text-left t-body text-on-surface ${i === tSel ? 'bg-on-surface/[0.045] dark:bg-white/[0.06] border-hairline' : 'border-transparent'}`}>
+                        <Wand2 size={13} className={i === tSel ? 'text-on-surface' : 'text-on-surface-variant'} />
                         {t.label}
                       </button>
                     ))}
@@ -338,7 +346,7 @@ export function SnippetPicker(): JSX.Element {
             </div>
           </>
         )}
-        <div className="flex items-center gap-3 px-4 h-9 hairline-t t-caption text-on-surface-variant bg-background/50 overflow-hidden whitespace-nowrap">
+        <div className="flex items-center gap-3 px-4 h-9 hairline-t t-caption text-on-surface-variant overflow-hidden whitespace-nowrap">
           {flash ? <span className="text-primary font-medium truncate">{flash}</span> : mode === 'transform' ? (
             <><span className="flex items-center gap-1"><CornerDownLeft size={11} /> Pegar transformado</span><span>← volver</span></>
           ) : mode === 'vars' ? (
@@ -368,8 +376,8 @@ function Row({ item, selected, marked, colName, onHover, onClick }: {
   onHover: () => void
   onClick: () => void
 }): JSX.Element {
-  const base = `w-full flex items-center gap-3 px-3 min-h-12 py-1.5 rounded-lg text-left ${selected ? 'bg-selected' : ''} ${marked ? 'shadow-[inset_3px_0_0_rgb(var(--c-primary))]' : ''}`
-  const iconCls = selected ? 'text-primary shrink-0' : 'text-on-surface-variant shrink-0'
+  const base = `w-full flex items-center gap-3 px-3 min-h-12 py-1.5 rounded-[10px] border text-left ${selected ? 'bg-on-surface/[0.045] dark:bg-white/[0.06] border-hairline' : 'border-transparent'} ${marked ? 'shadow-[inset_3px_0_0_rgb(var(--c-primary))]' : ''}`
+  const iconCls = selected ? 'text-on-surface shrink-0' : 'text-on-surface-variant shrink-0'
   if (item.type === 'capture') {
     const c = item.cap
     return (

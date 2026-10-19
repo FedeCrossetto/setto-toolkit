@@ -7,6 +7,7 @@ export const terminalPlugin: PluginManifest = {
   description: 'Terminal integrada con sesiones persistentes',
   icon:        'terminal',
   section: 'dev',
+  keepAlive: true,   // no se desmonta: perdería las sesiones abiertas
   component:   lazy(() => import('./Terminal').then((m) => ({ default: m.Terminal }))),
   keywords:    ['terminal', 'shell', 'console', 'cmd', 'powershell', 'bash'],
 }

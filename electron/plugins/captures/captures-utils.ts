@@ -30,6 +30,25 @@ export function detectTicket(text: string | null | undefined): string {
   return m ? `${m[1]}-${m[2]}` : ''
 }
 
+/**
+ * Huella barata de un bitmap (tamaño + ~4096 píxeles muestreados) para que el
+ * sondeo del portapapeles no tenga que hashear la imagen entera cada 900 ms.
+ * Sólo decide si vale la pena calcular el hash completo.
+ */
+export function quickImageFingerprint(bitmap: Uint8Array, width: number, height: number, samples = 4096): string {
+  let h = 0x811c9dc5
+  const pixels = Math.floor(bitmap.length / 4)
+  const step = Math.max(1, Math.floor(pixels / samples))
+  for (let i = 0; i < pixels; i += step) {
+    const o = i * 4
+    for (let k = 0; k < 4; k++) {
+      h ^= bitmap[o + k]!
+      h = Math.imul(h, 0x01000193)
+    }
+  }
+  return `${width}x${height}:${bitmap.length}:${(h >>> 0).toString(16)}`
+}
+
 // ── Origen de la captura ─────────────────────────────────────────────────────
 
 /** Procesos que están en primer plano al recortar pero no son "la app capturada". */
@@ -132,21 +151,35 @@ export function captureFacets(list: CaptureEntry[], max = 12): CaptureFacets {
 
 // ── Limpieza ─────────────────────────────────────────────────────────────────
 
-/** Capturas a borrar por antigüedad (`keepDays` 0 = nunca). Las fijadas no se borran. */
+/**
+ * La limpieza automática nunca toca lo que el usuario "trabajó": fijadas, anotadas
+ * (y su original), con ticket, nota o etiquetas.
+ */
+export function isRetentionProtected(c: CaptureEntry, annotatedSources?: Set<string>): boolean {
+  return c.pinned || !!c.annotatedFrom || !!annotatedSources?.has(c.id) ||
+    !!c.ticket?.trim() || !!c.note?.trim() || (c.tags?.length ?? 0) > 0
+}
+
+const annotatedSourcesOf = (list: CaptureEntry[]): Set<string> =>
+  new Set(list.map((c) => c.annotatedFrom).filter((x): x is string => !!x))
+
+/** Capturas a borrar por antigüedad (`keepDays` 0 = nunca). Las protegidas no se borran. */
 export function expiredCaptures(list: CaptureEntry[], keepDays: number, now: number): CaptureEntry[] {
   if (!keepDays || keepDays <= 0) return []
   const limit = now - keepDays * 86_400_000
-  return list.filter((c) => !c.pinned && c.createdAt < limit)
+  const sources = annotatedSourcesOf(list)
+  return list.filter((c) => !isRetentionProtected(c, sources) && c.createdAt < limit)
 }
 
-/** Si se pasa del tope de espacio: las más viejas (no fijadas) hasta volver a entrar. */
+/** Si se pasa del tope de espacio: las más viejas (no protegidas) hasta volver a entrar. */
 export function overQuota(list: CaptureEntry[], maxBytes: number): CaptureEntry[] {
   if (!maxBytes || maxBytes <= 0) return []
   let total = list.reduce((s, c) => s + c.bytes, 0)
+  const sources = annotatedSourcesOf(list)
   const out: CaptureEntry[] = []
   for (const c of [...list].sort((a, b) => a.createdAt - b.createdAt)) {
     if (total <= maxBytes) break
-    if (c.pinned) continue
+    if (isRetentionProtected(c, sources)) continue
     out.push(c)
     total -= c.bytes
   }

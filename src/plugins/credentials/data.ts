@@ -1,7 +1,7 @@
 import { matchesQuery, normalize } from '../../core/search'
 import type {
-  Credential, CopyResult, CredentialDraft, CredentialsListResult, ImportPreview, LockStatus, PasswordAudit,
-  PinVerifyResult, SaveResult, SecretResult,
+  Credential, CopyResult, CredentialDraft, CredentialsListResult, E2EResult, E2EStatus, ImportPreview, LockStatus,
+  PasswordAudit, PinVerifyResult, SaveResult, SecretResult,
 } from './types'
 import { usageScore } from './usage'
 
@@ -56,6 +56,16 @@ export const credentialsApi = {
   importCommit: (token: string, indexes: number[]) => window.api.invoke<{ imported: number; queued: number }>('credentials:import-commit', token, indexes),
   importCancel: () => window.api.invoke<void>('credentials:import-cancel'),
   exportCsv: () => window.api.invoke<SecretResult<{ canceled?: boolean; filePath?: string; count?: number }>>('credentials:export-csv'),
+  // End-to-end password sync. The master password goes to main and never comes back.
+  e2eStatus: () => window.api.invoke<E2EStatus>('credentials:e2e-status'),
+  e2eSetup: (password: string, remember: boolean) => window.api.invoke<E2EResult>('credentials:e2e-setup', { password, remember }),
+  e2eUnlock: (password: string, remember: boolean) => window.api.invoke<E2EResult>('credentials:e2e-unlock', { password, remember }),
+  e2eChange: (current: string, next: string) => window.api.invoke<E2EResult>('credentials:e2e-change', { current, next }),
+  e2eDisable: () => window.api.invoke<E2EResult>('credentials:e2e-disable'),
+  e2eLock: () => window.api.invoke<E2EResult>('credentials:e2e-lock'),
+  e2eRemember: (on: boolean) => window.api.invoke<E2EResult>('credentials:e2e-remember', on),
+  /** Conflict: keep this PC's password, take the synced one, or undo the last "remote". */
+  e2eResolve: (id: string, choice: 'local' | 'remote' | 'undo') => window.api.invoke<E2EResult>('credentials:e2e-resolve', id, choice),
 }
 
 /**

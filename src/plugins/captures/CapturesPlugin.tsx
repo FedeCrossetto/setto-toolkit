@@ -6,6 +6,8 @@ import {
 import { useApp, usePluginIntent } from '../../core/AppContext'
 import { useToast } from '../../core/components/Toast'
 import { useConfirm } from '../../core/components/Modal'
+import { useUndo } from '../../core/hooks/useUndo'
+import { useSoftDelete } from '../../core/soft-delete'
 import { EmptyState } from '../../core/components/EmptyState'
 import { listItemMotion, shouldAnimateList } from '../../core/motion'
 import { Annotator } from './Annotator'
@@ -56,11 +58,22 @@ const TAB_KEY = 'captures:tab'
  * copiado, separado por tipo). Los intents de capturas abren Imágenes; 'text', Texto.
  */
 export function CapturesPlugin(): JSX.Element {
-  const [tab, setTab] = useState<Tab>(() => {
+  const [tab, setTabState] = useState<Tab>(() => {
     try { return localStorage.getItem(TAB_KEY) === 'text' ? 'text' : 'images' } catch { return 'images' }
   })
   const [pending, setPending] = useState<PluginIntent | null>(null)
+  /** El usuario (o un intent) ya eligió pestaña: no cambiarla sola. */
+  const chosen = useRef(false)
+  const setTab = useCallback((t: Tab) => { chosen.current = true; setTabState(t) }, [])
   useEffect(() => { try { localStorage.setItem(TAB_KEY, tab) } catch { /* nada */ } }, [tab])
+  // Sin ninguna imagen guardada, arrancar en Texto (Imágenes vacía no sirve de nada).
+  useEffect(() => {
+    let alive = true
+    api.query({ limit: 1 }).then((r) => {
+      if (alive && !chosen.current && r.facets.count === 0) setTabState('text')
+    }).catch(() => undefined)
+    return () => { alive = false }
+  }, [])
   usePluginIntent('captures', (intent) => {
     if (intent.action === 'text') { setTab('text'); return }
     setTab('images')
@@ -68,7 +81,7 @@ export function CapturesPlugin(): JSX.Element {
   })
   const tabs = (
     <div className="flex items-center gap-3">
-      <h1 className="t-title2 text-on-surface">Portapapeles</h1>
+      <h1 className="t-title3 text-on-surface">Portapapeles</h1>
       <SegmentedControl<Tab> value={tab} onChange={setTab} options={[{ value: 'images', label: 'Imágenes' }, { value: 'text', label: 'Texto' }]} />
     </div>
   )
@@ -79,6 +92,10 @@ function ImagesView({ header, pending }: { header: React.ReactNode; pending: Plu
   const { dispatch } = useApp()
   const toast = useToast()
   const confirm = useConfirm()
+  const { undoable } = useUndo()
+  const softDelete = useSoftDelete((_id, err) => {
+    toast.show(`No se pudo eliminar: ${err instanceof Error ? err.message : String(err)}`, 'error')
+  })
   const [text, setText] = useState('')
   const [debounced, setDebounced] = useState('')
   const [ticket, setTicket] = useState<string | null>(null)
@@ -86,7 +103,9 @@ function ImagesView({ header, pending }: { header: React.ReactNode; pending: Plu
   const [onlyPinned, setOnlyPinned] = useState(false)
   const [sort, setSort] = useState<CaptureSort>(readSort)
   const [res, setRes] = useState<CaptureQueryResult | null>(null)
-  const [items, setItems] = useState<CaptureLite[]>([])
+  const [rawItems, setItems] = useState<CaptureLite[]>([])
+  const hiddenIds = softDelete.hidden
+  const items = useMemo(() => rawItems.filter((x) => !hiddenIds.has(x.id)), [rawItems, hiddenIds])
   const [selected, setSelected] = useState<string[]>([])
   const [annotating, setAnnotating] = useState<CaptureEntry | null>(null)
   const [optionsOpen, setOptionsOpen] = useState(false)
@@ -122,16 +141,16 @@ function ImagesView({ header, pending }: { header: React.ReactNode; pending: Plu
     const el = sentinelRef.current
     if (!el) return
     const io = new IntersectionObserver(async ([e]) => {
-      if (!e?.isIntersecting || loadingMore.current || !res || items.length >= res.total) return
+      if (!e?.isIntersecting || loadingMore.current || !res || rawItems.length >= res.total) return
       loadingMore.current = true
       try {
-        const r = await api.query({ ...baseQuery, offset: items.length, limit: PAGE })
+        const r = await api.query({ ...baseQuery, offset: rawItems.length, limit: PAGE })
         setItems((prev) => { const next = [...prev, ...r.items.filter((x) => !prev.some((p) => p.id === x.id))]; loadedRef.current = next.length; return next })
       } finally { loadingMore.current = false }
     }, { rootMargin: '600px' })
     io.observe(el)
     return () => io.disconnect()
-  }, [baseQuery, items.length, res])
+  }, [baseQuery, rawItems.length, res])
 
   // Intents que llegan desde el contenedor (Ctrl+K, notificaciones, otros módulos).
   useEffect(() => {
@@ -148,6 +167,18 @@ function ImagesView({ header, pending }: { header: React.ReactNode; pending: Plu
     toast.show('Imagen copiada: pegala en Jira, Teams o donde quieras', 'success')
   }
   const del = async (ids: string[]): Promise<void> => {
+    // Una sola: se borra al instante con "Deshacer" (el archivo va a la papelera recién al vencer).
+    if (ids.length === 1) {
+      const id = ids[0]!
+      setSelected([])
+      await undoable({
+        message: 'Captura eliminada',
+        undoneMessage: 'Captura restaurada',
+        apply: () => softDelete.hide(id, async () => { await api.remove([id]) }),
+        undo: () => { if (!softDelete.restore(id)) throw new Error('ya se había eliminado') },
+      })
+      return
+    }
     const ok = await confirm({
       title: ids.length === 1 ? '¿Eliminar la captura?' : `¿Eliminar ${ids.length} capturas?`,
       message: 'Los archivos van a la papelera del sistema.',
@@ -206,7 +237,7 @@ function ImagesView({ header, pending }: { header: React.ReactNode; pending: Plu
     <div id="captures-root" tabIndex={-1} className="flex h-full w-full overflow-hidden bg-background outline-hidden">
       <section className="flex-1 min-w-0 flex flex-col">
         {/* ── Barra ── */}
-        <div className="px-6 pt-5 pb-3 flex flex-col gap-3">
+        <div className="px-6 pt-4 pb-3 flex flex-col gap-3 hairline-b mb-4">
           <div className="flex items-center gap-3">
             {header}
             {facets && (
@@ -216,12 +247,12 @@ function ImagesView({ header, pending }: { header: React.ReactNode; pending: Plu
             )}
             {settings && !settings.auto && (
               <button type="button" onClick={() => { void api.settings({ auto: true }).then(() => reload()) }}
-                className="t-caption font-medium px-2 py-0.5 rounded-full bg-warning/[0.14] text-warning">
+                className="fl-chip border-warning/40! text-warning!">
                 En pausa · reanudar
               </button>
             )}
             <span className="flex-1" />
-            <select className="ui-input h-8 w-36" value={sort} onChange={(e) => setSort(e.target.value as CaptureSort)} aria-label="Ordenar">
+            <select className="ui-input shrink-0 h-8 py-0 min-w-[152px]" value={sort} onChange={(e) => setSort(e.target.value as CaptureSort)} aria-label="Ordenar">
               {SORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
             <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon" onClick={() => void api.reveal()} title="Abrir la carpeta de capturas"><FolderOpen size={15} /></button>
@@ -231,7 +262,7 @@ function ImagesView({ header, pending }: { header: React.ReactNode; pending: Plu
             <div className="relative w-80 max-w-full">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/70 pointer-events-none" />
               <input ref={searchRef} type="search" value={text} onChange={(e) => setText(e.target.value)}
-                placeholder="Buscar texto de la imagen, ticket, app…" className="ui-input w-full h-8 pl-8" aria-label="Buscar capturas" />
+                placeholder="Buscar texto de la imagen, ticket, app…" className="ui-input w-full h-8 pl-8 rounded-full" aria-label="Buscar capturas" />
             </div>
             <FilterChip active={onlyPinned} onClick={() => setOnlyPinned((v) => !v)} icon={<Pin size={11} />}>Fijadas</FilterChip>
             {facets?.tickets.slice(0, 6).map((t) => (
@@ -257,7 +288,7 @@ function ImagesView({ header, pending }: { header: React.ReactNode; pending: Plu
         <AnimatePresence>
           {selected.length > 1 && (
             <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
-              className="mx-6 mb-2 flex items-center gap-2 rounded-lg bg-selected px-3 py-2 t-footnote text-on-surface flex-wrap">
+              className="mx-6 mb-3 flex items-center gap-2 rounded-xl hairline bg-surface px-3 py-2 t-footnote text-on-surface flex-wrap">
               <span className="font-medium">{selected.length} seleccionadas</span>
               <span className="t-caption text-on-surface-variant">· arrastralas juntas a otra app</span>
               <span className="flex-1" />
@@ -397,11 +428,11 @@ function CaptureCard({ c, animate, selected, dragIds, onClick, onCopy, onAnnotat
       onClick={onClick}
       onDoubleClick={onAnnotate}
       title="Clic: ver · Ctrl/Shift+clic: varias · Doble clic: anotar · Arrastrar: adjuntar en otra app"
-      className={`group text-left rounded-xl bg-surface overflow-hidden transition-shadow ${
-        selected ? 'shadow-[0_0_0_2px_rgb(var(--c-primary))]' : 'hairline hover:shadow-md'
+      className={`group text-left rounded-xl bg-surface overflow-hidden border transition-[border-color,box-shadow] ${
+        selected ? 'border-primary shadow-[0_0_0_1px_rgb(var(--c-primary))]' : 'border-hairline hover:border-hairline-strong'
       }`}
     >
-      <span className="block relative aspect-16/10 bg-surface-container overflow-hidden">
+      <span className="block relative aspect-16/10 bg-on-surface/[0.03] hairline-b overflow-hidden">
         <img src={thumbUrl(c.file)} alt="" loading="lazy" decoding="async" draggable={false} className="w-full h-full object-cover object-top" />
         {c.pinned && <Pin size={13} weight="fill" className="absolute top-1.5 left-1.5 text-primary drop-shadow-sm" />}
         {c.annotatedFrom && <span className="absolute bottom-1.5 left-1.5 t-caption font-medium px-1.5 rounded bg-black/55 text-white">anotada</span>}
@@ -413,7 +444,7 @@ function CaptureCard({ c, animate, selected, dragIds, onClick, onCopy, onAnnotat
       <span className="block px-2.5 py-2">
         <span className="flex items-center gap-1.5">
           <span className="t-footnote font-medium text-on-surface truncate flex-1" title={c.title}>{c.title}</span>
-          {c.ticket && <span className="t-caption font-medium text-primary shrink-0">{c.ticket}</span>}
+          {c.ticket && <span className="t-caption font-medium text-on-surface-variant shrink-0">{c.ticket}</span>}
         </span>
         <span className="flex items-center gap-1 t-caption text-on-surface-variant">
           <span className="truncate">{[c.app, time, `${c.width}×${c.height}`].filter(Boolean).join(' · ')}</span>
@@ -427,9 +458,7 @@ function CaptureCard({ c, animate, selected, dragIds, onClick, onCopy, onAnnotat
 function FilterChip({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon?: React.ReactNode; children: React.ReactNode }): JSX.Element {
   return (
     <button type="button" aria-pressed={active} onClick={onClick}
-      className={`inline-flex items-center gap-1 h-[26px] px-2.5 rounded-full text-[12px] font-medium transition-colors ${
-        active ? 'bg-primary text-on-primary' : 'bg-on-surface/6 text-on-surface-variant hover:bg-on-surface/10 hover:text-on-surface'
-      }`}>
+      className={`fl-chip h-[26px]! px-2.5! text-[12px]! transition-colors ${active ? 'is-on' : ''}`}>
       {icon}{children}
     </button>
   )
@@ -441,7 +470,7 @@ function IconBtn({ label, onClick, children }: { label: string; onClick: () => v
       onClick={(e) => { e.stopPropagation(); onClick() }}
       onDoubleClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onClick() } }}
-      className="w-7 h-7 rounded-md flex items-center justify-center bg-surface/95 text-on-surface shadow-md hover:text-primary">
+      className="w-7 h-7 rounded-md flex items-center justify-center bg-surface/95 text-on-surface hairline shadow-sm hover:text-primary">
       {children}
     </span>
   )
@@ -487,7 +516,7 @@ function Detail({ id, onClose, onCopy, onAnnotate, onDelete, onReveal, onExport 
 
   return (
     <>
-      <div className="flex items-center gap-1 px-3 h-12 hairline-b shrink-0">
+      <div className="fl-toolbar gap-1! shrink-0">
         <span className="t-footnote text-on-surface-variant flex-1 truncate pl-1">{date} · {entry.width}×{entry.height} · {formatBytes(entry.bytes)}</span>
         <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon" onClick={() => save({ pinned: !entry.pinned })} title={entry.pinned ? 'Desfijar' : 'Fijar (nunca se borra sola)'}>
           {entry.pinned ? <PinOff size={14} /> : <Pin size={14} />}
@@ -499,7 +528,7 @@ function Detail({ id, onClose, onCopy, onAnnotate, onDelete, onReveal, onExport 
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
         <button type="button" onClick={() => onAnnotate(entry)} draggable
           onDragStart={(e) => { e.preventDefault(); window.api.send('captures:start-drag', [entry.id]) }}
-          className="block rounded-lg overflow-hidden hairline bg-surface-container" title="Clic para anotar · Arrastrá para adjuntar">
+          className="block rounded-lg overflow-hidden hairline bg-on-surface/[0.03]" title="Clic para anotar · Arrastrá para adjuntar">
           <img src={captureUrl(entry.file)} alt={entry.title} draggable={false} className="w-full max-h-64 object-contain" />
         </button>
         <div className="flex gap-2">

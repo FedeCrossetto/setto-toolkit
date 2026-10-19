@@ -173,7 +173,7 @@ function ResultCard({ result, query = '' }: { result: SearchResult; query?: stri
   }
 
   return (
-    <div className="ui-card shadow-none overflow-hidden group">
+    <div className="bg-surface hairline rounded-xl overflow-hidden group">
       {/* Header */}
       <div className="px-3 h-9 flex items-center justify-between hairline-b">
         <div className="flex items-center gap-2 min-w-0">
@@ -229,15 +229,15 @@ function RepoGroup({ repo, results, defaultOpen, query }: { repo: string; result
     <div className="hairline rounded-xl overflow-hidden">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-2.5 px-3 h-10 bg-sidebar/40 hover:bg-on-surface/4 transition-colors text-left"
+        className="w-full flex items-center gap-2.5 px-3 h-10 bg-surface hover:bg-on-surface/3 transition-colors text-left"
       >
         <ChevronDown
           size={14}
           className="text-on-surface-variant transition-transform duration-200 shrink-0"
           style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}
         />
-        <FolderOpen size={15} className="text-primary shrink-0" />
-        <span className="t-body font-semibold text-on-surface flex-1 truncate">{repo}</span>
+        <FolderOpen size={15} className="text-on-surface-variant shrink-0" />
+        <span className="t-body font-medium text-on-surface flex-1 truncate">{repo}</span>
         <span className="t-caption tabular-nums text-on-surface-variant shrink-0">
           {results.length} {results.length === 1 ? 'coincidencia' : 'coincidencias'}
         </span>
@@ -499,11 +499,7 @@ function GitHubRepoPanel({
       key={repo.full_name}
       onClick={() => onSelect(repo.full_name)}
       title={repo.description ?? repo.full_name}
-      className={`w-[calc(100%-12px)] mx-1.5 flex items-center gap-2 px-2 h-[26px] rounded-md t-footnote transition-colors text-left ${
-        selectedRepo === repo.full_name
-          ? 'bg-primary/15 text-on-surface'
-          : 'text-on-surface hover:bg-on-surface/5'
-      }`}
+      className={`fl-row w-[calc(100%-12px)]! mx-1.5 t-body ${selectedRepo === repo.full_name ? 'nav-active' : ''}`}
     >
       <span
         className="w-1.5 h-1.5 rounded-full shrink-0"
@@ -517,10 +513,10 @@ function GitHubRepoPanel({
   )
 
   return (
-    <div className="w-60 hairline-r bg-sidebar/40 flex flex-col overflow-hidden shrink-0">
+    <div className="w-60 hairline-r fl-pane flex flex-col overflow-hidden shrink-0">
       {/* Header */}
       <div className="px-3 pt-3 pb-2 hairline-b">
-        <p className="t-section mb-2">
+        <p className="fl-section px-0! mb-1.5">
           Repositorios
         </p>
         <input
@@ -529,7 +525,7 @@ function GitHubRepoPanel({
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filtrar…"
           aria-label="Filtrar repositorios"
-          className="ui-input w-full py-1! t-footnote"
+          className="fl-search w-full outline-hidden t-footnote text-on-surface"
         />
       </div>
 
@@ -544,11 +540,7 @@ function GitHubRepoPanel({
             {/* "All personal repos" option */}
             <button
               onClick={() => onSelect(null)}
-              className={`w-[calc(100%-12px)] mx-1.5 flex items-center gap-2 px-2 h-[26px] rounded-md t-footnote transition-colors text-left ${
-                selectedRepo === null
-                  ? 'bg-primary/15 text-on-surface'
-                  : 'text-on-surface hover:bg-on-surface/5'
-              }`}
+              className={`fl-row w-[calc(100%-12px)]! mx-1.5 t-body ${selectedRepo === null ? 'nav-active' : ''}`}
             >
               <User size={13} className="shrink-0 text-on-surface-variant" />
               <span className="font-medium truncate">Mis repos</span>
@@ -569,7 +561,7 @@ function GitHubRepoPanel({
                   {/* Org header */}
                   <div className="flex items-center gap-1.5 px-3 pt-3 pb-1">
                     <Building2 size={12} className="text-on-surface-variant" />
-                    <span className="t-section truncate">{org}</span>
+                    <span className="fl-section px-0! truncate">{org}</span>
                   </div>
                   {visibleOrgRepos.map((repo) => (
                     <RepoButton key={repo.full_name} repo={repo} />
@@ -763,7 +755,7 @@ export function RepoSearch(): JSX.Element {
     <div className="flex flex-col h-full overflow-hidden">
 
       {/* Provider tabs */}
-      <div className="px-4 h-10 hairline-b flex items-center justify-center shrink-0">
+      <div className="px-4 h-[42px] hairline-b flex items-center justify-center shrink-0">
         <SegmentedControl
           options={PROVIDERS.map((p) => ({ value: p.id, label: p.name }))}
           value={provider}
@@ -774,7 +766,7 @@ export function RepoSearch(): JSX.Element {
       {provider === 'gitlab' ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center flex flex-col items-center gap-4 p-8">
-            <Wrench size={32} strokeWidth={1.4} className="text-on-surface-variant/50" />
+            <span className="icon-tile w-12 h-12 rounded-xl"><Wrench size={22} /></span>
             <div>
               <p className="t-headline text-on-surface">GitLab: próximamente</p>
               <p className="t-footnote text-on-surface-variant mt-1 max-w-xs">La integración con GitLab va a estar disponible pronto.</p>
@@ -849,9 +841,9 @@ export function RepoSearch(): JSX.Element {
                         : 'Buscar código…'
                   }
                   aria-label="Buscar código"
-                  className="ui-input w-full pl-9! pr-10!"
+                  className="ui-input w-full rounded-full! pl-9! pr-10!"
                 />
-                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 t-caption text-on-surface-variant font-mono bg-on-surface/4 px-1.5 rounded hairline pointer-events-none">
+                <kbd className="kbd-chip absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                   /
                 </kbd>
 
@@ -863,7 +855,7 @@ export function RepoSearch(): JSX.Element {
                       initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}
                       transition={{ duration: 0.1, ease: 'easeOut' }}
                     >
-                      <div className="px-2 pt-1 pb-1.5 t-section flex items-center justify-between">
+                      <div className="fl-section justify-between px-2! pt-1 pb-1">
                         <span>Búsquedas recientes</span>
                         <button
                           onClick={() => { setHistory([]); void window.api.invoke('repo-search:history-clear'); setShowHistory(false) }}
@@ -941,7 +933,7 @@ export function RepoSearch(): JSX.Element {
               {/* Empty state — no search yet */}
               {!loading && !error && count === 0 && !query && (
                 <div className="py-6">
-                  <p className="t-section mb-3">Sugerencias</p>
+                  <p className="fl-section px-0! mb-2">Sugerencias</p>
                   <div className="flex flex-wrap gap-2">
                     {SUGGESTIONS.map((s) => (
                       <button key={s}
@@ -970,11 +962,11 @@ export function RepoSearch(): JSX.Element {
           </section>
 
           {/* Sidebar */}
-          <aside className="w-64 bg-sidebar/40 hairline-l p-4 flex flex-col gap-5 overflow-y-auto">
+          <aside className="w-64 fl-pane hairline-l p-4 flex flex-col gap-5 overflow-y-auto">
 
             {/* Connection info */}
             <div>
-              <h3 className="t-section mb-2">Conectado como</h3>
+              <h3 className="fl-section px-0! mb-1.5">Conectado como</h3>
               <div className="ui-card shadow-none px-3 py-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
@@ -1010,9 +1002,9 @@ export function RepoSearch(): JSX.Element {
             {/* Search scope indicator */}
             {provider === 'github' && auth.authenticated && (
               <div>
-                <h3 className="t-section mb-2">Buscando en</h3>
+                <h3 className="fl-section px-0! mb-1.5">Buscando en</h3>
                 <div className="ui-card shadow-none px-3 py-2 t-footnote text-on-surface-variant flex items-center gap-2">
-                  <FolderOpen size={14} className="shrink-0 text-primary" />
+                  <FolderOpen size={14} className="shrink-0 text-on-surface-variant" />
                   <span className="truncate">
                     {selectedRepo
                       ? <>
@@ -1031,17 +1023,13 @@ export function RepoSearch(): JSX.Element {
             {/* Repo filter */}
             {allRepos.length > 1 && (
               <div>
-                <h3 className="t-section mb-2">Filtrar por repo</h3>
+                <h3 className="fl-section px-0! mb-1.5">Filtrar por repo</h3>
                 <div className="space-y-0.5">
                   {['All', ...allRepos].map((repo) => {
                     const c = repo === 'All' ? results.length : (repoMap.get(repo)?.length ?? 0)
                     return (
                       <button key={repo} onClick={() => setFilterRepo(repo)}
-                        className={`w-full flex items-center justify-between px-2 h-[26px] rounded-md t-footnote transition-colors ${
-                          filterRepo === repo
-                            ? 'bg-primary/15 text-on-surface'
-                            : 'text-on-surface hover:bg-on-surface/5'
-                        }`}
+                        className={`fl-row justify-between t-body ${filterRepo === repo ? 'nav-active' : ''}`}
                       >
                         <span className="flex items-center gap-2 min-w-0">
                           {repo === 'All' ? <LayoutGrid size={13} className="shrink-0 text-on-surface-variant" /> : <Folder size={13} className="shrink-0 text-on-surface-variant" />}
@@ -1057,13 +1045,13 @@ export function RepoSearch(): JSX.Element {
 
             {/* Repo aliases */}
             <div>
-              <h3 className="t-section mb-2">Alias de repos</h3>
+              <h3 className="fl-section px-0! mb-1.5">Alias de repos</h3>
               <div className="space-y-1 mb-2">
                 {aliases.length === 0 && (
                   <p className="t-caption text-on-surface-variant px-1">No hay alias definidos.</p>
                 )}
                 {aliases.map((a, i) => (
-                  <div key={i} className="flex items-center gap-1.5 bg-on-surface/5 rounded-md px-2 py-1.5">
+                  <div key={i} className="flex items-center gap-1.5 bg-surface hairline rounded-lg px-2 py-1.5">
                     <span className="t-caption font-mono text-on-surface flex-1 truncate">{a.from}</span>
                     <ArrowRight size={11} className="text-on-surface-variant shrink-0" />
                     <span className="t-caption font-mono text-primary flex-1 truncate">{a.to}</span>

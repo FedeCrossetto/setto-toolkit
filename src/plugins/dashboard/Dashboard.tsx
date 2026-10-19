@@ -10,8 +10,13 @@ import { SegmentedControl } from '../../core/components/SegmentedControl'
 import { useToast } from '../../core/components/Toast'
 import { OPEN_PALETTE_EVENT } from '../../core/components/CommandPalette'
 import { detectLanguage, languageIcon } from '../file-editor/hooks/useEditorTabs'
-import { getMonthSummary, type GastosMonthSummary } from '../gastos/summary'
-import { fmtMoney, mesLong } from '../gastos/format'
+import { getMonthSummaryState, type GastosMonthSummary, type GastosSummaryResult } from '../gastos/summary'
+import { fmtMoney, friendlyGastosError, mesLong } from '../gastos/format'
+import { GASTOS_CHANGED_EVENT } from '../gastos/direct-write'
+import { useQuickGasto } from '../gastos/useQuickGasto'
+import { useRecurrentesAuto } from '../gastos/recurrence-runner'
+import { VariablesModal } from '../snippets/VariablesModal'
+import { hasVariables, stripDataUrls } from '../snippets/template'
 import { DeltaPill } from '../../core/components/Form'
 import type { IconComponent } from '../../core/types'
 import type { Snippet } from '../snippets/types'
@@ -23,7 +28,7 @@ import { usageHint } from '../credentials/usage'
 
 // ── Contracts consumed (owned by other modules) ──────────────────────────────
 interface NoteMeta { id: string; title: string; preview: string; updatedAt: number; pinned: boolean }
-interface RecentEntry { path: string; name: string; openedAt: string }
+interface RecentEntry { path: string; name: string; openedAt: string; line?: number }
 
 /** IPC that never throws synchronously (the preload throws on unknown channels). */
 async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
@@ -49,13 +54,6 @@ function useLoad<T>(loader: () => Promise<T>, deps: unknown[]): [Loadable<T>, ()
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-function greeting(now = new Date()): string {
-  const h = now.getHours()
-  if (h >= 5 && h < 13) return 'Buen día'
-  if (h >= 13 && h < 20) return 'Buenas tardes'
-  return 'Buenas noches'
-}
-
 function longDate(now = new Date()): string {
   const s = now.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
   return s.charAt(0).toUpperCase() + s.slice(1)
@@ -83,16 +81,22 @@ function Widget({ title, icon: Icon, action, children, className = '' }: {
   className?: string
 }): JSX.Element {
   return (
-    <section className={`ui-card flex flex-col min-h-[240px] ${className}`}>
-      <header className="flex items-center gap-2.5 pl-4 pr-3 pt-3.5 pb-2.5">
-        <span className="w-7 h-7 rounded-lg flex items-center justify-center bg-selected text-primary shrink-0">
-          <Icon size={15} />
-        </span>
-        <h2 className="t-headline text-on-surface flex-1 min-w-0 truncate">{title}</h2>
+    <section className={`ui-card flex flex-col min-h-[220px] ${className}`}>
+      <header className="flex items-center gap-2 pl-5 pr-3 h-12 mt-1 mb-0.5">
+        <Icon size={15} className="text-on-surface-variant shrink-0" />
+        <h2 className="t-callout font-semibold text-on-surface flex-1 min-w-0 truncate">{title}</h2>
         {action}
       </header>
-      <div className="flex-1 flex flex-col gap-0.5 px-2 pb-2">{children}</div>
+      <div className="flex-1 flex flex-col px-3 pb-3">{children}</div>
     </section>
+  )
+}
+
+/** Error de carga de un widget: nunca se muestra como lista vacía. */
+function LoadError({ icon, what, onRetry }: { icon: IconComponent; what: string; onRetry: () => void }): JSX.Element {
+  return (
+    <EmptyState compact icon={icon} title={`No pudimos cargar ${what}`}
+      action={<button className="ui-btn ui-btn-outline ui-btn-sm" onClick={onRetry}>Reintentar</button>} />
   )
 }
 
@@ -119,7 +123,7 @@ function Row({ title, subtitle, meta, icon, onClick, trailing }: {
 }): JSX.Element {
   return (
     <div className="group flex items-center rounded-lg hover:bg-on-surface/3 dark:hover:bg-on-surface/5 transition-colors">
-      <button onClick={onClick} className="flex-1 min-w-0 flex items-center gap-3 px-2.5 py-2.5 text-left">
+      <button onClick={onClick} className="flex-1 min-w-0 flex items-center gap-3 px-2 py-2 text-left">
         {icon}
         <span className="flex-1 min-w-0">
           <span className="block t-body font-medium text-on-surface truncate">{title}</span>
@@ -141,6 +145,7 @@ function QuickCapture({ enabled, onNoteCreated }: {
 }): JSX.Element {
   const { dispatch } = useApp()
   const toast = useToast()
+  const quickGasto = useQuickGasto()
   const [text, setText] = useState('')
   const [mode, setMode] = useState<CaptureMode>(enabled.note ? 'note' : enabled.expense ? 'expense' : 'snippet')
   const [busy, setBusy] = useState(false)
@@ -155,14 +160,21 @@ function QuickCapture({ enabled, onNoteCreated }: {
   const trimmed = text.trim()
   const suggestExpense = mode === 'note' && enabled.expense && looksLikeExpense(trimmed)
 
-  const saveExpense = (): void => {
-    dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'gastos', action: 'quick-add', payload: { text: trimmed } })
-    setText('')
+  /** Se guarda directo (con "Deshacer") y se queda en Inicio; sin monto claro abre Gastos. */
+  const saveExpense = async (): Promise<void> => {
+    if (!trimmed || busy) return
+    setBusy(true)
+    try {
+      if ((await quickGasto(trimmed)) !== 'failed') setText('')
+    } finally {
+      setBusy(false)
+      inputRef.current?.focus()
+    }
   }
 
   const submit = async (as: CaptureMode = mode): Promise<void> => {
     if (!trimmed || busy) return
-    if (as === 'expense') { saveExpense(); return }
+    if (as === 'expense') { await saveExpense(); return }
     if (as === 'snippet') {
       dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'snippets', action: 'new', payload: { content: trimmed } })
       setText('')
@@ -193,9 +205,9 @@ function QuickCapture({ enabled, onNoteCreated }: {
       : 'Escribí una nota, un gasto o buscá…'
 
   return (
-    <div className="ui-card p-2 flex flex-col gap-2 shadow-md">
-      <div className="flex items-center gap-2 rounded-lg bg-on-surface/4 dark:bg-on-surface/6 focus-within:bg-surface focus-within:ring-2 focus-within:ring-primary/25 transition-colors pl-3 pr-1.5 py-1.5">
-        <Sparkles size={16} className="text-primary shrink-0" />
+    <div className="ui-card p-2 flex flex-col gap-2">
+      <div className="flex items-center gap-2 rounded-[10px] border border-transparent bg-on-surface/[0.035] dark:bg-on-surface/6 focus-within:bg-surface focus-within:border-hairline-strong transition-colors pl-3 pr-1.5 py-1">
+        <Sparkles size={16} className="text-on-surface-variant shrink-0" />
         <input
           ref={inputRef}
           value={text}
@@ -207,7 +219,7 @@ function QuickCapture({ enabled, onNoteCreated }: {
           placeholder={placeholder}
           aria-label="Captura rápida"
           className="flex-1 min-w-0 bg-transparent outline-hidden text-on-surface px-1 py-2"
-          style={{ fontSize: 15 }}
+          style={{ fontSize: 14 }}
         />
         {options.length > 1 && (
           <SegmentedControl<CaptureMode> value={mode} onChange={setMode} options={[...options]} />
@@ -217,10 +229,10 @@ function QuickCapture({ enabled, onNoteCreated }: {
         <div className="flex flex-wrap items-center gap-2 px-1 pb-0.5" style={{ animation: 'fadeIn 0.12s ease both' }}>
           <button onClick={() => void submit()} disabled={busy} className="ui-btn ui-btn-primary ui-btn-sm">
             <CornerDownLeft size={12} />
-            {mode === 'note' ? 'Guardar nota' : mode === 'expense' ? 'Cargar gasto' : 'Crear snippet'}
+            {mode === 'note' ? 'Guardar nota' : mode === 'expense' ? 'Guardar gasto' : 'Crear snippet'}
           </button>
           {suggestExpense && (
-            <button onClick={saveExpense} className="ui-btn ui-btn-outline ui-btn-sm">
+            <button onClick={() => void saveExpense()} disabled={busy} className="ui-btn ui-btn-outline ui-btn-sm">
               <Wallet size={12} />
               Guardar como gasto
             </button>
@@ -289,23 +301,25 @@ function pickSnippets(all: Snippet[]): Snippet[] {
   return [...pinned, ...recent, ...rest].slice(0, 6)
 }
 
-function SnippetsWidget({ snippets, onUsed }: { snippets: Loadable<Snippet[]>; onUsed: () => void }): JSX.Element {
+function SnippetsWidget({ snippets, onUsed, onRetry }: { snippets: Loadable<Snippet[]>; onUsed: () => void; onRetry: () => void }): JSX.Element {
   const { dispatch } = useApp()
   const toast = useToast()
+  // Snippet con {{variables}}: se completan acá mismo, sin abrir el módulo.
+  const [fill, setFill] = useState<Snippet | null>(null)
 
-  const openSnippet = (s: Snippet): void =>
-    dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'snippets', action: 'open', payload: s.id })
-
-  const use = async (s: Snippet): Promise<void> => {
-    // Snippets with {{variables}} need the form in the Snippets module.
-    if (s.content.includes('{{')) { openSnippet(s); return }
+  const copyText = async (s: Snippet, text: string): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(s.content)
+      await navigator.clipboard.writeText(text)
       toast.show(`Copiado: ${s.title}`, 'success', 2200)
       invoke('snippets:mark-used', s.id).then(onUsed).catch(() => { /* optional */ })
     } catch {
       toast.show('No se pudo copiar al portapapeles', 'error')
     }
+  }
+
+  const use = async (s: Snippet): Promise<void> => {
+    if (hasVariables(stripDataUrls(s.content))) { setFill(s); return }
+    await copyText(s, s.content)
   }
 
   return (
@@ -319,7 +333,7 @@ function SnippetsWidget({ snippets, onUsed }: { snippets: Loadable<Snippet[]>; o
       }
     >
       {snippets.status === 'loading' && <ListSkeleton />}
-      {snippets.status === 'error' && <EmptyState compact icon={Code2} title="No pudimos cargar los snippets" />}
+      {snippets.status === 'error' && <LoadError icon={Code2} what="los snippets" onRetry={onRetry} />}
       {snippets.status === 'ready' && (snippets.data.length === 0 ? (
         <EmptyState
           compact
@@ -350,14 +364,23 @@ function SnippetsWidget({ snippets, onUsed }: { snippets: Loadable<Snippet[]>; o
           )
         })
       ))}
+      <VariablesModal snippet={fill} content={fill ? stripDataUrls(fill.content).trim() : ''} mode="copy" onClose={() => setFill(null)}
+        onSubmit={(rendered) => { const s = fill; setFill(null); if (s) void copyText(s, rendered) }} />
     </Widget>
   )
 }
 
-function ExpensesWidget({ summary }: { summary: Loadable<GastosMonthSummary | null> }): JSX.Element {
+function ExpensesWidget({ summary, onRetry }: { summary: Loadable<GastosSummaryResult>; onRetry: () => void }): JSX.Element {
   const { dispatch } = useApp()
   const quickAdd = (): void => dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'gastos', action: 'quick-add', payload: {} })
-  const s = summary.status === 'ready' ? summary.data : null
+  // Gastos recurrentes vencidos (Netflix, alquiler…): se cargan solos al abrir Inicio, con "Deshacer".
+  useRecurrentesAuto(summary.status === 'ready')
+  const r = summary.status === 'ready' ? summary.data : null
+  const s = r && (r.status === 'ok' || r.status === 'offline') ? r.summary : null
+  const retry = <button className="ui-btn ui-btn-outline ui-btn-sm" onClick={onRetry}>Reintentar</button>
+  const toConnections = (
+    <button className="ui-btn ui-btn-outline ui-btn-sm" onClick={() => dispatch({ type: 'OPEN_TAB', pluginId: 'connections' })}>Ir a Conexiones</button>
+  )
 
   return (
     <Widget
@@ -372,16 +395,31 @@ function ExpensesWidget({ summary }: { summary: Loadable<GastosMonthSummary | nu
           <Skeleton className="h-2 w-full mt-3" />
         </div>
       )}
-      {(summary.status === 'error' || (summary.status === 'ready' && !s)) && (
-        <EmptyState
-          compact
-          icon={Wallet}
-          title="Gastos no está configurado"
-          description="Configurá Supabase en Conexiones para ver el resumen del mes."
-          action={<button className="ui-btn ui-btn-outline ui-btn-sm" onClick={() => dispatch({ type: 'OPEN_TAB', pluginId: 'connections' })}>Ir a Conexiones</button>}
-        />
+      {summary.status === 'error' && <LoadError icon={Wallet} what="el resumen de gastos" onRetry={onRetry} />}
+      {r?.status === 'not-configured' && (
+        <EmptyState compact icon={Wallet} title="Gastos no está conectado"
+          description="Configurá Supabase en Conexiones para ver el resumen del mes." action={toConnections} />
+      )}
+      {r?.status === 'error' && (
+        <EmptyState compact icon={Wallet} title="No se pudo cargar el resumen"
+          description={friendlyGastosError(r.error ?? '')} action={retry} />
+      )}
+      {r?.status === 'offline' && !s && (
+        <EmptyState compact icon={Wallet} title="Sin conexión con Supabase"
+          description="Todavía no hay una copia de tus gastos en este equipo." action={retry} />
+      )}
+      {r?.status === 'offline' && s && (
+        <div className="mx-2.5 mt-0.5 mb-1 flex items-center gap-2 t-footnote text-on-surface-variant">
+          <span className="flex-1 min-w-0 truncate">Sin conexión: mostrando la copia de este equipo.</span>
+          <button className="ui-btn ui-btn-ghost ui-btn-sm" onClick={onRetry}>Reintentar</button>
+        </div>
       )}
       {s && <ExpensesSummary s={s} onOpen={() => dispatch({ type: 'OPEN_TAB', pluginId: 'gastos' })} />}
+      {s && r && r.pendingCount > 0 && (
+        <p className="px-2.5 pb-1 t-caption text-on-surface-variant">
+          {r.pendingCount === 1 ? '1 cambio guardado en este equipo, sin subir todavía.' : `${r.pendingCount} cambios guardados en este equipo, sin subir todavía.`}
+        </p>
+      )}
     </Widget>
   )
 }
@@ -393,7 +431,7 @@ function ExpensesSummary({ s, onOpen }: { s: GastosMonthSummary; onOpen: () => v
   return (
     <button onClick={onOpen} className="text-left px-2.5 py-2 flex flex-col gap-4 rounded-lg hover:bg-on-surface/3 dark:hover:bg-on-surface/5 transition-colors">
       <div className="flex flex-col gap-1.5">
-        <div className="t-display text-on-surface tabular-nums">{fmtMoney(s.total)}</div>
+        <div className="t-title1 text-on-surface tabular-nums">{fmtMoney(s.total)}</div>
         <div className="flex items-center gap-2 t-footnote text-on-surface-variant min-w-0">
           {diff === null
             ? 'Sin datos del mes anterior'
@@ -422,6 +460,26 @@ function ExpensesSummary({ s, onOpen }: { s: GastosMonthSummary; onOpen: () => v
         </div>
       )}
 
+      {s.presupuestosEnRiesgo && s.presupuestosEnRiesgo.length > 0 && (
+        <ul className="flex flex-col gap-2" aria-label="Categorías cerca o pasadas de su presupuesto">
+          {s.presupuestosEnRiesgo.map((c) => (
+            <li key={c.categoria} className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 t-footnote min-w-0">
+                <span className="flex-1 min-w-0 truncate text-on-surface">{c.categoria}</span>
+                <span className="text-on-surface-variant tabular-nums truncate">
+                  {c.estado === 'error' ? `pasado por ${fmtMoney(-c.restante)}` : `quedan ${fmtMoney(c.restante)}`}
+                </span>
+                <span className={`tabular-nums font-medium ${c.estado === 'error' ? 'text-error' : 'text-warning'}`}>{Math.round(c.pct * 100)}%</span>
+              </div>
+              <div className="h-1 rounded-full bg-on-surface/[0.07] overflow-hidden">
+                <div className={`h-full rounded-full ${c.estado === 'error' ? 'bg-error' : 'bg-warning'}`}
+                  style={{ width: `${Math.min(100, c.pct * 100)}%`, transition: 'width 300ms var(--ease-mac)' }} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <div className="grid grid-cols-3 gap-2">
         <Stat label="Fijos" value={fmtMoney(s.fijos)} />
         <Stat label="Variables" value={fmtMoney(s.variables)} />
@@ -437,19 +495,20 @@ function ExpensesSummary({ s, onOpen }: { s: GastosMonthSummary; onOpen: () => v
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: 'warning' }): JSX.Element {
   return (
-    <div className="rounded-lg bg-on-surface/4 dark:bg-on-surface/6 px-3 py-2.5 min-w-0">
+    <div className="stat-cell px-3 py-2.5 min-w-0">
       <div className="t-caption text-on-surface-variant">{label}</div>
       <div className={`t-callout font-semibold tabular-nums truncate mt-0.5 ${tone === 'warning' ? 'text-warning' : 'text-on-surface'}`}>{value}</div>
     </div>
   )
 }
 
-function RecentFilesWidget({ recents }: { recents: Loadable<RecentEntry[]> }): JSX.Element {
+function RecentFilesWidget({ recents, onRetry }: { recents: Loadable<RecentEntry[]>; onRetry: () => void }): JSX.Element {
   const { dispatch } = useApp()
   return (
     <Widget title="Archivos recientes" icon={FileCode2}>
       {recents.status === 'loading' && <ListSkeleton rows={3} />}
-      {(recents.status === 'error' || (recents.status === 'ready' && recents.data.length === 0)) && (
+      {recents.status === 'error' && <LoadError icon={FileCode2} what="los archivos recientes" onRetry={onRetry} />}
+      {recents.status === 'ready' && recents.data.length === 0 && (
         <EmptyState compact icon={FileCode2} title="Sin archivos recientes" description="Los archivos que abras en el editor aparecen acá." />
       )}
       {recents.status === 'ready' && recents.data.slice(0, 6).map((r) => {
@@ -460,9 +519,9 @@ function RecentFilesWidget({ recents }: { recents: Loadable<RecentEntry[]> }): J
             key={r.path}
             title={r.name}
             subtitle={dir}
-            meta={relTime(new Date(r.openedAt).getTime())}
+            meta={`${r.line ? `línea ${r.line} · ` : ''}${relTime(new Date(r.openedAt).getTime())}`}
             icon={<span className="w-4 flex justify-center text-on-surface-variant shrink-0"><LangIcon size={14} /></span>}
-            onClick={() => dispatch({ type: 'OPEN_IN_EDITOR', path: r.path })}
+            onClick={() => dispatch({ type: 'OPEN_IN_EDITOR', path: r.path, line: r.line })}
           />
         )
       })}
@@ -494,12 +553,13 @@ async function loadTickets(): Promise<TicketRow[]> {
   return [...rows.values()].sort((a, b) => b.at - a.at)
 }
 
-function TicketsWidget({ tickets }: { tickets: Loadable<TicketRow[]> }): JSX.Element {
+function TicketsWidget({ tickets, onRetry }: { tickets: Loadable<TicketRow[]>; onRetry: () => void }): JSX.Element {
   const { dispatch } = useApp()
   return (
     <Widget title="Tickets recientes" icon={Ticket}>
       {tickets.status === 'loading' && <ListSkeleton rows={3} />}
-      {(tickets.status === 'error' || (tickets.status === 'ready' && tickets.data.length === 0)) && (
+      {tickets.status === 'error' && <LoadError icon={Ticket} what="los tickets" onRetry={onRetry} />}
+      {tickets.status === 'ready' && tickets.data.length === 0 && (
         <EmptyState compact icon={Ticket} title="Sin tickets todavía"
           description="Copiá un WIGOS-123 o ponele ticket a una captura y aparece acá con todo lo suyo." />
       )}
@@ -509,7 +569,7 @@ function TicketsWidget({ tickets }: { tickets: Loadable<TicketRow[]> }): JSX.Ele
           title={t.ticket}
           subtitle={[t.captures ? `${t.captures} captura${t.captures === 1 ? '' : 's'}` : null, t.copied ? 'copiado' : null].filter(Boolean).join(' · ')}
           meta={relTime(t.at)}
-          icon={<span className="w-7 h-7 rounded-lg grid place-items-center bg-on-surface/5 text-on-surface-variant shrink-0"><Ticket size={14} /></span>}
+          icon={<span className="icon-tile w-7 h-7"><Ticket size={14} /></span>}
           onClick={() => dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'captures', action: 'ticket', payload: t.ticket })}
         />
       ))}
@@ -517,7 +577,7 @@ function TicketsWidget({ tickets }: { tickets: Loadable<TicketRow[]> }): JSX.Ele
   )
 }
 
-function KeysWidget({ keys }: { keys: Loadable<Credential[]> }): JSX.Element {
+function KeysWidget({ keys, onRetry }: { keys: Loadable<Credential[]>; onRetry: () => void }): JSX.Element {
   const { dispatch } = useApp()
   const toast = useToast()
   const open = (id?: string): void => dispatch(id
@@ -531,10 +591,11 @@ function KeysWidget({ keys }: { keys: Loadable<Credential[]> }): JSX.Element {
     else toast.show(r.error || 'No se pudo copiar', 'error')
   }
   return (
-    <Widget title="Claves más usadas" icon={KeyRound}
+    <Widget title="Claves" icon={KeyRound}
       action={<button onClick={() => open()} className="ui-btn ui-btn-ghost ui-btn-sm">Ver todas <ArrowRight size={12} /></button>}>
       {keys.status === 'loading' && <ListSkeleton rows={3} />}
-      {(keys.status === 'error' || (keys.status === 'ready' && keys.data.length === 0)) && (
+      {keys.status === 'error' && <LoadError icon={KeyRound} what="las claves" onRetry={onRetry} />}
+      {keys.status === 'ready' && keys.data.length === 0 && (
         <EmptyState compact icon={KeyRound} title="Sin claves todavía" description="Las que más copies van a quedar acá, a un clic." />
       )}
       {keys.status === 'ready' && keys.data.slice(0, 5).map((c) => (
@@ -542,7 +603,7 @@ function KeysWidget({ keys }: { keys: Loadable<Credential[]> }): JSX.Element {
           key={c.id}
           title={c.nombre}
           subtitle={[c.usuario, usageHint(c.useCount, c.lastUsedAt ? relTime(c.lastUsedAt) : '')].filter(Boolean).join(' · ')}
-          icon={<span className="w-7 h-7 rounded-lg grid place-items-center bg-on-surface/5 text-on-surface-variant shrink-0">{c.favorite ? <Pin size={13} /> : <KeyRound size={13} />}</span>}
+          icon={<span className="icon-tile w-7 h-7">{c.favorite ? <Pin size={13} /> : <KeyRound size={13} />}</span>}
           onClick={() => open(c.id)}
           trailing={c.hasPassword ? (
             <button onClick={() => void copy(c)} title="Copiar contraseña"
@@ -556,17 +617,18 @@ function KeysWidget({ keys }: { keys: Loadable<Credential[]> }): JSX.Element {
   )
 }
 
-function ClipboardWidget({ clips }: { clips: Loadable<ClipView[]> }): JSX.Element {
+function ClipboardWidget({ clips, onRetry }: { clips: Loadable<ClipView[]>; onRetry: () => void }): JSX.Element {
   const { dispatch } = useApp()
   const toast = useToast()
   const copy = async (c: ClipView): Promise<void> => {
     try { await invoke('clipboard:copy', c.id); toast.show('Copiado de nuevo: pegalo con Ctrl+V', 'success') } catch { toast.show('Ya no está en el historial', 'error') }
   }
   return (
-    <Widget title="Copiado reciente" icon={ClipboardText}
+    <Widget title="Portapapeles" icon={ClipboardText}
       action={<button onClick={() => dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'captures', action: 'text' })} className="ui-btn ui-btn-ghost ui-btn-sm">Ver todo <ArrowRight size={12} /></button>}>
       {clips.status === 'loading' && <ListSkeleton rows={3} />}
-      {(clips.status === 'error' || (clips.status === 'ready' && clips.data.length === 0)) && (
+      {clips.status === 'error' && <LoadError icon={ClipboardText} what="el portapapeles" onRetry={onRetry} />}
+      {clips.status === 'ready' && clips.data.length === 0 && (
         <EmptyState compact icon={ClipboardText} title="Nada copiado todavía" description="Lo que copies con Ctrl+C queda acá para volver a usarlo." />
       )}
       {clips.status === 'ready' && clips.data.slice(0, 6).map((c) => (
@@ -575,7 +637,7 @@ function ClipboardWidget({ clips }: { clips: Loadable<ClipView[]> }): JSX.Elemen
           title={c.sensitive ? (c.masked ?? '••••••') : c.text.replace(/\s+/g, ' ').trim().slice(0, 140)}
           subtitle={[c.sensitive ? 'Oculto' : KIND_LABEL[c.kind], c.app].filter(Boolean).join(' · ')}
           meta={relTime(c.at)}
-          icon={<span className="w-7 h-7 rounded-lg grid place-items-center bg-on-surface/5 text-on-surface-variant shrink-0">{c.sensitive ? <Lock size={13} /> : <Copy size={13} />}</span>}
+          icon={<span className="icon-tile w-7 h-7">{c.sensitive ? <Lock size={13} /> : <Copy size={13} />}</span>}
           onClick={() => void copy(c)}
         />
       ))}
@@ -615,14 +677,20 @@ export function Dashboard(): JSX.Element {
     const res = await invoke<{ snippets: Snippet[] }>('snippets:load')
     return res?.snippets ?? []
   }, [stamp])
-  const [summary] = useLoad(() => getMonthSummary(), [stamp])
-  const [recents] = useLoad(async () => (await invoke<RecentEntry[]>('editor:recent-get')) ?? [], [stamp])
-  const [tickets] = useLoad(loadTickets, [stamp])
-  const [keys] = useLoad(async () => {
+  const [summary, reloadSummary] = useLoad(() => getMonthSummaryState(), [stamp])
+  // Un gasto guardado desde la captura rápida (o en Gastos) actualiza el widget al instante.
+  useEffect(() => {
+    window.addEventListener(GASTOS_CHANGED_EVENT, reloadSummary)
+    return () => window.removeEventListener(GASTOS_CHANGED_EVENT, reloadSummary)
+  }, [reloadSummary])
+  const retrySummary = useCallback(() => { void getMonthSummaryState(undefined, { force: true }).finally(reloadSummary) }, [reloadSummary])
+  const [recents, reloadRecents] = useLoad(async () => (await invoke<RecentEntry[]>('editor:recent-get')) ?? [], [stamp])
+  const [tickets, reloadTickets] = useLoad(loadTickets, [stamp])
+  const [keys, reloadKeys] = useLoad(async () => {
     const r = await invoke<Credential[] | { items: Credential[] }>('credentials:top', 5)
     return Array.isArray(r) ? r : r.items
   }, [stamp])
-  const [clips] = useLoad(async () => (await invoke<ClipView[]>('clipboard:history')) ?? [], [stamp])
+  const [clips, reloadClips] = useLoad(async () => (await invoke<ClipView[]>('clipboard:history')) ?? [], [stamp])
 
   const capture = useMemo(() => ({
     note: isOn('notes'), expense: isOn('gastos'), snippet: isOn('snippets'),
@@ -630,35 +698,21 @@ export function Dashboard(): JSX.Element {
   }), [state.disabledPlugins])
 
   const widgets = [
-    isOn('gastos') && <ExpensesWidget key="gastos" summary={summary} />,
-    isOn('captures') && <TicketsWidget key="tickets" tickets={tickets} />,
-    isOn('credentials') && <KeysWidget key="keys" keys={keys} />,
-    isOn('captures') && <ClipboardWidget key="clips" clips={clips} />,
-    isOn('snippets') && <SnippetsWidget key="snippets" snippets={snippets} onUsed={reloadSnippets} />,
-    isOn('file-editor') && <RecentFilesWidget key="files" recents={recents} />,
+    isOn('gastos') && <ExpensesWidget key="gastos" summary={summary} onRetry={retrySummary} />,
+    isOn('captures') && <TicketsWidget key="tickets" tickets={tickets} onRetry={reloadTickets} />,
+    isOn('credentials') && <KeysWidget key="keys" keys={keys} onRetry={reloadKeys} />,
+    isOn('captures') && <ClipboardWidget key="clips" clips={clips} onRetry={reloadClips} />,
+    isOn('snippets') && <SnippetsWidget key="snippets" snippets={snippets} onUsed={reloadSnippets} onRetry={reloadSnippets} />,
+    isOn('file-editor') && <RecentFilesWidget key="files" recents={recents} onRetry={reloadRecents} />,
     isOn('notes') && <NotesWidget key="notes" notes={notes} onRetry={reloadNotes} />,
   ].filter(Boolean)
 
   return (
-    <div className="relative min-h-full">
-      {/* Toque de marca: halo muy suave detrás del encabezado */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[280px] opacity-[0.08] dark:opacity-[0.12]"
-        style={{
-          background: 'var(--gradient-brand)',
-          maskImage: 'radial-gradient(55% 100% at 25% 0%, black, transparent 75%)',
-          WebkitMaskImage: 'radial-gradient(55% 100% at 25% 0%, black, transparent 75%)',
-        }}
-      />
-      <div className="relative px-8 py-7 max-w-[1120px] mx-auto w-full flex flex-col gap-6">
-        <header className="flex flex-col gap-2 pt-2">
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-surface/80 hairline shadow-sm px-2.5 py-[3px] t-caption font-medium text-on-surface-variant">
-            <span className="w-1.5 h-1.5 rounded-full bg-brand" aria-hidden />
-            {longDate(now)}
-          </span>
-          <h1 className="t-display text-on-surface">{greeting(now)}{userName ? `, ${userName}` : ''}</h1>
-          <p className="t-callout text-on-surface-variant">Esto es lo que tenés a mano hoy.</p>
+    <div className="min-h-full">
+      <div className="px-8 py-7 max-w-[1120px] mx-auto w-full flex flex-col gap-5">
+        <header className="flex flex-col gap-1 pt-1">
+          <h1 className="t-title2 text-on-surface">Hola{userName ? `, ${userName}` : ''}</h1>
+          <p className="t-callout text-on-surface-variant">{longDate(now)} · esto es lo que tenés a mano hoy.</p>
         </header>
 
       {(capture.note || capture.expense || capture.snippet) && (

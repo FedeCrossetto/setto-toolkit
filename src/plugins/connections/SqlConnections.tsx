@@ -73,8 +73,8 @@ export function SqlConnections(): JSX.Element {
 
       {items !== null && items.length === 0 ? (
         <button onClick={() => setEditing('new')}
-          className="ui-card flex items-center gap-3 px-4 py-4 text-left hover:shadow-card-hover transition-shadow">
-          <span className="w-9 h-9 rounded-xl bg-selected text-primary grid place-items-center shrink-0"><Server size={17} /></span>
+          className="ui-card ui-card-interactive flex items-center gap-3 px-5 py-4 text-left">
+          <span className="icon-tile w-9 h-9"><Server size={16} /></span>
           <span className="flex-1 min-w-0">
             <span className="block t-body font-medium text-on-surface">Guardá tus servidores SQL</span>
             <span className="block t-footnote text-on-surface-variant">Main, LPS, QA… Probás la conexión y copiás el servidor o la cadena con un clic (también desde Ctrl+K).</span>
@@ -82,7 +82,7 @@ export function SqlConnections(): JSX.Element {
           <Plus size={14} className="text-on-surface-variant" />
         </button>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           <AnimatePresence initial={false}>
             {(items ?? []).map((p) => (
               <motion.div key={p.id} {...listItemMotion}>
@@ -125,13 +125,13 @@ function ProfileCard({ p, testing, onTest, onCopy, onEdit, onDelete }: {
   const formats: SqlCopyFormat[] = p.auth === 'sql' ? ['server', 'adonet', 'adonet-safe', 'sqlcmd'] : ['server', 'adonet', 'sqlcmd']
 
   return (
-    <article className="ui-card p-4 flex flex-col gap-3 h-full">
+    <article className="ui-card px-5 pt-5 pb-4 flex flex-col gap-3 h-full">
       <div className="flex items-start gap-3">
-        <span className="w-9 h-9 rounded-xl bg-selected text-primary grid place-items-center shrink-0"><Server size={17} /></span>
+        <span className="icon-tile w-9 h-9"><Server size={16} /></span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <h3 className="t-body font-semibold text-on-surface truncate">{p.name}</h3>
-            {p.tag && <span className="t-caption px-1.5 py-px rounded-full bg-on-surface/6 text-on-surface-variant shrink-0">{p.tag}</span>}
+            {p.tag && <span className="t-caption px-1.5 py-px rounded-full hairline text-on-surface-variant shrink-0">{p.tag}</span>}
           </div>
           <p className="t-footnote text-on-surface-variant font-mono truncate" title={p.server}>{p.server}{p.database ? ` · ${p.database}` : ''}</p>
           <p className="t-caption text-on-surface-variant/80 truncate">{p.auth === 'windows' ? 'Windows' : `SQL · ${p.user}`}</p>
@@ -161,7 +161,7 @@ function ProfileCard({ p, testing, onTest, onCopy, onEdit, onDelete }: {
           <AnimatePresence>
             {menu && (
               <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.14 }}
-                className="absolute z-20 left-0 top-full mt-1 min-w-[200px] rounded-lg bg-surface hairline shadow-lg p-1">
+                className="absolute z-20 left-0 top-full mt-1 min-w-[200px] ui-menu p-1">
                 {formats.map((f) => (
                   <button key={f} onClick={() => { setMenu(false); onCopy(f) }}
                     className="w-full text-left px-2.5 py-1.5 rounded-md t-footnote text-on-surface hover:bg-selected">
@@ -271,7 +271,7 @@ function ProfileSheet({ profile, onClose, onSaved }: { profile: SqlProfile | nul
           <Toggle checked={d.trustCert} onChange={(trustCert) => set({ trustCert })} label="Confiar en el certificado" />
         </label>
 
-        <div className="rounded-lg bg-on-surface/4 px-3 py-2">
+        <div className="rounded-lg hairline px-3 py-2">
           <div className="t-caption text-on-surface-variant mb-0.5">Cadena (sin contraseña)</div>
           <code className="block t-caption font-mono text-on-surface break-all">{buildConnectionString(d, null)}</code>
         </div>

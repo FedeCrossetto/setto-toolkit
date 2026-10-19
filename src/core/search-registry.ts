@@ -1,5 +1,5 @@
 import type { SearchProvider } from './search'
-import { notesSearchProvider } from '../plugins/notes/search'
+import { blocSearchProvider, notesSearchProvider } from '../plugins/notes/search'
 import { snippetsSearchProvider } from '../plugins/snippets/search'
 import { credentialsSearchProvider } from '../plugins/credentials/search'
 import { gastosSearchProvider } from '../plugins/gastos/search'
@@ -8,6 +8,7 @@ import { utilitiesSearchProvider } from '../plugins/utilities/search'
 import { clipboardSearchProvider } from '../plugins/utilities/clipboard'
 import { appearanceSearchProvider } from './search-appearance'
 import { capturesSearchProvider } from '../plugins/captures/search'
+import { ticketsSearchProvider } from '../plugins/tickets/search'
 import { commandsSearchProvider } from './search-commands'
 import { sqlConnectionsSearchProvider } from '../plugins/connections/search'
 
@@ -16,6 +17,7 @@ import { sqlConnectionsSearchProvider } from '../plugins/connections/search'
 export const searchProviders: SearchProvider[] = [
   commandsSearchProvider,
   notesSearchProvider,
+  blocSearchProvider,
   snippetsSearchProvider,
   credentialsSearchProvider,
   gastosSearchProvider,
@@ -24,5 +26,6 @@ export const searchProviders: SearchProvider[] = [
   clipboardSearchProvider,
   appearanceSearchProvider,
   capturesSearchProvider,
+  ticketsSearchProvider,
   sqlConnectionsSearchProvider,
 ]

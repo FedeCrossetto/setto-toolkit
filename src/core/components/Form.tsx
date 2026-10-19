@@ -43,7 +43,7 @@ export function Toggle({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={`relative inline-flex h-[22px] w-[38px] shrink-0 items-center rounded-full transition-colors duration-200 disabled:opacity-40 ${
-        checked ? 'bg-brand' : 'bg-on-surface/15'
+        checked ? 'bg-primary' : 'bg-on-surface/15'
       }`}
     >
       <span
@@ -96,17 +96,17 @@ export function SettingsRow({
   children,
 }: {
   icon?: IconComponent
-  /** CSS background for a solid icon tile, e.g. 'rgb(var(--c-primary))'. Omit for the soft lilac tile. */
+  /** CSS background for a solid icon tile, e.g. 'rgb(var(--c-primary))'. Omit for the neutral hairline tile. */
   iconColor?: string
   title: ReactNode
   description?: ReactNode
   children?: ReactNode
 }): JSX.Element {
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5 min-h-[52px]">
+    <div className="flex items-center gap-3 px-5 py-3 min-h-[56px]">
       {Icon && (
         <span
-          className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconColor ? 'text-white' : 'bg-selected text-primary'}`}
+          className={`w-7 h-7 shrink-0 ${iconColor ? 'rounded-lg flex items-center justify-center text-white' : 'icon-tile'}`}
           style={iconColor ? { background: iconColor } : undefined}
         >
           <Icon size={15} />
@@ -127,13 +127,13 @@ type KpiTone = 'primary' | 'success' | 'warning' | 'error' | 'neutral'
 export function DeltaPill({ tone = 'neutral', children }: { tone?: KpiTone; children: ReactNode }): JSX.Element {
   const cls = {
     primary: 'bg-primary/12 text-primary',
-    success: 'bg-success/13 text-success',
+    success: 'bg-success/10 text-success',
     warning: 'bg-warning/15 text-warning',
     error: 'bg-error/12 text-error',
     neutral: 'bg-on-surface/6 text-on-surface-variant',
   }[tone]
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-px t-caption font-semibold tabular-nums whitespace-nowrap ${cls}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-px t-caption font-medium tabular-nums whitespace-nowrap ${cls}`}>
       {children}
     </span>
   )
@@ -161,22 +161,23 @@ export function KpiCard({
   onClick?: () => void
 }): JSX.Element {
   const tile = {
-    primary: 'bg-selected text-primary',
-    success: 'bg-selected text-primary', // un estado OK se muestra con el acento de la app
-    warning: 'bg-warning/[0.14] text-warning',
-    error: 'bg-error/12 text-error',
-    neutral: 'bg-on-surface/6 text-on-surface-variant',
+    // Líneas finas: el tile es neutro (blanco con borde fino); sólo alerta/error tiñen el ícono.
+    primary: 'icon-tile',
+    success: 'icon-tile',
+    warning: 'icon-tile text-warning',
+    error: 'icon-tile text-error',
+    neutral: 'icon-tile',
   }[tone]
   return (
     <div
       onClick={onClick}
-      className={`ui-card px-4 pt-3.5 pb-4 flex flex-col gap-2 min-w-0 ${onClick ? 'ui-card-interactive' : ''}`}
+      className={`ui-card px-5 pt-4 pb-4 flex flex-col gap-2 min-w-0 ${onClick ? 'ui-card-interactive' : ''}`}
     >
       <div className="flex items-center gap-2">
         <span className="t-footnote font-medium text-on-surface-variant flex-1 min-w-0 truncate">{label}</span>
         {Icon && (
-          <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${tile}`}>
-            <Icon size={15} />
+          <span className={`w-7 h-7 ${tile}`}>
+            <Icon size={14} />
           </span>
         )}
       </div>

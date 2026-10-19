@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  buildGroups, cycleGroup, flattenGroups, moveSelection, resolveSelection, scoreMatch, type ProviderResult,
+  buildGroups, cycleGroup, flattenGroups, moveSelection, pushRecent, resolveSelection, scoreMatch, type ProviderResult,
 } from './palette-logic'
 import type { SearchItem } from './search'
 
@@ -87,5 +87,15 @@ describe('navigation', () => {
     expect(cycleGroup(groups, 'a2', 1)).toBe('b1')
     expect(cycleGroup(groups, 'c1', 1)).toBe('a1')
     expect(cycleGroup(groups, 'a1', -1)).toBe('c1')
+  })
+})
+
+describe('pushRecent', () => {
+    it('pone el último primero, sin duplicados y con tope', () => {
+    let l: SearchItem[] = []
+    for (const id of ['a', 'b', 'c', 'a']) l = pushRecent(l, item(id), 3)
+    expect(l.map((i) => i.id)).toEqual(['a', 'c', 'b'])
+    l = pushRecent(l, item('d'), 3)
+    expect(l.map((i) => i.id)).toEqual(['d', 'a', 'c'])
   })
 })

@@ -111,7 +111,7 @@ export function HistorySheet({ open, tab, onClose, onRestore, onCompare }: Histo
                   role="option"
                   aria-selected={e.id === selected}
                   onClick={() => setSelected(e.id)}
-                  className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors ${e.id === selected ? 'bg-selected text-on-surface' : 'hover:bg-on-surface/4 text-on-surface'}`}
+                  className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors border ${e.id === selected ? 'bg-on-surface/[0.05] dark:bg-white/[0.06] border-hairline text-on-surface' : 'border-transparent hover:bg-on-surface/4 text-on-surface'}`}
                   title={new Date(e.ts).toLocaleString('es')}
                 >
                   <span className="block t-footnote font-medium">{relativeTime(e.ts)}</span>

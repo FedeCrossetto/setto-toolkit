@@ -15,13 +15,42 @@ test.describe('Shell', () => {
     }
   })
 
-  test('la navegación del sidebar abre plugins en tabs', async () => {
+  test('la bienvenida aparece una sola vez', async () => {
+    const { app, page, userDataDir } = await launchApp(undefined, { keepOnboarding: true })
+    try {
+      await expect(page.getByText('Te damos la bienvenida a Setto')).toBeVisible({ timeout: 15_000 })
+      await page.getByRole('button', { name: 'Siguiente' }).click()
+      await expect(page.getByText('¿Qué módulos querés ver?')).toBeVisible()
+      await page.getByRole('button', { name: 'Siguiente' }).click()
+      await page.getByRole('button', { name: /Modo solo local/ }).click()
+      await expect(page.getByText('Atajos para ir rápido')).toBeVisible()
+      await page.getByRole('button', { name: 'Empezar' }).click()
+      await expect(page.getByText('Atajos para ir rápido')).toBeHidden()
+      await app.close()
+      const second = await launchApp(userDataDir, { keepOnboarding: true })
+      await expect(second.page.locator('aside').getByTitle('Editor', { exact: true })).toBeVisible({ timeout: 15_000 })
+      await expect(second.page.getByText('Te damos la bienvenida a Setto')).toBeHidden()
+      await second.app.close()
+    } finally {
+      await app.close().catch(() => undefined)
+      cleanupDataDir(userDataDir)
+    }
+  })
+
+  test('la barra lateral cambia de módulo y la barra superior muestra el actual', async () => {
     const { app, page, userDataDir } = await launchApp()
     try {
       await expect(page.locator('aside').getByTitle('Editor', { exact: true })).toBeVisible({ timeout: 15_000 })
+      await expect(page.getByTestId('topbar-title')).toContainText('Inicio')
       await page.locator('aside').getByTitle('Editor', { exact: true }).click()
+      await expect(page.getByTestId('topbar-title')).toContainText('Editor')
       // El empty state del editor aparece
       await expect(page.getByText('Ningún archivo abierto')).toBeVisible({ timeout: 10_000 })
+      // No hay pestañas de módulos en la barra superior
+      await expect(page.locator('header [role="tab"]')).toHaveCount(0)
+      // Ctrl+1 vuelve al primer módulo de la barra lateral (Inicio)
+      await page.keyboard.press('Control+1')
+      await expect(page.getByTestId('topbar-title')).toContainText('Inicio')
     } finally {
       await app.close()
       cleanupDataDir(userDataDir)

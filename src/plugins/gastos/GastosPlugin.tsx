@@ -1,46 +1,54 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FileUp, History, ListPlus, PiggyBank, Plus, RefreshCw } from 'lucide-react'
+import { FileUp, ListPlus, PiggyBank, Plus, RefreshCw, Repeat } from 'lucide-react'
 import { useToast } from '../../core/components/Toast'
-import { Modal, useConfirm } from '../../core/components/Modal'
-import { Field, PageHeader } from '../../core/components/Form'
+import { useConfirm } from '../../core/components/Modal'
+import { PageHeader } from '../../core/components/Form'
 import { SegmentedControl } from '../../core/components/SegmentedControl'
 import { usePluginIntent } from '../../core/AppContext'
-import type { Gasto, PagoMensual, Servicio } from './types'
-import { buildHistoricoPagos, pagoKey } from './historico-import'
+import type { Gasto, PagoMensual, ReglaRecurrente, Servicio } from './types'
 import { useGastosData } from './hooks/useGastosData'
 import { GASTOS_TABLES, useSupabaseHealth } from './hooks/useSupabaseHealth'
-import { buildPendientes, currentMes, movimientosToCsv, type Movimiento } from './analytics'
-import { fmt, fmtMoney, hoyDDMM, mesLong } from './format'
+import { buildPendientes, categoryBreakdown, currentMes, movimientosToCsv, type Movimiento } from './analytics'
+import { fmt, hoyDDMM, mesLong, randomId } from './format'
 import { writeLastMethod } from './local-store'
-import { parseAmount } from './quick-add-parser'
+import { notifyGastosChanged } from './direct-write'
+import { CATEGORIAS_VARIABLES, isoDate } from './quick-add-parser'
 import { buildLearning } from './learning'
 import { shouldAutoGenerate } from './recurring'
-import { QuickAdd, type QuickAddHandle } from './components/QuickAdd'
+import { budgetCategories, normalizeBudgets } from './budgets'
+import { describeRegla, instanceId, reglaFromGasto } from './recurrence'
+import { mutateReglas, readReglas, REGLAS_CHANGED_EVENT, useRecurrentesAuto } from './recurrence-runner'
+import { QuickAdd, type QuickAddHandle, type QuickRepeat } from './components/QuickAdd'
+import { PresupuestosSheet } from './components/PresupuestosSheet'
+import { ReglaSheet } from './components/ReglaSheet'
+import { Recurrentes } from './views/Recurrentes'
 import { PagoSheet } from './components/PagoSheet'
 import { GastoSheet } from './components/GastoSheet'
 import { ServicioSheet } from './components/ServicioSheet'
 import { ImportDialog } from './components/ImportDialog'
 import { ConnectionProblem, MissingTablesCard, SetupEmpty } from './components/HealthCards'
-import { useUndoToast } from './components/UndoToast'
+import { useUndo } from '../../core/hooks/useUndo'
 import { MonthNav, MoreMenu, Notice, SyncPill, type PillState } from './components/HeaderControls'
 import { Resumen } from './views/Resumen'
 import { Movimientos } from './views/Movimientos'
 import { Tabla } from './views/Tabla'
 import { Servicios } from './views/Servicios'
 
-type View = 'resumen' | 'movimientos' | 'tabla' | 'servicios'
+type View = 'resumen' | 'movimientos' | 'tabla' | 'servicios' | 'recurrentes'
 
 const VIEWS: { value: View; label: string }[] = [
   { value: 'resumen', label: 'Resumen' },
   { value: 'movimientos', label: 'Movimientos' },
   { value: 'tabla', label: 'Tabla' },
   { value: 'servicios', label: 'Servicios' },
+  { value: 'recurrentes', label: 'Recurrentes' },
 ]
 
 type SheetState =
   | { type: 'gasto'; initial?: Partial<Gasto> }
   | { type: 'pago'; initial?: Partial<PagoMensual> }
   | { type: 'servicio'; initial?: Servicio }
+  | { type: 'regla'; initial?: ReglaRecurrente }
   | null
 
 function money(g: Pick<Gasto, 'moneda' | 'monto'>): string {
@@ -52,18 +60,33 @@ export function GastosPlugin(): JSX.Element {
   const confirm = useConfirm()
   const store = useGastosData()
   const { data } = store
-  const { showUndo, undoElement } = useUndoToast()
+  const { undoable } = useUndo()
+  /** Toast global con "Deshacer" para cambios ya aplicados (pendientes generados, pagos, importaciones). */
+  const showUndo = useCallback((message: string, undo: () => void | Promise<void>) => {
+    toast.show(message, 'success', undefined, { label: 'Deshacer', onClick: () => { void undo() } })
+  }, [toast])
   const { health, status, checking, check } = useSupabaseHealth(() => { void store.reload() })
   const [view, setView] = useState<View>('resumen')
   const [mes, setMes] = useState(currentMes())
   const [sheet, setSheet] = useState<SheetState>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [presuOpen, setPresuOpen] = useState(false)
-  const [presuDraft, setPresuDraft] = useState('')
+  const [reglas, setReglas] = useState<ReglaRecurrente[]>([])
   const quickRef = useRef<QuickAddHandle>(null)
   const pendingQuickText = useRef<string | null>(null)
   const year = Number(mes.slice(0, 4))
   const presupuesto = typeof store.prefs.presupuesto === 'number' && store.prefs.presupuesto > 0 ? store.prefs.presupuesto : null
+  const budgets = useMemo(() => normalizeBudgets(store.prefs.presupuestosCategoria), [store.prefs.presupuestosCategoria])
+
+  // Reglas recurrentes: viven en el caché compartido; se releen cuando cambian (motor, otra vista).
+  useEffect(() => {
+    let alive = true
+    const load = (): void => { void readReglas().then((r) => { if (alive) setReglas(r) }) }
+    load()
+    window.addEventListener(REGLAS_CHANGED_EVENT, load)
+    return () => { alive = false; window.removeEventListener(REGLAS_CHANGED_EVENT, load) }
+  }, [])
+  useRecurrentesAuto(!store.loading)
 
   const closeSheet = useCallback(() => setSheet(null), [])
   const categoriasServicios = useMemo(() => [...new Set(data.servicios.map((s) => s.categoria))], [data.servicios])
@@ -128,10 +151,48 @@ export function GastosPlugin(): JSX.Element {
 
   // ── Acciones ────────────────────────────────────────────────────────────────
 
-  async function saveGasto(g: Gasto, fromQuick = false): Promise<void> {
+  async function saveGasto(g: Gasto, fromQuick = false, repeat: QuickRepeat | null = null): Promise<void> {
     setSheet(null)
+    if (repeat) { await saveRecurring(g, repeat); return }
     await store.saveGasto(g)
     if (fromQuick) showUndo(`Gasto agregado: ${g.descripcion} · ${money(g)}`, () => { void store.deleteGasto(g.id) })
+  }
+
+  /** Guarda el gasto y crea la regla: el gasto cuenta como su primera instancia. */
+  async function saveRecurring(g: Gasto, repeat: QuickRepeat): Promise<void> {
+    const ruleId = randomId()
+    const isNew = !data.gastos.some((x) => x.id === g.id)
+    const first = isNew ? { ...g, id: instanceId(ruleId, g.fecha) } : g
+    const rule = reglaFromGasto(first, repeat.frecuencia, ruleId)
+    if (repeat.dia && repeat.frecuencia !== 'semanal') rule.dia = repeat.dia
+    await mutateReglas((rs) => [...rs, rule])
+    await store.saveGasto(first)
+    showUndo(`${first.descripcion} · ${money(first)} — se repite: ${describeRegla(rule).toLowerCase()}`, async () => {
+      await mutateReglas((rs) => rs.filter((r) => r.id !== ruleId))
+      if (isNew) await store.deleteGasto(first.id)
+    })
+  }
+
+  async function saveRegla(r: ReglaRecurrente): Promise<void> {
+    setSheet(null)
+    await mutateReglas((rs) => (rs.some((x) => x.id === r.id) ? rs.map((x) => (x.id === r.id ? r : x)) : [...rs, r]))
+  }
+
+  async function toggleRegla(r: ReglaRecurrente): Promise<void> {
+    // Al reanudar no se carga lo del período en pausa.
+    const next = r.pausada ? { ...r, pausada: false, hasta: isoDate(new Date()) } : { ...r, pausada: true }
+    await saveRegla(next)
+    toast.show(next.pausada ? `${r.descripcion} en pausa` : `${r.descripcion} reanudado`, 'success', 2500)
+  }
+
+  async function deleteRegla(r: ReglaRecurrente): Promise<void> {
+    setSheet(null)
+    await undoable({
+      message: `Recurrente eliminado: ${r.descripcion} (los gastos ya cargados quedan)`,
+      apply: async () => { await mutateReglas((rs) => rs.filter((x) => x.id !== r.id)) },
+      undo: async () => { await mutateReglas((rs) => (rs.some((x) => x.id === r.id) ? rs : [...rs, r])) },
+      undoneMessage: 'Recurrente restaurado',
+    })
   }
 
   async function saveMany(gs: Gasto[], label: string): Promise<void> {
@@ -142,8 +203,12 @@ export function GastosPlugin(): JSX.Element {
 
   async function deleteGasto(g: Gasto): Promise<void> {
     setSheet(null)
-    await store.deleteGasto(g.id)
-    showUndo(`Gasto eliminado: ${g.descripcion} · ${money(g)}`, () => { void store.saveGasto(g) })
+    await undoable({
+      message: `Gasto eliminado: ${g.descripcion} · ${money(g)}`,
+      apply: async () => { await store.deleteGasto(g.id) },
+      undo: async () => { await store.saveGasto(g) },
+      undoneMessage: 'Gasto restaurado',
+    })
   }
 
   async function savePago(p: PagoMensual): Promise<void> {
@@ -154,8 +219,12 @@ export function GastosPlugin(): JSX.Element {
   async function deletePago(p: PagoMensual): Promise<void> {
     const svc = data.servicios.find((s) => s.id === p.servicioId)
     setSheet(null)
-    await store.deletePago(p.id)
-    showUndo(`Pago eliminado: ${svc?.nombre ?? ''} · $ ${fmt(p.monto)}`, () => { void store.savePago(p) })
+    await undoable({
+      message: `Pago eliminado: ${svc?.nombre ?? ''} · $ ${fmt(p.monto)}`,
+      apply: async () => { await store.deletePago(p.id) },
+      undo: async () => { await store.savePago(p) },
+      undoneMessage: 'Pago restaurado',
+    })
   }
 
   function lastMethodOf(servicioId: string): string | undefined {
@@ -206,23 +275,6 @@ export function GastosPlugin(): JSX.Element {
     await store.deleteServicio(s.id)
   }
 
-  async function importarHistorico(): Promise<void> {
-    const ok = await confirm({
-      title: 'Importar histórico 2024–2025',
-      message: 'Se cargan los pagos del listado incorporado (Casa, Depto y Edesur depto). Si ya había un monto para el mismo servicio y mes, se reemplaza.',
-      confirmLabel: 'Importar',
-    })
-    if (!ok) return
-    const existentes = new Map(data.pagos.map((p) => [pagoKey(p.servicioId, p.mes), p]))
-    const svcIds = new Set(data.servicios.map((s) => s.id))
-    const incoming = buildHistoricoPagos()
-      .filter((p) => svcIds.has(p.servicioId))
-      .map((p) => { const prev = existentes.get(pagoKey(p.servicioId, p.mes)); return prev ? { ...p, id: prev.id } : p })
-    const omitidos = buildHistoricoPagos().length - incoming.length
-    await store.savePagosBulk(incoming)
-    toast.show(`Histórico importado: ${incoming.length} pagos${omitidos ? ` (${omitidos} omitidos: falta el servicio)` : ''}`, 'success', 4000)
-  }
-
   async function exportCsv(movs: Movimiento[], label: string): Promise<void> {
     try {
       const res = await window.api.invoke<{ ok: boolean; filePath?: string }>('gastos:export-csv', {
@@ -246,15 +298,22 @@ export function GastosPlugin(): JSX.Element {
   const focusQuick = useCallback(() => quickRef.current?.focus(), [])
 
   function openPresupuesto(): void {
-    setPresuDraft(presupuesto ? String(presupuesto) : '')
     setPresuOpen(true)
   }
 
-  function savePresupuesto(): void {
-    const v = presuDraft.trim() ? parseAmount(presuDraft) : null
-    store.setPrefs({ presupuesto: v && v > 0 ? v : null })
+  function savePresupuestos(total: number | null, porCategoria: Record<string, number>): void {
+    store.setPrefs({ presupuesto: total, presupuestosCategoria: porCategoria })
     setPresuOpen(false)
+    // Inicio relee los totales (y las categorías en riesgo) en cuanto el caché se escribe.
+    setTimeout(notifyGastosChanged, 300)
   }
+
+  const presuCategorias = useMemo(() => budgetCategories(CATEGORIAS_VARIABLES, data, budgets), [data, budgets])
+  const gastadoPorCategoria = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const c of categoryBreakdown(data, mes)) m.set(c.label.toLowerCase(), (m.get(c.label.toLowerCase()) ?? 0) + c.value)
+    return m
+  }, [data, mes])
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -283,9 +342,9 @@ export function GastosPlugin(): JSX.Element {
               <MoreMenu items={[
                 { label: 'Importar movimientos…', icon: <FileUp size={14} />, onSelect: () => setImportOpen(true) },
                 { label: 'Generar pendientes del mes', icon: <ListPlus size={14} />, onSelect: () => { void generarPendientes() } },
-                { label: 'Presupuesto mensual…', icon: <PiggyBank size={14} />, onSelect: openPresupuesto },
+                { label: 'Presupuestos…', icon: <PiggyBank size={14} />, onSelect: openPresupuesto },
+                { label: 'Nuevo gasto recurrente…', icon: <Repeat size={14} />, onSelect: () => setSheet({ type: 'regla' }) },
                 { label: 'Recargar desde Supabase', icon: <RefreshCw size={14} />, onSelect: () => { void check(); void store.reload() } },
-                { label: 'Importar histórico 2024–2025…', icon: <History size={14} />, onSelect: () => { void importarHistorico() } },
               ]} />
               <button type="button" className="ui-btn ui-btn-primary" onClick={() => setSheet({ type: 'gasto' })}>
                 <Plus size={14} /> Nuevo gasto
@@ -332,13 +391,13 @@ export function GastosPlugin(): JSX.Element {
           <>
             {showQuick && (
               <QuickAdd ref={quickRef} learning={learning}
-                onSave={(g) => { void saveGasto(g, true) }}
+                onSave={(g, repeat) => { void saveGasto(g, true, repeat ?? null) }}
                 onSaveMany={(gs) => { void saveMany(gs, `${gs.length} gastos agregados`) }}
                 onMore={(draft) => setSheet({ type: 'gasto', initial: draft })} />
             )}
             {view === 'resumen' && (
               <Resumen
-                data={data} mes={mes} presupuesto={presupuesto}
+                data={data} mes={mes} presupuesto={presupuesto} budgets={budgets}
                 onSelectMes={setMes}
                 onEditPresupuesto={openPresupuesto}
                 onPagar={(items) => { void pagar(items) }}
@@ -366,13 +425,24 @@ export function GastosPlugin(): JSX.Element {
                 onDelete={(s) => { void deleteServicio(s) }}
                 onToggle={(s) => { void store.saveServicio({ ...s, activo: !s.activo }) }} />
             )}
+            {view === 'recurrentes' && (
+              <Recurrentes reglas={reglas}
+                onAdd={() => setSheet({ type: 'regla' })}
+                onEdit={(r) => setSheet({ type: 'regla', initial: r })}
+                onToggle={(r) => { void toggleRegla(r) }}
+                onDelete={(r) => { void deleteRegla(r) }} />
+            )}
           </>
         )}
       </div>
 
       <GastoSheet open={sheet?.type === 'gasto'} initial={sheet?.type === 'gasto' ? sheet.initial : undefined}
         categoriasUsadas={categoriasGastos}
-        onSave={(g) => { void saveGasto(g) }} onDelete={(g) => { void deleteGasto(g) }} onClose={closeSheet} />
+        onSave={(g, repite) => { void saveGasto(g, false, repite ? { frecuencia: repite, dia: null } : null) }}
+        onDelete={(g) => { void deleteGasto(g) }} onClose={closeSheet} />
+      <ReglaSheet open={sheet?.type === 'regla'} initial={sheet?.type === 'regla' ? sheet.initial : undefined}
+        categoriasUsadas={categoriasGastos}
+        onSave={(r) => { void saveRegla(r) }} onDelete={(r) => { void deleteRegla(r) }} onClose={closeSheet} />
       <PagoSheet open={sheet?.type === 'pago'} initial={sheet?.type === 'pago' ? sheet.initial : undefined}
         servicios={data.servicios} pagos={data.pagos}
         onSave={(p) => { void savePago(p) }} onDelete={(p) => { void deletePago(p) }} onClose={closeSheet} />
@@ -384,23 +454,8 @@ export function GastosPlugin(): JSX.Element {
       <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} existing={data.gastos} learning={learning}
         onImport={(gs) => { setImportOpen(false); void saveMany(gs, `Importamos ${gs.length} movimiento${gs.length === 1 ? '' : 's'}`) }} />
 
-      <Modal open={presuOpen} onClose={() => setPresuOpen(false)} title="Presupuesto mensual" width={360}
-        subtitle="Tope de gasto por mes (fijos + variables). Te avisamos al pasar el 90%."
-        footer={
-          <>
-            {presupuesto && <button type="button" className="ui-btn ui-btn-ghost mr-auto" onClick={() => { setPresuDraft(''); store.setPrefs({ presupuesto: null }); setPresuOpen(false) }}>Quitar</button>}
-            <button type="button" className="ui-btn ui-btn-outline" onClick={() => setPresuOpen(false)}>Cancelar</button>
-            <button type="button" className="ui-btn ui-btn-primary" onClick={savePresupuesto}>Guardar</button>
-          </>
-        }>
-        <form onSubmit={(e) => { e.preventDefault(); savePresupuesto() }}>
-          <Field label="Monto" hint={presupuesto ? `Actual: ${fmtMoney(presupuesto)}` : 'Se guarda en este equipo.'}>
-            <input className="ui-input w-full text-right tabular-nums" inputMode="decimal" autoFocus value={presuDraft}
-              onChange={(e) => setPresuDraft(e.target.value)} placeholder="800.000" />
-          </Field>
-        </form>
-      </Modal>
-      {undoElement}
+      <PresupuestosSheet open={presuOpen} total={presupuesto} budgets={budgets} categorias={presuCategorias}
+        gastadoPorCategoria={gastadoPorCategoria} onSave={savePresupuestos} onClose={() => setPresuOpen(false)} />
     </div>
   )
 }

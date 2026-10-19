@@ -7,7 +7,11 @@ import type { DatabaseService } from './db.service'
 import type { SettingsService } from './settings.service'
 import type {
   Servicio, PagoMensual, Credencial, QueryItem, Gasto, GastosLoadResult, GastosCacheState, GastosCachePatch, PendingWrite,
+  GastosMonthSummary, GastosSummaryResult,
 } from '../../../src/plugins/gastos/types'
+import { computeMonthSummary, prevMes, type GastosData } from '../../../src/plugins/gastos/analytics'
+import { applyWrites } from '../../../src/plugins/gastos/sync-queue'
+import { budgetProgress, budgetsAtRisk } from '../../../src/plugins/gastos/analytics'
 import { logger } from '../logger'
 
 /** Copia local de contraseñas (safeStorage); Supabase recibe el mismo cifrado en password_enc */
@@ -20,6 +24,11 @@ const LEGACY_CREDENCIALES_FILE = 'gastos-credenciales.json'
 const LOCAL_CACHE_FILE = 'gastos-cache.json'
 const PENDING_WRITES_FILE = 'gastos-pending.json'
 const MAX_PENDING_WRITES = 5000
+
+/** Tope por request HTTP: la UI nunca queda "sincronizando" para siempre. */
+const SUPABASE_TIMEOUT_MS = 12_000
+/** PostgREST corta en 1000 filas por request (max-rows): se pagina hasta agotar. */
+export const SUPABASE_PAGE_SIZE = 1000
 
 const SETTINGS_KEY_URL = 'gastos.supabase_url'
 const SETTINGS_KEY_SERVICE = 'gastos.supabase_service_key'
@@ -38,6 +47,87 @@ export function isMissingTableError(err: { code?: string; message?: string } | n
 function supabaseError(error: { code?: string; message?: string }, table: string): Error {
   if (isMissingTableError(error)) return new Error(`${GASTOS_TABLE_MISSING}(${table}): ${error.message ?? ''}`)
   return new Error(error.message ?? 'Error de Supabase')
+}
+
+type Row = Record<string, unknown>
+type PgError = { code?: string; message?: string }
+type PgPage = PromiseLike<{ data: unknown[] | null; error: PgError | null }>
+
+/**
+ * Trae TODAS las filas de una consulta pidiendo páginas con `.range()` hasta que una vuelva
+ * incompleta (PostgREST corta en silencio en `max-rows`). `build` arma una consulta nueva por
+ * página, con orden determinístico (desempate por id).
+ */
+export async function selectAll<R = Row>(
+  build: () => { range: (from: number, to: number) => PgPage },
+  pageSize = SUPABASE_PAGE_SIZE,
+): Promise<{ data: R[]; error: null } | { data: null; error: PgError }> {
+  const all: R[] = []
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await build().range(from, from + pageSize - 1)
+    if (error) return { data: null, error }
+    const rows = (data ?? []) as R[]
+    all.push(...rows)
+    if (rows.length < pageSize) return { data: all, error: null }
+  }
+}
+
+function servicioFromRow(r: Row): Servicio {
+  return {
+    id: String(r.id),
+    nombre: String(r.nombre ?? ''),
+    emoji: (r.emoji as string) ?? '',
+    numeroCuenta: (r.numero_cuenta as string) ?? undefined,
+    categoria: (r.categoria as string) ?? '',
+    activo: (r.activo as boolean) ?? true,
+    orden: Number(r.orden ?? 0),
+  }
+}
+
+function pagoFromRow(r: Row): PagoMensual {
+  return {
+    id: String(r.id),
+    servicioId: String(r.servicio_id),
+    mes: String(r.mes),
+    monto: Number(r.monto),
+    fecha: (r.fecha as string) ?? undefined,
+    metodoPago: (r.metodo_pago as string) ?? undefined,
+    pagado: (r.pagado as boolean) ?? false,
+    notas: (r.notas as string) ?? undefined,
+  }
+}
+
+function credencialMetaFromRow(r: Row): Credencial {
+  return {
+    id: String(r.id),
+    nombre: String(r.nombre ?? ''),
+    usuario: (r.usuario as string) ?? '',
+    // Las contraseñas no viajan con la carga: Claves las lee del vault en el main.
+    password: '',
+    url: (r.url as string) ?? undefined,
+    notas: (r.notas as string) ?? undefined,
+    categoria: (r.categoria as string) ?? undefined,
+    orden: Number(r.orden ?? 0),
+  }
+}
+
+export interface TableStat { table: string; latest: string | null; count: number }
+
+/** `"<max updated_at>#tabla=n,…"`; `null` si no hay ninguna fila. Cambia con altas, ediciones y borrados. */
+export function remoteVersionOf(stats: TableStat[]): string | null {
+  let latest = ''
+  let total = 0
+  for (const s of stats) {
+    if (s.latest && s.latest > latest) latest = s.latest
+    total += s.count
+  }
+  if (!latest && !total) return null
+  return `${latest}#${stats.map((s) => `${s.table}=${s.count}`).join(',')}`
+}
+
+/** Error de red / timeout / Supabase caído (vs. key inválida u otro rechazo). */
+export function isNetworkError(message: string): boolean {
+  return /fetch failed|ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|network|timeout|abort|<!DOCTYPE|<html|web server is down/i.test(message)
 }
 
 function gastoRow(g: Gasto) {
@@ -127,11 +217,8 @@ export class GastosStorageService {
 
   mergeSupabaseConfig(): SupabaseConfig {
     const fromCwd = readOptionalCwdJson<SupabaseConfig>('gastos-supabase.local.json')
-    const rawUrl =
-      this.settings.get(SETTINGS_KEY_URL)?.trim() ||
-      fromCwd.url?.trim() ||
-      (typeof process.env.SUPABASE_URL === 'string' ? process.env.SUPABASE_URL.trim() : '') ||
-      ''
+    // Sólo Ajustes (Conexiones) o el override local de desarrollo; nada viene embebido en el build.
+    const rawUrl = this.settings.get(SETTINGS_KEY_URL)?.trim() || fromCwd.url?.trim() || ''
     const url = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '')
     return { url }
   }
@@ -152,10 +239,12 @@ export class GastosStorageService {
     const fromSettings = this.settings.get(SETTINGS_KEY_SERVICE)?.trim()
     if (fromSettings) return fromSettings
     const cwd = readOptionalCwdJson<{ serviceKey?: string }>('gastos-supabase.local.json')
-    if (cwd.serviceKey?.trim()) return cwd.serviceKey.trim()
-    return typeof process.env.SUPABASE_SERVICE_ROLE_KEY === 'string'
-      ? process.env.SUPABASE_SERVICE_ROLE_KEY.trim()
-      : ''
+    return cwd.serviceKey?.trim() ?? ''
+  }
+
+  /** Hay URL y key (no garantiza que respondan). */
+  isConfigured(): boolean {
+    return Boolean(this.mergeSupabaseConfig().url && this.getServiceKey())
   }
 
   private createClient(): SupabaseClient {
@@ -164,7 +253,7 @@ export class GastosStorageService {
     if (!url || !key) {
       throw new Error('SUPABASE_NOT_CONFIGURED: configurá URL y Service Role Key en Conexiones → Supabase')
     }
-    return createSupabaseClient(url, key)
+    return createSupabaseClient(url, key, { timeoutMs: SUPABASE_TIMEOUT_MS })
   }
 
   /** URL + key efectivas, sólo para uso interno del main (chequeo de salud). Nunca devolver al renderer. */
@@ -266,14 +355,6 @@ export class GastosStorageService {
     }
   }
 
-  private attachVaultPasswords(creds: Credencial[]): Credencial[] {
-    const vault = this.readPasswordVault()
-    return creds.map((c) => ({
-      ...c,
-      password: vault[c.id] ?? '',
-    }))
-  }
-
   // ── Load / CRUD — Supabase es la única fuente de verdad ─────────────────────
 
   async load(): Promise<GastosLoadResult> {
@@ -284,15 +365,86 @@ export class GastosStorageService {
 
   /** Gastos variables; si la tabla no existe (falta migración 002) degrada a lista vacía. */
   private async loadGastosVariables(): Promise<{ gastos: Gasto[]; gastosTableReady: boolean }> {
-    const { data, error } = await this.createClient().from('gastos').select('*').order('fecha', { ascending: false })
-    if (error) {
-      if (isMissingTableError(error)) {
+    const sb = this.createClient()
+    const res = await selectAll(() => sb.from('gastos').select('*').order('fecha', { ascending: false }).order('id'))
+    if (res.error) {
+      if (isMissingTableError(res.error)) {
         logger.warn('GastosStorage', 'Tabla gastos no encontrada en Supabase — falta aplicar la migración 002')
         return { gastos: [], gastosTableReady: false }
       }
-      throw new Error(error.message)
+      throw new Error(res.error.message)
     }
-    return { gastos: (data ?? []).map((r) => gastoFromRow(r as Record<string, unknown>)), gastosTableReady: true }
+    return { gastos: res.data.map(gastoFromRow), gastosTableReady: true }
+  }
+
+  /** Solo la metadata de las credenciales (sin contraseñas), sin cargar pagos ni gastos. */
+  async loadCredenciales(): Promise<Credencial[]> {
+    const sb = this.createClient()
+    const res = await selectAll(() => sb.from('credenciales').select('*').order('orden').order('id'))
+    if (res.error) {
+      if (isMissingTableError(res.error)) return []
+      throw new Error(res.error.message)
+    }
+    return this.credencialesFromRows(res.data)
+  }
+
+  private credencialesFromRows(rows: Row[]): Credencial[] {
+    const legacyEnc = new Map<string, string>()
+    for (const r of rows) if (r.password_enc) legacyEnc.set(String(r.id), String(r.password_enc))
+    const meta = rows.map(credencialMetaFromRow)
+    this.migratePasswordsIntoVault(meta, legacyEnc)
+    // One-time rescue: instalaciones viejas pueden tener contraseñas inline en el
+    // archivo local legacy (de antes de pasar a Supabase-only). Solo lectura.
+    this.migratePasswordsIntoVault(this.db.readJSON<Credencial[]>(LEGACY_CREDENCIALES_FILE) ?? [])
+    return meta
+  }
+
+  /**
+   * Totales del mes para Inicio y el dock, sin la carga completa: servicios + pagos y gastos del
+   * mes y del anterior, con los cambios sin subir aplicados. Si Supabase no responde usa el
+   * caché local. Nunca lanza (salvo un mes inválido).
+   */
+  async getMonthSummary(mes: string): Promise<GastosSummaryResult> {
+    if (typeof mes !== 'string' || !/^\d{4}-\d{2}$/.test(mes)) throw new Error('Mes inválido (YYYY-MM)')
+    const cache = this.getLocalCache()
+    const pending = this.getPendingWrites()
+    const presu = typeof cache.prefs.presupuesto === 'number' && cache.prefs.presupuesto > 0 ? cache.prefs.presupuesto : null
+    const budgets = cache.prefs.presupuestosCategoria ?? {}
+    const summarize = (d: GastosData | null): GastosMonthSummary | null => {
+      if (!d) return null
+      const full = applyWrites(d, pending)
+      return { ...computeMonthSummary(full, mes, presu), presupuestosEnRiesgo: budgetsAtRisk(budgetProgress(full, mes, budgets)) }
+    }
+    const base = { pendingCount: pending.length, cachedAt: cache.updatedAt }
+    if (!this.isConfigured()) return { status: 'not-configured', summary: summarize(cache.data), ...base }
+    try {
+      return { status: 'ok', summary: summarize(await this.loadMonthData(mes, cache.data)), ...base }
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e)
+      return { status: isNetworkError(error) ? 'offline' : 'error', summary: summarize(cache.data), error, ...base }
+    }
+  }
+
+  private async loadMonthData(mes: string, cached: GastosData | null): Promise<GastosData> {
+    const sb = this.createClient()
+    const prev = prevMes(mes)
+    const next = prevMes(mes, -1)
+    const [svcRes, pagosRes, gastosRes] = await Promise.all([
+      selectAll(() => sb.from('servicios').select('*').order('orden').order('id')),
+      selectAll(() => sb.from('pagos').select('*').in('mes', [prev, mes]).order('id')),
+      selectAll(() => sb.from('gastos').select('*').gte('fecha', `${prev}-01`).lt('fecha', `${next}-01`).order('id')),
+    ])
+    // Tabla faltante → lo del caché (es lo único que existe); otro error corta.
+    const pick = <T>(res: { data: Row[] | null; error: PgError | null }, map: (r: Row) => T, fallback: T[]): T[] => {
+      if (!res.error) return (res.data ?? []).map(map)
+      if (isMissingTableError(res.error)) return fallback
+      throw new Error(res.error.message ?? 'Error de Supabase')
+    }
+    return {
+      servicios: pick(svcRes, servicioFromRow, cached?.servicios ?? []),
+      pagos: pick(pagosRes, pagoFromRow, cached?.pagos ?? []),
+      gastos: pick(gastosRes, gastoFromRow, cached?.gastos ?? []),
+    }
   }
 
   async saveGasto(gasto: Gasto): Promise<void> {
@@ -309,24 +461,24 @@ export class GastosStorageService {
     return this.loadQueriesFromSupabase()
   }
 
-  /** Versión global de los datos remotos — el mayor `updated_at` entre las tablas
-   *  (la de gastos variables se ignora si todavía no existe). */
+  /** Versión global de los datos remotos: mayor `updated_at` + cantidad de filas por tabla (un
+   *  borrado no deja `updated_at`, pero baja la cuenta). Las tablas que no existen se ignoran. */
   async getRemoteVersion(): Promise<string | null> {
     const sb = this.createClient()
     const tables = ['servicios', 'pagos', 'credenciales', 'queries', 'gastos'] as const
     const results = await Promise.all(
-      tables.map((t) => sb.from(t).select('updated_at').order('updated_at', { ascending: false }).limit(1)),
+      tables.map((t) => sb.from(t).select('updated_at', { count: 'exact' }).order('updated_at', { ascending: false }).limit(1)),
     )
-    let latest: string | null = null
-    for (const r of results) {
+    const stats: TableStat[] = []
+    results.forEach((r, i) => {
       if (r.error) {
-        if (isMissingTableError(r.error)) continue
+        if (isMissingTableError(r.error)) return
         throw new Error(r.error.message)
       }
-      const ts = r.data?.[0]?.updated_at as string | undefined
-      if (ts && (!latest || ts > latest)) latest = ts
-    }
-    return latest
+      const latest = (r.data?.[0]?.updated_at as string | undefined) ?? null
+      stats.push({ table: tables[i]!, latest, count: typeof r.count === 'number' ? r.count : (r.data?.length ?? 0) })
+    })
+    return remoteVersionOf(stats)
   }
 
   async saveServicio(servicio: Servicio): Promise<void> {
@@ -432,9 +584,9 @@ export class GastosStorageService {
   }> {
     const sb = this.createClient()
     const [svcRes, pagosRes, credRes] = await Promise.all([
-      sb.from('servicios').select('*').order('orden'),
-      sb.from('pagos').select('*'),
-      sb.from('credenciales').select('*').order('orden'),
+      selectAll(() => sb.from('servicios').select('*').order('orden').order('id')),
+      selectAll(() => sb.from('pagos').select('*').order('id')),
+      selectAll(() => sb.from('credenciales').select('*').order('orden').order('id')),
     ])
     // Una tabla faltante (migración sin aplicar) degrada a lista vacía; otros errores cortan la carga.
     const missingTables: string[] = []
@@ -447,60 +599,23 @@ export class GastosStorageService {
 
     return {
       missingTables,
-      servicios: (svcRes.data ?? []).map((r) => ({
-        id: r.id,
-        nombre: r.nombre,
-        emoji: r.emoji ?? '',
-        numeroCuenta: r.numero_cuenta ?? undefined,
-        categoria: r.categoria ?? '',
-        activo: r.activo ?? true,
-        orden: r.orden ?? 0,
-      })),
-      pagos: (pagosRes.data ?? []).map((r) => ({
-        id: r.id,
-        servicioId: r.servicio_id,
-        mes: r.mes,
-        monto: Number(r.monto),
-        fecha: r.fecha ?? undefined,
-        metodoPago: r.metodo_pago ?? undefined,
-        pagado: r.pagado ?? false,
-        notas: r.notas ?? undefined,
-      })),
-      credenciales: (() => {
-        const rows = credRes.data ?? []
-        const legacyEnc = new Map<string, string>()
-        for (const r of rows) {
-          if (r.password_enc) legacyEnc.set(r.id, r.password_enc)
-        }
-        const meta = rows.map((r) => ({
-          id: r.id,
-          nombre: r.nombre,
-          usuario: r.usuario ?? '',
-          password: '',
-          url: r.url ?? undefined,
-          notas: r.notas ?? undefined,
-          categoria: r.categoria ?? undefined,
-          orden: r.orden ?? 0,
-        }))
-        this.migratePasswordsIntoVault(meta, legacyEnc)
-        // One-time rescue: instalaciones viejas pueden tener contraseñas inline en el
-        // archivo local legacy (de antes de pasar a Supabase-only). Solo lectura.
-        this.migratePasswordsIntoVault(this.db.readJSON<Credencial[]>(LEGACY_CREDENCIALES_FILE) ?? [])
-        return this.attachVaultPasswords(meta)
-      })(),
+      servicios: (svcRes.data ?? []).map(servicioFromRow),
+      pagos: (pagosRes.data ?? []).map(pagoFromRow),
+      credenciales: this.credencialesFromRows(credRes.data ?? []),
     }
   }
 
   private async loadQueriesFromSupabase(): Promise<QueryItem[]> {
-    const { data, error } = await this.createClient().from('queries').select('*').order('orden')
-    if (error) throw new Error(error.message)
-    return (data ?? []).map((r) => ({
-      id: r.id,
-      motor: r.motor ?? 'Otro',
-      descripcion: r.descripcion,
-      query: r.query ?? '',
-      tags: r.tags ?? [],
-      orden: r.orden ?? 0,
+    const sb = this.createClient()
+    const res = await selectAll(() => sb.from('queries').select('*').order('orden').order('id'))
+    if (res.error) throw new Error(res.error.message)
+    return res.data.map((r) => ({
+      id: String(r.id),
+      motor: (r.motor as string) ?? 'Otro',
+      descripcion: String(r.descripcion ?? ''),
+      query: (r.query as string) ?? '',
+      tags: (r.tags as string[]) ?? [],
+      orden: Number(r.orden ?? 0),
     }))
   }
 }

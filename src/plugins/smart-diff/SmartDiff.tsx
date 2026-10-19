@@ -148,7 +148,7 @@ function OverviewRuler({
     <div
       ref={rulerRef}
       onClick={handleClick}
-      className="w-3.5 shrink-0 relative cursor-pointer bg-sidebar/40 border-x border-hairline select-none"
+      className="w-3.5 shrink-0 relative cursor-pointer fl-pane border-x border-hairline select-none"
       title="Clic para saltar"
     >
       {removedBlocks.map((b, i) => (
@@ -242,7 +242,7 @@ function CodePane({
         </div>
       )}
       {/* Pane header */}
-      <div className="flex items-center gap-2 px-3 h-8 hairline-b bg-sidebar/40 shrink-0">
+      <div className="flex items-center gap-2 px-3 h-9 hairline-b shrink-0">
         <span className="flex items-center gap-1.5 t-footnote font-medium text-on-surface">
           <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
           {isLeft ? 'Original' : 'Modificado'}
@@ -314,10 +314,10 @@ function FileCard({ label, dotColor, info, onClear }: {
     <div className="px-3 py-2.5">
       <div className="flex items-center gap-1.5 mb-1.5">
         <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
-        <span className="t-section">{label}</span>
+        <span className="fl-section px-0!">{label}</span>
       </div>
       {info ? (
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-on-surface/5 group">
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-[9px] bg-surface hairline group">
           {(() => { const Icon = fileIcon(info.name); return <Icon size={14} className="text-on-surface-variant shrink-0" /> })()}
           <div className="min-w-0 flex-1">
             <p className="t-footnote font-medium text-on-surface truncate">{info.name}</p>
@@ -474,7 +474,7 @@ export function SmartDiff(): JSX.Element {
     <div className="flex h-full overflow-hidden">
 
       {/* ── Sidebar (collapsible — same pattern as File Editor) ───────────── */}
-      <aside className={`shrink-0 flex flex-col hairline-r bg-sidebar/40 overflow-hidden transition-[width] duration-200 ${sidebarCollapsed ? 'w-9' : 'w-56'}`}>
+      <aside className={`shrink-0 flex flex-col hairline-r fl-pane overflow-hidden transition-[width] duration-200 ${sidebarCollapsed ? 'w-9' : 'w-56'}`}>
         {sidebarCollapsed ? (
           <button type="button" onClick={() => setSidebarCollapsed(false)} title="Expandir barra lateral" aria-label="Expandir barra lateral"
             className="flex-1 flex flex-col items-center justify-center gap-3 hover:bg-on-surface/5 transition-colors w-full min-h-0 py-4">
@@ -486,8 +486,8 @@ export function SmartDiff(): JSX.Element {
           </button>
         ) : (
           <>
-            <div className="flex items-center justify-between px-3 h-10 hairline-b shrink-0 gap-2">
-              <span className="t-section truncate">Comparar archivos</span>
+            <div className="flex items-center justify-between px-3 h-[42px] hairline-b shrink-0 gap-2">
+              <span className="fl-section px-0! truncate">Archivos</span>
               <button type="button" onClick={() => setSidebarCollapsed(true)} title="Colapsar barra lateral" aria-label="Colapsar barra lateral"
                 className="ui-btn ui-btn-ghost ui-btn-icon shrink-0">
                 <ChevronLeft size={14} />
@@ -504,7 +504,7 @@ export function SmartDiff(): JSX.Element {
                 <>
                   <div className="mx-3 mt-2 hairline-t" />
                   <div className="px-3 py-2.5">
-                    <span className="t-section">Cambios</span>
+                    <span className="fl-section px-0!">Cambios</span>
                     {isIdentical ? (
                       <div className="mt-2 flex items-center gap-1.5 t-footnote text-on-surface">
                         <CheckCircle2 size={13} className="text-success" />
@@ -531,7 +531,7 @@ export function SmartDiff(): JSX.Element {
               {/* Options */}
               <div className="mx-3 mt-2 hairline-t" />
               <div className="px-3 py-2.5 flex flex-col gap-2">
-                <span className="t-section">Opciones</span>
+                <span className="fl-section px-0!">Opciones</span>
                 {([
                   { label: 'Ignorar espacios', value: ignoreWs,   set: setIgnoreWs },
                   { label: 'Desplazamiento sincronizado', value: syncScroll, set: setSyncScroll },
@@ -565,7 +565,7 @@ export function SmartDiff(): JSX.Element {
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* Toolbar */}
-        <div className="px-3 h-10 bg-surface hairline-b flex items-center gap-2 shrink-0">
+        <div className="fl-toolbar bg-surface shrink-0">
           <button onClick={runDiff} disabled={!original.trim() || !modified.trim()}
             className="ui-btn ui-btn-primary ui-btn-sm">
             <Diff size={14} />
@@ -619,7 +619,7 @@ export function SmartDiff(): JSX.Element {
                     <div className="flex flex-col">
                       {FONT_FAMILIES.map((f) => (
                         <button key={f} onClick={() => updatePrefs({ fontFamily: f })}
-                          className={`text-left px-2.5 py-1 rounded-md t-footnote transition-colors ${prefs.fontFamily === f ? 'bg-primary text-on-primary' : 'text-on-surface hover:bg-on-surface/6'}`}
+                          className={`text-left px-2.5 py-1 rounded-md t-footnote transition-colors ${prefs.fontFamily === f ? 'bg-on-surface/[0.07] text-on-surface font-medium' : 'text-on-surface hover:bg-on-surface/5'}`}
                           style={{ fontFamily: f }}>
                           {f}
                         </button>

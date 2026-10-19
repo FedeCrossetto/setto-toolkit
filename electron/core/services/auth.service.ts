@@ -9,7 +9,9 @@ const GOOGLE_USERINFO   = 'https://www.googleapis.com/oauth2/v3/userinfo'
 const GOOGLE_REVOKE_URL = 'https://oauth2.googleapis.com/revoke'
 
 // Injected at build time from .env — never appear in source code.
-// See electron.vite.config.ts → main.define
+// See electron.vite.config.ts → main.define. For a Google "Desktop app" OAuth client
+// the secret is NOT confidential (Google documents it as such for installed apps) and
+// the token endpoint still requires it alongside PKCE; PKCE is what protects the flow.
 declare const __GOOGLE_CLIENT_ID__:     string
 declare const __GOOGLE_CLIENT_SECRET__: string
 
@@ -155,7 +157,8 @@ export class AuthService {
               body: new URLSearchParams({
                 code,
                 client_id:     clientId,
-                client_secret: clientSecret,
+                // Omitted when not configured (PKCE-only clients); Desktop clients need it.
+                ...(clientSecret ? { client_secret: clientSecret } : {}),
                 redirect_uri:  redirectUri,
                 grant_type:    'authorization_code',
                 code_verifier: codeVerifier,

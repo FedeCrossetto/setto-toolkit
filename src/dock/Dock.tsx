@@ -11,12 +11,14 @@ import { normalize } from '../core/search'
 import { KIND_LABEL, actionsFor } from '../core/clip-actions'
 import { findTicket, transformsFor, type ClipKind, type ClipView } from '../core/clip-utils'
 import { thumbUrl, type CaptureLite, type CaptureQueryResult } from '../plugins/captures/types'
+import { splitHighlights, type ClipSearchField, type ClipSearchItem, type ClipSearchResult } from '../plugins/captures/clip-search'
 import { hasVariables, stripDataUrls } from '../plugins/snippets/template'
 import { recentSnippets } from '../plugins/snippets/search'
 import type { Snippet } from '../plugins/snippets/types'
 import type { Credential, CredentialsListResult } from '../plugins/credentials/types'
 import { getMonthSummary } from '../plugins/gastos/summary'
 import { classifyContext, isSqlSnippet } from './context'
+import { Bloc, type BlocHandle } from './Bloc'
 
 /**
  * Barra flotante al borde (ventana `#dock`, ver electron/core/dock.ts).
@@ -28,12 +30,13 @@ import { classifyContext, isSqlSnippet } from './context'
  * La ventana es transparente y más grande que lo visible (`pad` en `dock:state`):
  * la sombra tiene que caber entera adentro, si no se ve un rectángulo gris.
  *
- * Panel: pestañas (Copiado · Capturas · Snippets · Tickets · Claves), tarjetas con
+ * Panel: pestañas (Copiado · Capturas · Snippets · Tickets · Claves · Bloc), tarjetas con
  * el tipo en color, vista previa abajo (al pasar el mouse o con las flechas) y
  * teclado completo cuando se abre con el atajo: ↑↓ elegir, Enter pega, 1–9 pega
  * directo, Tab cambia de pestaña, escribir busca, Esc cierra. En Claves, Enter
  * copia la contraseña (main la borra del portapapeles a los 30 s) y Shift+Enter
- * el usuario; las contraseñas nunca llegan al renderer.
+ * el usuario; las contraseñas nunca llegan al renderer. Bloc es un anotador
+ * (nota `Bloc.md`, ver ./Bloc.tsx): con esa pestaña activa, escribir va al texto.
  *
  * Animaciones: sólo transform/opacity. Main agranda la ventana antes de avisar
  * que abre, y al plegar espera ~240 ms para que el panel alcance a salir.
@@ -44,16 +47,19 @@ interface DockState {
   expanded: boolean; pinned: boolean; shortcut: string | null; side: Side; pad: Pad
   /** App externa que estaba adelante al abrir (para sugerir). */
   context?: { app: string; title: string } | null
+  /** Pestaña pedida al abrir (`dock:open`, p. ej. Ctrl+K → Bloc). */
+  tab?: string | null
 }
 const DEFAULT_PAD: Pad = { top: 14, bottom: 30, edge: 10, outer: 22 }
 
-type TabId = 'clips' | 'caps' | 'snippets' | 'tickets' | 'keys'
+type TabId = 'clips' | 'caps' | 'snippets' | 'tickets' | 'keys' | 'bloc'
 const TABS: { id: TabId; label: string }[] = [
   { id: 'clips', label: 'Copiado' },
   { id: 'caps', label: 'Capturas' },
   { id: 'snippets', label: 'Snippets' },
   { id: 'tickets', label: 'Tickets' },
   { id: 'keys', label: 'Claves' },
+  { id: 'bloc', label: 'Bloc' },
 ]
 const TAB_KEY = 'dock:tab'
 
@@ -76,11 +82,11 @@ const itemVariants: Variants = {
 }
 
 /** Sombras que caben en el aire transparente de la ventana (ver PAD / HANDLE en main). */
-// Sobre fondos blancos el panel no puede ser blanco: en claro usa el gris lavanda de la app
-// (lo de adentro queda blanco y se despega solo), anillo fino y sombra en capas.
-const PANEL_SURFACE = 'bg-background dark:bg-surface border border-black/13 dark:border-hairline-strong'
-const PANEL_SHADOW = 'shadow-[0_1px_2px_rgb(0_0_0/0.08),0_4px_10px_-2px_rgb(0_0_0/0.08),0_18px_36px_-14px_rgb(0_0_0/0.32)] dark:shadow-[0_1px_2px_rgb(0_0_0/0.4),0_12px_28px_-14px_rgb(0_0_0/0.6)]'
-const TAB_SURFACE = 'bg-background dark:bg-surface border border-black/[0.14] dark:border-hairline-strong'
+// Estilo "líneas finas": panel blanco con un filo fino (un poco más marcado que el hairline
+// de la app para que se despegue sobre fondos blancos) y una sombra larga y suave.
+const PANEL_SURFACE = 'bg-surface border border-black/[0.11] dark:border-white/[0.09]'
+const PANEL_SHADOW = 'shadow-[0_1px_2px_rgb(0_0_0/0.05),0_12px_32px_-12px_rgb(0_0_0/0.22)] dark:shadow-[0_1px_2px_rgb(0_0_0/0.4),0_12px_28px_-14px_rgb(0_0_0/0.6)]'
+const TAB_SURFACE = 'bg-surface border border-black/[0.12] dark:border-white/[0.10]'
 const TAB_SHADOW = 'shadow-[0_1px_2px_rgb(0_0_0/0.10),0_6px_16px_-6px_rgb(0_0_0/0.32)] dark:shadow-[0_1px_2px_rgb(0_0_0/0.45),0_6px_16px_-6px_rgb(0_0_0/0.7)]'
 
 /** Ícono y color de cada tipo de copiado (colores de datos del tema: chart-N). */
@@ -155,6 +161,29 @@ function fallbackTop(r: CredentialsListResult): CredItem[] {
     .map((c) => ({ ...c, lastUsedAt: r.usedAt?.[c.id] }))
 }
 
+const GASTOS_EVERY_MS = 60_000
+const GASTOS_TIMEOUT_MS = 3_000
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('timeout')), ms)
+    p.then((v) => { clearTimeout(t); resolve(v) }, (e) => { clearTimeout(t); reject(e) })
+  })
+}
+
+/** Pagos del mes sin marcar: `gastos:summary(mes)` (liviano, en main) o, si no existe, el resumen completo. */
+async function pendingPayments(): Promise<number> {
+  try {
+    const d = new Date()
+    const mes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    const r = await window.api.invoke<{ summary?: { pendientesCount?: number } | null } | null>('gastos:summary', mes)
+    return r?.summary?.pendientesCount ?? 0
+  } catch (e) {
+    if (!/IPC blocked|No handler|unknown channel/i.test(cleanErr(e))) throw e
+  }
+  return (await getMonthSummary())?.pendientesCount ?? 0
+}
+
 /** Atajo de la franja "Para <app>": un clic pega o abre. */
 interface Suggestion { key: string; label: string; icon: LucideIcon; hint?: string; run: () => void }
 
@@ -165,6 +194,15 @@ type Item =
   | { type: 'snippet'; key: string; snippet: Snippet; content: string; vars: boolean }
   | { type: 'ticket'; key: string; ticket: string; caps: number; copied: boolean }
   | { type: 'cred'; key: string; cred: CredItem }
+  | { type: 'hit'; key: string; hit: ClipSearchItem }
+
+/** Buscando: qué mostrar de la búsqueda unificada (clipboard:search). */
+type Scope = 'all' | 'text' | 'capture'
+const SCOPES: { id: Scope; label: string }[] = [{ id: 'all', label: 'Todo' }, { id: 'text', label: 'Texto' }, { id: 'capture', label: 'Capturas' }]
+const SEARCH_DEBOUNCE_MS = 160
+const FIELD_LABEL: Record<ClipSearchField, string> = {
+  text: 'Copiado', ocr: 'Texto de la imagen', note: 'Nota', title: 'Título', ticket: 'Ticket', app: 'App', window: 'Ventana',
+}
 
 export function Dock(): JSX.Element {
   const [st, setSt] = useState<DockState>({ expanded: false, pinned: false, shortcut: null, side: 'right', pad: DEFAULT_PAD })
@@ -176,11 +214,14 @@ export function Dock(): JSX.Element {
   const [allCreds, setAllCreds] = useState<CredItem[]>([])
   const [locked, setLocked] = useState(false)
   const [q, setQ] = useState('')
+  /** Resultados de clipboard:search (null: sin buscar o main viejo → filtro local). */
+  const [hits, setHits] = useState<ClipSearchItem[] | null>(null)
+  const [scope, setScope] = useState<Scope>('all')
   const [tab, setTabState] = useState<TabId>(readTab)
   const [tabDir, setTabDir] = useState(1)
   const [active, setActive] = useState(0)
   const [previewKey, setPreviewKey] = useState<string | null>(null)
-  const [flash, setFlash] = useState<string | null>(null)
+  const [flash, setFlash] = useState<{ text: string; undo?: () => void } | null>(null)
   const [pastedKey, setPastedKey] = useState<string | null>(null)
   const [unseen, setUnseen] = useState(0)
   const [bumpKey, setBumpKey] = useState(0)
@@ -192,12 +233,14 @@ export function Dock(): JSX.Element {
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const blocRef = useRef<BlocHandle>(null)
 
-  const say = (m: string, ms = 2200): void => {
-    setFlash(m)
+  /** Aviso en el pie; con `undo` muestra "Deshacer". */
+  const say = useCallback((m: string, ms = 2200, undo?: () => void): void => {
+    setFlash({ text: m, undo })
     if (flashTimer.current) clearTimeout(flashTimer.current)
     flashTimer.current = setTimeout(() => setFlash(null), ms)
-  }
+  }, [])
   const markPasted = (key: string): void => { setPastedKey(key); setTimeout(() => setPastedKey((v) => (v === key ? null : v)), 900) }
 
   // La pestaña se dibuja recién cuando main achicó la ventana (si no, aparecería en medio del panel).
@@ -237,29 +280,58 @@ export function Dock(): JSX.Element {
     } catch { /* sin PIN */ }
   }, [])
 
+  /** Pagos pendientes (Gastos): a lo sumo cada minuto y con timeout, nunca bloquea lo demás. */
+  const gastosAt = useRef(0)
+  const loadPending = useCallback(async () => {
+    if (Date.now() - gastosAt.current < GASTOS_EVERY_MS) return
+    gastosAt.current = Date.now()
+    const n = await withTimeout(pendingPayments(), GASTOS_TIMEOUT_MS).catch(() => null)
+    if (n !== null) setPending(n)
+  }, [])
+
+  // Todo en paralelo: Claves no espera a Gastos (que puede ir a Supabase) ni a nadie.
   const load = useCallback(async () => {
-    try { setClips(await window.api.invoke<ClipView[]>('clipboard:history')) } catch { setClips([]) }
-    try {
-      const r = await window.api.invoke<CaptureQueryResult>('captures:query', { limit: 12 })
-      setCaps(r.items)
-      setCapTickets(r.facets.tickets.slice(0, 12))
-    } catch { setCaps([]) }
-    try { setSnippets((await window.api.invoke<{ snippets: Snippet[] }>('snippets:load')).snippets) } catch { setSnippets([]) }
-    try { setPending((await getMonthSummary())?.pendientesCount ?? 0) } catch { setPending(0) }
-    await loadCreds()
-  }, [loadCreds])
+    await Promise.allSettled([
+      loadCreds(),
+      window.api.invoke<ClipView[]>('clipboard:history').then(setClips, () => setClips([])),
+      window.api.invoke<CaptureQueryResult>('captures:query', { limit: 12 }).then((r) => {
+        setCaps(r.items)
+        setCapTickets(r.facets.tickets.slice(0, 12))
+      }, () => setCaps([])),
+      window.api.invoke<{ snippets: Snippet[] }>('snippets:load').then((r) => setSnippets(r.snippets), () => setSnippets([])),
+      loadPending(),
+    ])
+  }, [loadCreds, loadPending])
 
   useEffect(() => {
     const apply = (s: Partial<DockState>): void => setSt((prev) => ({ ...prev, ...s, pad: s.pad ?? prev.pad, side: s.side ?? prev.side }))
-    void window.api.invoke<DockState>('dock:state').then(apply).catch(() => undefined)
+    void window.api.invoke<DockState>('dock:state').then((s) => {
+      apply(s)
+      if (s.tab && TABS.some((t) => t.id === s.tab)) showTab(s.tab as TabId)
+    }).catch(() => undefined)
     return window.api.on('dock:state', (s) => {
       const next = s as DockState
       apply(next)
+      if (next.tab && TABS.some((t) => t.id === next.tab)) showTab(next.tab as TabId)
       if (next.expanded) { syncTheme(); setUnseen(0); setActive(0); void load() } else {
         setQ(''); setPreviewKey(null)
       }
     })
   }, [load])
+
+  // Buscar en todo lo copiado y en las capturas (incluye el texto de adentro, por OCR): en main.
+  useEffect(() => {
+    const query = q.trim()
+    if (!query || !st.expanded) { setHits(null); return }
+    let alive = true
+    const t = setTimeout(() => {
+      try {
+        window.api.invoke<ClipSearchResult>('clipboard:search', query, { limit: 40 })
+          .then((r) => { if (alive) setHits(r.items) }, () => { if (alive) setHits(null) })
+      } catch { setHits(null) }
+    }, SEARCH_DEBOUNCE_MS)
+    return () => { alive = false; clearTimeout(t) }
+  }, [q, st.expanded])
 
   // Mientras está abierta, refrescar (lo copiado cambia seguido).
   useEffect(() => {
@@ -267,6 +339,14 @@ export function Dock(): JSX.Element {
     const t = setInterval(() => { void load() }, 2500)
     return () => clearInterval(t)
   }, [st.expanded, load])
+
+  /** Pestaña pedida desde afuera (sin animación de dirección). */
+  function showTab(next: TabId): void {
+    setTabState(next)
+    setActive(0)
+    setPreviewKey(null)
+    try { localStorage.setItem(TAB_KEY, next) } catch { /* nada */ }
+  }
 
   const setTab = (next: TabId): void => {
     const from = TABS.findIndex((t) => t.id === tab)
@@ -289,6 +369,8 @@ export function Dock(): JSX.Element {
 
   // ── Claves: copiar sin que la contraseña pase por acá ──────────────────────
   const openCredential = (c: CredItem): void => openMain({ pluginId: 'credentials', action: 'open', payload: c.id })
+  /** Bloqueadas: abre Claves, que pide el PIN y copia esa contraseña. */
+  const openToCopy = (c: CredItem): void => openMain({ pluginId: 'credentials', action: 'copy-password', payload: c.id })
   const copyUser = async (c: CredItem, key: string): Promise<void> => {
     if (!c.usuario) { say('Esta clave no tiene usuario'); return }
     try {
@@ -302,11 +384,11 @@ export function Dock(): JSX.Element {
     } catch (e) { say(cleanErr(e)) }
   }
   const copyPassword = async (c: CredItem, key: string): Promise<void> => {
-    if (locked) { openCredential(c); return }
+    if (locked) { openToCopy(c); return }
     if (!c.hasPassword) { await copyUser(c, key); return }
     try {
       const r = await window.api.invoke<CopyResult>('credentials:copy-password', c.id)
-      if (r.ok) { markPasted(key); say('Contraseña copiada · se borra en 30 s', 3200) } else if (r.locked) { setLocked(true); say('Claves bloqueadas: abrí Setto para desbloquear', 3200) } else say(r.error ?? 'No se pudo copiar')
+      if (r.ok) { markPasted(key); say('Contraseña copiada · se borra en 30 s', 3200) } else if (r.locked) { setLocked(true); openToCopy(c) } else say(r.error ?? 'No se pudo copiar')
       void loadCreds()
     } catch (e) { say(cleanErr(e)) }
   }
@@ -316,11 +398,19 @@ export function Dock(): JSX.Element {
   const match = (s: string): boolean => !words.length || words.every((w) => normalize(s).includes(w))
 
   const lists = useMemo(() => {
-    const clipList = clips.filter((c) => !c.sensitive || !words.length).filter((c) => match(`${c.sensitive ? '' : c.text} ${c.app ?? ''} ${KIND_LABEL[c.kind]}`))
-    const clipItems: Item[] = [...clipList.filter((c) => c.pinned), ...clipList.filter((c) => !c.pinned)].slice(0, 30)
-      .map((c) => ({ type: 'clip', key: `c:${c.id}`, clip: c }))
-    const capItems: Item[] = caps.filter((c) => match(`${c.title} ${c.ticket} ${c.app ?? ''}`))
-      .map((c) => ({ type: 'cap', key: `i:${c.id}`, cap: c }))
+    let clipItems: Item[]
+    let capItems: Item[]
+    if (words.length && hits) {
+      const hitItem = (h: ClipSearchItem): Item => ({ type: 'hit', key: `h:${h.kind}:${h.id}`, hit: h })
+      clipItems = hits.filter((h) => scope === 'all' || h.kind === scope).map(hitItem)
+      capItems = hits.filter((h) => h.kind === 'capture').map(hitItem)
+    } else {
+      const clipList = clips.filter((c) => !c.sensitive || !words.length).filter((c) => match(`${c.sensitive ? '' : c.text} ${c.app ?? ''} ${KIND_LABEL[c.kind]}`))
+      clipItems = [...clipList.filter((c) => c.pinned), ...clipList.filter((c) => !c.pinned)].slice(0, 30)
+        .map((c) => ({ type: 'clip', key: `c:${c.id}`, clip: c }))
+      capItems = caps.filter((c) => match(`${c.title} ${c.ticket} ${c.app ?? ''}`))
+        .map((c) => ({ type: 'cap', key: `i:${c.id}`, cap: c }))
+    }
     const snipBase = words.length ? snippets.filter((s) => match(`${s.title} ${s.tags.join(' ')} ${stripDataUrls(s.content)}`)) : recentSnippets(snippets, 20)
     const snipItems: Item[] = (snipBase.length || words.length ? snipBase : snippets).slice(0, 20).map((s) => {
       const content = stripDataUrls(s.content)
@@ -335,8 +425,8 @@ export function Dock(): JSX.Element {
     // Claves: sin buscar, las más usadas; buscando, todas (nombre, usuario, sitio, categoría).
     const credBase = words.length ? allCreds.filter((c) => match(`${c.nombre} ${c.usuario} ${c.url ?? ''} ${c.categoria ?? ''}`)).slice(0, 20) : topCreds
     const credItems: Item[] = credBase.map((c) => ({ type: 'cred', key: `k:${c.id}`, cred: c }))
-    return { clips: clipItems, caps: capItems, snippets: snipItems, tickets: ticketItems, keys: credItems } satisfies Record<TabId, Item[]>
-  }, [clips, caps, capTickets, snippets, topCreds, allCreds, q])
+    return { clips: clipItems, caps: capItems, snippets: snipItems, tickets: ticketItems, keys: credItems, bloc: [] } satisfies Record<TabId, Item[]>
+  }, [clips, caps, capTickets, snippets, topCreds, allCreds, q, hits, scope])
 
   // ── Sugerencias según la app de adelante ─────────────────────────────────
   const ctx = useMemo(() => classifyContext(st.context?.app, st.context?.title), [st.context])
@@ -382,7 +472,9 @@ export function Dock(): JSX.Element {
 
   const items = lists[tab]
   const safeActive = Math.min(active, Math.max(0, items.length - 1))
-  const preview = previewKey ? items.find((i) => i.key === previewKey) ?? null : null
+  const previewRaw = previewKey ? items.find((i) => i.key === previewKey) ?? null : null
+  // Un resultado de búsqueda se previsualiza como el copiado o la captura que es.
+  const preview: Item | null = previewRaw?.type === 'hit' ? hitAsItem(previewRaw.hit, clips) : previewRaw
 
   // Buscando: si la pestaña actual no tiene resultados y otra sí, saltar a esa.
   useEffect(() => {
@@ -391,9 +483,23 @@ export function Dock(): JSX.Element {
     if (other) setTab(other.id)
   }, [q])
 
-  const activate = (item: Item | undefined, alt = false): void => {
+  /** Captura → su texto (OCR) al portapapeles. */
+  const copyOcr = (id: string, key?: string): void => {
+    try {
+      void window.api.invoke<{ ok: boolean; reason?: string }>('captures:copy-ocr', id).then((r) => {
+        if (r.ok) { if (key) markPasted(key); say('Texto de la captura copiado') } else say(r.reason ?? 'No se pudo leer')
+      }, (e: unknown) => say(cleanErr(e)))
+    } catch (e) { say(cleanErr(e)) }
+  }
+
+  const activate = (item: Item | undefined, alt = false, altKey = false): void => {
     if (!item) return
     switch (item.type) {
+      case 'hit':
+        if (item.hit.kind === 'text') void paste({ clipId: item.hit.id }, item.key)
+        else if (altKey) copyOcr(item.hit.id, item.key)
+        else void window.api.invoke('captures:copy', item.hit.id).then(() => paste({ current: true }, item.key))
+        break
       case 'clip': void paste({ clipId: item.clip.id }, item.key); break
       case 'cap': void window.api.invoke('captures:copy', item.cap.id).then(() => paste({ current: true }, item.key)); break
       case 'snippet':
@@ -434,6 +540,21 @@ export function Dock(): JSX.Element {
     const onKey = (e: KeyboardEvent): void => {
       const inInput = document.activeElement === inputRef.current
       const plain = !e.ctrlKey && !e.altKey && !e.metaKey
+      // Bloc: escribiendo en el texto sólo cuentan Esc (cierra) y Tab (pestaña); el resto es del textarea.
+      if (tab === 'bloc' && !inInput) {
+        const inBloc = document.activeElement instanceof HTMLTextAreaElement
+        if (e.key === 'Escape') { e.preventDefault(); if (q) setQ(''); else collapse(); return }
+        if (e.key === 'Tab') {
+          e.preventDefault()
+          setTab(TABS[e.shiftKey ? TABS.length - 2 : 0]!.id)
+          return
+        }
+        if (!inBloc && plain && (e.key.length === 1 || e.key === 'Enter')) {
+          e.preventDefault()
+          blocRef.current?.type(e.key === 'Enter' ? '\n' : e.key)
+        }
+        return
+      }
       if (e.key === 'Escape') {
         e.preventDefault()
         if (previewKey) setPreviewKey(null)
@@ -455,7 +576,7 @@ export function Dock(): JSX.Element {
         setPreviewKey(it && it.type !== 'cred' ? it.key : null)
         return
       }
-      if (e.key === 'Enter') { e.preventDefault(); activate(items[safeActive], e.shiftKey); return }
+      if (e.key === 'Enter') { e.preventDefault(); activate(items[safeActive], e.shiftKey, e.altKey); return }
       if (!inInput && plain && /^[1-9]$/.test(e.key)) { e.preventDefault(); activate(items[Number(e.key) - 1]); return }
       const cur = items[safeActive]
       if (cur?.type === 'clip' && e.ctrlKey && e.key.toLowerCase() === 'p') { e.preventDefault(); void togglePin(cur.clip); return }
@@ -473,8 +594,12 @@ export function Dock(): JSX.Element {
 
   const { side, pad } = st
   const left = side === 'left'
-  const hint = tab === 'keys'
+  const hint = tab === 'bloc'
+    ? <>Se guarda solo · <Kbd>Esc</Kbd> cierra · <Kbd>Tab</Kbd> pestaña</>
+    : tab === 'keys'
     ? <><Kbd>Enter</Kbd> copia la contraseña · <Kbd>⇧ Enter</Kbd> el usuario</>
+    : words.length && hits && (tab === 'clips' || tab === 'caps')
+    ? <><Kbd>Enter</Kbd> pega · <Kbd>Alt Enter</Kbd> texto de la captura · <Kbd>Tab</Kbd> pestaña</>
     : tab === 'tickets'
       ? <><Kbd>↑↓</Kbd> elegir · <Kbd>Enter</Kbd> ver capturas · <Kbd>Tab</Kbd> pestaña</>
       : <><Kbd>↑↓</Kbd> elegir · <Kbd>Enter</Kbd> pega · <Kbd>1–9</Kbd> directo · <Kbd>Tab</Kbd> pestaña</>
@@ -522,10 +647,10 @@ export function Dock(): JSX.Element {
 
               {/* Buscador */}
               <div className="relative px-3.5 shrink-0">
-                <Search size={14} className="absolute left-6 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
+                <Search size={14} className="absolute left-[26px] top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
                 <input ref={inputRef} value={q} onChange={(e) => { setQ(e.target.value); setActive(0) }} placeholder="Buscar en todo…"
                   onFocus={() => window.api.send('dock:want-focus')}
-                  className="w-full h-9 pl-8 pr-8 rounded-[10px] bg-on-surface/5 border border-transparent focus:bg-surface focus:border-primary/40 focus:shadow-[0_0_0_3px_rgb(var(--c-primary)/0.12)] outline-hidden text-[13px] text-on-surface placeholder:text-on-surface-variant/70 transition-[background-color,border-color,box-shadow] duration-200" />
+                  className="w-full h-9 pl-[34px] pr-8 rounded-full bg-on-surface/[0.025] border border-hairline-strong focus:bg-surface focus:border-primary/40 focus:shadow-[0_0_0_3px_rgb(var(--c-primary)/0.12)] outline-hidden text-[13px] text-on-surface placeholder:text-on-surface-variant/70 transition-[background-color,border-color,box-shadow] duration-200" />
                 {q && (
                   <button type="button" title="Limpiar" onClick={() => { setQ(''); inputRef.current?.focus() }}
                     className="absolute right-5 top-1/2 -translate-y-1/2 grid place-items-center w-5 h-5 rounded-full text-on-surface-variant hover:bg-on-surface/8">
@@ -542,7 +667,7 @@ export function Dock(): JSX.Element {
                   void window.api.invoke<{ ok: boolean; reason?: string }>('clipboard:ocr-image').then((r) => { say(r.ok ? 'Texto copiado: pegalo con Ctrl+V' : r.reason ?? 'No se pudo leer'); void load() })
                 }} />
                 <Quick icon={ClipboardText} label="Abrir Portapapeles" onClick={() => openMain({ pluginId: 'captures', action: 'text' })} />
-                <Quick icon={KeyRound} label="Abrir Credenciales" onClick={() => openMain({ pluginId: 'credentials' })} />
+                <Quick icon={KeyRound} label="Abrir Claves" onClick={() => openMain({ pluginId: 'credentials' })} />
                 <Quick icon={Code2} label="Abrir Snippets" onClick={() => openMain({ pluginId: 'snippets' })} />
                 <Quick icon={Toolbox} label="Abrir Utilidades" onClick={() => openMain({ pluginId: 'utilities' })} />
               </div>
@@ -554,19 +679,19 @@ export function Dock(): JSX.Element {
                     initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.24, ease: EASE_OUT }}>
                     {suggestions.length > 0 && ctx && (
-                      <div className="text-[10.5px] font-semibold uppercase tracking-wider text-on-surface-variant/70 mb-1.5">Para {ctx.label}</div>
+                      <div className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-on-surface-variant/80 mb-1.5">Para {ctx.label}</div>
                     )}
                     <div className="flex flex-wrap gap-1.5">
                       {pending > 0 && (
                         <button type="button" onClick={() => openMain({ pluginId: 'gastos' })}
-                          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-warning/12 text-warning text-[12px] font-medium hover:bg-warning/20 transition-colors">
+                          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border border-warning/30 text-warning text-[12px] font-medium hover:bg-warning/8 transition-colors">
                           <Wallet size={12} /> {pending} pago{pending === 1 ? '' : 's'} pendiente{pending === 1 ? '' : 's'}
                         </button>
                       )}
                       {suggestions.map((sg) => (
                         <button key={sg.key} type="button" onClick={sg.run} title={sg.hint}
-                          className={`inline-flex items-center gap-1.5 h-7 max-w-full px-2.5 rounded-full text-[12px] transition-colors ${
-                            pastedKey === sg.key ? 'bg-primary/15 text-primary' : 'bg-on-surface/5 text-on-surface hover:bg-on-surface/9'}`}>
+                          className={`inline-flex items-center gap-1.5 h-7 max-w-full px-2.5 rounded-full border text-[12px] transition-colors ${
+                            pastedKey === sg.key ? 'border-primary/30 bg-primary/8 text-primary' : 'border-hairline-strong text-on-surface hover:bg-on-surface/[0.04]'}`}>
                           {pastedKey === sg.key ? <Check size={12} /> : <sg.icon size={12} className="text-on-surface-variant shrink-0" />}
                           <span className="truncate">{sg.label}</span>
                         </button>
@@ -576,33 +701,52 @@ export function Dock(): JSX.Element {
                 )}
               </AnimatePresence>
 
-              {/* Pestañas */}
-              <div className="mx-3.5 mt-2.5 p-[3px] rounded-[10px] bg-on-surface/5 grid grid-cols-5 shrink-0">
+              {/* Pestañas: texto tranquilo con una raya fina debajo de la activa */}
+              <div className="mx-3.5 mt-2.5 flex items-stretch hairline-b shrink-0">
                 {TABS.map((t) => {
                   const n = lists[t.id].length
                   const on = tab === t.id
                   return (
-                    <button key={t.id} type="button" onClick={() => setTab(t.id)} title={`${t.label} (${n})`}
-                      className={`relative h-7 rounded-[8px] text-[12px] font-medium transition-colors duration-200 ${on ? 'text-on-surface' : 'text-on-surface-variant hover:text-on-surface'}`}>
-                      {on && <motion.span layoutId="dock-tab" className="absolute inset-0 z-0 rounded-[8px] bg-surface shadow-sm" transition={{ duration: 0.32, ease: EASE_OUT }} />}
-                      <span className="relative z-10 inline-flex items-center gap-1">
+                    <button key={t.id} type="button" onClick={() => setTab(t.id)} title={t.id === 'bloc' ? 'Bloc: anotador rápido' : `${t.label} (${n})`}
+                      className={`relative flex-1 h-8 flex items-center justify-center text-[12px] transition-colors duration-200 ${on ? 'text-on-surface font-medium' : 'text-on-surface-variant hover:text-on-surface'}`}>
+                      <span className="inline-flex items-center gap-1">
+                        {t.id === 'bloc' && <NotebookPen size={13} />}
                         {t.label}
-                        {n > 0 && (
-                          <span className={`text-[10px] tabular-nums ${words.length ? 'text-primary font-semibold' : 'text-on-surface-variant/60'}`}>{n}</span>
-                        )}
+                        {n > 0 && words.length > 0 && <span className="text-[10px] tabular-nums text-primary font-semibold">{n}</span>}
                       </span>
+                      {on && <motion.span layoutId="dock-tab" className="absolute left-1.5 right-1.5 -bottom-px h-[1.5px] rounded-full bg-on-surface" transition={{ duration: 0.32, ease: EASE_OUT }} />}
                     </button>
                   )
                 })}
               </div>
 
+              {/* Buscando: filtrar la búsqueda unificada (copiado + capturas por su texto) */}
+              {words.length > 0 && hits && tab === 'clips' && (
+                <div className="flex items-center gap-1 px-3.5 pt-2 shrink-0">
+                  {SCOPES.map((sc) => {
+                    const n = sc.id === 'all' ? hits.length : hits.filter((h) => h.kind === sc.id).length
+                    const on = scope === sc.id
+                    return (
+                      <button key={sc.id} type="button" aria-pressed={on} onClick={() => { setScope(sc.id); setActive(0) }}
+                        className={`inline-flex items-center gap-1 h-6 px-2.5 rounded-full border text-[11px] transition-colors ${
+                          on ? 'border-primary/30 bg-primary/8 text-primary font-medium' : 'border-hairline-strong text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.04]'}`}>
+                        {sc.label}<span className="tabular-nums opacity-70">{n}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
               {/* Lista + vista previa */}
               <div className="relative flex-1 min-h-0 flex flex-col" onMouseLeave={leaveList}>
-                <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2 pt-2 pb-2">
+                <div ref={listRef} className={`flex-1 min-h-0 overflow-x-hidden px-2 pt-2 pb-2 ${tab === 'bloc' ? 'flex flex-col overflow-y-hidden' : 'overflow-y-auto'}`}>
                   <AnimatePresence mode="wait" initial={false}>
-                    <motion.div key={tab}
+                    <motion.div key={tab} className={tab === 'bloc' ? 'flex-1 min-h-0' : undefined}
                       initial={{ opacity: 0, x: tabDir * 12 }} animate={{ opacity: 1, x: 0, transition: { duration: 0.24, ease: EASE_OUT } }}
                       exit={{ opacity: 0, x: tabDir * -12, transition: { duration: 0.12, ease: EASE_IN } }}>
+                      {tab === 'bloc' && (
+                        <Bloc ref={blocRef} expanded={st.expanded} say={say} openMain={openMain} />
+                      )}
                       {tab === 'keys' && locked && (
                         <button type="button" onClick={() => openMain({ pluginId: 'credentials' })}
                           className="w-[calc(100%-8px)] mx-1 mb-1.5 flex items-center gap-2.5 px-3 py-2.5 rounded-[12px] bg-warning/10 text-left hover:bg-warning/15 transition-colors">
@@ -614,12 +758,15 @@ export function Dock(): JSX.Element {
                           <ArrowUpRight size={14} className="text-on-surface-variant" />
                         </button>
                       )}
-                      {items.length === 0 ? <Empty tab={tab} searching={words.length > 0} /> : (
+                      {tab === 'bloc' ? null : items.length === 0 ? <Empty tab={tab} searching={words.length > 0} /> : (
                         <motion.div variants={listVariants} initial="hidden" animate="show"
-                          className={tab === 'caps' ? 'grid grid-cols-2 gap-2 px-1' : 'flex flex-col gap-px'}>
+                          className={tab === 'caps' && !(words.length && hits) ? 'grid grid-cols-2 gap-2 px-1' : 'flex flex-col gap-px'}>
                           {items.map((item, i) => (
                             <motion.div key={item.key} variants={itemVariants} data-idx={i} onMouseEnter={() => hoverItem(i, item)}>
-                              {item.type === 'cred' ? (
+                              {item.type === 'hit' ? (
+                                <HitRow hit={item.hit} index={i} active={i === safeActive} done={pastedKey === item.key}
+                                  onActivate={() => activate(item)} onCopyOcr={() => copyOcr(item.hit.id, item.key)} />
+                              ) : item.type === 'cred' ? (
                                 <CredRow cred={item.cred} index={i} active={i === safeActive} done={pastedKey === item.key} locked={locked}
                                   onCopyPassword={() => activate(item)} onCopyUser={() => activate(item, true)} onOpen={() => openCredential(item.cred)} />
                               ) : (
@@ -641,6 +788,7 @@ export function Dock(): JSX.Element {
                     <Preview key="preview" item={preview}
                       onPaste={(text) => (text === undefined ? activate(preview) : void paste({ text }, preview.key))}
                       onOpen={openMain} onError={say}
+                      onCopyOcr={preview.type === 'cap' ? () => copyOcr(preview.cap.id) : undefined}
                       onClose={() => setPreviewKey(null)} />
                   )}
                 </AnimatePresence>
@@ -649,9 +797,16 @@ export function Dock(): JSX.Element {
               {/* Pie: avisos o ayuda de teclado */}
               <div className="px-3.5 h-9 flex items-center text-[11px] text-on-surface-variant shrink-0 hairline-t overflow-hidden">
                 <AnimatePresence mode="wait" initial={false}>
-                  <motion.span key={flash ?? `hint-${tab}`} className={`truncate inline-flex items-center gap-1.5 ${flash ? 'text-on-surface font-medium' : ''}`}
+                  <motion.span key={flash?.text ?? `hint-${tab}`} className={`flex-1 min-w-0 truncate inline-flex items-center gap-1.5 ${flash ? 'text-on-surface font-medium' : ''}`}
                     initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.16 }}>
-                    {flash ? <><Check size={12} className="text-primary shrink-0" />{flash}</> : <span className="truncate">{hint}</span>}
+                    {flash ? <><Check size={12} className="text-primary shrink-0" /><span className="truncate">{flash.text}</span>
+                      {flash.undo && (
+                        <button type="button" onClick={() => { const u = flash.undo; setFlash(null); u?.() }}
+                          className="ml-auto shrink-0 h-6 px-2.5 rounded-full border border-hairline-strong text-[11px] font-medium text-primary hover:bg-primary/8 transition-colors">
+                          Deshacer
+                        </button>
+                      )}
+                    </> : <span className="truncate">{hint}</span>}
                   </motion.span>
                 </AnimatePresence>
               </div>
@@ -666,7 +821,7 @@ export function Dock(): JSX.Element {
 // ── Tarjetas ─────────────────────────────────────────────────────────────────
 
 interface ItemViewProps {
-  item: Exclude<Item, { type: 'cred' }>
+  item: Exclude<Item, { type: 'cred' } | { type: 'hit' }>
   index: number
   active: boolean
   done: boolean
@@ -676,8 +831,8 @@ interface ItemViewProps {
 }
 
 function rowCls(active: boolean, done: boolean): string {
-  return `group relative flex items-center gap-2.5 px-2 py-[7px] rounded-[12px] cursor-pointer transition-colors duration-150 ${
-    done ? 'bg-primary/12' : active ? 'bg-on-surface/6' : 'hover:bg-on-surface/4'}`
+  return `group relative flex items-center gap-2.5 px-2 py-[7px] rounded-[12px] border cursor-pointer transition-colors duration-150 ${
+    done ? 'bg-primary/[0.08] border-primary/20' : active ? 'nav-active' : 'border-transparent hover:bg-on-surface/[0.03]'}`
 }
 
 function ItemView({ item, index, active, done, onActivate, onPin, onRemove }: ItemViewProps): JSX.Element {
@@ -688,7 +843,7 @@ function ItemView({ item, index, active, done, onActivate, onPin, onRemove }: It
         whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }} transition={POP}
         onDragStart={(e) => { e.preventDefault(); window.api.send('captures:start-drag', [c.id]) }}
         onClick={onActivate}
-        className={`group relative w-full text-left rounded-[12px] overflow-hidden bg-on-surface/4 hairline transition-shadow ${active ? 'ring-2 ring-primary/60 shadow-md' : 'hover:shadow-md'}`}>
+        className={`group relative w-full text-left rounded-[12px] overflow-hidden bg-surface border transition-[border-color,box-shadow] ${active ? 'border-primary/50 shadow-sm' : 'border-hairline-strong hover:shadow-sm'}`}>
         <div className="aspect-16/10 bg-surface-container overflow-hidden">
           <img src={thumbUrl(c.file)} alt="" draggable={false} className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-[1.04]" />
         </div>
@@ -782,6 +937,72 @@ function ItemView({ item, index, active, done, onActivate, onPin, onRemove }: It
   )
 }
 
+/** El resultado de búsqueda como copiado/captura (para la vista previa). */
+function hitAsItem(h: ClipSearchItem, clips: ClipView[]): Item | null {
+  if (h.kind === 'text') {
+    const clip = clips.find((c) => c.id === h.id)
+    return clip ? { type: 'clip', key: `h:text:${h.id}`, clip } : null
+  }
+  if (!h.file) return null
+  const cap = {
+    id: h.id, file: h.file, createdAt: h.at, width: 0, height: 0, bytes: 0, title: h.title ?? '', ticket: h.ticket ?? '', tags: [],
+    pinned: !!h.pinned, app: h.app, hasNote: false, ocrState: h.ocrState ?? 'done',
+  } satisfies CaptureLite
+  return { type: 'cap', key: `h:capture:${h.id}`, cap }
+}
+
+/** Resultado de la búsqueda unificada: tipo (o miniatura), el texto que coincidió resaltado y cuándo. */
+function HitRow({ hit, index, active, done, onActivate, onCopyOcr }: {
+  hit: ClipSearchItem; index: number; active: boolean; done: boolean; onActivate: () => void; onCopyOcr: () => void
+}): JSX.Element {
+  const isCap = hit.kind === 'capture'
+  const style = KIND_STYLE[hit.clipKind ?? 'text']
+  const Icon = isCap ? Images : style.icon
+  const mono = !isCap && !!hit.clipKind && (MULTILINE_KINDS.includes(hit.clipKind) || hit.clipKind === 'path' || hit.clipKind === 'guid')
+  const meta = isCap
+    ? [hit.field === 'title' ? null : FIELD_LABEL[hit.field], hit.ticket, hit.title && hit.field !== 'title' ? hit.title : hit.app].filter(Boolean).join(' · ')
+    : [KIND_LABEL[hit.clipKind ?? 'text'], hit.app].filter(Boolean).join(' · ')
+  return (
+    <div role="button" tabIndex={-1} onClick={onActivate} className={rowCls(active, done)}
+      title={isCap ? 'Clic pega la imagen · Alt+Enter copia su texto' : 'Clic pega'}>
+      {isCap && hit.file ? (
+        <span className="relative w-12 h-9 rounded-[8px] overflow-hidden shrink-0 self-start mt-px border border-hairline bg-surface-container">
+          <img src={thumbUrl(hit.file)} alt="" draggable={false} className="w-full h-full object-cover object-top" />
+          <span className="absolute bottom-0.5 right-0.5 grid place-items-center w-4 h-4 rounded-[4px] bg-surface/90 text-chart-1">
+            {done ? <Check size={10} /> : <Icon size={10} />}
+          </span>
+        </span>
+      ) : (
+        <span className={`relative grid place-items-center w-8 h-8 rounded-[9px] shrink-0 self-start mt-px ${style.cls}`}>
+          {done ? <Check size={14} /> : <Icon size={14} />}
+        </span>
+      )}
+      <span className="flex-1 min-w-0">
+        <span className="flex items-start gap-1">
+          <span className={`flex-1 min-w-0 text-on-surface line-clamp-2 wrap-break-word ${mono ? 'font-mono text-[12px] leading-[16px] break-all' : 'text-[13px] leading-[18px]'}`}>
+            {splitHighlights(hit.snippet, hit.ranges).map((p, i) => (p.hit
+              ? <mark key={i} className="bg-primary/15 text-on-surface rounded-[3px] px-px">{p.text}</mark>
+              : <span key={i}>{p.text}</span>))}
+          </span>
+          {hit.pinned && <Pin size={11} weight="fill" className="text-primary shrink-0" />}
+        </span>
+        <span className="flex items-center gap-2 mt-0.5 text-[11px] leading-[14px] text-on-surface-variant">
+          <span className="truncate">{done ? 'Listo' : meta}</span>
+          {!done && <span className="ml-auto shrink-0 tabular-nums text-on-surface-variant/70">{relTime(hit.at)}</span>}
+        </span>
+      </span>
+      <span className="shrink-0 flex items-center gap-0.5 min-w-[22px] justify-end">
+        {isCap && (
+          <span className="hidden group-hover:flex items-center gap-0.5">
+            <MiniBtn title="Copiar el texto de la imagen (Alt+Enter)" onClick={onCopyOcr}><ScanText size={13} /></MiniBtn>
+          </span>
+        )}
+        {index < 9 && <IndexBadge n={index + 1} className={isCap ? 'group-hover:hidden' : ''} />}
+      </span>
+    </div>
+  )
+}
+
 /** Fila de una clave: clic copia la contraseña (o abre Setto si está bloqueada); la contraseña nunca se muestra. */
 function CredRow({ cred, index, active, done, locked, onCopyPassword, onCopyUser, onOpen }: {
   cred: CredItem; index: number; active: boolean; done: boolean; locked: boolean
@@ -828,15 +1049,17 @@ function CredRow({ cred, index, active, done, locked, onCopyPassword, onCopyUser
 
 // ── Vista previa ─────────────────────────────────────────────────────────────
 
-function Preview({ item, onPaste, onOpen, onError, onClose }: {
+function Preview({ item, onPaste, onOpen, onError, onClose, onCopyOcr }: {
   item: Item
+  /** Captura: copiar el texto de adentro (OCR). */
+  onCopyOcr?: () => void
   /** Sin texto: pegar el ítem tal cual; con texto: pegar ese texto (transformado). */
   onPaste: (text?: string) => void
   onOpen: (a: { pluginId: string; action?: string; payload?: unknown }) => void
   onError: (m: string) => void
   onClose: () => void
 }): JSX.Element | null {
-  if (item.type === 'cred') return null
+  if (item.type === 'cred' || item.type === 'hit') return null
   const clip = item.type === 'clip' && !item.clip.sensitive ? item.clip : null
   // Primero las propias del tipo; después las genéricas (sin `for`). Nunca las de otro tipo,
   // y a los identificadores (ticket, link, GUID…) no se les ofrecen genéricas.
@@ -865,19 +1088,19 @@ function Preview({ item, onPaste, onOpen, onError, onClose }: {
 
   const pasteLabel = item.type === 'ticket' ? 'Ver capturas' : item.type === 'snippet' && item.vars ? 'Completar' : 'Pegar'
   const runAction = (run: () => Promise<void> | void): void => { Promise.resolve().then(run).catch((e: unknown) => onError(cleanErr(e))) }
-  const chip = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-[8px] bg-on-surface/6 hover:bg-on-surface/10 text-[11px] text-on-surface transition-colors'
+  const chip = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-full border border-hairline-strong hover:bg-on-surface/[0.04] text-[11px] text-on-surface transition-colors'
 
   return (
     <motion.div
       initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1, transition: { duration: 0.3, ease: EASE_OUT } }}
       exit={{ y: 16, opacity: 0, transition: { duration: 0.16, ease: EASE_IN } }}
-      className="relative shrink-0 mx-2 mb-2 rounded-[14px] bg-surface hairline shadow-md p-3 flex flex-col gap-2">
+      className="relative shrink-0 mx-2 mb-2 rounded-[14px] bg-surface border border-hairline-strong shadow-[0_6px_20px_-10px_rgb(0_0_0/0.25)] p-3 flex flex-col gap-2">
       <button type="button" onClick={onClose} title="Cerrar vista previa" className="absolute top-1.5 right-1.5 p-1 rounded-[6px] text-on-surface-variant hover:bg-on-surface/6">
         <X size={12} />
       </button>
       <div className="pr-5">{body}</div>
       <div className="flex flex-wrap items-center gap-1">
-        <button type="button" onClick={() => onPaste()} className="inline-flex items-center gap-1 h-7 px-3 rounded-[8px] bg-primary text-on-primary text-[11px] font-semibold hover:brightness-110">
+        <button type="button" onClick={() => onPaste()} className="inline-flex items-center gap-1 h-7 px-3 rounded-full bg-primary text-on-primary text-[11px] font-semibold hover:brightness-110">
           {item.type === 'ticket' ? <Images size={12} /> : <ClipboardText size={12} />} {pasteLabel}
         </button>
         {clip && transforms.map((t) => (
@@ -891,6 +1114,11 @@ function Preview({ item, onPaste, onOpen, onError, onClose }: {
             <a.icon size={11} className="text-on-surface-variant" /> {a.label}
           </button>
         ))}
+        {item.type === 'cap' && onCopyOcr && (
+          <button type="button" title="Copiar el texto de la imagen (Alt+Enter)" onClick={onCopyOcr} className={chip}>
+            <ScanText size={11} className="text-on-surface-variant" /> Copiar texto
+          </button>
+        )}
         {item.type === 'cap' && (
           <button type="button" onClick={() => onOpen({ pluginId: 'captures' })} className={chip}>
             <ExternalLink size={11} className="text-on-surface-variant" /> Abrir en Setto
@@ -905,7 +1133,8 @@ function Preview({ item, onPaste, onOpen, onError, onClose }: {
 
 function IndexBadge({ n, className = '' }: { n: number; className?: string }): JSX.Element {
   return (
-    <span className={`grid place-items-center min-w-[18px] h-[18px] px-1 rounded-[5px] bg-on-surface/6 text-[10px] font-semibold tabular-nums text-on-surface-variant ${className}`}>{n}</span>
+    // Mismo aspecto que .kbd-chip, pero con utilidades: .kbd-chip fija display y le ganaría a group-hover:hidden.
+    <span className={`grid place-items-center min-w-[18px] h-[18px] px-1 rounded-[5px] border border-hairline-strong bg-surface dark:bg-white/[0.05] text-[10.5px] font-medium tabular-nums text-on-surface-variant ${className}`}>{n}</span>
   )
 }
 
@@ -932,7 +1161,7 @@ function DoneOverlay({ show }: { show: boolean }): JSX.Element {
 }
 
 function Kbd({ children }: { children: React.ReactNode }): JSX.Element {
-  return <kbd className="font-sans text-[10px] font-medium px-1 py-px rounded-[4px] bg-on-surface/[0.07] text-on-surface-variant">{children}</kbd>
+  return <kbd className="kbd-chip">{children}</kbd>
 }
 
 function Empty({ tab, searching }: { tab: TabId; searching: boolean }): JSX.Element {
@@ -942,6 +1171,7 @@ function Empty({ tab, searching }: { tab: TabId; searching: boolean }): JSX.Elem
     snippets: 'Todavía no hay snippets',
     tickets: 'Los tickets que copies o pongas en capturas aparecen acá',
     keys: 'Las claves que más usás aparecen acá',
+    bloc: '',
   }[tab]
   return <p className="text-[12px] text-on-surface-variant px-3 py-8 text-center">{text}</p>
 }
@@ -949,7 +1179,7 @@ function Empty({ tab, searching }: { tab: TabId; searching: boolean }): JSX.Elem
 function IconBtn({ title, active, onClick, children }: { title: string; active?: boolean; onClick: () => void; children: React.ReactNode }): JSX.Element {
   return (
     <motion.button type="button" title={title} aria-label={title} onClick={onClick} whileTap={{ scale: 0.9 }} transition={POP}
-      className={`grid place-items-center w-7 h-7 rounded-[8px] transition-colors ${active ? 'text-primary bg-primary/10' : 'text-on-surface-variant hover:text-on-surface hover:bg-on-surface/6'}`}>
+      className={`grid place-items-center w-7 h-7 rounded-full transition-colors ${active ? 'text-primary bg-primary/10' : 'text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.05]'}`}>
       {children}
     </motion.button>
   )
@@ -959,7 +1189,7 @@ function Quick({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string
   return (
     <motion.button type="button" onClick={onClick} title={label} aria-label={label}
       whileTap={{ scale: 0.9 }} transition={POP}
-      className="flex-1 grid place-items-center h-9 rounded-[10px] text-on-surface-variant hover:text-primary hover:bg-primary/8 transition-colors">
+      className="flex-1 grid place-items-center h-9 rounded-full text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.05] transition-colors">
       <Icon size={17} />
     </motion.button>
   )

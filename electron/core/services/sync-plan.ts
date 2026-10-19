@@ -61,6 +61,37 @@ export function planSync(
   return ops
 }
 
+/** Umbrales del freno de seguridad: más de MASS_DELETE_MIN borrados y más del MASS_DELETE_RATIO de lo remoto. */
+export const MASS_DELETE_MIN = 5
+export const MASS_DELETE_RATIO = 0.3
+
+/**
+ * Freno de seguridad antes de ejecutar un plan. Devuelve el motivo para abortar
+ * (o null si es seguro):
+ *  - lo local está vacío pero lo remoto tiene ítems y el plan borraría 2 o más
+ *    (carpeta de notas desconectada, archivo vaciado por error);
+ *  - el plan borra en remoto más de MASS_DELETE_MIN ítems y más del 30 %.
+ * Una máquina nueva (sin base) con lo local vacío sólo baja: no se frena.
+ */
+export function syncGuard(
+  label: string,
+  localCount: number,
+  remote: ReadonlyMap<string, RemoteItem>,
+  ops: readonly SyncOp[],
+): string | null {
+  const liveRemote = [...remote.values()].filter((r) => !r.deleted).length
+  const remoteDeletes = ops.filter((o) => o.type === 'push-delete').length
+  if (!remoteDeletes) return null
+  // (Borrar la única nota que había es legítimo: el freno es desde 2.)
+  if (localCount === 0 && liveRemote > 0 && remoteDeletes >= 2) {
+    return `Sincronización cancelada: no hay ${label} en esta PC pero sí en la nube; se borrarían ${remoteDeletes}. Revisá que la carpeta o los datos locales estén disponibles.`
+  }
+  if (remoteDeletes > MASS_DELETE_MIN && remoteDeletes > liveRemote * MASS_DELETE_RATIO) {
+    return `Sincronización cancelada: se borrarían ${remoteDeletes} de ${liveRemote} ${label} en la nube (más del ${Math.round(MASS_DELETE_RATIO * 100)} %). Si es correcto, sincronizá confirmando los borrados.`
+  }
+  return null
+}
+
 /** Para conflictos de notas: nombre de la copia con la versión remota. */
 export function conflictCopyId(id: string, existing: ReadonlySet<string>, date: Date): string {
   const base = id.replace(/\.md$/i, '')

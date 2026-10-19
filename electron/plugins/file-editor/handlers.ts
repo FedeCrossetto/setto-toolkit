@@ -12,7 +12,8 @@ import chokidar from 'chokidar'
 import type { FSWatcher } from 'chokidar'
 import { execFile } from 'child_process'
 import { registerHandler } from '../../core/ipc-handler'
-import { addAuthorizedRoot, assertInAuthorizedRoot, validatePath } from './path-guard'
+import { logger } from '../../core/logger'
+import { addAuthorizedRoot, assertInAuthorizedRoot, validatePath, validateRootDir } from './path-guard'
 import { decodeFile, decodeBytes, detectEncoding, encodeFile, encodeText, isEolKind, isFileEncoding, looksBinary } from './encoding'
 import { addSnapshot, listSnapshots, readSnapshot, lineDelta } from './history'
 import { buildMatcher, replaceInText } from './replace'
@@ -568,6 +569,16 @@ export const handlers: PluginHandlers = {
     // ── Recent files ───────────────────────────────────────────────────────
 
     registerHandler(ipcMain, 'editor:recent-get', () => getRecentFiles(settings))
+    /** ¿Siguen existiendo? (marca recientes borrados en Ctrl+K). Sólo rutas absolutas, máx. 100. */
+    registerHandler(ipcMain, 'editor:exists', (_e, paths: unknown) => {
+      const out: Record<string, boolean> = {}
+      if (!Array.isArray(paths)) return out
+      for (const raw of paths.slice(0, 100)) {
+        if (typeof raw !== 'string' || raw.includes('\0') || !path.isAbsolute(raw)) continue
+        try { out[raw] = fs.existsSync(raw) } catch { out[raw] = false }
+      }
+      return out
+    })
 
     registerHandler(ipcMain, 'editor:recent-clear', () => {
       settings.setJSON(RECENT_KEY, [])
@@ -578,8 +589,14 @@ export const handlers: PluginHandlers = {
     // When a file is opened from the OS (double-click, drag-to-icon, second-instance),
     // automatically authorize its parent directory so the user can save changes.
 
-    ipcMain.on('editor:authorize-root', (_e, rootPath: string) => {
-      try { addAuthorizedRoot(rootPath) } catch { /* ignore invalid paths */ }
+    ipcMain.on('editor:authorize-root', (_e, rootPath: unknown) => {
+      try {
+        const dir = validateRootDir(rootPath)
+        addAuthorizedRoot(dir)
+        logger.info('file-editor', 'authorized root from OS open', { dir })
+      } catch (err) {
+        logger.warn('file-editor', 'editor:authorize-root rejected', { rootPath: String(rootPath).slice(0, 300), reason: err instanceof Error ? err.message : String(err) })
+      }
     })
 
     // ── Cleanup on app quit ────────────────────────────────────────────────

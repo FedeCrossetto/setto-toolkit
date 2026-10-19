@@ -35,7 +35,7 @@ export function Servicios({ servicios, pagos, onAdd, onEdit, onDelete, onToggle 
             {servicios.filter((s) => s.categoria === cat).map((svc) => {
               const ultimo = lastKnownMonto(pagos, svc.id, mes)
               return (
-                <div key={svc.id} className={`group flex items-center gap-3 px-4 py-2.5 min-h-[52px] hover:bg-on-surface/3 dark:hover:bg-on-surface/5 transition-colors ${svc.activo ? '' : 'opacity-55'}`}>
+                <div key={svc.id} className={`group flex items-center gap-3 px-5 py-3 min-h-[56px] hover:bg-on-surface/3 dark:hover:bg-on-surface/5 transition-colors ${svc.activo ? '' : 'opacity-55'}`}>
                   <ServiceTile icon={svc.emoji} />
                   <button type="button" className="flex-1 min-w-0 text-left" onClick={() => onEdit(svc)}>
                     <div className="t-body font-medium text-on-surface truncate">{svc.nombre}</div>

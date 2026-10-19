@@ -484,10 +484,10 @@ export function Terminal(): JSX.Element {
     <div className="flex flex-col h-full overflow-hidden bg-surface">
 
       {/* ── Tab bar ───────────────────────────────────────────────────────── */}
-      <div className="flex items-stretch shrink-0 h-9 hairline-b bg-sidebar/40">
+      <div className="flex items-stretch shrink-0 h-[42px] hairline-b fl-pane">
         {/* Session tabs — scrollable, NO picker button inside here */}
         <div
-          className="flex items-stretch flex-1 min-w-0 overflow-x-auto"
+          className="flex items-center gap-1 pl-2 flex-1 min-w-0 overflow-x-auto"
           style={{ scrollbarWidth: 'none' }}
         >
           {sessionIds.map((id) => {
@@ -502,8 +502,8 @@ export function Terminal(): JSX.Element {
                 key={id}
                 onClick={() => handleTabClick(id, baseLabel)}
                 title={isActive && !isEditing ? 'Clic para renombrar' : undefined}
-                className={`group flex items-center gap-1.5 pl-3 pr-1.5 shrink-0 select-none hairline-r t-footnote transition-colors ${
-                  isActive ? 'bg-surface font-medium' : 'hover:bg-on-surface/4'
+                className={`group flex items-center gap-1.5 h-[30px] pl-2.5 pr-1.5 shrink-0 select-none rounded-[9px] border t-footnote transition-colors ${
+                  isActive ? 'nav-active font-medium' : 'border-transparent hover:bg-on-surface/4'
                 } ${
                   isExited ? 'text-on-surface-variant/50' : isActive ? 'text-on-surface' : 'text-on-surface-variant'
                 }`}
@@ -639,7 +639,7 @@ export function Terminal(): JSX.Element {
             <AnimatePresence>
               {usageOpen && claudeUsagePct !== null && (
                 <motion.div
-                  className="mac-popover hairline absolute right-0 top-full mt-1 z-9999 py-3 px-4 min-w-[240px]"
+                  className="fl-dialog absolute right-0 top-full mt-1 z-9999 py-3 px-4 min-w-[240px]"
                   initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}
                   transition={{ duration: 0.12, ease: 'easeOut' }}
                 >
@@ -751,7 +751,7 @@ export function Terminal(): JSX.Element {
                 </>
               ) : (
                 <>
-                  <SquareTerminal size={32} className="text-on-surface-variant/40" strokeWidth={1.4} />
+                  <span className="icon-tile w-12 h-12 rounded-xl"><SquareTerminal size={22} /></span>
                   <span className="t-body text-on-surface-variant">No hay ninguna sesión abierta</span>
                   <button
                     onClick={() => {
@@ -759,7 +759,7 @@ export function Terminal(): JSX.Element {
                       if (rect) setPickerPos({ top: rect.bottom + 4, left: Math.max(8, rect.right - 220) })
                       setShellPickerOpen(true)
                     }}
-                    className="ui-btn ui-btn-primary"
+                    className="ui-btn ui-btn-outline"
                   >
                     <Plus size={14} /> Nueva sesión
                   </button>
@@ -772,7 +772,7 @@ export function Terminal(): JSX.Element {
         {/* Side panel */}
         {sidePanel && (
           <div
-            className="shrink-0 overflow-hidden flex flex-col hairline-l bg-sidebar/40"
+            className="shrink-0 overflow-hidden flex flex-col hairline-l fl-pane"
             style={{ width: 340 }}
           >
             {sidePanel === 'history' && (

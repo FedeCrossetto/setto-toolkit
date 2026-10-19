@@ -67,7 +67,7 @@ async function renderMacFrame(src, size, resizeOpts, pngOpts) {
 
 async function main() {
   const inputArg = process.argv[2]
-  const src = path.resolve(root, inputArg ?? 'public/logo-app-v6.png')
+  const src = path.resolve(root, inputArg ?? 'public/logo-app.png')
   const outIco    = path.join(root, 'public/icon.ico')
   const outPng512 = path.join(root, 'public/app-icon-512.png')
   const outIcns   = path.join(root, 'public/icon.icns')

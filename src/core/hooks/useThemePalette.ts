@@ -374,33 +374,33 @@ export const DARK_STYLES: { id: DarkStyle; name: string }[] = [
 export function settoSurfaces(isDark: boolean, darkStyle: DarkStyle): SurfaceTokens {
   if (!isDark) {
     return {
-      background: '244 244 245', surface: '255 255 255', surfaceLow: '250 250 250', surfaceContainer: '243 243 244',
+      background: '250 250 251', surface: '255 255 255', surfaceLow: '250 250 250', surfaceContainer: '243 243 244',
       surfaceHigh: '235 235 237', surfaceHighest: '225 225 228', onSurface: '28 28 30', onSurfaceVariant: '112 112 118',
       outlineVariant: '232 232 234', outline: '161 161 168', error: '229 72 77', warning: '230 140 20', success: '22 163 120',
-      sidebar: '255 255 255', topbar: '35 35 39',
+      sidebar: '244 245 247', topbar: '35 35 39',
     }
   }
   const status = { error: '255 99 99', warning: '255 176 64', success: '52 211 153' }
   if (darkStyle === 'black') {
     // Negro puro (OLED): el lienzo es #000 y las tarjetas apenas se separan.
     return {
-      background: '0 0 0', surface: '14 14 16', surfaceLow: '18 18 20', surfaceContainer: '24 24 27',
+      background: '8 8 9', surface: '14 14 16', surfaceLow: '18 18 20', surfaceContainer: '24 24 27',
       surfaceHigh: '34 34 38', surfaceHighest: '46 46 51', onSurface: '240 240 241', onSurfaceVariant: '150 150 156',
-      outlineVariant: '38 38 42', outline: '96 96 102', ...status, sidebar: '8 8 9', topbar: '0 0 0',
+      outlineVariant: '38 38 42', outline: '96 96 102', ...status, sidebar: '0 0 0', topbar: '0 0 0',
     }
   }
   if (darkStyle === 'dim') {
     // Atenuado: gris pizarra más claro, menos contraste para sesiones largas.
     return {
-      background: '40 42 48', surface: '48 50 57', surfaceLow: '52 55 62', surfaceContainer: '58 61 69',
+      background: '44 46 53', surface: '48 50 57', surfaceLow: '52 55 62', surfaceContainer: '58 61 69',
       surfaceHigh: '68 71 80', surfaceHighest: '82 85 95', onSurface: '228 230 235', onSurfaceVariant: '162 166 177',
-      outlineVariant: '66 69 78', outline: '112 116 127', ...status, sidebar: '44 46 53', topbar: '30 32 37',
+      outlineVariant: '66 69 78', outline: '112 116 127', ...status, sidebar: '36 38 44', topbar: '30 32 37',
     }
   }
   return {
-    background: '24 24 26', surface: '32 32 35', surfaceLow: '37 37 40', surfaceContainer: '42 42 46',
+    background: '26 26 29', surface: '32 32 35', surfaceLow: '37 37 40', surfaceContainer: '42 42 46',
     surfaceHigh: '52 52 56', surfaceHighest: '64 64 69', onSurface: '240 240 241', onSurfaceVariant: '155 155 161',
-    outlineVariant: '54 54 58', outline: '100 100 106', ...status, sidebar: '28 28 31', topbar: '17 17 19',
+    outlineVariant: '54 54 58', outline: '100 100 106', ...status, sidebar: '20 20 23', topbar: '17 17 19',
   }
 }
 

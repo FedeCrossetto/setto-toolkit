@@ -9,7 +9,7 @@ import { useToast } from '../../core/components/Toast'
 import { usePluginIntent } from '../../core/AppContext'
 import {
   type ConnId, type ConnState, type ConnStatus, type SupabaseHealth, type SupabaseKeyKind, type TestResult,
-  SUPABASE_TABLES, detectSupabaseKeyKind, formatCheckedAt, isPublicSupabaseKey, missingTables, normalizeSupabaseUrl,
+  SUPABASE_TABLES, detectSupabaseKeyKind, formatCheckedAt, isLocalOnly, isPublicSupabaseKey, localOnlyStatus, missingTables, normalizeSupabaseUrl,
   shortError, statusFromHealth, statusFromResult, summarizeStatuses, supabaseApiKeysUrl, supabaseSqlEditorUrl,
 } from './helpers'
 import { SqlConnections } from './SqlConnections'
@@ -94,8 +94,14 @@ async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
 const SENTINEL = '__CONFIGURED__'
 const STORAGE_KEY = 'setto:connections:last-status'
 
+async function readLocalOnly(): Promise<boolean> {
+  return isLocalOnly(await invoke<string | null>('settings:get', 'app.local_only').catch(() => null))
+}
+
 async function checkStored(id: ConnId): Promise<ConnStatus> {
   if (id === 'supabase') {
+    // Modo solo local (elegido en la bienvenida): no se usa ni se prueba Supabase.
+    if (await readLocalOnly()) return localOnlyStatus()
     try {
       return statusFromHealth(await invoke<SupabaseHealth>('gastos:supabase-health'))
     } catch {
@@ -153,7 +159,7 @@ const GROUPS: Array<{ title: string; items: IntegrationMeta[] }> = [
   {
     title: 'Datos',
     items: [
-      { id: 'supabase', name: 'Supabase', purpose: 'Base de Gastos y Credenciales', Logo: LogoSupabase },
+      { id: 'supabase', name: 'Supabase', purpose: 'Sincroniza Gastos y Claves', Logo: LogoSupabase },
     ],
   },
 ]
@@ -190,7 +196,7 @@ const PILL: Record<ConnState, { tone: StatusTone; label: string; pulse?: boolean
 }
 
 function ConnPill({ status }: { status: ConnStatus }): JSX.Element {
-  const p = PILL[status.state]
+  const p = status.localOnly ? { tone: 'neutral' as StatusTone, label: 'Modo solo local' } : PILL[status.state]
   const label = status.state === 'error' ? `Error: ${shortError(status.detail, 22)}` : p.label
   return (
     <span title={status.state === 'error' ? status.detail : undefined} className="shrink-0">
@@ -202,7 +208,7 @@ function ConnPill({ status }: { status: ConnStatus }): JSX.Element {
 function LogoTile({ Logo, size = 36 }: { Logo: Logo; size?: number }): JSX.Element {
   return (
     <span
-      className="rounded-lg flex items-center justify-center shrink-0 bg-surface hairline shadow-sm text-on-surface"
+      className="icon-tile text-on-surface"
       style={{ width: size, height: size }}
     >
       <Logo size={Math.round(size / 2)} />
@@ -323,10 +329,10 @@ function StatusBanner({ meta, status }: { meta: IntegrationMeta; status: ConnSta
 
 function HowTo({ steps }: { steps: React.ReactNode[] }): JSX.Element {
   return (
-    <ol className="flex flex-col gap-2 rounded-xl bg-on-surface/[0.035] dark:bg-on-surface/5 px-4 py-3.5">
+    <ol className="flex flex-col gap-2 rounded-xl hairline px-4 py-3.5">
       {steps.map((s, i) => (
         <li key={i} className="flex gap-2.5 t-footnote text-on-surface-variant">
-          <span className="shrink-0 w-5 h-5 rounded-full bg-selected text-primary t-caption font-semibold flex items-center justify-center">{i + 1}</span>
+          <span className="shrink-0 w-5 h-5 rounded-full hairline text-on-surface-variant t-caption font-medium flex items-center justify-center">{i + 1}</span>
           <span className="min-w-0">{s}</span>
         </li>
       ))}
@@ -336,7 +342,7 @@ function HowTo({ steps }: { steps: React.ReactNode[] }): JSX.Element {
 
 function SessionRow({ username, extra, onLogout }: { username: string | null; extra?: string | null; onLogout: () => void }): JSX.Element {
   return (
-    <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-on-surface/[0.035] dark:bg-on-surface/5">
+    <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl hairline">
       <span className="t-footnote text-on-surface-variant">Sesión iniciada como</span>
       <span className="t-body font-medium text-on-surface flex-1 truncate">
         {username}{extra && <span className="text-on-surface-variant font-normal"> · {extra}</span>}
@@ -350,7 +356,7 @@ function SessionRow({ username, extra, onLogout }: { username: string | null; ex
 
 function DeviceCodeBox({ uri, code }: { uri: string; code: string }): JSX.Element {
   return (
-    <div className="rounded-xl bg-selected px-4 py-3.5 flex flex-col gap-2">
+    <div className="rounded-xl hairline px-4 py-3.5 flex flex-col gap-2">
       <p className="t-footnote font-medium text-on-surface">Autorizá en tu navegador</p>
       <p className="t-footnote text-on-surface-variant">
         Andá a <ExtLink href={uri}><span className="font-mono">{uri}</span></ExtLink> e ingresá:
@@ -917,11 +923,19 @@ function SupabaseSheet({ meta, onStatus }: SheetProps): JSX.Element {
     }
   }
 
+  const [localOnly, setLocalOnly] = useState(false)
+  useEffect(() => { void readLocalOnly().then(setLocalOnly) }, [])
+
   const save = async (): Promise<void> => {
     if (!norm) return
     setSaving(true)
     try {
       await invoke('gastos:supabase-config-save', { url: norm.url, serviceKey: key.trim() })
+      // Configurar Supabase es salir del modo solo local.
+      if (localOnly) {
+        await invoke('settings:set', 'app.local_only', '0').catch(() => undefined)
+        setLocalOnly(false)
+      }
       window.dispatchEvent(new CustomEvent('setto:supabase-config-changed'))
       setKey('')
       await loadCurrent()
@@ -949,7 +963,7 @@ function SupabaseSheet({ meta, onStatus }: SheetProps): JSX.Element {
 
   const step = (n: number, title: string, body: React.ReactNode, done?: boolean): JSX.Element => (
     <section className="flex gap-3">
-      <span className={`shrink-0 w-6 h-6 rounded-full t-caption font-semibold flex items-center justify-center ${done ? 'bg-success/[0.14] text-success' : 'bg-selected text-primary'}`}>
+      <span className={`shrink-0 w-6 h-6 rounded-full t-caption font-semibold flex items-center justify-center ${done ? 'bg-success/10 text-success' : 'hairline text-on-surface-variant'}`}>
         {done ? <Check size={12} /> : n}
       </span>
       <div className="flex-1 min-w-0 flex flex-col gap-3 pt-0.5">
@@ -977,7 +991,15 @@ function SupabaseSheet({ meta, onStatus }: SheetProps): JSX.Element {
         </>
       }
     >
-      <div className="rounded-xl bg-on-surface/[0.035] dark:bg-on-surface/5 px-3.5 py-2.5 t-footnote text-on-surface-variant flex flex-col gap-0.5">
+      {localOnly && (
+        <div className="rounded-xl hairline px-3.5 py-2.5 t-footnote text-on-surface flex flex-col gap-0.5">
+          <span className="font-medium">Modo solo local</span>
+          <span className="text-on-surface-variant">
+            Gastos y Claves se guardan sólo en esta computadora. Si guardás un proyecto acá, Setto pasa a sincronizar con Supabase.
+          </span>
+        </div>
+      )}
+      <div className="rounded-xl hairline px-3.5 py-2.5 t-footnote text-on-surface-variant flex flex-col gap-0.5">
         <span>
           En uso: <span className="font-mono text-on-surface break-all">{current?.url || '—'}</span>
         </span>
@@ -1065,7 +1087,7 @@ function SupabaseSheet({ meta, onStatus }: SheetProps): JSX.Element {
 
       {step(health?.authOk && missing.length > 0 ? 4 : 3, 'Guardar', (
         <p className="t-footnote text-on-surface-variant">
-          Se guarda cifrado en esta computadora y tiene prioridad sobre .env y gastos-supabase.local.json. Gastos y Credenciales se reconectan solos.
+          Se guarda cifrado en esta computadora (tiene prioridad sobre gastos-supabase.local.json). Gastos y Claves se reconectan solos.
         </p>
       ))}
     </SheetBody>
@@ -1115,14 +1137,20 @@ function IntegrationCard({
 }): JSX.Element {
   const checking = status.state === 'checking'
   return (
-    <article className="ui-card p-4 flex flex-col gap-3 min-w-0">
+    <article className="ui-card px-5 pt-5 pb-4 flex flex-col gap-3 min-w-0">
       <div className="flex items-start gap-3">
-        <LogoTile Logo={meta.Logo} />
+        <LogoTile Logo={meta.Logo} size={34} />
         <div className="flex-1 min-w-0">
           <h3 className="t-body font-semibold text-on-surface truncate">{meta.name}</h3>
-          <p className="t-footnote text-on-surface-variant truncate" title={meta.purpose}>{meta.purpose}</p>
+          <p className="t-footnote text-on-surface-variant line-clamp-2" title={meta.purpose}>{meta.purpose}</p>
         </div>
+      </div>
+      <div className="flex items-center gap-2 min-w-0">
         <ConnPill status={status} />
+        {/* La hora de la última prueba va aparte: en el pie no entra junto a los botones. */}
+        <span className="t-caption text-on-surface-variant/80 truncate inline-flex items-center gap-1 ml-auto">
+          <Clock size={11} className="shrink-0" />{formatCheckedAt(status.checkedAt)}
+        </span>
       </div>
       <p
         className={`t-footnote min-h-[18px] truncate ${status.state === 'error' ? 'text-error' : 'text-on-surface-variant'}`}
@@ -1130,11 +1158,7 @@ function IntegrationCard({
       >
         {checking ? 'Probando conexión…' : status.detail ?? 'Todavía no se verificó'}
       </p>
-      {/* La hora de la última prueba va en su propia línea: en el pie no entra junto a los botones. */}
-      <p className="t-caption text-on-surface-variant/80 -mt-2 truncate inline-flex items-center gap-1">
-        <Clock size={11} className="shrink-0" />{formatCheckedAt(status.checkedAt)}
-      </p>
-      <div className="flex items-center justify-end gap-2 hairline-t pt-3 -mx-4 px-4">
+      <div className="flex items-center justify-end gap-2 hairline-t pt-3 -mx-5 px-5">
         <button className="ui-btn ui-btn-ghost ui-btn-sm" disabled={checking} onClick={onTest}>
           {checking ? <Spinner /> : <Zap size={12} />}Probar
         </button>
@@ -1189,7 +1213,7 @@ export function ConnectionsPlugin(): JSX.Element {
   const anyChecking = summary.checking > 0
 
   return (
-    <div className="px-6 py-5 max-w-5xl mx-auto w-full flex flex-col gap-6">
+    <div className="px-8 py-7 max-w-5xl mx-auto w-full flex flex-col gap-7">
       <PageHeader
         title="Conexiones"
         subtitle={summary.text}
@@ -1203,7 +1227,7 @@ export function ConnectionsPlugin(): JSX.Element {
       {GROUPS.map((g) => (
         <section key={g.title} className="flex flex-col gap-2.5">
           <h2 className="t-section">{g.title}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {g.items.map((m) => (
               <IntegrationCard
                 key={m.id}

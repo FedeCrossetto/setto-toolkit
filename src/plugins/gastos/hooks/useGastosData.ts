@@ -10,7 +10,10 @@ import { friendlyGastosError } from '../format'
 import {
   loadLocalState, writeCache, writePendingWrites, writeLastSynced, writePrefs,
 } from '../local-store'
-import { applyWrite, applyWrites, enqueue, missingTableFromError } from '../sync-queue'
+import {
+  applyWrite, applyWrites, classifyWriteError, dropSuperseded, enqueue, flushQueue, missingTableFromError, settleQueue,
+} from '../sync-queue'
+import { notifyGastosChanged, registerGastosWriter, type WriteOutcome } from '../direct-write'
 import type { Gasto, GastosLoadResult, GastosPrefs, PagoMensual, PendingWrite, Servicio } from '../types'
 
 export type SyncState = 'ok' | 'pending' | 'syncing' | 'error'
@@ -105,23 +108,32 @@ export function useGastosData(): GastosStore {
     writePrefs(p)
   }, [])
 
-  /** Empuja la cola. Las escrituras a tablas que faltan quedan en cola sin bloquear el resto. */
+  /** Supabase rechazó algo que estaba en cola: se descartó; los datos se recargan en la próxima sync. */
+  const needsRefetchRef = useRef(false)
+  const noticeRejected = useCallback((errors: string[]) => {
+    if (!errors.length) return
+    needsRefetchRef.current = true
+    const first = friendlyGastosError(errors[0]!)
+    toast.show(
+      errors.length === 1
+        ? `Supabase rechazó un cambio guardado en este equipo y se descartó: ${first}`
+        : `Supabase rechazó ${errors.length} cambios guardados en este equipo y se descartaron: ${first}`,
+      'error', 9000,
+    )
+  }, [toast])
+
+  /**
+   * Empuja la cola. Las escrituras a tablas que faltan quedan en cola sin bloquear el resto; las
+   * rechazadas por validación se descartan con aviso. Al terminar se saca de la cola ACTUAL sólo lo
+   * enviado o rechazado: lo que se encoló mientras tanto se conserva.
+   */
   const pushQueue = useCallback(async (): Promise<void> => {
-    const queue = [...queueRef.current]
-    const kept: PendingWrite[] = []
-    for (let i = 0; i < queue.length; i++) {
-      const w = queue[i]!
-      try {
-        await window.api.invoke(w.channel, ...w.args)
-      } catch (e) {
-        const missing = missingTableFromError(e)
-        if (missing) { noteMissing(missing); kept.push(w); continue }
-        setQueue([...kept, ...queue.slice(i)])
-        throw e
-      }
-    }
-    setQueue(kept)
-  }, [setQueue, noteMissing])
+    const r = await flushQueue([...queueRef.current], (w) => window.api.invoke(w.channel, ...w.args))
+    r.missing.forEach(noteMissing)
+    setQueue(settleQueue(queueRef.current, r))
+    noticeRejected(r.rejected.map((x) => x.error))
+    if (r.error) throw r.error
+  }, [setQueue, noteMissing, noticeRejected])
 
   const fetchRemote = useCallback(async (): Promise<void> => {
     const [res, version] = await Promise.all([
@@ -183,7 +195,9 @@ export function useGastosData(): GastosStore {
       if (hadPending) await pushQueue()
       const remote = await window.api.invoke<string | null>('gastos:remote-version-get')
       const local = lastSyncedRef.current
-      if (offlineRef.current || !local || (remote && remote !== local && !opts?.adoptRemote)) {
+      const refetch = needsRefetchRef.current
+      needsRefetchRef.current = false
+      if (refetch || offlineRef.current || !local || (remote && remote !== local && !opts?.adoptRemote)) {
         await fetchRemote()
         if (!opts?.silent) toast.show('Datos actualizados desde Supabase', 'success', 2500)
       } else {
@@ -244,22 +258,51 @@ export function useGastosData(): GastosStore {
   }, [sync])
 
   /** Aplica la escritura localmente y la manda a Supabase; si falla queda en cola. */
-  const write = useCallback(async (w: PendingWrite, opts?: { quiet?: boolean }): Promise<boolean> => {
-    setData(applyWrite(dataRef.current, w))
+  const writeDetailed = useCallback(async (w: PendingWrite, opts?: { quiet?: boolean }): Promise<WriteOutcome> => {
+    const before = dataRef.current
+    const optimistic = applyWrite(before, w)
+    setData(optimistic)
     try {
       await window.api.invoke(w.channel, ...w.args)
+      // Lo que estaba en cola para la misma entidad quedó viejo: si se subiera después pisaría esto.
+      const q = dropSuperseded(queueRef.current, w)
+      if (q !== queueRef.current) setQueue(q)
       scheduleSync()
-      return true
+      return { ok: true, queued: false }
     } catch (e) {
+      const kind = classifyWriteError(e)
+      if (kind === 'rejected') {
+        // No tiene arreglo reintentando: no se encola y se deshace el cambio local.
+        const msg = friendlyGastosError(String(e))
+        if (dataRef.current === optimistic) setData(before)
+        else needsRefetchRef.current = true
+        if (!opts?.quiet) toast.show(`No se pudo guardar: ${msg}`, 'error', 6000)
+        return { ok: false, error: msg }
+      }
       setQueue(enqueue(queueRef.current, w))
       setSyncState('pending')
-      const missing = missingTableFromError(e)
-      if (missing) { noteMissing(missing); return false }
+      if (kind === 'missing-table') {
+        const missing = missingTableFromError(e)
+        if (missing) noteMissing(missing)
+        return { ok: true, queued: true }
+      }
       setSyncError(friendlyGastosError(String(e)))
       if (!opts?.quiet) toast.show('Guardado en este equipo. Se sube a Supabase cuando vuelva la conexión.', 'info', 4500)
-      return false
+      return { ok: true, queued: true }
+    } finally {
+      // Después de guardar (o encolar): Inicio y el dock releen los totales.
+      notifyGastosChanged()
     }
   }, [setData, setQueue, scheduleSync, noteMissing, toast])
+
+  /** Aplica la escritura localmente y la manda a Supabase; true si llegó a Supabase. */
+  const write = useCallback(async (w: PendingWrite, opts?: { quiet?: boolean }): Promise<boolean> => {
+    const r = await writeDetailed(w, opts)
+    return r.ok && !r.queued
+  }, [writeDetailed])
+
+  // Captura rápida / Inicio escriben a través del store mientras Gastos está montado.
+  useEffect(() => registerGastosWriter((w) => writeDetailed(w, { quiet: true })), [writeDetailed])
 
   /** Varios gastos (importación): optimista para todos, luego se suben de a uno. Devuelve cuántos subieron. */
   const saveGastosBulk = useCallback(async (gs: Gasto[]): Promise<number> => {

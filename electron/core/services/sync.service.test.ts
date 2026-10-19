@@ -60,7 +60,7 @@ class Machine {
     this.svc = new TestSync(db as never, settings as never, gastos as never, () => null)
   }
   get notesDir(): string { return path.join(this.dir, 'notes') }
-  async sync() { currentUserData = this.dir; return this.svc.run() }
+  async sync(opts?: { allowMassDelete?: boolean }) { currentUserData = this.dir; return this.svc.run(opts) }
   writeNote(id: string, content: string): void {
     fs.mkdirSync(this.notesDir, { recursive: true })
     fs.writeFileSync(path.join(this.notesDir, id), content)
@@ -157,5 +157,29 @@ describe('SyncService (dos equipos, Supabase en memoria)', () => {
     await A.sync()
     expect(A.snippets()[0]!.title).toBe('Query B')
     expect(A.snippets()[0]!.useCount).toBe(9)   // los contadores locales se conservan
+  })
+
+  it('freno: si la carpeta de notas quedó vacía no se borra todo en la nube', async () => {
+    for (let i = 0; i < 4; i++) A.writeNote(`N${i}.md`, `n${i}`)
+    await A.sync()
+    for (let i = 0; i < 4; i++) A.deleteNote(`N${i}.md`)
+    await expect(A.sync()).rejects.toThrow(/no hay notas/)
+    expect([...remote.values()].filter((r) => r.kind === 'note' && !r.deleted)).toHaveLength(4)
+    // Confirmado por el usuario: ahora sí
+    expect((await A.sync({ allowMassDelete: true })).pushed).toBe(4)
+  })
+
+  it('freno: borrados masivos (> 5 y > 30 %) se cancelan', async () => {
+    for (let i = 0; i < 10; i++) A.writeNote(`N${i}.md`, `n${i}`)
+    await A.sync()
+    for (let i = 0; i < 6; i++) A.deleteNote(`N${i}.md`)
+    await expect(A.sync()).rejects.toThrow(/6 de 10/)
+  })
+
+  it('carpeta de notas personalizada que no existe: error claro, no se recrea vacía', async () => {
+    const missing = path.join(A.dir, 'no-existe')
+    A.data.set('notes-config.json', { dir: missing })
+    await expect(A.sync()).rejects.toThrow(/carpeta de notas/)
+    expect(fs.existsSync(missing)).toBe(false)
   })
 })

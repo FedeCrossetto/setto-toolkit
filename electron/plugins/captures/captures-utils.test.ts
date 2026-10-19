@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildTitle, captureFacets, captureFileName, detectTicket, expiredCaptures, exportFileName, isExcludedApp, isValidCaptureFile,
-  normalizeSource, overQuota, queryCaptures, toLite, type CaptureEntry,
+  isRetentionProtected, normalizeSource, quickImageFingerprint, overQuota, queryCaptures, toLite, type CaptureEntry,
 } from './captures-utils'
 
 const entry = (p: Partial<CaptureEntry>): CaptureEntry => ({
@@ -37,6 +37,16 @@ describe('expiredCaptures', () => {
     const list = [entry({ id: 'old', createdAt: 0 }), entry({ id: 'pin', createdAt: 0, pinned: true }), entry({ id: 'new', createdAt: now })]
     expect(expiredCaptures(list, 30, now).map((c) => c.id)).toEqual(['old'])
     expect(expiredCaptures(list, 0, now)).toEqual([])
+  })
+  it('never expires annotated, their originals, or ones with ticket/note/tags', () => {
+    const now = 100 * 86_400_000
+    const list = [
+      entry({ id: 'orig', createdAt: 0 }), entry({ id: 'ann', createdAt: 0, annotatedFrom: 'orig' }),
+      entry({ id: 'tk', createdAt: 0, ticket: 'WIGOS-1' }), entry({ id: 'nt', createdAt: 0, note: 'ojo' }),
+      entry({ id: 'tg', createdAt: 0, tags: ['bug'] }), entry({ id: 'plain', createdAt: 0, note: '   ' }),
+    ]
+    expect(expiredCaptures(list, 30, now).map((c) => c.id)).toEqual(['plain'])
+    expect(isRetentionProtected(entry({}))).toBe(false)
   })
 })
 
@@ -96,8 +106,22 @@ describe('overQuota / isExcludedApp', () => {
     expect(overQuota(list, 100).map((c) => c.id)).toEqual(['a'])
     expect(overQuota(list, 0)).toEqual([])
   })
+  it('salta las protegidas aunque no alcance el tope', () => {
+    const list = [entry({ id: 'a', createdAt: 1, bytes: 50, tags: ['x'] }), entry({ id: 'b', createdAt: 2, bytes: 50, ticket: 'A-12' }), entry({ id: 'c', createdAt: 3, bytes: 50 })]
+    expect(overQuota(list, 10).map((c) => c.id)).toEqual(['c'])
+  })
   it('compara apps sin mayúsculas', () => {
     expect(isExcludedApp('MyGame', ['mygame'])).toBe(true)
     expect(isExcludedApp(undefined, ['x'])).toBe(false)
+  })
+})
+
+describe('quickImageFingerprint', () => {
+  it('is stable for the same bitmap and changes with content or size', () => {
+    const a = new Uint8Array(4 * 100).fill(7)
+    const b = new Uint8Array(a); b[0] = 9
+    expect(quickImageFingerprint(a, 10, 10)).toBe(quickImageFingerprint(new Uint8Array(a), 10, 10))
+    expect(quickImageFingerprint(a, 10, 10)).not.toBe(quickImageFingerprint(b, 10, 10))
+    expect(quickImageFingerprint(a, 20, 5)).not.toBe(quickImageFingerprint(a, 10, 10))
   })
 })

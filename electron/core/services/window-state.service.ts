@@ -1,6 +1,7 @@
 import { screen } from 'electron'
 import type { BrowserWindow } from 'electron'
 import type { DatabaseService } from './db.service'
+import { logger } from '../logger'
 
 interface WindowBounds {
   x: number
@@ -34,19 +35,32 @@ export function loadWindowState(db: DatabaseService): Partial<WindowBounds> {
 export function trackWindowState(win: BrowserWindow, db: DatabaseService): void {
   let saveTimer: ReturnType<typeof setTimeout> | null = null
 
-  function save(): void {
-    if (saveTimer) clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => {
-      const maximized = win.isMaximized()
-      const { x, y, width, height } = maximized ? win.getNormalBounds() : win.getBounds()
-      const bounds: WindowBounds = { x, y, width, height, maximized }
+  // Se escribe en un timer: si falla (archivo bloqueado, disco lleno) se reintenta
+  // y se registra, pero nunca se deja escapar la excepción (tumbaría el proceso).
+  function write(bounds: WindowBounds, attempt = 0): void {
+    try {
       db.writeJSON(FILE, bounds)
-    }, 400)
+    } catch (err) {
+      logger.warn('window-state', `save failed (intento ${attempt + 1})`, err instanceof Error ? err.message : String(err))
+      if (attempt < 2) saveTimer = setTimeout(() => write(bounds, attempt + 1), 1000)
+    }
   }
 
-  win.on('resize', save)
-  win.on('move', save)
-  win.on('maximize', save)
-  win.on('unmaximize', save)
-  win.on('close', save)
+  function save(immediate = false): void {
+    if (saveTimer) clearTimeout(saveTimer)
+    // Los bounds se leen YA: al disparar el timer la ventana puede estar destruida (evento close).
+    if (win.isDestroyed()) return
+    const maximized = win.isMaximized()
+    const { x, y, width, height } = maximized ? win.getNormalBounds() : win.getBounds()
+    const bounds: WindowBounds = { x, y, width, height, maximized }
+    if (immediate) { saveTimer = null; write(bounds); return }
+    saveTimer = setTimeout(() => write(bounds), 400)
+  }
+
+  win.on('resize', () => save())
+  win.on('move', () => save())
+  win.on('maximize', () => save())
+  win.on('unmaximize', () => save())
+  // Al cerrar se guarda en el acto: después la ventana ya no existe.
+  win.on('close', () => save(true))
 }

@@ -5,7 +5,13 @@ import { applyFontImmediate } from './core/hooks/useAppFont'
 // Inter Variable incluida en la app (sin depender de Google Fonts): pesos 100–900 y
 // tamaños ópticos (los títulos grandes usan el corte "Display", más fino y apretado).
 import '@fontsource-variable/inter/opsz.css'
+// JetBrains Mono (editor, diff, snippets, código) también local: 'JetBrains Mono Variable'
+// y, vía fonts.css, el alias 'JetBrains Mono' que usan los stacks y las preferencias guardadas.
+import '@fontsource-variable/jetbrains-mono/wght.css'
+import './styles/fonts.css'
 import './styles/globals.css'
+import { ErrorBoundary } from './core/components/ErrorBoundary'
+import { isChunkLoadError, reportRendererError } from './core/components/error-report'
 
 // Apply persisted theme + palette before first paint to avoid a gray flash.
 // (AppContext also syncs the `dark` class; the palette store re-applies on every class change.)
@@ -24,15 +30,24 @@ import './styles/globals.css'
 // Capture renderer-side errors into the main-process log (app.log) so failures
 // in packaged builds leave a trace. ErrorBoundary only covers render errors —
 // this catches async handlers, event listeners, and unhandled promise rejections.
-const reportRendererError = (kind: string, message: string, stack?: string): void => {
-  try { window.api.send('app:renderer-error', { kind, message, stack: stack?.slice(0, 4000) }) } catch { /* preload unavailable */ }
-}
 window.addEventListener('error', (e) => {
-  reportRendererError('error', e.message, e.error instanceof Error ? e.error.stack : undefined)
+  reportRendererError('error', e.error instanceof Error ? e.error : e.message)
 })
 window.addEventListener('unhandledrejection', (e) => {
-  const r = e.reason
-  reportRendererError('unhandledrejection', r instanceof Error ? r.message : String(r), r instanceof Error ? r.stack : undefined)
+  reportRendererError('unhandledrejection', e.reason)
+})
+// Vite avisa cuando no pudo precargar un chunk (archivo de la app dañado o reemplazado
+// por una actualización a medias). Se registra; una sola recarga automática por sesión.
+window.addEventListener('vite:preloadError', (e) => {
+  const err = (e as Event & { payload?: unknown }).payload
+  reportRendererError('preload', err)
+  try {
+    if (!sessionStorage.getItem('setto:preload-reloaded')) {
+      sessionStorage.setItem('setto:preload-reloaded', '1')
+      e.preventDefault()
+      window.location.reload()
+    }
+  } catch { /* sin sessionStorage: que lo maneje el boundary */ }
 })
 
 // Ventana flotante del atajo global de snippets (electron/core/snippet-picker.ts):
@@ -51,11 +66,25 @@ if (isSnippetPicker || isDock) {
 const Root = isSnippetPicker
   ? import('./plugins/snippets/SnippetPicker').then((m) => m.SnippetPicker)
   : isDock ? import('./dock/Dock').then((m) => m.Dock) : import('./App').then((m) => m.App)
+const rootLabel = isSnippetPicker ? 'El selector de snippets' : isDock ? 'La barra flotante' : 'Setto'
+const reactRoot = ReactDOM.createRoot(document.getElementById('root') as HTMLElement)
 void Root.then((Component) => {
-  ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+  reactRoot.render(
     <React.StrictMode>
-      <Component />
+      <ErrorBoundary variant="root" label={rootLabel}>
+        <Component />
+      </ErrorBoundary>
     </React.StrictMode>
+  )
+  hideSplash()
+}).catch((err: unknown) => {
+  // No cargó el código de la ventana (import dinámico fallido): pantalla con "Recargar".
+  reportRendererError(isChunkLoadError(err) ? 'root-import' : 'root-load', err)
+  const Fail = (): JSX.Element => { throw err instanceof Error ? err : new Error(String(err)) }
+  reactRoot.render(
+    <ErrorBoundary variant="root" label={rootLabel}>
+      <Fail />
+    </ErrorBoundary>
   )
   hideSplash()
 })

@@ -8,9 +8,14 @@
     "src/plugins/credentials/strength.ts",
     "src/plugins/credentials/offline-queue.ts",
     "src/plugins/credentials/usage.ts",
+    "src/plugins/gastos/analytics.ts",
+    "src/plugins/gastos/sync-queue.ts",
     "src/core/clip-utils.ts",
     "src/plugins/captures/naming.ts",
-    "src/plugins/connections/sql.ts"
+    "src/plugins/tickets/logic.ts",
+    "src/plugins/captures/clip-search.ts",
+    "src/plugins/connections/sql.ts",
+    "src/core/icons/phosphor-weights.ts"
   ],
   "compilerOptions": {
     "composite": true,

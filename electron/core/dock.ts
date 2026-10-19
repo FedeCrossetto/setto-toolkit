@@ -1,9 +1,9 @@
-import { app, BrowserWindow, clipboard, globalShortcut, screen, shell } from 'electron'
+import { app, BrowserWindow, globalShortcut, screen, shell } from 'electron'
 import type { IpcMain, NativeImage } from 'electron'
 import path from 'path'
 import type { SettingsService } from './services/settings.service'
 import { foregroundWindow } from './win-helper'
-import { simulatePaste } from './snippet-picker'
+import { pasteKeepingClipboard, simulatePaste } from './snippet-picker'
 import { clipText, onClipAdded } from './clipboard-history'
 import { showWindow } from './notifications'
 import { logger } from './logger'
@@ -65,9 +65,34 @@ let cursorTimer: ReturnType<typeof setInterval> | null = null
 /** Abierta con el atajo: se pliega al salir el mouse sólo si antes entró (si no, se usa con teclado). */
 let openedByKey = false
 let side: Side = 'right'
+/** Pestaña que pidió `dock:open` (p. ej. Ctrl+K → Bloc): viaja una sola vez en `dock:state`. */
+let requestedTab: string | null = null
 let moveAnim: ReturnType<typeof setInterval> | null = null
 
-const area = (): Electron.Rectangle => screen.getPrimaryDisplay().workArea
+/** Pantalla donde vive la barra: la del cursor al abrirla/mostrarla (si desaparece, la principal). */
+let displayId: number | null = null
+
+const area = (): Electron.Rectangle => {
+  if (displayId !== null) {
+    const d = screen.getAllDisplays().find((x) => x.id === displayId)
+    if (d) return d.workArea
+    displayId = null
+  }
+  return screen.getPrimaryDisplay().workArea
+}
+
+/** Mover la barra a la pantalla donde está el cursor. Devuelve true si cambió. */
+function followCursorDisplay(): boolean {
+  try {
+    const d = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+    if (d.id === displayId) return false
+    const changed = displayId !== null || d.id !== screen.getPrimaryDisplay().id
+    displayId = d.id
+    return changed
+  } catch {
+    return false
+  }
+}
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
 
@@ -98,10 +123,13 @@ function boundsFor(isExpanded: boolean, top = handleTop()): Electron.Rectangle {
 let lastExternal: { app: string; title: string } | null = null
 const isOwnApp = (app: string): boolean => /^(setto|electron)$/i.test(app)
 
-const state = (): Record<string, unknown> => ({ expanded, pinned, shortcut, side, pad: PAD, context: lastExternal })
+const state = (): Record<string, unknown> => ({ expanded, pinned, shortcut, side, pad: PAD, context: lastExternal, tab: requestedTab })
 
 function send(): void {
-  if (dock && !dock.isDestroyed()) dock.webContents.send('dock:state', state())
+  if (!dock || dock.isDestroyed()) return
+  dock.webContents.send('dock:state', state())
+  // Si todavía carga, el renderer la va a pedir con `dock:state` (invoke) al montar.
+  if (!dock.webContents.isLoading()) requestedTab = null
 }
 
 function stopMoveAnim(): void {
@@ -165,6 +193,8 @@ function setExpanded(next: boolean, focus = false): void {
   const was = expanded
   expanded = next
   if (next) {
+    // Abrir en la pantalla del cursor (con el atajo puede estar en otro monitor).
+    if (!was) followCursorDisplay()
     // Primero agrandar la ventana (transparente) y después avisar: el panel entra animado.
     dock.setBounds(boundsFor(true))
     if (focus) { dock.setFocusable(true); dock.focus() }
@@ -192,7 +222,10 @@ function setExpanded(next: boolean, focus = false): void {
 
 /** Mostrar la barra si corresponde (no está oculta por pantalla completa). Idempotente. */
 function reveal(): void {
-  if (dock && !dock.isDestroyed() && !hiddenForFullscreen && !dock.isVisible()) dock.showInactive()
+  if (dock && !dock.isDestroyed() && !hiddenForFullscreen && !dock.isVisible()) {
+    if (followCursorDisplay()) dock.setBounds(boundsFor(expanded))
+    dock.showInactive()
+  }
 }
 
 function load(win: BrowserWindow): void {
@@ -227,6 +260,7 @@ function create(icon: NativeImage | string): void {
     title: 'Setto',
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
+      additionalArguments: ['--setto-role=dock'],   // canales de la barra (DOCK_CHANNELS en electron/preload.ts)
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
@@ -284,7 +318,7 @@ function startFullscreenWatch(): void {
       if (full === hiddenForFullscreen) { if (!full) reveal(); return }
       hiddenForFullscreen = full
       if (full) { expanded = false; dock.hide() }
-      else { dock.setBounds(boundsFor(false)); dock.showInactive() }
+      else { followCursorDisplay(); dock.setBounds(boundsFor(false)); dock.showInactive() }
       send()
     }).catch(() => undefined)
   }, FULLSCREEN_POLL_MS)
@@ -362,7 +396,16 @@ export function registerDock(ipcMain: IpcMain, settings: SettingsService, icon: 
   })
   /** El buscador necesita teclado: sólo entonces la barra toma el foco. */
   ipcMain.on('dock:want-focus', () => { if (dock && !dock.isDestroyed()) { dock.setFocusable(true); dock.focus() } })
-  ipcMain.handle('dock:state', () => state())
+  ipcMain.handle('dock:state', () => { const s = state(); requestedTab = null; return s })
+  /** Abrir la barra con el teclado en una pestaña (Ctrl+K → "Bloc" desde la ventana principal). */
+  ipcMain.on('dock:open', (_e, tab: unknown) => {
+    if (settings.get(SETTING) === '0') return
+    if (!dock) enable(icon)
+    hiddenForFullscreen = false
+    requestedTab = typeof tab === 'string' && /^[a-z]{2,16}$/.test(tab) ? tab : null
+    reveal()
+    setExpanded(true, true)
+  })
   ipcMain.handle('dock:enabled', () => settings.get(SETTING) !== '0')
   ipcMain.handle('dock:set-enabled', (_e, on: unknown) => {
     settings.set(SETTING, on === true ? '1' : '0')
@@ -376,18 +419,20 @@ export function registerDock(ipcMain: IpcMain, settings: SettingsService, icon: 
    * colapsa primero para que Windows le devuelva el foco a esa app.
    */
   // `current`: el renderer ya dejó algo en el portapapeles (p. ej. una captura con captures:copy).
+  // Texto (snippet o copiado): después de pegar se restaura lo que el usuario tenía en el portapapeles.
   ipcMain.handle('dock:paste', async (_e, payload: { text?: string; clipId?: string; current?: boolean }) => {
-    if (typeof payload?.text === 'string') clipboard.writeText(payload.text)
+    let text: string | null = null
+    if (typeof payload?.text === 'string') text = payload.text
     else if (typeof payload?.clipId === 'string') {
-      const t = clipText(payload.clipId)
-      if (t === null) throw new Error('Ya no está en el historial')
-      clipboard.writeText(t)
+      text = clipText(payload.clipId)
+      if (text === null) throw new Error('Ya no está en el historial')
     } else if (payload?.current !== true) throw new Error('Nada para pegar')
     const hadFocus = !!dock?.isFocused()
     if (hadFocus) { pinned = false; setExpanded(false) }
-    await new Promise((r) => setTimeout(r, hadFocus ? 180 : 60))
-    simulatePaste()
-    return { ok: true }
+    const delay = hadFocus ? 180 : 60
+    if (text !== null) return { ok: true, pasted: await pasteKeepingClipboard(text, delay) }
+    await new Promise((r) => setTimeout(r, delay))
+    return { ok: true, pasted: await simulatePaste() }
   })
 
   /** Captura rápida en la ventana principal (como Ctrl+Shift+Espacio). */

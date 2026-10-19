@@ -138,7 +138,7 @@ export function SecuritySheet({
               <button className="ui-btn ui-btn-outline ui-btn-sm" onClick={() => setMode('change')}>Cambiar PIN</button>
               <button
                 className="ui-btn ui-btn-outline ui-btn-sm"
-                onClick={() => void run(() => credentialsApi.lock(), 'Credenciales bloqueadas')}
+                onClick={() => void run(() => credentialsApi.lock(), 'Claves bloqueadas')}
                 disabled={!status?.unlocked}
               >
                 Bloquear ahora

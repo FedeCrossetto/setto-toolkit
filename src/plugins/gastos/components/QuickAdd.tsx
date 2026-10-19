@@ -1,17 +1,21 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { CornerDownLeft, SlidersHorizontal, Sparkles, Zap } from 'lucide-react'
+import { CornerDownLeft, Repeat, SlidersHorizontal, Sparkles, Zap } from 'lucide-react'
 import { Modal } from '../../../core/components/Modal'
 import type { Gasto } from '../types'
 import { parseQuickAdd, isoDate, type QuickAddResult } from '../quick-add-parser'
 import { fechaCorta, fmt, randomId } from '../format'
 import { readLastMethod, writeLastMethod } from '../local-store'
+import { describeRegla, parseRecurrence, type RecurrenceHint } from '../recurrence'
 import { applyLearning, suggestDescriptions, topFavorites, type LearnedEntry, type Learning } from '../learning'
 
 export interface QuickAddHandle {
   focus: (text?: string) => void
 }
 
-type Parsed = QuickAddResult & { learned: boolean }
+type Parsed = QuickAddResult & { learned: boolean; recurrence: RecurrenceHint | null }
+
+/** Pedido de repetir el gasto ("todos los meses") */
+export type QuickRepeat = Pick<RecurrenceHint, 'frecuencia' | 'dia'>
 
 function amountText(n: number): string {
   return String(n).replace('.', ',')
@@ -31,7 +35,17 @@ function toGasto(p: Parsed, metodo: string): Gasto {
 }
 
 function parseWith(text: string, learning: Learning): Parsed {
-  return applyLearning(parseQuickAdd(text), learning)
+  const recurrence = parseRecurrence(text)
+  return { ...applyLearning(parseQuickAdd(recurrence ? recurrence.text : text), learning), recurrence }
+}
+
+function repeatLabel(r: RecurrenceHint, fecha: string): string {
+  const d = new Date(`${fecha}T00:00:00`)
+  return describeRegla({
+    frecuencia: r.frecuencia,
+    dia: r.frecuencia === 'semanal' ? d.getDay() : r.dia ?? d.getDate(),
+    mesAnual: d.getMonth() + 1,
+  })
 }
 
 /** Reemplaza las palabras de descripción del texto por la sugerencia (el parser no depende del orden). */
@@ -53,7 +67,7 @@ function acceptSuggestion(text: string, parsed: Parsed, s: LearnedEntry): string
  */
 export const QuickAdd = forwardRef<QuickAddHandle, {
   learning: Learning
-  onSave: (g: Gasto) => void
+  onSave: (g: Gasto, repeat?: QuickRepeat | null) => void
   onSaveMany: (gs: Gasto[]) => void
   /** Abre el formulario completo con lo que se interpretó */
   onMore: (draft: Partial<Gasto>) => void
@@ -61,6 +75,7 @@ export const QuickAdd = forwardRef<QuickAddHandle, {
   const [text, setText] = useState('')
   const [active, setActive] = useState(-1)
   const [suggestOpen, setSuggestOpen] = useState(true)
+  const [repeatOff, setRepeatOff] = useState(false)
   const [batch, setBatch] = useState<Array<{ line: string; parsed: Parsed; checked: boolean }> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const today = isoDate(new Date())
@@ -95,8 +110,10 @@ export const QuickAdd = forwardRef<QuickAddHandle, {
   function save(): void {
     if (!parsed || parsed.monto === null) return
     writeLastMethod(metodo)
-    onSave(toGasto(parsed, metodo))
+    const rec = parsed.recurrence && !repeatOff ? { frecuencia: parsed.recurrence.frecuencia, dia: parsed.recurrence.dia } : null
+    onSave(toGasto(parsed, metodo), rec)
     setText('')
+    setRepeatOff(false)
     setActive(-1)
     setSuggestOpen(true)
     inputRef.current?.focus()
@@ -153,8 +170,8 @@ export const QuickAdd = forwardRef<QuickAddHandle, {
   return (
     <div className="ui-card p-2">
       <div className="relative">
-        <div className="flex items-center gap-2 rounded-lg bg-on-surface/4 dark:bg-on-surface/6 focus-within:bg-surface focus-within:ring-2 focus-within:ring-primary/25 transition-colors pl-3 pr-1.5 py-1">
-          <Zap size={14} className="text-primary shrink-0" aria-hidden />
+        <div className="flex items-center gap-2 rounded-[10px] border border-transparent bg-on-surface/[0.035] dark:bg-on-surface/6 focus-within:bg-surface focus-within:border-hairline-strong transition-colors pl-3 pr-1.5 py-1">
+          <Zap size={14} className="text-on-surface-variant shrink-0" aria-hidden />
           <input
             ref={inputRef}
             value={text}
@@ -229,6 +246,13 @@ export const QuickAdd = forwardRef<QuickAddHandle, {
           <span className="ui-badge">{parsed.categoria}</span>
           <span className="ui-badge">{metodo}{parsed.metodoPago ? '' : ' (último usado)'}</span>
           <span className="ui-badge">{parsed.fecha === today ? 'Hoy' : fechaCorta(parsed.fecha)}</span>
+          {parsed.recurrence && (
+            <button type="button" className={`fl-chip ${repeatOff ? '' : 'is-on'}`} aria-pressed={!repeatOff}
+              title={repeatOff ? 'Clic para que se cargue solo' : 'Clic para guardarlo sólo esta vez'}
+              onClick={() => { setRepeatOff((v) => !v); inputRef.current?.focus() }}>
+              <Repeat size={11} /> {repeatOff ? 'Sólo esta vez' : `Se repite: ${repeatLabel(parsed.recurrence, parsed.fecha).toLowerCase()}`}
+            </button>
+          )}
           {parsed.learned && (
             <span className="t-caption text-on-surface-variant inline-flex items-center gap-1" title="Categoría, método y moneda según lo que cargaste antes con esta descripción">
               <Sparkles size={11} /> según tu historial
@@ -241,7 +265,7 @@ export const QuickAdd = forwardRef<QuickAddHandle, {
           <span className="t-caption text-on-surface-variant mr-0.5">Rápidos</span>
           {favorites.map((f) => (
             <button key={f.key} type="button"
-              className="ui-badge hover:bg-selected hover:text-primary transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full hairline t-caption font-medium text-on-surface hover:border-hairline-strong hover:bg-on-surface/3 transition-colors cursor-pointer"
               title={`Clic: prellenar · Alt+clic: guardar ${money(f.moneda, f.montoTipico)} con fecha de hoy`}
               onClick={(e) => favorite(f, e.altKey)}>
               {f.descripcion} <span className="tabular-nums opacity-70">· {money(f.moneda, f.montoTipico)}</span>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Check, CloudUpload, Copy, ExternalLink, Eye, EyeOff, Pencil, ShieldAlert, Star, Trash2, Wand2,
+  ArrowDownToLine, Check, CloudCheck, CloudUpload, Copy, ExternalLink, Eye, EyeOff, Monitor, Pencil, ShieldAlert, Star, Trash2, TriangleAlert, Wand2,
 } from 'lucide-react'
 import { Field } from '../../../core/components/Form'
 import { Badge } from '../../../core/components/Badge'
@@ -8,6 +8,7 @@ import { useToast } from '../../../core/components/Toast'
 import type { Credential, CredentialDraft, SecretResult } from '../types'
 import { absoluteUrl, copyToClipboard, credentialsApi, displayHost, relativeTime } from '../data'
 import { usageHint } from '../usage'
+import { E2E_ITEM_LABEL } from '../e2e-view'
 import { estimateStrength } from '../strength'
 import { Avatar } from './Avatar'
 import { StrengthMeter } from './StrengthMeter'
@@ -53,7 +54,7 @@ function DetailRow({ label, children, actions }: { label: string; children: Reac
 
 export function CredentialView({
   c, favorite, usage, score, reusedWith, weak, withSecret,
-  onEdit, onDelete, onToggleFavorite, onCopyPassword, onCopyUser, onOpenAndCopy,
+  onEdit, onDelete, onToggleFavorite, onCopyPassword, onCopyUser, onOpenAndCopy, onOpenSync, onResolveConflict,
 }: {
   c: Credential
   favorite: boolean
@@ -68,6 +69,10 @@ export function CredentialView({
   onCopyPassword: () => void
   onCopyUser: () => void
   onOpenAndCopy: () => void
+  /** Opens "Sincronizar contraseñas" (per-item status chip / password only in the cloud). */
+  onOpenSync?: () => void
+  /** Sync conflict: keep this PC's password or take the synced one. */
+  onResolveConflict?: (choice: 'local' | 'remote') => void
 }): JSX.Element {
   const [revealed, setRevealed] = useState<string | null>(null)
   const [left, setLeft] = useState(0)
@@ -94,7 +99,7 @@ export function CredentialView({
   const host = displayHost(c.url)
 
   return (
-    <article className="bg-surface hairline rounded-2xl shadow-sm overflow-hidden">
+    <article className="bg-surface hairline rounded-2xl overflow-hidden">
       <header className="flex items-start gap-4 px-6 pt-6 pb-4">
         <Avatar name={c.nombre} url={c.url} size={52} />
         <div className="flex-1 min-w-0 pt-0.5">
@@ -122,6 +127,20 @@ export function CredentialView({
                 <CloudUpload size={12} /> Pendiente de sincronizar
               </span>
             )}
+            {c.e2e && (
+              <button
+                type="button"
+                onClick={onOpenSync}
+                className={`inline-flex items-center gap-1 t-caption rounded-full hairline px-2 py-0.5 hover:bg-on-surface/4 transition-colors ${
+                  c.e2e === 'synced' ? 'text-success' : c.e2e === 'remote' ? 'text-primary' : c.e2e === 'conflict' ? 'text-warning' : 'text-on-surface-variant'
+                }`}
+                title={E2E_ITEM_LABEL[c.e2e].hint}
+              >
+                {c.e2e === 'synced' ? <CloudCheck size={12} /> : c.e2e === 'remote' ? <ArrowDownToLine size={12} />
+                  : c.e2e === 'conflict' ? <TriangleAlert size={12} /> : <Monitor size={12} />}
+                {E2E_ITEM_LABEL[c.e2e].label}
+              </button>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -136,7 +155,7 @@ export function CredentialView({
         <button onClick={onCopyPassword} disabled={!c.hasPassword} className="ui-btn ui-btn-primary" title="Copiar contraseña (Enter)">
           <Copy size={13} /> Copiar contraseña
         </button>
-        <button onClick={onCopyUser} disabled={!c.usuario} className="ui-btn ui-btn-outline" title="Copiar usuario (Ctrl+B)">
+        <button onClick={onCopyUser} disabled={!c.usuario} className="ui-btn ui-btn-outline" title="Copiar usuario (Shift+Enter)">
           <Copy size={13} /> Copiar usuario
         </button>
         {c.url && c.hasPassword && (
@@ -179,9 +198,31 @@ export function CredentialView({
               {shownScore !== undefined && <StrengthMeter score={shownScore} />}
             </div>
           ) : (
-            <span className="text-on-surface-variant" title="No hay contraseña guardada en esta computadora">Sin contraseña</span>
+            c.e2e === 'remote' ? (
+              <button type="button" onClick={onOpenSync} className="t-body text-primary hover:underline text-left">
+                Guardada desde otra computadora — desbloqueá la sincronización para traerla
+              </button>
+            ) : (
+              <span className="text-on-surface-variant" title="No hay contraseña guardada en esta computadora">Sin contraseña</span>
+            )
           )}
         </DetailRow>
+
+        {c.e2e === 'conflict' && (
+          <div className="flex flex-col gap-2.5 px-6 py-3 bg-warning/6">
+            <div className="flex items-start gap-2.5">
+              <TriangleAlert size={15} className="text-warning mt-px shrink-0" />
+              <p className="t-footnote text-on-surface">
+                La contraseña de esta computadora no coincide con la sincronizada y no se sabe cuál es más nueva.
+                No se cambió nada: elegí cuál queda.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 pl-[25px]">
+              <button type="button" className="ui-btn ui-btn-outline ui-btn-sm" onClick={() => onResolveConflict?.('local')}>Usar la de esta PC</button>
+              <button type="button" className="ui-btn ui-btn-outline ui-btn-sm" onClick={() => onResolveConflict?.('remote')}>Usar la sincronizada</button>
+            </div>
+          </div>
+        )}
 
         {(reusedWith.length > 0 || weak) && (
           <div className="flex items-start gap-2.5 px-6 py-3 bg-warning/6">

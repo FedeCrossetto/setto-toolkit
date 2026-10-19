@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, safeStorage } from 'electron'
+import { app, BrowserWindow, dialog, powerMonitor, safeStorage } from 'electron'
 import type { IpcMain } from 'electron'
 import fs from 'fs'
 import path from 'path'
@@ -6,18 +6,20 @@ import type { DatabaseService } from './services/db.service'
 import { registerHandler } from './ipc-handler'
 import { logger } from './logger'
 import {
-  collectFiles, dirSizeBytes, fromPortable, openBackup, safeRelPath, sealBackup, toPortable,
+  collectFiles, dirSizeBytes, openBackup, sealBackupAsync, toPortable,
   type BackupPayload, type Codec,
 } from './backup'
+import { restoreBackupInto } from './backup-restore'
 
 /**
  * Ajustes → Respaldo: exportar / restaurar todos los datos en un `.settobackup`
  * cifrado con una contraseña (ver backup.ts) y un respaldo automático semanal a
  * una carpeta (p. ej. OneDrive), guardando los últimos 5.
  *
- * Restaurar: copia lo actual a `restore-backup-<fecha>/`, escribe los archivos
- * (re-cifrados para esta PC), repone el localStorage y reinicia la app con
- * `app.exit` (sin `will-quit`: nada en memoria pisa lo restaurado).
+ * Restaurar (backup-restore.ts): prepara todo en una carpeta aparte, valida, mueve
+ * lo actual a `restore-backup-<fecha>/` y pone lo restaurado en su lugar (si algo
+ * falla, deshace); después repone el localStorage y reinicia la app con `app.exit`
+ * (sin `will-quit`: nada en memoria pisa lo restaurado).
  */
 const EXT = 'settobackup'
 const AUTO_FILE = 'backup-auto.json'
@@ -61,10 +63,15 @@ async function readLocalStorage(): Promise<Record<string, string>> {
   } catch { return {} }
 }
 
+/** Cede el turno al event loop (para no trabar el proceso main con muchos archivos). */
+const yieldLoop = (): Promise<void> => new Promise((r) => setImmediate(r))
+
 async function buildPayload(dir: string, includeCaptures: boolean): Promise<BackupPayload> {
   const entries = []
+  let n = 0
   for (const rel of collectFiles(dir, { includeCaptures })) {
-    try { entries.push(toPortable(rel, fs.readFileSync(path.join(dir, rel)), codec)) } catch (err) {
+    if (++n % 20 === 0) await yieldLoop()
+    try { entries.push(toPortable(rel, await fs.promises.readFile(path.join(dir, rel)), codec)) } catch (err) {
       // Un archivo cifrado con otra cuenta/PC no se puede leer: se saltea y se sigue.
       logger.warn('backup', `no se pudo incluir ${rel}: ${cleanErr(err)}`)
     }
@@ -74,10 +81,10 @@ async function buildPayload(dir: string, includeCaptures: boolean): Promise<Back
 
 async function writeBackup(file: string, pass: string, includeCaptures: boolean, dir: string): Promise<{ path: string; sizeMB: number; files: number }> {
   const payload = await buildPayload(dir, includeCaptures)
-  const sealed = sealBackup(payload, pass)
-  fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.writeFileSync(`${file}.tmp`, sealed)
-  fs.renameSync(`${file}.tmp`, file)
+  const sealed = await sealBackupAsync(payload, pass)
+  await fs.promises.mkdir(path.dirname(file), { recursive: true })
+  await fs.promises.writeFile(`${file}.tmp`, sealed)
+  await fs.promises.rename(`${file}.tmp`, file)
   return { path: file, sizeMB: mb(sealed.length), files: payload.entries.length }
 }
 
@@ -128,32 +135,20 @@ export function registerBackup(ipcMain: IpcMain, db: DatabaseService): void {
 
   registerHandler(ipcMain, 'backup:restore', async (_e, file: string, pass: string) => {
     const p = openBackup(fs.readFileSync(file), String(pass ?? ''))
-    // Copia de seguridad de lo que se va a pisar.
-    const safety = path.join(dir, `restore-backup-${Date.now()}`)
-    let written = 0
-    for (const entry of p.entries) {
-      const rel = safeRelPath(entry.path)
-      if (!rel) { logger.warn('backup', `ruta ignorada: ${entry.path}`); continue }
-      const target = path.join(dir, rel)
-      if (fs.existsSync(target)) {
-        fs.mkdirSync(path.dirname(path.join(safety, rel)), { recursive: true })
-        fs.copyFileSync(target, path.join(safety, rel))
-      }
-      fs.mkdirSync(path.dirname(target), { recursive: true })
-      fs.writeFileSync(target, fromPortable(entry, codec))
-      written++
-    }
+    // Staging → validar → intercambio con rollback (lanza si no se pudo; los datos quedan como estaban).
+    const { files: written, removed, skipped, safety } = restoreBackupInto(dir, p, codec)
+    for (const s of skipped) logger.warn('backup', `ruta ignorada: ${s}`)
     // localStorage de la ventana principal (tema, fuente, preferencias de vistas).
     const w = mainWindow()
     if (w && p.local && Object.keys(p.local).length) {
       const js = `(() => { const d = ${JSON.stringify(p.local)}; for (const [k, v] of Object.entries(d)) { try { localStorage.setItem(k, v) } catch {} } })()`
       try { await w.webContents.executeJavaScript(js) } catch { /* sigue igual */ }
     }
-    logger.info('backup', `restaurados ${written} archivos; copia previa en ${safety}`)
+    logger.info('backup', `restaurados ${written} archivos (${removed} quitados); copia previa en ${safety}`)
     // Reiniciar sin will-quit: nada en memoria vuelve a escribir encima de lo restaurado.
     // (Las pruebas automáticas ponen SETTO_NO_RELAUNCH para no dejar una instancia suelta.)
     setTimeout(() => { if (!process.env['SETTO_NO_RELAUNCH']) app.relaunch(); app.exit(0) }, 600)
-    return { ok: true, files: written, safety }
+    return { ok: true, files: written, removed, safety }
   })
 
   // ── Automático ──────────────────────────────────────────────────────────────
@@ -192,6 +187,21 @@ export function registerBackup(ipcMain: IpcMain, db: DatabaseService): void {
   }
   registerHandler(ipcMain, 'backup:auto-run', () => runAuto(true))
 
-  setTimeout(() => { void runAuto() }, AUTO_FIRST_DELAY_MS)
-  setInterval(() => { void runAuto() }, 6 * 3600_000).unref?.()
+  // El automático espera a que la PC esté ociosa (sin teclado/mouse ≥ 1 min) para no
+  // competir con lo que el usuario está haciendo; si no se da en 2 h, corre igual.
+  let waitingSince: number | null = null
+  const IDLE_SECONDS = 60
+  const MAX_WAIT_MS = 2 * 3600_000
+  const tryAuto = (): void => {
+    const cfg = readAuto()
+    if (!cfg || (cfg.lastAt && Date.now() - cfg.lastAt < AUTO_EVERY_MS)) { waitingSince = null; return }
+    waitingSince ??= Date.now()
+    let idle = 0
+    try { idle = powerMonitor.getSystemIdleTime() } catch { idle = IDLE_SECONDS }
+    if (idle < IDLE_SECONDS && Date.now() - waitingSince < MAX_WAIT_MS) return
+    waitingSince = null
+    void runAuto().catch((err) => logger.warn('backup', `automático falló: ${cleanErr(err)}`))
+  }
+  setTimeout(tryAuto, AUTO_FIRST_DELAY_MS)
+  setInterval(tryAuto, 5 * 60_000).unref?.()
 }

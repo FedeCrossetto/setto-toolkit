@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, nativeImage, net, Notification, protocol, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, nativeImage, net, Notification, powerMonitor, protocol, shell } from 'electron'
 import type { IpcMain } from 'electron'
 import { createHash, randomBytes } from 'crypto'
 import fs from 'fs'
@@ -8,13 +8,15 @@ import type { CoreServices, PluginHandlers } from '../../core/types'
 import type { SettingsService } from '../../core/services/settings.service'
 import { registerHandler } from '../../core/ipc-handler'
 import { logger } from '../../core/logger'
-import { isPrivateClipboard } from '../../core/clipboard-history'
+import { isPrivateClipboard, setCaptureSearchSource } from '../../core/clipboard-history'
+import { prepareDoc, type PreparedDoc } from '../../../src/plugins/captures/clip-search'
+import { OcrQueue } from './ocr-queue'
 import { foregroundWindow, ocrImage, stopWinHelper, warmWinHelper } from '../../core/win-helper'
 import { showWindow } from '../../core/notifications'
 import type { CaptureQuery, CaptureQueryResult, CaptureSettings } from '../../../src/plugins/captures/types'
 import {
   buildTitle, captureFacets, captureFileName, detectTicket, expiredCaptures, uniqueExportNames, isExcludedApp,
-  isValidCaptureFile, normalizeSource, overQuota, queryCaptures, searchText, thumbFileName, toLite, type CaptureEntry,
+  isValidCaptureFile, normalizeSource, overQuota, queryCaptures, quickImageFingerprint, searchText, thumbFileName, toLite, type CaptureEntry,
 } from './captures-utils'
 
 /**
@@ -43,6 +45,9 @@ let entries: CaptureEntry[] = []
 const hashes = new Set<string>()
 const haystacks = new Map<string, string>()
 let lastHash = ''
+// Huella barata del último bitmap visto: si no cambió, no se hashea la imagen entera.
+let lastQuick = ''
+let pollsSinceFull = 0
 let timer: ReturnType<typeof setInterval> | null = null
 let busy = false
 let settingsRef: SettingsService | null = null
@@ -68,7 +73,7 @@ const haystack = (c: CaptureEntry): string => {
   if (h === undefined) { h = searchText(c); haystacks.set(c.id, h) }
   return h
 }
-const touch = (c: CaptureEntry): void => { haystacks.delete(c.id) }
+const touch = (c: CaptureEntry): void => { haystacks.delete(c.id); prepared.delete(c.id) }
 
 // ── Ajustes ──────────────────────────────────────────────────────────────────
 
@@ -86,12 +91,18 @@ function readSettings(): CaptureSettings {
 // ── Índice ───────────────────────────────────────────────────────────────────
 
 function loadIndex(): void {
+  const p = path.join(capturesDir(), INDEX)
+  let text: string | null = null
+  try { text = fs.readFileSync(p, 'utf-8') } catch { /* primera vez: no hay índice */ }
   try {
-    const raw = JSON.parse(fs.readFileSync(path.join(capturesDir(), INDEX), 'utf-8')) as unknown
-    entries = Array.isArray(raw)
-      ? (raw as CaptureEntry[]).filter((e) => isValidCaptureFile(e.file) && fs.existsSync(filePath(e.file)))
-      : []
-  } catch {
+    const raw = text === null ? [] : JSON.parse(text) as unknown
+    if (!Array.isArray(raw)) throw new Error('captures.json no es una lista')
+    entries = (raw as CaptureEntry[]).filter((e) => isValidCaptureFile(e?.file) && fs.existsSync(filePath(e.file)))
+  } catch (err) {
+    // Índice dañado: se aparta una copia antes de que el próximo guardado lo pise.
+    const backup = `${p}.corrupt-${Date.now()}`
+    try { fs.copyFileSync(p, backup) } catch { /* nada */ }
+    logger.error('captures', 'captures.json dañado — copia guardada', { backup, error: err instanceof Error ? err.message : String(err) })
     entries = []
   }
   hashes.clear()
@@ -100,15 +111,22 @@ function loadIndex(): void {
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 function saveIndex(now = false): void {
-  const write = (): void => {
+  // Corre dentro de un timer: un error acá (antivirus, disco lleno, archivo bloqueado)
+  // no puede tumbar el proceso. Se reintenta un par de veces y si no, queda en el log.
+  const write = (attempt = 0): void => {
     saveTimer = null
     const p = path.join(capturesDir(), INDEX)
-    fs.writeFileSync(`${p}.tmp`, JSON.stringify(entries), 'utf-8')
-    fs.renameSync(`${p}.tmp`, p)
+    try {
+      fs.writeFileSync(`${p}.tmp`, JSON.stringify(entries), 'utf-8')
+      fs.renameSync(`${p}.tmp`, p)
+    } catch (err) {
+      logger.warn('captures', `saveIndex failed (intento ${attempt + 1})`, err instanceof Error ? err.message : String(err))
+      if (attempt < 2 && !now) saveTimer = setTimeout(() => write(attempt + 1), 1000 * (attempt + 1))
+    }
   }
   if (saveTimer) clearTimeout(saveTimer)
   if (now) { write(); return }
-  saveTimer = setTimeout(write, 400)
+  saveTimer = setTimeout(() => write(), 400)
 }
 
 // Varias capturas/OCR seguidos → un solo aviso al renderer.
@@ -190,7 +208,13 @@ async function poll(): Promise<void> {
     if (img.isEmpty()) return
     const { width, height } = img.getSize()
     if (width < 8 || height < 8 || width * height > MAX_PIXELS) return
-    const h = createHash('sha1').update(img.toBitmap()).digest('hex')
+    const bitmap = img.toBitmap()
+    // Pre-chequeo barato: misma huella → misma imagen (cada ~10 s igual se verifica completo).
+    const quick = quickImageFingerprint(bitmap, width, height)
+    if (quick === lastQuick && ++pollsSinceFull < 10) return
+    lastQuick = quick
+    pollsSinceFull = 0
+    const h = createHash('sha1').update(bitmap).digest('hex')
     if (h === lastHash) return
     lastHash = h
     if (hashes.has(h)) return   // la misma imagen ya está guardada
@@ -212,7 +236,12 @@ function startWatching(): void {
   // Lo que ya estaba en el portapapeles al abrir la app no cuenta como captura nueva.
   try {
     const img = clipboard.readImage()
-    if (!img.isEmpty()) lastHash = createHash('sha1').update(img.toBitmap()).digest('hex')
+    if (!img.isEmpty()) {
+      const bitmap = img.toBitmap()
+      const { width, height } = img.getSize()
+      lastHash = createHash('sha1').update(bitmap).digest('hex')
+      lastQuick = quickImageFingerprint(bitmap, width, height)
+    }
   } catch { /* nada */ }
   warmWinHelper()
   timer = setInterval(() => { void poll() }, POLL_MS)
@@ -225,16 +254,21 @@ function stopWatching(): void {
 
 // ── Límites ──────────────────────────────────────────────────────────────────
 
-function removeEntries(list: CaptureEntry[], trash: boolean): Promise<void> {
+/** `trash`: a la papelera (si falla, se borra); `retention`: papelera o nada (nunca unlink). */
+function removeEntries(list: CaptureEntry[], trash: boolean | 'retention'): Promise<void> {
   const ids = new Set(list.map((e) => e.id))
   entries = entries.filter((e) => !ids.has(e.id))
   for (const e of list) {
     if (e.hash) hashes.delete(e.hash)
     haystacks.delete(e.id)
+    prepared.delete(e.id)
+    ocrQueue.remove(e.id)
   }
   return Promise.all(list.map(async (e) => {
     const p = filePath(e.file)
-    if (trash) { try { await shell.trashItem(p) } catch { try { fs.unlinkSync(p) } catch { /* nada */ } } }
+    if (trash === 'retention') {
+      try { await shell.trashItem(p) } catch (err) { logger.warn('captures', 'retention trash failed', err instanceof Error ? err.message : String(err)) }
+    } else if (trash) { try { await shell.trashItem(p) } catch { try { fs.unlinkSync(p) } catch { /* nada */ } } }
     else { try { fs.unlinkSync(p) } catch { /* nada */ } }
     try { fs.unlinkSync(thumbPath(e.file)) } catch { /* nada */ }
   })).then(() => undefined)
@@ -243,42 +277,75 @@ function removeEntries(list: CaptureEntry[], trash: boolean): Promise<void> {
 function enforceLimits(): void {
   const s = readSettings()
   const drop = [...expiredCaptures(entries, s.keepDays, Date.now()), ...overQuota(entries, s.maxMb * 1024 * 1024)]
-  if (drop.length) void removeEntries([...new Map(drop.map((e) => [e.id, e])).values()], false)
+  // A la papelera del sistema (no unlink): si la limpieza se equivoca, se recupera.
+  if (drop.length) void removeEntries([...new Map(drop.map((e) => [e.id, e])).values()], 'retention')
 }
 
 // ── OCR (de a una, en segundo plano) ─────────────────────────────────────────
 
-const ocrQueue: string[] = []
+const ocrQueue = new OcrQueue(Date.now())
 let ocrBusy = false
+let ocrTimer: ReturnType<typeof setTimeout> | null = null
 
+/** Captura nueva: OCR en segundo plano, apenas termine lo que esté corriendo. */
 function queueOcr(id: string): void {
   if (process.platform !== 'win32') return
-  ocrQueue.push(id)
-  void drainOcr()
+  ocrQueue.pushFresh(id, Date.now())
+  kickOcr()
 }
 
+function kickOcr(delay = 0): void {
+  if (ocrTimer) clearTimeout(ocrTimer)
+  ocrTimer = setTimeout(() => { ocrTimer = null; void drainOcr() }, delay)
+}
+
+const systemIdleSeconds = (): number => { try { return powerMonitor.getSystemIdleTime() } catch { return 0 } }
+
+/** OCR de una captura (sin pasar por la cola). Guarda el resultado. */
+async function runOcr(e: CaptureEntry): Promise<void> {
+  try {
+    e.ocr = (await ocrImage(filePath(e.file))) ?? ''
+  } catch (err) {
+    e.ocr = ''   // no reintentar en bucle
+    logger.warn('captures', 'OCR failed', err instanceof Error ? err.message : String(err))
+  }
+  if (!e.ticket) e.ticket = detectTicket(e.ocr) || detectTicket(e.window)
+  touch(e)
+  saveIndex()
+  broadcastChanged()
+}
+
+/** De a una; las viejas sin OCR se rellenan con tope por minuto (ver ocr-queue.ts). */
 async function drainOcr(): Promise<void> {
   if (ocrBusy) return
   ocrBusy = true
   try {
-    while (ocrQueue.length) {
-      const e = entries.find((x) => x.id === ocrQueue[0])
-      ocrQueue.shift()
+    for (;;) {
+      const step = ocrQueue.next(Date.now(), systemIdleSeconds())
+      if (!step) return
+      if ('waitMs' in step) { kickOcr(step.waitMs); return }
+      const e = entries.find((x) => x.id === step.id)
       if (!e || e.ocr !== null) continue
-      try {
-        e.ocr = (await ocrImage(filePath(e.file))) ?? ''
-      } catch (err) {
-        e.ocr = ''   // no reintentar en bucle
-        logger.warn('captures', 'OCR failed', err instanceof Error ? err.message : String(err))
-      }
-      if (!e.ticket) e.ticket = detectTicket(e.ocr) || detectTicket(e.window)
-      touch(e)
-      saveIndex()
-      broadcastChanged()
+      await runOcr(e)
     }
   } finally {
     ocrBusy = false
   }
+}
+
+// ── Búsqueda unificada (clipboard:search, ver core/clipboard-history.ts) ─────
+
+const prepared = new Map<string, PreparedDoc>()
+function preparedDoc(c: CaptureEntry): PreparedDoc {
+  let d = prepared.get(c.id)
+  if (!d) {
+    d = prepareDoc({
+      kind: 'capture', id: c.id, at: c.createdAt, pinned: c.pinned,
+      fields: { title: c.title, ticket: c.ticket, note: c.note, ocr: c.ocr, app: c.app, window: c.window },
+    })
+    prepared.set(c.id, d)
+  }
+  return d
 }
 
 // ── Protocolo para mostrar las imágenes ──────────────────────────────────────
@@ -335,8 +402,18 @@ export const handlers: PluginHandlers = {
     registerCaptureProtocol()
     enforceLimits()
     backfillThumbs()
-    // Las que quedaron sin OCR (app cerrada a mitad) se procesan ahora.
-    entries.filter((e) => e.ocr === null).forEach((e) => queueOcr(e.id))
+    // Las que quedaron sin OCR (app cerrada a mitad, o de antes): relleno gradual, lo más nuevo primero.
+    if (process.platform === 'win32') {
+      ocrQueue.pushBackfill(entries.filter((e) => e.ocr === null).sort((a, b) => b.createdAt - a.createdAt).map((e) => e.id))
+      kickOcr()
+    }
+    setCaptureSearchSource({
+      docs: () => entries.map(preparedDoc),
+      describe: (id) => {
+        const c = entries.find((x) => x.id === id)
+        return c ? { file: c.file, title: c.title, ticket: c.ticket, app: c.app, pinned: c.pinned, ocrState: c.ocr === null ? 'pending' : c.ocr ? 'done' : 'empty' } : null
+      },
+    })
     if (readSettings().auto) startWatching()
 
     registerHandler(ipcMain, 'captures:query', (_e, q: CaptureQuery = {}): CaptureQueryResult => {
@@ -392,6 +469,20 @@ export const handlers: PluginHandlers = {
       return { ok: true }
     })
 
+    /** Alt+Enter en la barra: el texto de la captura al portapapeles (si falta el OCR, se hace ya). */
+    registerHandler(ipcMain, 'captures:copy-ocr', async (_e, id: string) => {
+      const e = find(id)
+      if (e.ocr === null) {
+        if (process.platform !== 'win32') return { ok: false, reason: 'El OCR sólo está en Windows' }
+        ocrQueue.remove(e.id)
+        await runOcr(e)
+      }
+      const text = (e.ocr ?? '').trim()
+      if (!text) return { ok: false, reason: 'No se encontró texto en la captura' }
+      clipboard.writeText(text)
+      return { ok: true, chars: text.length }
+    })
+
     registerHandler(ipcMain, 'captures:reveal', (_e, id?: string) => {
       if (id) shell.showItemInFolder(filePath(find(id).file))
       else void shell.openPath(capturesDir())
@@ -441,6 +532,7 @@ export const handlers: PluginHandlers = {
 
     app.on('will-quit', () => {
       stopWatching()
+      if (ocrTimer) clearTimeout(ocrTimer)
       stopWinHelper()
       if (saveTimer) { clearTimeout(saveTimer); saveIndex(true) }
     })

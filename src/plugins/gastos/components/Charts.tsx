@@ -4,11 +4,11 @@ import type { CategorySlice } from '../analytics'
 
 // Colores de datos: siempre desde tokens (cambian con la paleta y el tema).
 const C = {
-  fijos: 'rgb(var(--c-primary))',
-  variables: 'rgb(var(--c-chart-2) / 0.75)',
-  prev: 'rgb(var(--c-on-surface-variant) / 0.7)',
-  grid: 'rgb(var(--c-on-surface) / 0.07)',
-  band: 'rgb(var(--c-on-surface) / 0.04)',
+  fijos: 'rgb(var(--c-primary) / 0.85)',
+  variables: 'rgb(var(--c-chart-2) / 0.5)',
+  prev: 'rgb(var(--c-on-surface-variant) / 0.55)',
+  grid: 'rgb(var(--c-on-surface) / 0.06)',
+  band: 'rgb(var(--c-on-surface) / 0.03)',
 }
 
 // Tonos distintos por categoría (--c-chart-N, generados desde la paleta activa);
@@ -49,7 +49,7 @@ export function YearChart({ months, fijos, variables, previous, selectedMes, onS
   const totals = months.map((_, i) => fijos[i]! + variables[i]!)
   const max = niceMax(Math.max(...totals, ...previous, 1))
   const slot = W / months.length
-  const barW = Math.min(30, slot * 0.5)
+  const barW = Math.min(22, slot * 0.4)
   const y = (v: number): number => top + (H - top) * (1 - v / max)
   const hasPrev = previous.some((v) => v > 0)
   const prevPath = previous.map((v, i) => `${i === 0 ? 'M' : 'L'} ${slot * (i + 0.5)} ${y(v)}`).join(' ')
@@ -64,17 +64,11 @@ export function YearChart({ months, fijos, variables, previous, selectedMes, onS
       </div>
       <div className="relative h-[200px]">
         {/* eje Y */}
-        <div className="absolute inset-y-0 left-0 w-10 flex flex-col justify-between t-caption text-on-surface-variant/70 tabular-nums pointer-events-none" style={{ paddingTop: top - 6 }}>
+        <div className="absolute inset-y-0 left-0 w-10 flex flex-col justify-between t-caption text-on-surface-variant/60 tabular-nums pointer-events-none" style={{ paddingTop: top - 6 }}>
           <span>{fmtCompact(max)}</span><span>{fmtCompact(max / 2)}</span><span>0</span>
         </div>
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-y-0 left-10 right-0 h-full" style={{ width: 'calc(100% - 2.5rem)' }}
           role="img" aria-label="Gastos por mes">
-          <defs>
-            <linearGradient id="gastos-bar-fijos" x1="0" y1="1" x2="0" y2="0">
-              <stop offset="0%" stopColor="rgb(var(--c-accent))" />
-              <stop offset="100%" stopColor="rgb(var(--c-secondary))" />
-            </linearGradient>
-          </defs>
           {[0, 0.5, 1].map((t) => (
             <line key={t} x1={0} x2={W} y1={y(max * t)} y2={y(max * t)} stroke={C.grid} vectorEffect="non-scaling-stroke" />
           ))}
@@ -84,15 +78,15 @@ export function YearChart({ months, fijos, variables, previous, selectedMes, onS
             const f = fijos[i]!, v = variables[i]!
             return (
               <g key={m}>
-                {f > 0 && <rect x={x} y={y(f)} width={barW} height={H - y(f)} fill="url(#gastos-bar-fijos)" rx={3} />}
-                {v > 0 && <rect x={x} y={y(f + v)} width={barW} height={y(f) - y(f + v)} fill={C.variables} rx={3} />}
+                {f > 0 && <rect x={x} y={y(f)} width={barW} height={H - y(f)} fill={C.fijos} rx={2} />}
+                {v > 0 && <rect x={x} y={y(f + v)} width={barW} height={y(f) - y(f + v)} fill={C.variables} rx={2} />}
                 <rect x={slot * i} y={0} width={slot} height={H} fill="transparent" style={{ cursor: 'pointer' }}
                   onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onClick={() => onSelectMes(m)} />
               </g>
             )
           })}
           {hasPrev && (
-            <path d={prevPath} fill="none" stroke={C.prev} strokeWidth={1.5} strokeDasharray="4 4"
+            <path d={prevPath} fill="none" stroke={C.prev} strokeWidth={1} strokeDasharray="4 4"
               vectorEffect="non-scaling-stroke" pointerEvents="none" />
           )}
         </svg>
@@ -121,8 +115,8 @@ function Legend({ color, label, dashed }: { color: string; label: string; dashed
   return (
     <span className="inline-flex items-center gap-1.5">
       {dashed
-        ? <span className="w-3 border-t-[1.5px] border-dashed" style={{ borderColor: color }} />
-        : <span className="w-2.5 h-2.5 rounded-[3px]" style={{ background: color }} />}
+        ? <span className="w-3 border-t border-dashed" style={{ borderColor: color }} />
+        : <span className="w-2 h-2 rounded-full" style={{ background: color }} />}
       {label}
     </span>
   )
@@ -134,20 +128,20 @@ export function Donut({ slices, total }: { slices: CategorySlice[]; total: numbe
   const rest = slices.slice(6).reduce((s, x) => s + x.value, 0)
   const data = rest > 0 ? [...top, { key: '__rest', label: 'Otras', value: rest }] : top
   const [hover, setHover] = useState<string | null>(null)
-  const R = 52, SW = 14, CIRC = 2 * Math.PI * R
+  const R = 54, SW = 9, CIRC = 2 * Math.PI * R
   let offset = 0
   const hovered = data.find((d) => d.key === hover)
 
   return (
-    <div className="flex items-center gap-5">
+    <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-4">
       <div className="relative shrink-0" style={{ width: 132, height: 132 }}>
         <svg viewBox="0 0 132 132" width={132} height={132} role="img" aria-label="Gastos por categoría">
-          <circle cx={66} cy={66} r={R} fill="none" stroke="rgb(var(--c-on-surface) / 0.06)" strokeWidth={SW} />
+          <circle cx={66} cy={66} r={R} fill="none" stroke="rgb(var(--c-on-surface) / 0.05)" strokeWidth={SW} />
           {total > 0 && data.map((d, i) => {
             const len = (d.value / total) * CIRC
             const el = (
               <circle key={d.key} cx={66} cy={66} r={R} fill="none"
-                stroke={CATEGORY_COLORS[d.key === '__rest' ? 6 : i]} strokeWidth={hover === d.key ? SW + 3 : SW}
+                stroke={CATEGORY_COLORS[d.key === '__rest' ? 6 : i]} strokeWidth={hover === d.key ? SW + 2 : SW}
                 strokeDasharray={`${Math.max(len - 1.5, 0.5)} ${CIRC}`} strokeDashoffset={-offset}
                 transform="rotate(-90 66 66)" style={{ transition: 'stroke-width 0.15s' }}
                 onMouseEnter={() => setHover(d.key)} onMouseLeave={() => setHover(null)} />
@@ -161,10 +155,10 @@ export function Donut({ slices, total }: { slices: CategorySlice[]; total: numbe
           <span className="t-footnote font-semibold text-on-surface tabular-nums">{fmtMoney(hovered ? hovered.value : total)}</span>
         </div>
       </div>
-      <ul className="flex-1 min-w-0 flex flex-col gap-1.5">
+      <ul className="flex-1 min-w-[150px] flex flex-col gap-1.5">
         {data.map((d, i) => (
           <li key={d.key} className="flex items-center gap-2 t-footnote" onMouseEnter={() => setHover(d.key)} onMouseLeave={() => setHover(null)}>
-            <span className="w-2.5 h-2.5 rounded-[3px] shrink-0" style={{ background: CATEGORY_COLORS[d.key === '__rest' ? 6 : i] }} />
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: CATEGORY_COLORS[d.key === '__rest' ? 6 : i] }} />
             <span className="flex-1 truncate text-on-surface">{d.label}</span>
             <span className="tabular-nums text-on-surface-variant">{total > 0 ? Math.round((d.value / total) * 100) : 0}%</span>
           </li>

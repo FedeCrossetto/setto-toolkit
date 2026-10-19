@@ -25,13 +25,29 @@ let tableErrors: Record<string, { code?: string; message: string } | undefined> 
 const upserted: Array<{ table: string; row: unknown }> = []
 const deleted: Array<{ table: string; column: string; value: unknown }> = []
 
+/** Every `.range()` requested, to assert pagination. */
+const ranges: Array<{ table: string; from: number; to: number }> = []
+/** Filters applied (`in`, `gte`, `lt`), to assert the light month query. */
+const filters: Array<{ table: string; op: string; column: string; value: unknown }> = []
+
 function makeQueryBuilder(table: string) {
   const err = () => tableErrors[table] ?? null
-  const result = () => (err() ? { data: null, error: err() } : { data: tableRows[table] ?? [], error: null })
+  let range: [number, number] | null = null
+  let limit: number | null = null
+  const result = () => {
+    if (err()) return { data: null, error: err(), count: null }
+    const all = tableRows[table] ?? []
+    const data = range ? all.slice(range[0], range[1] + 1) : limit !== null ? all.slice(0, limit) : all
+    return { data, error: null, count: all.length }
+  }
   const builder = {
     select: () => builder,
     order: () => builder,
-    limit: () => builder,
+    limit: (n: number) => { limit = n; return builder },
+    range: (from: number, to: number) => { range = [from, to]; ranges.push({ table, from, to }); return builder },
+    in: (column: string, value: unknown) => { filters.push({ table, op: 'in', column, value }); return builder },
+    gte: (column: string, value: unknown) => { filters.push({ table, op: 'gte', column, value }); return builder },
+    lt: (column: string, value: unknown) => { filters.push({ table, op: 'lt', column, value }); return builder },
     eq: (column: string, value: unknown) => {
       if (err()) return Promise.resolve({ error: err() })
       deleted.push({ table, column, value })
@@ -65,6 +81,8 @@ describe('GastosStorageService', () => {
     tableErrors = {}
     upserted.length = 0
     deleted.length = 0
+    ranges.length = 0
+    filters.length = 0
   })
 
   afterEach(() => {
@@ -111,7 +129,16 @@ describe('GastosStorageService', () => {
     tableRows.pagos = [{ updated_at: '2024-06-15T12:00:00.000Z' }]
     tableRows.credenciales = [{ updated_at: '2024-03-01T00:00:00.000Z' }]
     tableRows.queries = []
-    expect(await svc.getRemoteVersion()).toBe('2024-06-15T12:00:00.000Z')
+    expect(await svc.getRemoteVersion()).toMatch(/^2024-06-15T12:00:00\.000Z#/)
+  })
+
+  it('getRemoteVersion changes when a row is deleted (same max updated_at)', async () => {
+    const svc = makeService()
+    svc.saveSupabaseConfig({ url: 'https://example.supabase.co', serviceKey: 'secret-key' })
+    tableRows.gastos = [{ updated_at: '2025-01-01T00:00:00.000Z' }, { updated_at: '2024-01-01T00:00:00.000Z' }]
+    const before = await svc.getRemoteVersion()
+    tableRows.gastos = [{ updated_at: '2025-01-01T00:00:00.000Z' }]
+    expect(await svc.getRemoteVersion()).not.toBe(before)
   })
 
   it('saveServicio upserts a row into the servicios table', async () => {
@@ -200,9 +227,11 @@ describe('GastosStorageService', () => {
     const svc = configured()
     tableRows.pagos = [{ updated_at: '2024-06-15T12:00:00.000Z' }]
     tableRows.gastos = [{ updated_at: '2025-01-01T00:00:00.000Z' }]
-    expect(await svc.getRemoteVersion()).toBe('2025-01-01T00:00:00.000Z')
+    expect(await svc.getRemoteVersion()).toMatch(/^2025-01-01T00:00:00\.000Z#.*gastos=1/)
     tableErrors.gastos = { code: 'PGRST205', message: 'Could not find the table' }
-    expect(await svc.getRemoteVersion()).toBe('2024-06-15T12:00:00.000Z')
+    const v = await svc.getRemoteVersion()
+    expect(v).toMatch(/^2024-06-15T12:00:00\.000Z#/)
+    expect(v).not.toContain('gastos=')
   })
 
   it('load degrades a missing servicios/pagos table and reports missingTables', async () => {
@@ -247,5 +276,81 @@ describe('GastosStorageService', () => {
       { channel: 'gastos:delete-gasto' } as never,
     ])
     expect(svc.getPendingWrites()).toEqual([{ channel: 'gastos:save-gasto', args: [gasto] }])
+  })
+  // ── Paginación, credenciales sin contraseñas, resumen liviano ───────────────
+
+  it('load paginates every table past the 1000-row cap', async () => {
+    const svc = configured()
+    tableRows.gastos = Array.from({ length: 2345 }, (_, i) => ({ id: `g${i}`, fecha: '2026-10-01', monto: 1, moneda: 'ARS' }))
+    tableRows.pagos = Array.from({ length: 1000 }, (_, i) => ({ id: `p${i}`, servicio_id: 's', mes: '2026-10', monto: 1 }))
+    const res = await svc.load()
+    expect(res.gastos).toHaveLength(2345)
+    expect(res.pagos).toHaveLength(1000)
+    expect(ranges.filter((r) => r.table === 'gastos').map((r) => r.from)).toEqual([0, 1000, 2000])
+    // Una página justa de 1000 obliga a pedir la siguiente (vacía) para saber que terminó.
+    expect(ranges.filter((r) => r.table === 'pagos').map((r) => r.from)).toEqual([0, 1000])
+  })
+
+  it('load never returns passwords, even when the vault has them', async () => {
+    const svc = configured()
+    await svc.saveCredencial({ id: 'c1', nombre: 'Banco', usuario: 'yo', password: 'secreto', orden: 0 })
+    tableRows.credenciales = [{ id: 'c1', nombre: 'Banco', usuario: 'yo', orden: 0 }]
+    const res = await svc.load()
+    expect(res.credenciales).toHaveLength(1)
+    expect(res.credenciales[0]?.password).toBe('')
+    expect(JSON.stringify(res)).not.toContain('secreto')
+    expect((await svc.loadCredenciales())[0]?.password).toBe('')
+  })
+
+  it('ignores SUPABASE_* env vars: only Settings or gastos-supabase.local.json configure it', () => {
+    process.env.SUPABASE_URL = 'https://env.supabase.co'
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'env-key'
+    try {
+      const svc = makeService()
+      expect(svc.getSupabasePublicConfig()).toEqual({ url: '', keyConfigured: false })
+      expect(svc.isConfigured()).toBe(false)
+    } finally {
+      delete process.env.SUPABASE_URL
+      delete process.env.SUPABASE_SERVICE_ROLE_KEY
+    }
+  })
+
+  it('getMonthSummary: light month query with pending writes and budget applied', async () => {
+    const svc = configured()
+    tableRows.servicios = [{ id: 's1', nombre: 'Luz', activo: true, orden: 0 }]
+    tableRows.pagos = [
+      { id: 'p1', servicio_id: 's1', mes: '2026-10', monto: 100, pagado: true },
+      { id: 'p0', servicio_id: 's1', mes: '2026-09', monto: 80, pagado: true },
+    ]
+    tableRows.gastos = [{ id: 'g1', fecha: '2026-10-05', monto: 50, moneda: 'ARS' }]
+    svc.setLocalCache({ prefs: { presupuesto: 1000 } })
+    svc.setPendingWrites([{ channel: 'gastos:save-gasto', args: [{ ...gasto, id: 'gx', fecha: '2026-10-09', monto: 25 }] }])
+    const r = await svc.getMonthSummary('2026-10')
+    expect(r.status).toBe('ok')
+    expect(r.pendingCount).toBe(1)
+    expect(r.summary).toMatchObject({ mes: '2026-10', fijos: 100, variables: 75, total: 175, previousTotal: 80, presupuesto: 1000 })
+    expect(filters).toContainEqual({ table: 'pagos', op: 'in', column: 'mes', value: ['2026-09', '2026-10'] })
+    expect(filters).toContainEqual({ table: 'gastos', op: 'gte', column: 'fecha', value: '2026-09-01' })
+    expect(filters).toContainEqual({ table: 'gastos', op: 'lt', column: 'fecha', value: '2026-11-01' })
+  })
+
+  it('getMonthSummary: not configured / offline / error fall back to the local cache', async () => {
+    const data = { servicios: [], pagos: [], gastos: [{ ...gasto, fecha: '2026-10-02', monto: 10 }] }
+    const plain = makeService()
+    plain.setLocalCache({ data })
+    const nc = await plain.getMonthSummary('2026-10')
+    expect(nc.status).toBe('not-configured')
+    expect(nc.summary?.variables).toBe(10)
+
+    const svc = configured()
+    tableErrors.servicios = { message: 'TypeError: fetch failed' }
+    const off = await svc.getMonthSummary('2026-10')
+    expect(off.status).toBe('offline')
+    expect(off.summary?.variables).toBe(10)
+
+    tableErrors.servicios = { code: '401', message: 'Invalid API key' }
+    const bad = await svc.getMonthSummary('2026-10')
+    expect(bad.status).toBe('error')
+    expect(bad.error).toContain('Invalid API key')
   })
 })

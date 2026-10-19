@@ -1,5 +1,6 @@
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto'
-import { gunzipSync, gzipSync } from 'zlib'
+import { createCipheriv, createDecipheriv, randomBytes, scrypt, scryptSync } from 'crypto'
+import { gunzipSync, gzip, gzipSync } from 'zlib'
+import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
 
@@ -161,9 +162,25 @@ export const MIN_PASSPHRASE = 8
 export function sealBackup(payload: BackupPayload, pass: string): Buffer {
   if (pass.length < MIN_PASSPHRASE) throw new Error(`La contraseña del respaldo necesita al menos ${MIN_PASSPHRASE} caracteres`)
   const salt = randomBytes(16)
+  return envelope(payload, salt, deriveKey(pass, salt), gzipSync(Buffer.from(JSON.stringify(payload), 'utf-8')))
+}
+
+const scryptAsync = promisify(scrypt) as (pass: string, salt: Buffer, len: number, opts: object) => Promise<Buffer>
+const gzipAsync = promisify(gzip)
+
+/** Igual que sealBackup, pero scrypt y gzip corren en el threadpool: no traban el proceso main. */
+export async function sealBackupAsync(payload: BackupPayload, pass: string): Promise<Buffer> {
+  if (pass.length < MIN_PASSPHRASE) throw new Error(`La contraseña del respaldo necesita al menos ${MIN_PASSPHRASE} caracteres`)
+  const salt = randomBytes(16)
+  const key = await scryptAsync(pass.normalize('NFC'), salt, 32, { N: KDF.N, r: KDF.r, p: KDF.p, maxmem: 128 * KDF.N * KDF.r * 2 })
+  const zipped = await gzipAsync(Buffer.from(JSON.stringify(payload), 'utf-8'))
+  return envelope(payload, salt, key, zipped)
+}
+
+function envelope(payload: BackupPayload, salt: Buffer, key: Buffer, zipped: Buffer): Buffer {
   const iv = randomBytes(12)
-  const cipher = createCipheriv('aes-256-gcm', deriveKey(pass, salt), iv)
-  const enc = Buffer.concat([cipher.update(gzipSync(Buffer.from(JSON.stringify(payload), 'utf-8'))), cipher.final()])
+  const cipher = createCipheriv('aes-256-gcm', key, iv)
+  const enc = Buffer.concat([cipher.update(zipped), cipher.final()])
   const env: Envelope = {
     format: 'setto-backup', v: 1, createdAt: payload.createdAt,
     kdf: { name: 'scrypt', salt: salt.toString('base64'), ...KDF },

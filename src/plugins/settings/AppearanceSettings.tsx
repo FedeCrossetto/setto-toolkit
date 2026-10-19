@@ -24,7 +24,7 @@ export function AppearanceSettings({ isDark }: { isDark: boolean }): JSX.Element
   })
 
   return (
-    <div className="px-4 py-3.5 flex flex-col gap-5">
+    <div className="px-5 py-4 flex flex-col gap-5">
       {/* ── Tema completo ── */}
       <div>
         <SectionTitle title="Tema" subtitle="Colores de toda la app, el Editor y la Terminal." />
@@ -41,7 +41,7 @@ export function AppearanceSettings({ isDark }: { isDark: boolean }): JSX.Element
                 onClick={() => { previewAppearance(null); setAppearance({ preset: p.id }) }}
                 {...hover({ preset: p.id })}
                 className={`group text-left rounded-xl p-1.5 transition-shadow focus:outline-hidden ${
-                  active ? 'shadow-[0_0_0_2px_rgb(var(--c-primary))]' : 'hairline hover:shadow-md'
+                  active ? 'shadow-[0_0_0_1.5px_rgb(var(--c-primary))]' : 'hairline hover:border-hairline-strong'
                 }`}
               >
                 {/* Mini ventana con los colores reales del tema */}
@@ -135,14 +135,13 @@ export function AppearanceSettings({ isDark }: { isDark: boolean }): JSX.Element
       )}
 
       {/* Vista previa en vivo: usa los tokens aplicados, no datos aparte. */}
-      <div className="ml-10 flex flex-wrap items-center gap-3 rounded-lg bg-surface-container-low hairline px-3 py-2.5" aria-hidden>
+      <div className="ml-10 flex flex-wrap items-center gap-3 rounded-lg hairline px-3 py-2.5" aria-hidden>
         <span className="ui-btn ui-btn-primary ui-btn-sm pointer-events-none">Botón</span>
         <span className="bg-selected text-on-surface t-footnote rounded-md px-2 py-1 pointer-events-none">Seleccionado</span>
         <span className="t-footnote font-medium text-primary">Enlace</span>
-        <span className="h-4 w-12 rounded-full bg-brand" />
         <span className="flex items-center gap-1 ml-auto" title="Colores de gráficos y categorías">
           {Array.from({ length: CHART_COUNT }, (_, i) => (
-            <span key={i} className="w-2.5 h-2.5 rounded-[3px]" style={{ background: `rgb(var(--c-chart-${i + 1}))` }} />
+            <span key={i} className="w-2 h-2 rounded-full" style={{ background: `rgb(var(--c-chart-${i + 1}))` }} />
           ))}
         </span>
       </div>
@@ -153,7 +152,7 @@ export function AppearanceSettings({ isDark }: { isDark: boolean }): JSX.Element
 function SectionTitle({ title, subtitle }: { title: string; subtitle: string }): JSX.Element {
   return (
     <div className="flex items-center gap-3 mb-3">
-      <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-selected text-primary">
+      <span className="icon-tile w-7 h-7">
         <Palette size={15} />
       </span>
       <div className="flex-1 min-w-0">

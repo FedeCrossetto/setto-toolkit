@@ -10,8 +10,8 @@ export interface SegmentOption<T extends string> {
 }
 
 /**
- * Control segmentado: pista gris rellena; el segmento activo es blanco con
- * sombra suave, los inactivos quedan en silencio.
+ * Control segmentado claro: pista apenas gris con borde fino; el segmento
+ * activo es blanco con borde fino, los inactivos quedan en silencio.
  */
 export function SegmentedControl<T extends string>({
   options,
@@ -27,7 +27,7 @@ export function SegmentedControl<T extends string>({
   // layoutId único por instancia: dos controles en pantalla no se roban la pastilla.
   const pillId = `segmented-${useId()}`
   return (
-    <div className={`inline-flex items-center gap-0.5 p-[3px] rounded-lg bg-surface-container dark:bg-white/6 ${className}`}>
+    <div className={`inline-flex items-center gap-0.5 p-[3px] rounded-full bg-on-surface/[0.035] hairline dark:bg-white/[0.04] ${className}`}>
       {options.map((opt) => {
         const active = opt.value === value
         return (
@@ -36,12 +36,12 @@ export function SegmentedControl<T extends string>({
             type="button"
             onClick={() => onChange(opt.value)}
             aria-pressed={active}
-            className={`relative flex items-center gap-1.5 h-[26px] px-3 rounded-md text-[12px] font-medium transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/45 ${
+            className={`relative flex items-center gap-1.5 h-[24px] px-3 rounded-full text-[12px] font-medium transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/45 ${
               active ? 'text-on-surface' : 'text-on-surface-variant hover:text-on-surface'
             }`}
           >
             {active && (
-              <motion.span layoutId={pillId} className="absolute inset-0 z-0 rounded-md bg-surface dark:bg-white/[0.14] shadow-sm" transition={SPRING.snappy} />
+              <motion.span layoutId={pillId} className="absolute inset-0 z-0 rounded-full bg-surface border border-hairline-strong dark:bg-white/[0.10]" transition={SPRING.snappy} />
             )}
             <span className="relative z-10">{opt.label}</span>
             {opt.count !== undefined && (

@@ -123,7 +123,7 @@ function DiffView({ diff }: { diff:DiffChunk[] }): JSX.Element {
     <div className="flex flex-col gap-2.5 mt-4">
       {diff.map((chunk, i) => (
         <div key={i} className="rounded-xl overflow-hidden hairline t-footnote font-mono tr-fadein">
-          <div className="px-3 py-1.5 bg-surface-container/60 text-on-surface-variant t-caption hairline-b truncate flex items-center gap-2">
+          <div className="px-3 py-1.5 text-on-surface-variant t-caption hairline-b truncate flex items-center gap-2">
             <FileText size={11} />
             {chunk.file} · línea {chunk.lineStart}
           </div>
@@ -149,7 +149,7 @@ function TicketDetailCard({ ticket, skeleton, disp }: { ticket?:JiraTicket|null;
 
   if (skeleton || !ticket) {
     return (
-      <div className="bg-surface-container rounded-xl overflow-hidden">
+      <div className="bg-surface hairline rounded-xl overflow-hidden">
         <div className="h-0.5 w-full bg-on-surface/10 tr-shimmer" />
         <div className="px-3 py-3 flex flex-col gap-2">
           <div className="flex gap-2"><Skel h="h-3" w="w-16"/><Skel h="h-3" w="w-12"/></div>
@@ -173,14 +173,14 @@ function TicketDetailCard({ ticket, skeleton, disp }: { ticket?:JiraTicket|null;
   }
 
   return (
-    <div className="bg-surface-container rounded-xl overflow-hidden tr-fadein">
+    <div className="bg-surface hairline rounded-xl overflow-hidden tr-fadein">
       <div className={`h-0.5 w-full ${pBg} opacity-75`}/>
       <div className="px-3 py-3">
         <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
-          <span className="t-footnote font-bold text-primary">{ticket.key}</span>
+          <span className="t-footnote font-semibold text-on-surface">{ticket.key}</span>
           {ticket.type && <span className="t-caption px-1.5 py-0.5 rounded-full hairline text-on-surface-variant">{ticket.type}</span>}
           {ticket.priority && <span className={`t-caption font-semibold ${pColor}`}>{ticket.priority}</span>}
-          {ticket.status && <span className="ui-badge ui-badge-primary">{ticket.status}</span>}
+          {ticket.status && <span className="fl-chip h-5!">{ticket.status}</span>}
         </div>
 
         <p className="t-footnote font-semibold text-on-surface leading-snug mb-2">{ticket.summary}</p>
@@ -200,7 +200,7 @@ function TicketDetailCard({ ticket, skeleton, disp }: { ticket?:JiraTicket|null;
 
         {ticket.components.length > 0 && (
           <div className="flex gap-1 flex-wrap mb-2">
-            {ticket.components.map(c=><span key={c} className="t-caption px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">{c}</span>)}
+            {ticket.components.map(c=><span key={c} className="fl-chip h-5!">{c}</span>)}
           </div>
         )}
 
@@ -218,7 +218,7 @@ function TicketDetailCard({ ticket, skeleton, disp }: { ticket?:JiraTicket|null;
 function PlanCard({ plan, skeleton }: { plan?:AnalysisPlan|null; skeleton?:boolean }): JSX.Element {
   if (skeleton || !plan) {
     return (
-      <div className="bg-surface-container rounded-xl p-3">
+      <div className="bg-surface hairline rounded-xl p-3">
         <div className="flex items-center gap-1.5 mb-3"><Skel h="h-3" w="w-28"/></div>
         <div className="grid grid-cols-2 gap-1.5 mb-3">
           {[0,1,2,3].map(i=><div key={i} className="bg-surface rounded-lg px-2 py-1.5"><Skel h="h-2.5" w="w-12" className="mb-1"/><Skel h="h-3"/></div>)}
@@ -228,31 +228,31 @@ function PlanCard({ plan, skeleton }: { plan?:AnalysisPlan|null; skeleton?:boole
     )
   }
   return (
-    <div className="bg-surface-container rounded-xl p-3 tr-fadein">
+    <div className="bg-surface hairline rounded-xl p-3 tr-fadein">
       <div className="flex items-center gap-1.5 mb-3">
-        <ClipboardList size={13} className="text-primary"/>
-        <span className="t-section">Plan de análisis</span>
+        <ClipboardList size={13} className="text-on-surface-variant"/>
+        <span className="t-caption font-medium uppercase tracking-[0.08em] text-on-surface-variant/80">Plan de análisis</span>
       </div>
       <div className="grid grid-cols-2 gap-1.5 mb-3">
         {[{l:'Componente',v:plan.component},{l:'Tecnología',v:plan.technology},{l:'Términos',v:plan.searchTerms.slice(0,3).join(', ')}]
           .map(({l,v})=>(
             <div key={l} className="bg-surface rounded-lg px-2 py-1.5">
-              <div className="t-section mb-0.5">{l}</div>
+              <div className="t-caption font-medium uppercase tracking-[0.08em] text-on-surface-variant/80 mb-0.5">{l}</div>
               <div className="t-footnote font-medium text-on-surface truncate">{v||'—'}</div>
             </div>
           ))}
       </div>
       <div className="mb-2">
-        <div className="t-section mb-1">Problema</div>
+        <div className="t-caption font-medium uppercase tracking-[0.08em] text-on-surface-variant/80 mb-1">Problema</div>
         <p className="t-footnote text-on-surface leading-snug">{plan.nature}</p>
       </div>
       {plan.steps.length > 0 && (
         <div>
-          <div className="t-section mb-1.5">Pasos</div>
+          <div className="t-caption font-medium uppercase tracking-[0.08em] text-on-surface-variant/80 mb-1.5">Pasos</div>
           <div className="flex flex-col gap-1">
             {plan.steps.map(s=>(
               <div key={s.id} className="flex items-start gap-1.5">
-                <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-primary/10 text-primary t-caption font-bold flex items-center justify-center mt-0.5">{s.id}</span>
+                <span className="shrink-0 w-3.5 h-3.5 rounded-full border border-hairline-strong text-on-surface-variant text-[9px] font-semibold flex items-center justify-center mt-0.5">{s.id}</span>
                 <div>
                   <div className="t-footnote font-medium text-on-surface">{s.label}</div>
                   <div className="t-caption text-on-surface-variant">{s.detail}</div>
@@ -277,7 +277,7 @@ function AnalyzingPanel({ steps }: { steps:AnalysisStepUI[] }): JSX.Element {
   return (
     <div className="flex flex-col gap-5 tr-fadein">
       {/* Progress header */}
-      <div className="bg-surface-container rounded-xl p-4 hairline">
+      <div className="bg-surface hairline rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Spinner size={16} />
@@ -302,13 +302,13 @@ function AnalyzingPanel({ steps }: { steps:AnalysisStepUI[] }): JSX.Element {
           const Icon = ICONS[step.id] ?? Pencil
           return (
             <div key={step.id} className={['rounded-xl p-4 border transition-all duration-500',
-              run  ? 'bg-primary/5 border-primary/20' : '',
-              done ? 'bg-success/4 border-success/15' : '',
-              pend ? 'bg-surface-container/30 border-hairline opacity-40' : '',
+              run  ? 'bg-surface border-primary/30' : '',
+              done ? 'bg-surface border-hairline' : '',
+              pend ? 'border-hairline opacity-50' : '',
             ].join(' ')}>
               <div className="flex items-center gap-3">
-                <div className={['w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all',
-                  run?'bg-primary/12':done?'bg-success/10':'bg-on-surface/6',
+                <div className={['w-9 h-9 rounded-[10px] border flex items-center justify-center shrink-0 transition-all',
+                  run?'border-primary/25':done?'border-success/25':'border-hairline-strong',
                 ].join(' ')}>
                   {run  && <Spinner size={18} />}
                   {done && <CheckCircle2 size={18} className="text-success tr-pop" />}
@@ -342,11 +342,11 @@ function CommentCard({ comment, disp }: { comment:TicketComment; disp:DisplayCfg
   const copy = () => void navigator.clipboard.writeText(fullText).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),1500)})
 
   return (
-    <div className="bg-surface-container rounded-xl tr-fadein" style={{padding:PAD_PX[disp.density]}}>
+    <div className="bg-surface hairline rounded-xl tr-fadein" style={{padding:PAD_PX[disp.density]}}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <FileText size={17} className="text-primary" />
-          <span className="t-section">Comentario para el ticket</span>
+          <FileText size={17} className="text-on-surface-variant" />
+          <span className="t-caption font-medium uppercase tracking-[0.08em] text-on-surface-variant/80">Comentario para el ticket</span>
         </div>
         <button onClick={copy} className="ui-btn ui-btn-outline ui-btn-sm">
           {copied ? <Check size={13} /> : <Copy size={13} />}
@@ -385,7 +385,7 @@ function DisplaySettings({ disp, onChange }: { disp:DisplayCfg; onChange:(k:keyo
     <div className="flex flex-col gap-4">
       {/* Font size */}
       <div>
-        <div className="t-section mb-2">Tamaño de texto</div>
+        <div className="t-caption font-medium uppercase tracking-[0.08em] text-on-surface-variant/80 mb-2">Tamaño de texto</div>
         <div className={group}>
           {(['small','normal','large'] as FontSize[]).map(s=>(
             <button key={s} className={btnCls(disp.fontSize===s)} onClick={()=>onChange('fontSize',s)}>
@@ -402,7 +402,7 @@ function DisplaySettings({ disp, onChange }: { disp:DisplayCfg; onChange:(k:keyo
 
       {/* Font family */}
       <div>
-        <div className="t-section mb-2">Tipografía</div>
+        <div className="t-caption font-medium uppercase tracking-[0.08em] text-on-surface-variant/80 mb-2">Tipografía</div>
         <div className={group}>
           {(['system','sans','mono','serif'] as FontFamily[]).map(ff=>(
             <button key={ff} className={btnCls(disp.fontFamily===ff)} onClick={()=>onChange('fontFamily',ff)}
@@ -415,7 +415,7 @@ function DisplaySettings({ disp, onChange }: { disp:DisplayCfg; onChange:(k:keyo
 
       {/* Density */}
       <div>
-        <div className="t-section mb-2">Densidad de cards</div>
+        <div className="t-caption font-medium uppercase tracking-[0.08em] text-on-surface-variant/80 mb-2">Densidad de cards</div>
         <div className={group}>
           {(['compact','comfortable'] as Density[]).map(d=>(
             <button key={d} className={btnCls(disp.density===d)} onClick={()=>onChange('density',d)}>
@@ -427,7 +427,7 @@ function DisplaySettings({ disp, onChange }: { disp:DisplayCfg; onChange:(k:keyo
 
       {/* Line height */}
       <div>
-        <div className="t-section mb-2">Interlineado</div>
+        <div className="t-caption font-medium uppercase tracking-[0.08em] text-on-surface-variant/80 mb-2">Interlineado</div>
         <div className={group}>
           {(['tight','normal','relaxed'] as LineHeight[]).map(lh=>(
             <button key={lh} className={btnCls(disp.lineHeight===lh)} onClick={()=>onChange('lineHeight',lh)}>
@@ -496,7 +496,7 @@ function ConfigPanel({
           <div className="flex flex-col gap-5">
             {/* Jira */}
             <div>
-              <div className="t-section mb-3">Jira</div>
+              <div className="t-caption font-medium uppercase tracking-[0.08em] text-on-surface-variant/80 mb-3">Jira</div>
               <div className="flex flex-col gap-3">
                 <div><label className={lbl}>URL base</label><input className={inp} placeholder="https://empresa.atlassian.net" value={local.jiraUrl} onChange={set('jiraUrl')} /></div>
                 <div><label className={lbl}>Email</label><input className={inp} placeholder="tu@empresa.com" value={local.jiraUser} onChange={set('jiraUser')} /></div>
@@ -510,7 +510,7 @@ function ConfigPanel({
             </div>
             {/* Repo */}
             <div>
-              <div className="t-section mb-3">Repositorio</div>
+              <div className="t-caption font-medium uppercase tracking-[0.08em] text-on-surface-variant/80 mb-3">Repositorio</div>
               <div className="flex flex-col gap-3">
                 <div>
                   <label className={lbl}>Prefijo de proyecto</label>
@@ -522,7 +522,7 @@ function ConfigPanel({
             </div>
             {/* AI info */}
             <div className="ui-card shadow-none px-4 py-3">
-              <div className="t-section mb-1">Modelo de IA activo</div>
+              <div className="t-caption font-medium uppercase tracking-[0.08em] text-on-surface-variant/80 mb-1">Modelo de IA activo</div>
               <div className="flex items-center gap-2">
                 <Sparkles size={14} className="text-on-surface-variant" />
                 <span className="t-footnote text-on-surface font-medium">{aiModel || 'No configurado'}</span>
@@ -544,9 +544,9 @@ function ConfigPanel({
 function AwaitingPanel({ plan, onExecute, onReset }: { plan:AnalysisPlan; onExecute:()=>void; onReset:()=>void }): JSX.Element {
   return (
     <div className="flex flex-col gap-3 tr-fadein">
-      <div className="bg-surface-container rounded-xl p-4 hairline">
+      <div className="bg-surface hairline rounded-xl p-4">
         <div className="flex items-center gap-2 mb-2">
-          <Sparkles size={15} className="text-primary"/>
+          <Sparkles size={15} className="text-on-surface-variant"/>
           <span className="t-body font-semibold text-on-surface">Plan listo</span>
         </div>
         <p className="t-footnote text-on-surface-variant leading-relaxed mb-3">
@@ -556,7 +556,7 @@ function AwaitingPanel({ plan, onExecute, onReset }: { plan:AnalysisPlan; onExec
           <div className="flex flex-col bg-surface/50 rounded-lg overflow-hidden hairline mb-3">
             {plan.steps.map((s,i)=>(
               <div key={s.id} className={`flex items-start gap-2 px-3 py-2 ${i>0?'hairline-t':''}`}>
-                <span className="shrink-0 w-4 h-4 rounded-full bg-primary/10 text-primary t-caption font-bold flex items-center justify-center mt-0.5">{i+1}</span>
+                <span className="shrink-0 w-4 h-4 rounded-full border border-hairline-strong text-on-surface-variant text-[10px] font-semibold flex items-center justify-center mt-0.5">{i+1}</span>
                 <div>
                   <div className="t-footnote font-medium text-on-surface">{s.label}</div>
                   <div className="t-caption text-on-surface-variant/60 mt-0.5">{s.detail}</div>
@@ -704,9 +704,9 @@ function ResultsPanel({
   const SectionHeader = ({ color, icon: Icon, label, copyKey, copyText }: {
     color:string; icon:IconComponent; label:string; copyKey?:string; copyText?:string
   }) => (
-    <div className={`flex items-center gap-2 px-4 py-2 hairline-b bg-on-surface/2`}>
+    <div className={`flex items-center gap-2 px-4 py-2 hairline-b`}>
       <Icon size={13} className={`shrink-0 ${color}`}/>
-      <span className="t-section">{label}</span>
+      <span className="t-caption font-medium uppercase tracking-[0.08em] text-on-surface-variant/80">{label}</span>
       {copyKey && copyText && (
         <button onClick={()=>copy(copyText,copyKey)} title="Copiar" aria-label="Copiar" className="ml-auto ui-btn ui-btn-ghost ui-btn-icon">
           {copied===copyKey ? <Check size={12}/> : <Copy size={12}/>}
@@ -722,7 +722,7 @@ function ResultsPanel({
       <div className="flex flex-col gap-3">
 
         {/* Banner */}
-        <div className="flex items-center gap-3 rounded-xl hairline px-4 py-3 bg-surface-container/50 tr-fadein">
+        <div className="flex items-center gap-3 rounded-xl hairline px-4 py-3 bg-surface tr-fadein">
           <CheckCircle2 size={18} className="text-success shrink-0"/>
           <div className="flex-1 min-w-0">
             <div className="t-body font-semibold text-on-surface">Análisis completado</div>
@@ -977,10 +977,10 @@ export function TicketResolver(): JSX.Element {
       )}
 
       {/* History sidebar — collapsible */}
-      <aside className={`shrink-0 flex flex-col hairline-r bg-sidebar/40 overflow-hidden transition-all duration-200 ${histOpen?'w-56':'w-9'}`}>
+      <aside className={`shrink-0 flex flex-col hairline-r fl-pane overflow-hidden transition-all duration-200 ${histOpen?'w-56':'w-9'}`}>
         {/* Toggle strip */}
-        <div className={`shrink-0 flex items-center h-10 hairline-b ${histOpen?'justify-between px-2':'justify-center'}`}>
-          {histOpen && <span className="t-section pl-1">Historial</span>}
+        <div className={`shrink-0 flex items-center h-[42px] hairline-b ${histOpen?'justify-between px-2':'justify-center'}`}>
+          {histOpen && <span className="fl-section">Historial</span>}
           <button onClick={()=>setHistOpen(o=>!o)} title={histOpen?'Colapsar historial':'Ver historial'} aria-label={histOpen?'Colapsar historial':'Ver historial'}
             className="ui-btn ui-btn-ghost ui-btn-icon shrink-0">
             <ChevronRight size={13} className={`transition-transform duration-200 ${histOpen?'rotate-180':''}`}/>
@@ -993,7 +993,7 @@ export function TicketResolver(): JSX.Element {
             {history.slice(0,5).map(entry=>(
               <button key={entry.id} onClick={()=>{setHistOpen(true);handleSelectHistory(entry)}}
                 title={`${entry.ticketKey} — ${entry.summary}`}
-                className={`w-2 h-2 rounded-full transition-all ${selectedId===entry.id?'bg-primary':'bg-on-surface-variant/30 hover:bg-primary/50'}`}/>
+                className={`w-2 h-2 rounded-full transition-all ${selectedId===entry.id?'bg-on-surface':'bg-on-surface-variant/30 hover:bg-on-surface-variant/60'}`}/>
             ))}
             {history.length > 5 && <span className="t-caption text-on-surface-variant/60 mt-0.5">+{history.length-5}</span>}
           </div>
@@ -1002,18 +1002,18 @@ export function TicketResolver(): JSX.Element {
         {/* Expanded list */}
         {histOpen && (
           <div className="flex-1 overflow-y-auto pb-1">
-            <button onClick={resetToIdle} className="flex items-center gap-1.5 w-[calc(100%-12px)] mx-1.5 mt-1.5 px-2 h-[26px] rounded-md t-footnote text-on-surface-variant hover:text-on-surface hover:bg-on-surface/5 transition-colors">
+            <button onClick={resetToIdle} className="fl-row w-[calc(100%-12px)]! mx-1.5 mt-1.5 t-body text-on-surface-variant!">
               <Plus size={12}/>Nuevo ticket
             </button>
             {history.length===0 ? (
               <p className="t-caption text-on-surface-variant/60 text-center px-3 pt-6 leading-relaxed">Sin tickets aún.</p>
             ) : history.map(entry=>(
               <div key={entry.id} onClick={()=>handleSelectHistory(entry)}
-                className={['group relative flex flex-col gap-0.5 px-2 py-1.5 mx-1.5 mt-0.5 rounded-md cursor-default transition-colors',
-                  selectedId===entry.id ? 'bg-primary/15' : 'hover:bg-on-surface/5',
+                className={['group relative flex flex-col gap-0.5 px-2.5 py-1.5 mx-1.5 mt-px rounded-[9px] border cursor-default transition-colors',
+                  selectedId===entry.id ? 'nav-active' : 'border-transparent hover:bg-on-surface/4',
                 ].join(' ')}>
                 <div className="flex items-center justify-between gap-1 min-w-0">
-                  <span className="t-footnote font-semibold truncate text-on-surface">{entry.ticketKey}</span>
+                  <span className="t-footnote font-medium truncate text-on-surface">{entry.ticketKey}</span>
                   <span className="t-caption text-on-surface-variant/70 shrink-0 tabular-nums group-hover:opacity-0">{relativeTime(entry.createdAt)}</span>
                 </div>
                 <span className="t-caption text-on-surface-variant truncate leading-snug">{entry.summary}</span>
@@ -1031,7 +1031,7 @@ export function TicketResolver(): JSX.Element {
       <div className="flex-1 flex flex-col overflow-hidden min-w-0" style={{fontFamily:FONT_FAMILY_MAP[disp.fontFamily]}}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-3 h-10 hairline-b shrink-0 gap-2">
+        <div className="fl-toolbar justify-between shrink-0 gap-2!">
           <div className="flex items-center gap-2 min-w-0">
             <Ticket size={14} className="text-on-surface-variant shrink-0"/>
             {ticket && <span className="t-footnote font-medium text-on-surface truncate">{ticket.key}</span>}
@@ -1104,12 +1104,12 @@ export function TicketResolver(): JSX.Element {
             </div>
             {history.length > 0 && (
               <div className="w-full max-w-xs">
-                <div className="t-section mb-1.5">Recientes</div>
+                <div className="t-caption font-medium uppercase tracking-[0.08em] text-on-surface-variant/80 mb-1.5">Recientes</div>
                 <div className="flex flex-col gap-1">
                   {history.slice(0,5).map(e=>(
                     <button key={e.id} onClick={()=>handleSelectHistory(e)}
-                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-on-surface/5 transition-colors text-left">
-                      <span className="t-footnote font-semibold text-on-surface w-20 shrink-0">{e.ticketKey}</span>
+                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-[9px] hover:bg-on-surface/4 transition-colors text-left">
+                      <span className="t-footnote font-medium text-on-surface w-20 shrink-0">{e.ticketKey}</span>
                       <span className="t-footnote text-on-surface-variant truncate">{e.summary}</span>
                     </button>
                   ))}
@@ -1124,12 +1124,12 @@ export function TicketResolver(): JSX.Element {
           <div className="flex-1 flex overflow-hidden">
 
             {/* Left col */}
-            <div className="w-[280px] shrink-0 overflow-y-auto hairline-r bg-sidebar/40 flex flex-col gap-2 p-3">
+            <div className="w-[280px] shrink-0 overflow-y-auto hairline-r fl-pane flex flex-col gap-2 p-3">
               <TicketDetailCard ticket={ticket} skeleton={phase==='fetching'} disp={disp} />
               {phase !== 'fetching' && <PlanCard plan={plan} skeleton={phase==='planning'} />}
               {snippets.length > 0 && (
-                <div className="rounded-xl hairline overflow-hidden tr-fadein">
-                  <button className="flex items-center gap-1.5 w-full px-3 py-2 t-section hover:bg-on-surface/3 transition-colors"
+                <div className="rounded-xl hairline bg-surface overflow-hidden tr-fadein">
+                  <button className="fl-section w-full h-8! px-3! hover:bg-on-surface/3 transition-colors"
                     onClick={e=>{const el=e.currentTarget.nextElementSibling as HTMLElement; el.style.display=el.style.display==='none'?'':'none'}}>
                     <Code2 size={10}/>Código encontrado · {snippets.length}
                   </button>
@@ -1184,7 +1184,7 @@ export function TicketResolver(): JSX.Element {
                     <div className="t-body font-semibold text-on-surface mb-1.5">
                       {error==='JIRA_NOT_CONFIGURED'?'Jira no configurado':'Ocurrió un error'}
                     </div>
-                    <div className="t-footnote text-on-surface-variant leading-relaxed bg-surface-container rounded-xl px-3 py-2.5">{error}</div>
+                    <div className="t-footnote text-on-surface-variant leading-relaxed bg-surface hairline rounded-xl px-3 py-2.5">{error}</div>
                   </div>
                   <div className="flex gap-1.5">
                     {error==='JIRA_NOT_CONFIGURED' && (

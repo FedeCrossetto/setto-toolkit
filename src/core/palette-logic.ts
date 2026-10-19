@@ -93,3 +93,11 @@ export function cycleGroup(groups: PaletteGroup[], selectedId: string | null, de
   const next = gi === -1 ? 0 : (gi + delta + groups.length) % groups.length
   return groups[next]!.items[0]?.id ?? null
 }
+
+/**
+ * "Recientes" del palette (sesión): el ítem recién ejecutado va primero, sin
+ * duplicados por id, hasta `max`.
+ */
+export function pushRecent(list: SearchItem[], item: SearchItem, max = 5): SearchItem[] {
+  return [item, ...list.filter((i) => i.id !== item.id)].slice(0, max)
+}

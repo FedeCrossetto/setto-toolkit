@@ -7,7 +7,7 @@
  * - "variables" = gastos ad-hoc del mes en ARS (los USD se muestran aparte, no se suman).
  * - "pendientes" = pagos sin pagar del mes de servicios activos.
  */
-import type { Gasto, PagoMensual, Servicio } from './types'
+import type { CategoryBudgetRow, Gasto, PagoMensual, Servicio } from './types'
 
 export interface GastosData {
   servicios: Servicio[]
@@ -230,4 +230,54 @@ export function buildPendientes(data: Pick<GastosData, 'servicios' | 'pagos'>, m
       monto: lastKnownMonto(data.pagos, s.id, mes),
       pagado: false,
     }))
+}
+
+// ── Presupuesto por categoría (lo usa también el main en `gastos:summary`; ver `budgets.ts`) ──
+
+/** ≥ 80 % = advertencia; > 100 % = pasado. */
+export const BUDGET_WARNING = 0.8
+
+export function budgetEstado(gastado: number, presupuesto: number): CategoryBudgetRow['estado'] {
+  if (!(presupuesto > 0)) return 'ok'
+  const pct = gastado / presupuesto
+  if (pct > 1) return 'error'
+  if (pct >= BUDGET_WARNING) return 'warning'
+  return 'ok'
+}
+
+/** Limpia el mapa de presupuestos: sólo montos finitos > 0 y nombres no vacíos. */
+export function normalizeBudgets(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {}
+  if (!raw || typeof raw !== 'object') return out
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const name = k.trim()
+    if (name && typeof v === 'number' && Number.isFinite(v) && v > 0) out[name] = round2(v)
+  }
+  return out
+}
+
+/** Progreso de cada categoría con presupuesto en el mes, ordenado por % usado (desc); sin distinguir mayúsculas. */
+export function budgetProgress(data: GastosData, mes: string, budgets: Record<string, number>): CategoryBudgetRow[] {
+  const norm = normalizeBudgets(budgets)
+  const spent = new Map<string, number>()
+  for (const s of categoryBreakdown(data, mes)) {
+    const k = s.label.toLowerCase()
+    spent.set(k, round2((spent.get(k) ?? 0) + s.value))
+  }
+  return Object.entries(norm)
+    .map(([categoria, presupuesto]): CategoryBudgetRow => {
+      const gastado = spent.get(categoria.toLowerCase()) ?? 0
+      return {
+        categoria, gastado, presupuesto,
+        pct: gastado / presupuesto,
+        restante: round2(presupuesto - gastado),
+        estado: budgetEstado(gastado, presupuesto),
+      }
+    })
+    .sort((a, b) => b.pct - a.pct || b.gastado - a.gastado || a.categoria.localeCompare(b.categoria))
+}
+
+/** Categorías al 80 % o más (las más comprometidas primero). */
+export function budgetsAtRisk(rows: CategoryBudgetRow[], limit = 2): CategoryBudgetRow[] {
+  return rows.filter((r) => r.estado !== 'ok').slice(0, limit)
 }

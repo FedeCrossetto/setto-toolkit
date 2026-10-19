@@ -27,9 +27,13 @@ interface LogEntry {
 const MAX_LOG_BYTES = 5 * 1024 * 1024  // 5 MB per file
 const MAX_ROTATED   = 2                 // keep .1 and .2
 
+/** Rotation check (statSync) only every N writes — not on every line. */
+const ROTATE_CHECK_EVERY = 50
+
 class Logger {
   private logPath: string | null = null
   private initFailed = false
+  private writesSinceCheck = ROTATE_CHECK_EVERY   // check on the first write
 
   private ensureLogPath(): string | null {
     if (this.initFailed) return null
@@ -80,7 +84,10 @@ class Logger {
     const logPath = this.ensureLogPath()
     if (!logPath) return
     try {
-      this.maybeRotate(logPath)
+      if (++this.writesSinceCheck >= ROTATE_CHECK_EVERY) {
+        this.writesSinceCheck = 0
+        this.maybeRotate(logPath)
+      }
       fs.appendFileSync(logPath, line + '\n', 'utf-8')
     } catch { /* ignore write errors — don't crash over logging */ }
   }

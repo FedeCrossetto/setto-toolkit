@@ -185,30 +185,30 @@ export function Movimientos({ data, mes, onOpen, onDelete, onExport, onUpdateGas
 
   return (
     <div ref={rootRef} className="flex flex-col gap-3">
-      <div className="ui-card p-2 flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[200px]">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
-          <input ref={searchRef} className="ui-input w-full pl-8" value={q} onChange={(e) => setQ(e.target.value)}
+          <input ref={searchRef} className="ui-input w-full h-8 pl-8" value={q} onChange={(e) => setQ(e.target.value)}
             placeholder="Buscar descripción, categoría, monto…  ( / )" aria-label="Buscar movimientos" />
         </div>
-        <select className="ui-input w-auto" value={tipo} onChange={(e) => setTipo(e.target.value as typeof tipo)} aria-label="Tipo">
+        <select className="ui-input w-auto h-8 py-0 t-footnote" value={tipo} onChange={(e) => setTipo(e.target.value as typeof tipo)} aria-label="Tipo">
           <option value="">Fijos y variables</option>
           <option value="variable">Sólo variables</option>
           <option value="fijo">Sólo fijos</option>
         </select>
-        <select className="ui-input w-auto" value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Categoría">
+        <select className="ui-input w-auto h-8 py-0 t-footnote" value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Categoría">
           <option value="">Todas las categorías</option>
           {categorias.map((c) => <option key={c}>{c}</option>)}
         </select>
-        <select className="ui-input w-auto" value={metodo} onChange={(e) => setMetodo(e.target.value)} aria-label="Método de pago">
+        <select className="ui-input w-auto h-8 py-0 t-footnote" value={metodo} onChange={(e) => setMetodo(e.target.value)} aria-label="Método de pago">
           <option value="">Todos los métodos</option>
           {metodos.map((m) => <option key={m}>{m}</option>)}
         </select>
         <SegmentedControl<Rango> value={rango} onChange={setRango}
           options={[{ value: 'mes', label: 'Mes' }, { value: 'anio', label: String(year) }]} />
-        <button type="button" className="ui-btn ui-btn-ghost" onClick={() => onExport(list, label)} disabled={!list.length}
-          title={`Exportar a CSV lo que se ve (${label})`}>
-          <Download size={13} /> Exportar CSV
+        <button type="button" className="ui-btn ui-btn-outline ui-btn-icon h-8 w-8" onClick={() => onExport(list, label)} disabled={!list.length}
+          title={`Exportar a CSV lo que se ve (${label})`} aria-label="Exportar CSV">
+          <Download size={13} />
         </button>
       </div>
 

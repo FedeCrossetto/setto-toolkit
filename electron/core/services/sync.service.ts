@@ -9,7 +9,7 @@ import type { DatabaseService } from './db.service'
 import type { SettingsService } from './settings.service'
 import type { GastosStorageService } from './gastos-storage.service'
 import { createSupabaseClient } from './supabase-client'
-import { conflictCopyId, markConflictContent, planSync, type LocalItem, type RemoteItem, type SyncOp } from './sync-plan'
+import { conflictCopyId, markConflictContent, planSync, syncGuard, type LocalItem, type RemoteItem, type SyncOp } from './sync-plan'
 import { isValidNoteId } from '../../plugins/notes/notes-utils'
 import type { Snippet, SnippetCollection } from '../../../src/plugins/snippets/types'
 import { logger } from '../logger'
@@ -122,8 +122,17 @@ export class SyncService {
 
   private notesDir(): string {
     const cfg = this.db.readJSON<{ dir?: string }>(NOTES_CONFIG)
-    const dir = cfg?.dir && path.isAbsolute(cfg.dir) ? cfg.dir : path.join(app.getPath('userData'), 'notes')
+    const custom = cfg?.dir && path.isAbsolute(cfg.dir) ? cfg.dir : null
+    const dir = custom ?? path.join(app.getPath('userData'), 'notes')
+    // Una carpeta elegida por el usuario (disco externo, red) que no está NO se
+    // recrea vacía: se vería como "borré todas las notas" y se propagaría a la nube.
+    if (custom && !fs.existsSync(custom)) throw new Error(`No se encuentra la carpeta de notas (${custom}). Conectala o elegí otra antes de sincronizar.`)
     fs.mkdirSync(dir, { recursive: true })
+    try {
+      fs.accessSync(dir, fs.constants.R_OK | fs.constants.W_OK)
+    } catch {
+      throw new Error(`No se puede leer o escribir la carpeta de notas (${dir}).`)
+    }
     return dir
   }
 
@@ -258,7 +267,8 @@ export class SyncService {
 
   // ── Sincronizar ───────────────────────────────────────────────────────────
 
-  async run(): Promise<SyncSummary> {
+  /** `allowMassDelete`: el usuario confirmó los borrados masivos que frena syncGuard. */
+  async run(opts: { allowMassDelete?: boolean } = {}): Promise<SyncSummary> {
     if (this.running) throw new Error('Ya hay una sincronización en curso')
     this.running = true
     const state = this.readState()
@@ -269,10 +279,24 @@ export class SyncService {
       const remote = await this.remoteIndex(sb)
       const device = os.hostname()
 
-      for (const ad of this.adapters()) {
-        const base = state.base[ad.kind]
+      // Primero se planifica todo y se pasa el freno de seguridad; recién después se toca algo.
+      const LABELS: Record<Kind, string> = { note: 'notas', snippet: 'snippets', 'snippet-collection': 'colecciones de snippets' }
+      const plans = this.adapters().map((ad) => {
         const local = ad.read()
-        const ops = planSync(local, remote[ad.kind], base)
+        return { ad, local, ops: planSync(local, remote[ad.kind], state.base[ad.kind]) }
+      })
+      if (!opts.allowMassDelete) {
+        for (const { ad, local, ops } of plans) {
+          const reason = syncGuard(LABELS[ad.kind], local.size, remote[ad.kind], ops)
+          if (reason) {
+            logger.warn('sync', 'sync aborted by guard', { kind: ad.kind, reason })
+            throw new Error(reason)
+          }
+        }
+      }
+
+      for (const { ad, local, ops } of plans) {
+        const base = state.base[ad.kind]
         const needPayload = ops.filter((o) => o.type === 'pull' || o.type === 'conflict').map((o) => o.id)
         const payloads = await this.fetchPayloads(sb, ad.kind, needPayload)
         const rows: Record<string, unknown>[] = []
@@ -368,9 +392,9 @@ export class SyncService {
 
   register(ipcMain: IpcMain): void {
     ipcMain.handle('sync:status', () => this.status())
-    ipcMain.handle('sync:run', async () => {
+    ipcMain.handle('sync:run', async (_e, opts?: { allowMassDelete?: unknown }) => {
       try {
-        return { ok: true, summary: await this.run() }
+        return { ok: true, summary: await this.run({ allowMassDelete: opts?.allowMassDelete === true }) }
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) }
       }

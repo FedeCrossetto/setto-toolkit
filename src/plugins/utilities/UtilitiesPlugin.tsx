@@ -4,6 +4,7 @@ import {
   Asterisk, Binary, Braces, Clock, Copy, Fingerprint, Hash, KeyRound, Link, RefreshCw, type LucideIcon,
 } from 'lucide-react'
 import { usePluginIntent } from '../../core/AppContext'
+import { addVisited, NO_SEED, panelSeed, type ToolSeed } from './seed'
 import { useToast } from '../../core/components/Toast'
 import { SegmentedControl } from '../../core/components/SegmentedControl'
 import { SPRING } from '../../core/motion'
@@ -40,27 +41,30 @@ function readLastTool(): ToolId {
 
 export function UtilitiesPlugin(): JSX.Element {
   const [tool, setTool] = useState<ToolId>(readLastTool)
-  // Texto inicial por herramienta (lo setea Ctrl+K); `seed` fuerza el remount.
-  const [seed, setSeed] = useState<{ input: string; stamp: number }>({ input: '', stamp: 0 })
+  // Texto que trae Ctrl+K: sólo para su herramienta y una vez (remonta ese panel).
+  const [seed, setSeed] = useState<ToolSeed<ToolId>>(NO_SEED)
+  // Las herramientas abiertas quedan montadas (ocultas): al volver, sigue lo que escribiste.
+  const [visited, setVisited] = useState<ToolId[]>(() => [tool])
 
   useEffect(() => {
     try { localStorage.setItem(LAST_TOOL_KEY, tool) } catch { /* ignore */ }
+    setVisited((v) => addVisited(v, tool))
   }, [tool])
 
   usePluginIntent('utilities', (intent) => {
     const p = intent.payload as UtilitiesIntentPayload | undefined
     if (intent.action !== 'open' || !p || !TOOLS.some((t) => t.id === p.tool)) return
     setTool(p.tool)
-    setSeed({ input: p.input ?? '', stamp: intent.stamp })
+    setSeed({ tool: p.tool, input: p.input ?? '', stamp: intent.stamp })
   })
 
   const current = TOOLS.find((t) => t.id === tool)!
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-background">
-      <aside className="w-60 shrink-0 flex flex-col bg-surface hairline-r">
+      <aside className="w-60 shrink-0 flex flex-col bg-sidebar/40 hairline-r">
         <div className="px-4 pt-4 pb-3">
-          <h1 className="t-headline text-on-surface">Utilidades</h1>
+          <h1 className="t-callout font-semibold text-on-surface">Utilidades</h1>
           <p className="t-caption text-on-surface-variant mt-0.5">También desde Ctrl+K: pegá un JWT, JSON o timestamp.</p>
         </div>
         <nav className="flex-1 overflow-y-auto px-2 pb-2 flex flex-col gap-0.5" aria-label="Herramientas">
@@ -77,10 +81,10 @@ export function UtilitiesPlugin(): JSX.Element {
                   active ? '' : 'hover:bg-on-surface/3 dark:hover:bg-white/4'
                 }`}
               >
-                {active && <motion.span layoutId="utilities-active" className="absolute inset-0 z-0 rounded-lg bg-selected" transition={SPRING.snappy} />}
-                <Icon size={16} weight={active ? 'fill' : 'regular'} className={`relative z-10 shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant'}`} />
+                {active && <motion.span layoutId="utilities-active" className="absolute inset-0 z-0 rounded-lg nav-active" transition={SPRING.snappy} />}
+                <Icon size={16} className={`relative z-10 shrink-0 ${active ? 'text-on-surface' : 'text-on-surface-variant'}`} />
                 <span className="relative z-10 min-w-0">
-                  <span className={`block text-[13px] ${active ? 'font-semibold text-on-surface' : 'font-medium text-on-surface/90'}`}>{t.name}</span>
+                  <span className={`block text-[13px] ${active ? 'font-medium text-on-surface' : 'font-medium text-on-surface/90'}`}>{t.name}</span>
                   <span className="block t-caption text-on-surface-variant truncate">{t.hint}</span>
                 </span>
               </button>
@@ -90,12 +94,19 @@ export function UtilitiesPlugin(): JSX.Element {
       </aside>
 
       <main className="flex-1 min-w-0 overflow-y-auto">
-        <div className="max-w-[860px] mx-auto px-6 py-6 flex flex-col gap-4">
+        <div className="max-w-[860px] mx-auto px-8 py-7 flex flex-col gap-5">
           <div>
             <h2 className="t-title2 text-on-surface">{current.name}</h2>
             <p className="t-callout text-on-surface-variant mt-1">{current.hint}</p>
           </div>
-          <ToolPanel key={`${tool}:${seed.stamp}`} tool={tool} initial={seed.input} />
+          {addVisited(visited, tool).map((t) => {
+            const ps = panelSeed(seed, t)
+            return (
+              <div key={t} className={t === tool ? 'flex flex-col gap-4' : 'hidden'}>
+                <ToolPanel key={ps.key} tool={t} initial={ps.initial} />
+              </div>
+            )
+          })}
         </div>
       </main>
     </div>
