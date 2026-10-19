@@ -84,7 +84,7 @@ export function QuickOpen({ folders, openTabs = [], onOpen, onClose }: QuickOpen
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.15, ease: 'easeOut' }}
     >
       <motion.div
-        className="mac-popover hairline w-[540px] max-h-[65vh] overflow-hidden flex flex-col"
+        className="fl-dialog w-[540px] max-h-[65vh] overflow-hidden flex flex-col"
         onMouseDown={(e) => e.stopPropagation()}
         initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.14, ease: 'easeOut' }}
@@ -101,7 +101,7 @@ export function QuickOpen({ folders, openTabs = [], onOpen, onClose }: QuickOpen
             aria-label="Buscar archivos por nombre"
             className="flex-1 bg-transparent t-callout text-on-surface outline-hidden placeholder:text-on-surface-variant/50"
           />
-          <kbd className="t-caption text-on-surface-variant hairline px-1.5 rounded bg-on-surface/4">Esc</kbd>
+          <kbd className="kbd-chip">Esc</kbd>
         </div>
 
         {/* Results */}
@@ -121,8 +121,8 @@ export function QuickOpen({ folders, openTabs = [], onOpen, onClose }: QuickOpen
                 <button
                   key={f.path}
                   onClick={() => open(i)}
-                  className={`flex items-center gap-3 w-[calc(100%-12px)] mx-1.5 px-2.5 py-1.5 rounded-md text-left transition-colors ${
-                    isSel ? 'bg-primary/15' : 'hover:bg-on-surface/5'
+                  className={`flex items-center gap-3 w-[calc(100%-12px)] mx-1.5 px-2.5 py-1.5 rounded-[9px] border text-left transition-colors ${
+                    isSel ? 'bg-on-surface/[0.05] dark:bg-white/[0.06] border-hairline' : 'border-transparent hover:bg-on-surface/4'
                   }`}
                 >
                   <Icon size={15} className="shrink-0 text-on-surface-variant" />
@@ -141,9 +141,9 @@ export function QuickOpen({ folders, openTabs = [], onOpen, onClose }: QuickOpen
         </div>
 
         <div className="px-4 py-2 hairline-t mt-1 flex items-center gap-4 t-caption text-on-surface-variant">
-          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/4 px-1 rounded">↑↓</kbd> navegar</span>
-          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/4 px-1 rounded">↵</kbd> abrir</span>
-          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/4 px-1 rounded">Esc</kbd> cerrar</span>
+          <span className="flex items-center gap-1"><kbd className="kbd-chip">↑↓</kbd> navegar</span>
+          <span className="flex items-center gap-1"><kbd className="kbd-chip">↵</kbd> abrir</span>
+          <span className="flex items-center gap-1"><kbd className="kbd-chip">Esc</kbd> cerrar</span>
           <span className="ml-auto">{filtered.length} archivos</span>
         </div>
       </motion.div>

@@ -59,17 +59,15 @@ const PLUGIN_ICON_MAP: Record<string, IconComponent> = {
  */
 export const PLUGIN_TINT: Record<string, string> = {}
 
-/** Nombre corto para la barra plegada (cabe debajo del ícono). */
-const SHORT_NAME: Record<string, string> = {
-  dashboard: 'Inicio',
-  credentials: 'Claves',
-  'file-editor': 'Editor',
-  'api-tester': 'API',
+/**
+ * Nombre corto para la barra plegada (cabe debajo del ícono, ~52 px a 10 px).
+ * Regla: la etiqueta es el nombre del módulo; sólo se acorta si de verdad no
+ * entra, y entonces se usa la MISMA forma corta en todos lados donde haga
+ * falta una (barra plegada, pestaña del dock).
+ */
+export const SHORT_NAME: Record<string, string> = {
   captures: 'Copiado',
   'repo-search': 'Repos',
-  'smart-diff': 'Comparar',
-  'ticket-resolver': 'Tickets',
-  connections: 'Conexión',
 }
 export function shortName(pluginId: string, name: string): string {
   return SHORT_NAME[pluginId] ?? name

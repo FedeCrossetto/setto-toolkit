@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  ArrowUpDown, Check, ChevronDown, CloudCheck, CloudOff, CloudUpload, Copy, Download, ExternalLink, FileUp, KeyRound,
-  Lock, LockOpen, MoreHorizontal, Plus, RefreshCw, Search, ShieldAlert, ShieldCheck, Star, TriangleAlert, User, X,
+  ArrowDownToLine, ArrowUpDown, Check, ChevronDown, CloudCheck, CloudOff, CloudUpload, Copy, Download, ExternalLink, FileUp, KeyRound,
+  Lock, LockOpen, Monitor, MoreHorizontal, Plus, RefreshCw, Search, ShieldAlert, ShieldCheck, Star, TriangleAlert, User, X,
 } from 'lucide-react'
 import { EmptyState } from '../../core/components/EmptyState'
 import { listItemMotion, shouldAnimateList } from '../../core/motion'
@@ -10,7 +10,11 @@ import { SegmentedControl } from '../../core/components/SegmentedControl'
 import { usePluginIntent } from '../../core/AppContext'
 import { useToast } from '../../core/components/Toast'
 import { useConfirm } from '../../core/components/Modal'
-import type { Credential, CredentialDraft, CredentialsListResult, LockStatus, PasswordAudit, SecretResult } from './types'
+import { useUndo } from '../../core/hooks/useUndo'
+import { useSoftDelete } from '../../core/soft-delete'
+import { needsSync as computeNeedsSync, syncView } from './local-mode'
+import type { Credential, CredentialDraft, CredentialsListResult, E2EStatus, LockStatus, PasswordAudit, SecretResult } from './types'
+import { E2E_ITEM_LABEL, e2eSummary } from './e2e-view'
 import {
   absoluteUrl, copyToClipboard, credentialsApi, displayHost, filterCredentials, groupCredentials,
   invalidateCredentials, loadCredentialList, loadLocalCredentialList, relativeTime, type CredentialGroup,
@@ -21,6 +25,7 @@ import { CredentialEditor, CredentialView, type WithSecret } from './components/
 import { PinPrompt } from './components/PinPrompt'
 import { SecuritySheet } from './components/SecuritySheet'
 import { ImportSheet } from './components/ImportSheet'
+import { SyncSheet } from './components/SyncSheet'
 
 type Filter = 'all' | 'fav' | 'risk'
 
@@ -73,13 +78,21 @@ export function CredentialsPlugin(): JSX.Element {
   const [pinOpen, setPinOpen]       = useState(false)
   const [securityOpen, setSecurityOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [syncOpen, setSyncOpen]     = useState(false)
+  const [e2e, setE2e]               = useState<E2EStatus | null>(null)
   const [menuOpen, setMenuOpen]     = useState(false)
   const [sortOpen, setSortOpen]     = useState(false)
   const [sort, setSortState]        = useState<CredentialSort>(readSort)
   const [live, setLive]             = useState<LiveUsage>({})
   const pinResolver = useRef<((ok: boolean) => void) | null>(null)
 
-  const items = useMemo(() => data?.items ?? [], [data])
+  const { undoable } = useUndo()
+  const softDelete = useSoftDelete((_id, err) => {
+    toast(`No se pudo eliminar: ${errorText(err)}`, 'error', 6000)
+    void load(true)
+  })
+  const hiddenIds = softDelete.hidden
+  const items = useMemo(() => (data?.items ?? []).filter((c) => !hiddenIds.has(c.id)), [data, hiddenIds])
   const favorites = useMemo(() => new Set(data?.favorites ?? []), [data])
   const usageOf = useCallback((c: Credential): { useCount: number; lastUsedAt?: number } => live[c.id] ?? c, [live])
 
@@ -93,6 +106,10 @@ export function CredentialsPlugin(): JSX.Element {
     credentialsApi.audit().then(setAudit).catch(() => undefined)
   }, [])
 
+  const refreshE2E = useCallback(() => {
+    credentialsApi.e2eStatus().then(setE2e).catch(() => undefined)
+  }, [])
+
   const load = useCallback(async (force = false): Promise<void> => {
     setLoading(true)
     try {
@@ -101,12 +118,14 @@ export function CredentialsPlugin(): JSX.Element {
       setLive({})
       setFatal(null)
       refreshAudit()
+      if (r.status !== 'local') refreshE2E()
+      else setE2e(null)
     } catch (err) {
       setFatal(errorText(err))
     } finally {
       setLoading(false)
     }
-  }, [refreshAudit])
+  }, [refreshAudit, refreshE2E])
 
   useEffect(() => {
     // Local-first: paint the local copy right away, then sync.
@@ -118,7 +137,8 @@ export function CredentialsPlugin(): JSX.Element {
   }, [load, refreshAudit])
 
   // Retry while offline / with pending writes: every minute and when the window regains focus.
-  const needsSync = !!data && (data.status !== 'synced' || data.pendingCount > 0)
+  // Never in local mode (no Supabase / app.local_only): nothing to retry.
+  const needsSync = computeNeedsSync(data)
   useEffect(() => {
     if (!needsSync) return
     const t = setInterval(() => { void load(true) }, RETRY_MS)
@@ -127,8 +147,12 @@ export function CredentialsPlugin(): JSX.Element {
     return () => { clearInterval(t); window.removeEventListener('focus', onFocus) }
   }, [needsSync, load])
 
+  const [pendingCopy, setPendingCopy] = useState<string | null>(null)
   usePluginIntent('credentials', (intent) => {
-    if (intent.action === 'open' && typeof intent.payload === 'string') setPendingOpen(intent.payload)
+    if (typeof intent.payload !== 'string') return
+    if (intent.action === 'open') setPendingOpen(intent.payload)
+    // Ctrl+K / dock with the PIN lock on: open it, ask for the PIN and copy.
+    if (intent.action === 'copy-password') { setPendingOpen(intent.payload); setPendingCopy(intent.payload) }
   })
 
   useEffect(() => {
@@ -263,6 +287,13 @@ export function CredentialsPlugin(): JSX.Element {
     }
   }, [setUsed, toast])
 
+  useEffect(() => {
+    if (!pendingCopy || !data) return
+    const c = items.find((x) => x.id === pendingCopy)
+    setPendingCopy(null)
+    if (c) void copyPassword(c)
+  }, [pendingCopy, data, items, copyPassword])
+
   const openAndCopy = useCallback(async (c: Credential): Promise<void> => {
     if (!c.url) return
     if (await copyPassword(c)) window.open(absoluteUrl(c.url), '_blank', 'noopener')
@@ -284,7 +315,7 @@ export function CredentialsPlugin(): JSX.Element {
       invalidateCredentials()
       setSelectedId(draft.id)
       setEditing(null)
-      if (r.queued) toast('Guardada en esta computadora. Se sube a Supabase cuando haya conexión', 'warning', 4500)
+      if (r.queued && data?.status !== 'local') toast('Guardada en esta computadora. Se sube a Supabase cuando haya conexión', 'warning', 4500)
       else toast(isNew ? 'Credencial creada' : 'Cambios guardados', 'success', 2200)
       void load(true)
       return true
@@ -294,26 +325,58 @@ export function CredentialsPlugin(): JSX.Element {
     }
   }
 
+  /** Single delete: immediate + "Deshacer". The real delete runs when the undo window is over. */
   const remove = useCallback(async (c: Credential): Promise<void> => {
-    const ok = await confirm({
-      title: `¿Eliminar «${c.nombre}»?`,
-      message: 'Se borra el usuario y la contraseña guardados. Esta acción no se puede deshacer.',
-      confirmLabel: 'Eliminar',
-      destructive: true,
-    })
-    if (!ok) return
     const idx = visible.findIndex((x) => x.id === c.id)
-    try {
-      const r = await credentialsApi.remove(c.id)
+    const next = visible[idx + 1] ?? visible[idx - 1]
+    const wasSelected = selectedId === c.id
+    await undoable({
+      message: `«${c.nombre}» eliminada`,
+      undoneMessage: 'Credencial restaurada',
+      apply: () => {
+        softDelete.hide(c.id, async () => {
+          const r = await credentialsApi.remove(c.id)
+          invalidateCredentials()
+          await load(true)
+          if (r.queued) toast('Eliminada en esta computadora. Se borra de Supabase cuando haya conexión', 'warning', 4500)
+        })
+        if (wasSelected) setSelectedId(next && next.id !== c.id ? next.id : null)
+      },
+      undo: () => {
+        if (!softDelete.restore(c.id)) throw new Error('ya se había eliminado')
+        if (wasSelected) setSelectedId(c.id)
+      },
+    })
+  }, [visible, selectedId, undoable, softDelete, load, toast])
+
+  /** Sync conflict: nothing was overwritten; the user picks. "Usar la sincronizada" can be undone. */
+  const resolveConflict = useCallback(async (c: Credential, choice: 'local' | 'remote'): Promise<void> => {
+    const call = async (ch: 'local' | 'remote' | 'undo'): Promise<void> => {
+      const r = await credentialsApi.e2eResolve(c.id, ch)
+      setE2e(r.status)
       invalidateCredentials()
-      const next = visible[idx + 1] ?? visible[idx - 1]
-      setSelectedId(next && next.id !== c.id ? next.id : null)
-      await load(true)
-      if (r.queued) toast('Eliminada en esta computadora. Se borra de Supabase cuando haya conexión', 'warning', 4500)
-    } catch (err) {
-      toast(`No se pudo eliminar: ${errorText(err)}`, 'error', 6000)
+      void load(true)
+      if (!r.ok) {
+        if (r.status.state === 'locked') setSyncOpen(true)
+        throw new Error(r.error ?? 'No se pudo resolver')
+      }
     }
-  }, [confirm, visible, load, toast])
+    try {
+      if (choice === 'local') {
+        await call('local')
+        toast('Se usa la de esta PC (subida como la más reciente)', 'success', 3000)
+      } else {
+        await undoable({
+          message: 'Se usa la contraseña sincronizada',
+          undoneMessage: 'Se restauró la de esta PC',
+          apply: () => call('remote'),
+          undo: () => call('undo'),
+        })
+      }
+    } catch (err) {
+      toast(errorText(err), 'error', 5000)
+    }
+  }, [load, toast, undoable])
 
   const exportCsv = async (): Promise<void> => {
     setMenuOpen(false)
@@ -352,7 +415,7 @@ export function CredentialsPlugin(): JSX.Element {
     const onKey = (e: KeyboardEvent): void => {
       const root = rootRef.current
       if (!root || root.offsetParent === null) return // our tab is hidden
-      if (pinOpen || securityOpen || importOpen || e.defaultPrevented) return
+      if (pinOpen || securityOpen || importOpen || syncOpen || e.defaultPrevented) return
       const target = e.target as Node | null
       const inside = !target || target === document.body || root.contains(target)
       if (!inside) return // modals / other portals
@@ -374,6 +437,7 @@ export function CredentialsPlugin(): JSX.Element {
         moveSelection(e.key === 'ArrowDown' ? 1 : -1)
         return
       }
+      // Enter = copiar contraseña, Shift+Enter = copiar usuario (same keys as Ctrl+K and the dock).
       if (e.key === 'Enter' && !mod) {
         // From the search box, Enter acts on the first result if the selection was filtered out.
         const targetItem = inSearch && !visible.some((c) => c.id === selectedId) ? visible[0] : selected
@@ -383,7 +447,8 @@ export function CredentialsPlugin(): JSX.Element {
         if (!inSearch && el && (el.tagName === 'BUTTON' || el.tagName === 'A') && !listRef.current?.contains(el)) return
         e.preventDefault()
         setSelectedId(targetItem.id)
-        void copyPassword(targetItem)
+        if (e.shiftKey) void copyUser(targetItem)
+        else void copyPassword(targetItem)
         return
       }
       if (inSearch) return
@@ -406,7 +471,7 @@ export function CredentialsPlugin(): JSX.Element {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [editing, selected, selectedId, visible, pinOpen, securityOpen, importOpen, sortOpen, menuOpen, moveSelection, copyPassword, copyUser, remove])
+  }, [editing, selected, selectedId, visible, pinOpen, securityOpen, importOpen, syncOpen, sortOpen, menuOpen, moveSelection, copyPassword, copyUser, remove])
 
   // Close the menus on outside click.
   useEffect(() => {
@@ -436,7 +501,7 @@ export function CredentialsPlugin(): JSX.Element {
       <aside className="w-80 shrink-0 flex flex-col bg-surface hairline-r overflow-hidden">
         <div className="px-3 pt-4 pb-2 shrink-0 space-y-2.5">
           <div className="flex items-center gap-1.5 pl-1.5">
-            <h2 className="t-headline text-on-surface">Credenciales</h2>
+            <h2 className="t-headline text-on-surface">Claves</h2>
             <span className="t-caption font-medium tabular-nums text-on-surface-variant/70">{items.length}</span>
             {lock?.pinEnabled && (
               <button
@@ -498,6 +563,13 @@ export function CredentialsPlugin(): JSX.Element {
                   <button role="menuitem" className="ui-menu-item w-full px-2.5 py-1.5" onClick={() => { setMenuOpen(false); setSecurityOpen(true) }}>
                     <ShieldCheck size={14} /> Seguridad…
                   </button>
+                  <button
+                    role="menuitem"
+                    className="ui-menu-item w-full px-2.5 py-1.5"
+                    onClick={() => { setMenuOpen(false); setSyncOpen(true); if (data?.status !== 'local') refreshE2E() }}
+                  >
+                    <CloudCheck size={14} /> Sincronizar contraseñas…
+                  </button>
                 </div>
               )}
             </div>
@@ -517,7 +589,7 @@ export function CredentialsPlugin(): JSX.Element {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Escape' && search) { e.preventDefault(); setSearch('') } }}
-              placeholder="Buscar por nombre, usuario, sitio…"
+              placeholder="Buscar nombre, usuario, sitio…"
               aria-label="Buscar credenciales"
               className="flex-1 min-w-0 bg-transparent t-body text-on-surface outline-hidden"
             />
@@ -526,18 +598,31 @@ export function CredentialsPlugin(): JSX.Element {
                 <X size={13} />
               </button>
             ) : (
-              <span className="t-caption text-on-surface-variant/60 pr-2">Ctrl+F</span>
+              <span className="kbd-chip mr-1.5">Ctrl F</span>
             )}
           </div>
           <SegmentedControl
             options={filterOptions}
             value={filter}
             onChange={setFilter}
-            className="w-full [&>button]:flex-1 [&>button]:justify-center [&>button]:px-1.5"
+            className="w-full [&>button]:flex-1 [&>button]:justify-center [&>button]:px-1.5 [&>button]:whitespace-nowrap"
           />
         </div>
 
-        <motion.div layoutScroll ref={listRef} className="flex-1 overflow-y-auto px-2 pb-3" role="listbox" aria-label="Credenciales">
+        {e2e?.state === 'locked' && e2e.counts.remote > 0 && (
+          <button
+            onClick={() => setSyncOpen(true)}
+            className="mx-3 mb-1 flex items-center gap-2 rounded-xl hairline px-3 py-2 text-left hover:bg-on-surface/3 transition-colors"
+          >
+            <ArrowDownToLine size={14} className="text-primary shrink-0" />
+            <span className="flex-1 min-w-0 t-footnote text-on-surface">
+              {e2e.counts.remote === 1 ? '1 contraseña de otra computadora' : `${e2e.counts.remote} contraseñas de otra computadora`}
+            </span>
+            <span className="t-caption font-medium text-primary shrink-0">Desbloquear</span>
+          </button>
+        )}
+
+        <motion.div layoutScroll ref={listRef} className="flex-1 overflow-y-auto px-2 pb-3" role="listbox" aria-label="Claves">
           {fatal && !data ? (
             <div className="px-3 py-8 text-center flex flex-col items-center gap-2">
               <p className="t-body font-medium text-on-surface">No se pudieron cargar las credenciales</p>
@@ -557,7 +642,7 @@ export function CredentialsPlugin(): JSX.Element {
                   type="button"
                   onClick={() => setFolded((f) => ({ ...f, [g.key]: !f[g.key] }))}
                   aria-expanded={!folded[g.key]}
-                  className="w-full flex items-center gap-1 px-2.5 pt-3 pb-1.5 t-section hover:text-on-surface-variant transition-colors"
+                  className="w-full flex items-center gap-1 px-2.5 pt-4 pb-1.5 t-section uppercase tracking-[0.08em] hover:text-on-surface-variant transition-colors"
                 >
                   <ChevronDown size={11} weight="bold" className={`transition-transform duration-150 ${folded[g.key] ? '-rotate-90' : ''}`} />
                   <span className="truncate">{g.key}</span>
@@ -589,7 +674,7 @@ export function CredentialsPlugin(): JSX.Element {
           )}
         </motion.div>
 
-        <SyncFooter data={data} loading={loading} onRetry={() => void load(true)} />
+        <SyncFooter data={data} loading={loading} onRetry={() => void load(true)} e2e={e2e} onOpenSync={() => setSyncOpen(true)} />
       </aside>
 
       {/* ── Detail ──────────────────────────────────────────────────────── */}
@@ -623,6 +708,8 @@ export function CredentialsPlugin(): JSX.Element {
               onCopyPassword={() => void copyPassword(selected)}
               onCopyUser={() => void copyUser(selected)}
               onOpenAndCopy={() => void openAndCopy(selected)}
+              onOpenSync={() => setSyncOpen(true)}
+              onResolveConflict={(choice) => void resolveConflict(selected, choice)}
             />
           </div>
         ) : items.length ? (
@@ -640,7 +727,9 @@ export function CredentialsPlugin(): JSX.Element {
             <EmptyState
               icon={KeyRound}
               title={loading && !data ? 'Cargando credenciales…' : 'Sin credenciales guardadas'}
-              description={loading && !data ? undefined : 'Guardá tus usuarios y contraseñas, cifrados en esta computadora. También podés importarlos desde un CSV.'}
+              description={loading && !data ? undefined : data?.status === 'local'
+                ? 'Guardá tus usuarios y contraseñas, cifrados sólo en esta computadora (no se suben a ningún lado). También podés importarlos desde un CSV.'
+                : 'Guardá tus usuarios y contraseñas, cifrados en esta computadora. También podés importarlos desde un CSV.'}
               action={loading && !data ? undefined : (
                 <div className="flex gap-2">
                   <button onClick={() => setEditing('new')} className="ui-btn ui-btn-primary"><Plus size={14} /> Nueva credencial</button>
@@ -654,6 +743,16 @@ export function CredentialsPlugin(): JSX.Element {
 
       <PinPrompt open={pinOpen} onDone={onPinDone} />
       <SecuritySheet open={securityOpen} status={lock} onClose={() => setSecurityOpen(false)} onChange={setLock} />
+      <SyncSheet
+        open={syncOpen}
+        status={data?.status === 'local' ? LOCAL_E2E : e2e}
+        onClose={() => setSyncOpen(false)}
+        onChange={(s, changed) => {
+          setE2e(s)
+          invalidateCredentials()
+          if (changed || s.state === 'unlocked') void load(true)
+        }}
+      />
       <ImportSheet
         open={importOpen}
         onClose={() => setImportOpen(false)}
@@ -707,7 +806,7 @@ function CredentialRow({
       onClick={onSelect}
       onDoubleClick={onCopyPassword}
       className={`group relative w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left cursor-default transition-colors duration-100 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/45 ${
-        active ? 'bg-selected' : 'hover:bg-on-surface/4'
+        active ? 'nav-active' : 'border border-transparent hover:bg-on-surface/4'
       }`}
     >
       <Avatar name={c.nombre} url={c.url} size={30} />
@@ -716,6 +815,9 @@ function CredentialRow({
           <span className={`t-body truncate ${active ? 'font-semibold text-on-surface' : 'font-medium text-on-surface'}`}>{c.nombre}</span>
           {favorite && <Star size={10} weight="fill" className="text-primary shrink-0" aria-label="Favorita" />}
           {c.pending && <span title="Pendiente de sincronizar" className="text-warning shrink-0"><CloudUpload size={12} /></span>}
+          {c.e2e === 'remote' && <span title={E2E_ITEM_LABEL.remote.hint} className="text-primary shrink-0"><ArrowDownToLine size={12} /></span>}
+          {c.e2e === 'conflict' && <span title={E2E_ITEM_LABEL.conflict.hint} className="text-warning shrink-0"><TriangleAlert size={12} /></span>}
+          {c.e2e === 'local' && <span title={E2E_ITEM_LABEL.local.hint} className="text-on-surface-variant/70 shrink-0"><Monitor size={12} /></span>}
           {risk && <span title={risk} className="text-warning shrink-0"><ShieldAlert size={12} /></span>}
         </span>
         <span className="block t-footnote text-on-surface-variant truncate">{c.usuario || displayHost(c.url) || '—'}</span>
@@ -732,7 +834,7 @@ function CredentialRow({
       <span
         className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-px p-0.5 rounded-lg bg-surface hairline shadow-sm opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-100"
       >
-        {c.usuario && <QuickButton label="Copiar usuario (Ctrl+B)" onClick={onCopyUser}><User size={13} /></QuickButton>}
+        {c.usuario && <QuickButton label="Copiar usuario (Shift+Enter)" onClick={onCopyUser}><User size={13} /></QuickButton>}
         {c.hasPassword && <QuickButton label="Copiar contraseña (Enter)" onClick={onCopyPassword}><KeyRound size={13} /></QuickButton>}
         {c.url && <QuickButton label="Abrir sitio" href={absoluteUrl(c.url)}><ExternalLink size={13} /></QuickButton>}
         <QuickButton label={favorite ? 'Quitar de favoritas' : 'Marcar como favorita'} onClick={onToggleFavorite}>
@@ -746,7 +848,7 @@ function CredentialRow({
 // ── Home: quick access ───────────────────────────────────────────────────────
 
 function Kbd({ children }: { children: React.ReactNode }): JSX.Element {
-  return <kbd className="font-sans inline-flex items-center px-1.5 h-[18px] rounded-(--r-xs) bg-on-surface/6 t-caption font-medium text-on-surface-variant">{children}</kbd>
+  return <kbd className="kbd-chip">{children}</kbd>
 }
 
 function QuickAccess({
@@ -843,7 +945,7 @@ function QuickAccess({
       <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 t-footnote text-on-surface-variant">
         <span className="inline-flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> moverse</span>
         <span className="inline-flex items-center gap-1.5"><Kbd>Enter</Kbd> copia la contraseña</span>
-        <span className="inline-flex items-center gap-1.5"><Kbd>Ctrl B</Kbd> copia el usuario</span>
+        <span className="inline-flex items-center gap-1.5"><Kbd>Shift Enter</Kbd> copia el usuario</span>
         <span className="inline-flex items-center gap-1.5"><Kbd>Ctrl F</Kbd> buscar</span>
         <span className="inline-flex items-center gap-1.5"><Kbd>N</Kbd> nueva</span>
       </div>
@@ -853,25 +955,45 @@ function QuickAccess({
 
 // ── Sync status ──────────────────────────────────────────────────────────────
 
-function SyncFooter({ data, loading, onRetry }: { data: CredentialsListResult | null; loading: boolean; onRetry: () => void }): JSX.Element | null {
+const LOCAL_E2E: E2EStatus = { state: 'local-mode', remembered: false, counts: { synced: 0, local: 0, remote: 0, conflict: 0 }, lastSyncAt: null }
+const E2E_TONE = { success: 'text-success', muted: 'text-on-surface-variant', warning: 'text-warning', error: 'text-error' } as const
+
+function SyncFooter({
+  data, loading, onRetry, e2e, onOpenSync,
+}: {
+  data: CredentialsListResult | null
+  loading: boolean
+  onRetry: () => void
+  e2e: E2EStatus | null
+  onOpenSync: () => void
+}): JSX.Element | null {
   if (!data) return null
-  const pending = data.pendingCount
-  const view = data.status === 'synced'
-    ? { icon: CloudCheck, tone: 'text-success', text: 'Sincronizado', sub: data.syncedAt ? relativeTime(data.syncedAt) : '' }
-    : data.status === 'offline'
-      ? { icon: CloudOff, tone: 'text-on-surface-variant', text: 'Sin conexión — mostrando copia local', sub: data.syncedAt ? `Última sincronización: ${relativeTime(data.syncedAt)}` : 'Nunca se sincronizó' }
-      : { icon: TriangleAlert, tone: 'text-error', text: 'Error al sincronizar', sub: data.error ?? '' }
-  const Icon = loading ? RefreshCw : view.icon
+  const view = syncView(data, (ts) => relativeTime(ts))
+  const local = view.kind === 'local'
+  const icon = { synced: CloudCheck, offline: CloudOff, error: TriangleAlert, local: Monitor }[view.kind]
+  const tone = { success: 'text-success', muted: 'text-on-surface-variant', error: 'text-error' }[view.tone]
+  const Icon = loading && !local ? RefreshCw : icon
   return (
-    <div className="px-3.5 py-2.5 hairline-t flex items-center gap-2 shrink-0" title={data.error}>
-      <Icon size={14} className={`${loading ? 'text-on-surface-variant animate-spin' : view.tone} shrink-0`} />
+    <div
+      className="px-3.5 py-2.5 hairline-t flex items-center gap-2 shrink-0"
+      title={local ? 'Las contraseñas se guardan cifradas sólo en esta computadora. Para tenerlas en otra, configurá Supabase en Conexiones.' : data.error}
+    >
+      <Icon size={14} className={`${loading && !local ? 'text-on-surface-variant animate-spin' : tone} shrink-0`} />
       <div className="flex-1 min-w-0">
-        <p className="t-caption font-medium text-on-surface truncate">{loading ? 'Sincronizando…' : view.text}</p>
-        <p className="t-caption text-on-surface-variant/80 truncate">
-          {pending ? `${pending} ${pending === 1 ? 'cambio pendiente' : 'cambios pendientes'}` : view.sub}
-        </p>
+        <p className="t-caption font-medium text-on-surface truncate">{loading && !local ? 'Sincronizando…' : view.text}</p>
+        <p className="t-caption text-on-surface-variant/80 truncate">{view.sub}</p>
       </div>
-      {(data.status !== 'synced' || pending > 0) && (
+      {e2e && e2e.state !== 'local-mode' && e2e.state !== 'off' && (
+        <button
+          onClick={onOpenSync}
+          className={`ui-btn ui-btn-ghost ui-btn-icon rounded-lg ${E2E_TONE[e2eSummary(e2e).tone]}`}
+          title={`Contraseñas entre computadoras: ${e2eSummary(e2e).text}`}
+          aria-label="Sincronización de contraseñas"
+        >
+          {e2e.state === 'unlocked' ? <LockOpen size={13} /> : <Lock size={13} />}
+        </button>
+      )}
+      {view.retry && (
         <button onClick={onRetry} disabled={loading} className="ui-btn ui-btn-ghost ui-btn-icon rounded-lg" title="Reintentar ahora" aria-label="Reintentar sincronización">
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
         </button>

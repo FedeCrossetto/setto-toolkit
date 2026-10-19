@@ -4,8 +4,18 @@ import path from 'path'
 import os from 'os'
 
 // Mock electron before importing the service
+let encAvailable = true
 vi.mock('electron', () => ({
   app: { getPath: () => tmpDir },
+  safeStorage: {
+    isEncryptionAvailable: () => encAvailable,
+    encryptString: (s: string) => Buffer.from(`ok:${s}`, 'utf-8'),
+    decryptString: (b: Buffer) => {
+      const s = b.toString('utf-8')
+      if (!s.startsWith('ok:')) throw new Error('bad key')
+      return s.slice(3)
+    },
+  },
 }))
 
 // Mock logger to avoid electron dependency in tests
@@ -20,6 +30,7 @@ const { DatabaseService } = await import('./db.service')
 
 describe('DatabaseService', () => {
   beforeEach(() => {
+    encAvailable = true
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'db-test-'))
   })
 
@@ -66,5 +77,39 @@ describe('DatabaseService', () => {
     db.writeJSON('data.json', { v: 1 })
     db.writeJSON('data.json', { v: 2 })
     expect(db.readJSON<{ v: number }>('data.json')).toEqual({ v: 2 })
+  })
+
+  it('encrypted round-trip is atomic (no tmp left)', () => {
+    const db = new DatabaseService()
+    db.writeEncryptedJSON('sec.json', { a: 1 })
+    expect(fs.readFileSync(path.join(tmpDir, 'sec.json'), 'utf-8').startsWith('ENCV1:')).toBe(true)
+    expect(fs.existsSync(path.join(tmpDir, 'sec.json.tmp'))).toBe(false)
+    expect(db.readEncryptedJSON('sec.json')).toEqual({ a: 1 })
+  })
+
+  it('moves an undecryptable file aside instead of letting the next write destroy it', () => {
+    const db = new DatabaseService()
+    const original = 'ENCV1:' + Buffer.from('garbage').toString('base64')
+    fs.writeFileSync(path.join(tmpDir, 'sec.json'), original, 'utf-8')
+    expect(db.readEncryptedJSON('sec.json')).toBeNull()
+    const aside = fs.readdirSync(tmpDir).filter((f) => f.startsWith('sec.json.corrupt-'))
+    expect(aside.length).toBe(1)
+    expect(fs.readFileSync(path.join(tmpDir, aside[0]!), 'utf-8')).toBe(original)
+    db.writeEncryptedJSON('sec.json', { fresh: true })
+    expect(fs.readFileSync(path.join(tmpDir, aside[0]!), 'utf-8')).toBe(original)
+  })
+
+  it('moves aside an encrypted file when safeStorage is unavailable', () => {
+    const db = new DatabaseService()
+    db.writeEncryptedJSON('sec.json', { a: 1 })
+    encAvailable = false
+    expect(db.readEncryptedJSON('sec.json')).toBeNull()
+    expect(fs.readdirSync(tmpDir).some((f) => f.startsWith('sec.json.corrupt-'))).toBe(true)
+  })
+
+  it('reads legacy plain JSON through readEncryptedJSON', () => {
+    const db = new DatabaseService()
+    fs.writeFileSync(path.join(tmpDir, 'p.json'), '{"x":2}', 'utf-8')
+    expect(db.readEncryptedJSON('p.json')).toEqual({ x: 2 })
   })
 })

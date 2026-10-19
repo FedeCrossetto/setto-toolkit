@@ -23,6 +23,13 @@ export interface SearchItem {
   /** Higher = earlier inside its group. Default 0 */
   score?: number
   run: (ctx: SearchContext) => void | Promise<void>
+  /**
+   * Optional alternative action for Shift+Enter (e.g. on a credential:
+   * Enter copies the password, Shift+Enter the username). The palette shows
+   * `altHint` next to "⇧↵" on the selected row and in the footer.
+   */
+  altRun?: (ctx: SearchContext) => void | Promise<void>
+  altHint?: string
 }
 
 export interface SearchProvider {

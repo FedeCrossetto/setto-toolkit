@@ -4,6 +4,7 @@ import { Modal } from './Modal'
 import { SegmentedControl } from './SegmentedControl'
 import { useToast } from './Toast'
 import type { NoteMeta } from '../../plugins/notes/types'
+import { useQuickGasto } from '../../plugins/gastos/useQuickGasto'
 
 /**
  * Quick capture popover (Ctrl+Shift+Space from anywhere, tray menu, or the
@@ -22,7 +23,7 @@ const MODES: { value: Mode; label: string; pluginId: string }[] = [
 
 const PLACEHOLDER: Record<Mode, string> = {
   nota: 'Escribí una idea… se guarda como nota nueva',
-  gasto: 'Ej.: 4500 súper — se abre Gastos con el texto cargado',
+  gasto: 'Ej.: 4500 súper efectivo — se guarda directo (sin monto, se abre Gastos)',
   snippet: 'Pegá el código o comando a guardar',
 }
 
@@ -53,6 +54,7 @@ export function QuickCapture(): JSX.Element {
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const quickGasto = useQuickGasto()
 
   const handleRequest = useCallback((req?: CaptureRequest) => {
     if (req?.action === 'new-note') {
@@ -98,7 +100,13 @@ export function QuickCapture(): JSX.Element {
       return
     }
     if (mode === 'gasto') {
-      dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'gastos', action: 'quick-add', payload: { text: value } })
+      // Se guarda directo con "Deshacer"; sólo abre Gastos si no se entiende el monto.
+      setBusy(true)
+      const r = await quickGasto(value)
+      if (r === 'failed') { setBusy(false); return }
+      setText('')
+      close()
+      return
     } else {
       dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'snippets', action: 'new', payload: { content: text } })
     }
@@ -128,14 +136,14 @@ export function QuickCapture(): JSX.Element {
       footer={
         <>
           <span className="t-caption text-on-surface-variant/80 mr-auto flex items-center gap-1.5">
-            <kbd className="px-1.5 py-[2px] rounded-[5px] bg-on-surface/6 font-sans text-[11px] font-medium">{multiline ? 'Ctrl+Enter' : 'Enter'}</kbd>
+            <kbd className="kbd-chip">{multiline ? 'Ctrl+Enter' : 'Enter'}</kbd>
             guarda
-            <kbd className="ml-1.5 px-1.5 py-[2px] rounded-[5px] bg-on-surface/6 font-sans text-[11px] font-medium">Shift+Enter</kbd>
+            <kbd className="kbd-chip ml-1.5">Shift+Enter</kbd>
             nueva línea
           </span>
           <button type="button" className="ui-btn ui-btn-outline" onClick={close}>Cancelar</button>
           <button type="button" className="ui-btn ui-btn-primary" onClick={() => { void save() }} disabled={!text.trim() || busy}>
-            {mode === 'nota' ? 'Guardar nota' : mode === 'gasto' ? 'Cargar gasto' : 'Crear snippet'}
+            {mode === 'nota' ? 'Guardar nota' : mode === 'gasto' ? 'Guardar gasto' : 'Crear snippet'}
           </button>
         </>
       }

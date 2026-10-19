@@ -19,6 +19,11 @@ export interface PluginManifest {
   section?: 'personal' | 'dev'
   /** Hidden by default on a fresh install (still activable in Ajustes → Módulos). */
   defaultDisabled?: boolean
+  /**
+   * Never unmount once opened (the shell keeps only the most recent modules
+   * mounted). For modules whose unmount loses live work, e.g. Terminal sessions.
+   */
+  keepAlive?: boolean
 }
 
 /** Cross-plugin "open X with this payload" — e.g. Ctrl+K opening a specific note. */
@@ -38,8 +43,18 @@ export interface Tab {
 export type Theme = 'dark' | 'light'
 
 export interface AppState {
+  /**
+   * Modules currently mounted, least → most recently used (LRU, see
+   * `src/core/navigation.ts`). The shell shows one module at a time; there are
+   * no visible tabs anymore, the name is kept for compatibility.
+   */
   openTabs: Tab[]
+  /** The module on screen (tabId === pluginId). */
   activeTabId: string | null
+  /** Optional subtitle/breadcrumb each module shows in the top bar (useModuleSubtitle). */
+  moduleSubtitles: Record<string, string | undefined>
+  /** Welcome flow (first run, or reopened from Ajustes → Acerca de). */
+  onboardingOpen: boolean
   commandPaletteOpen: boolean
   /** In-app keyboard shortcuts reference (F1 or Help in command palette) */
   keyboardShortcutsOpen: boolean
@@ -103,3 +118,7 @@ export type AppAction =
   /** Open (or focus) a plugin tab and hand it an intent, e.g. { action: 'open-note', payload: id } */
   | { type: 'OPEN_WITH_INTENT'; pluginId: string; action: string; payload?: unknown }
   | { type: 'CLEAR_PLUGIN_INTENT' }
+  /** Module-provided subtitle for the top bar (undefined clears it) */
+  | { type: 'SET_MODULE_SUBTITLE'; pluginId: string; subtitle?: string }
+  | { type: 'OPEN_ONBOARDING' }
+  | { type: 'CLOSE_ONBOARDING' }

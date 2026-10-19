@@ -18,11 +18,13 @@ import { notesPlugin } from '../plugins/notes'
 import { credentialsPlugin } from '../plugins/credentials'
 import { utilitiesPlugin } from '../plugins/utilities'
 import { capturesPlugin } from '../plugins/captures'
+import { ticketsPlugin } from '../plugins/tickets'
 
 export const allPlugins: PluginManifest[] = [
   // Personal (uso diario)
   dashboardPlugin,
   notesPlugin,
+  ticketsPlugin,
   snippetsPlugin,
   gastosPlugin,
   credentialsPlugin,

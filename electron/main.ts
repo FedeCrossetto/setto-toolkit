@@ -1,5 +1,5 @@
 import { existsSync } from 'fs'
-import { app, BrowserWindow, nativeImage, shell, session, dialog } from 'electron'
+import { app, BrowserWindow, nativeImage, net, shell, session, dialog, globalShortcut } from 'electron'
 import path from 'path'
 import { DatabaseService } from './core/services/db.service'
 import { SettingsService } from './core/services/settings.service'
@@ -22,6 +22,8 @@ import { closeStartupSplash, showStartupSplash } from './core/startup-splash'
 import { destroyDock, registerDock } from './core/dock'
 import { registerBackup } from './core/backup-service'
 import { registerCaptureScheme } from './plugins/captures/handlers'
+import { installIpcGuard } from './core/ipc-guard'
+import { registerRemoteImage } from './core/remote-image'
 
 // E2E tests pass --user-data-dir so each run gets an isolated profile.
 // Must run before app.ready — after that the path is locked in.
@@ -32,11 +34,22 @@ if (userDataArg) app.setPath('userData', userDataArg.slice('--user-data-dir='.le
 registerCaptureScheme()
 
 let mainWindow: BrowserWindow | null = null
+/** La ventana principal si sigue viva (después de `closed` / destroy es null). */
+const liveWindow = (): BrowserWindow | null => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null)
+// true cuando la ventana principal se creó: a partir de ahí un error no capturado no cierra la app.
+let startupComplete = false
 let dbForWindowState: DatabaseService | null = null
 let settingsRef: SettingsService | null = null
 let syncService: SyncService | null = null
 // true desde que el usuario pidió salir (bandeja → Salir, actualización): ahí sí se cierra.
 let quitting = false
+/** Módulos con cambios sin guardar (los manda el renderer por `app:dirty`). */
+let dirtyModules: string[] = []
+/** El usuario ya confirmó "Cerrar sin guardar". */
+let forceClose = false
+ipcMain.on('app:dirty', (_e, names: unknown) => {
+  dirtyModules = Array.isArray(names) ? names.filter((n): n is string => typeof n === 'string').slice(0, 20) : []
+})
 
 // File path queued by the OS before the renderer was ready to receive it.
 // The renderer pulls this via app:pending-file once React has mounted.
@@ -66,8 +79,34 @@ function reportFatalError(err: unknown): void {
   }
 }
 
+// Después del arranque, un error suelto (casi siempre de un timer: guardar un archivo,
+// un callback de red) no justifica cerrar la app y perder lo que el usuario tiene abierto.
+// Se registra y se avisa sin bloquear (como mucho un aviso por minuto).
+let lastErrorDialogAt = 0
+function reportRecoverableError(err: unknown): void {
+  const message = err instanceof Error ? `${err.message}\n\n${err.stack ?? ''}` : String(err)
+  logger.error('main', 'Uncaught exception (recovered)', message)
+  if (Date.now() - lastErrorDialogAt < 60_000) return
+  lastErrorDialogAt = Date.now()
+  const opts = {
+    type: 'warning' as const,
+    title: 'Setto — Error inesperado',
+    message: 'Algo falló en segundo plano, pero Setto sigue funcionando.',
+    detail: `Si notás algo raro, reiniciá la app. El detalle quedó en el registro (Ajustes → Exportar logs).\n\n${err instanceof Error ? err.message : String(err)}`,
+    buttons: ['Aceptar'],
+    noLink: true,
+  }
+  const win = liveWindow()
+  void (win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts)).catch(() => undefined)
+}
+
 process.on('uncaughtException', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EPIPE') return
+  if (startupComplete) {
+    try { reportRecoverableError(err) } catch { /* nunca relanzar desde acá */ }
+    return
+  }
+  // Durante el arranque (no se pudo crear la ventana principal) no hay forma de seguir.
   reportFatalError(err)
   app.exit(1)
 })
@@ -98,6 +137,7 @@ if (process.platform === 'win32') {
 // (so mainWindow already exists) but BEFORE React has mounted and registered its listener.
 app.on('open-file', (event, filePath) => {
   event.preventDefault()
+  const mainWindow = liveWindow()
   logger.info('open-file', 'received', { filePath, rendererReady, hasWindow: !!mainWindow })
 
   if (rendererReady && mainWindow) {
@@ -108,22 +148,35 @@ app.on('open-file', (event, filePath) => {
   } else {
     pendingFileToOpen = filePath
     logger.info('open-file', 'queued as pending', { pendingFileToOpen })
-    if (app.isReady() && BrowserWindow.getAllWindows().length === 0) {
+    if (app.isReady() && !liveWindow()) {
       logger.info('open-file', 'no windows open — creating window')
       createWindow()
     }
   }
 })
 
-// Single instance lock — second launch passes its argv here and quits
+// Single instance lock — second launch passes its argv here and quits.
+// Sin el lock no se inicializa nada más (ver el guard en whenReady): la segunda
+// instancia no debe tocar archivos ni registrar atajos mientras se cierra.
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
   app.quit()
 }
 
+// En desarrollo no se registran atajos globales: robarían los de la app instalada
+// (Ctrl+Shift+Space, Ctrl+Alt+V…). SETTO_DEV_SHORTCUTS=1 los habilita para probarlos.
+if (!app.isPackaged && process.env['SETTO_DEV_SHORTCUTS'] !== '1') {
+  globalShortcut.register = ((accelerator: string): boolean => {
+    logger.info('main', `dev: atajo global ${accelerator} no registrado (SETTO_DEV_SHORTCUTS=1 para habilitar)`)
+    return false
+  }) as typeof globalShortcut.register
+}
+
 app.on('second-instance', (_e, argv) => {
+  const mainWindow = liveWindow()
   // Bring existing window to front
   if (mainWindow) {
+    if (!mainWindow.isVisible()) mainWindow.show()
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.focus()
   }
@@ -179,6 +232,8 @@ function createWindow(): void {
     icon: getWindowIcon(),
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
+      // El preload expone a cada ventana sólo sus canales (ver electron/preload.ts).
+      additionalArguments: ['--setto-role=main'],
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false
@@ -216,7 +271,7 @@ function createWindow(): void {
   if (savedBounds.maximized) mainWindow.maximize()
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow?.show()
+    liveWindow()?.show()
     closeStartupSplash()
   })
 
@@ -225,16 +280,37 @@ function createWindow(): void {
   mainWindow.on('close', (e) => {
     if (!quitting && settingsRef?.get('app.close_to_tray') === '1') {
       e.preventDefault()
-      mainWindow?.hide()
+      liveWindow()?.hide()
+      return
+    }
+    // Cambios sin guardar (el renderer avisa por `app:dirty`): confirmar antes de cerrar.
+    // (en los tests automáticos no hay nadie para responder el diálogo)
+    if (dirtyModules.length && !forceClose && process.env['SETTO_E2E'] !== '1') {
+      e.preventDefault()
+      const win = liveWindow()
+      if (!win) return
+      void dialog.showMessageBox(win, {
+        type: 'warning',
+        buttons: ['Cerrar sin guardar', 'Cancelar'],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+        title: 'Setto',
+        message: 'Hay cambios sin guardar',
+        detail: `En: ${dirtyModules.join(', ')}. Si cerrás ahora se pierden.`,
+      }).then(({ response }) => {
+        if (response === 0) { forceClose = true; liveWindow()?.close() }
+        else quitting = false
+      }).catch(() => undefined)
     }
   })
   // Sin la ventana principal no tiene sentido mantener el selector de snippets vivo
   // (además impediría que se dispare window-all-closed).
-  mainWindow.on('closed', () => { teardownSnippetPicker(); destroyDock() })
+  mainWindow.on('closed', () => { mainWindow = null; teardownSnippetPicker(); destroyDock() })
 
   // Fallback: show the window after 3 s even if ready-to-show hasn't fired yet.
   // Prevents an invisible window when the renderer has a startup error.
-  setTimeout(() => { if (mainWindow && !mainWindow.isVisible()) { mainWindow.show(); closeStartupSplash() } }, 3000)
+  setTimeout(() => { const w = liveWindow(); if (w && !w.isVisible()) { w.show(); closeStartupSplash() } }, 3000)
 
   if (process.env['ELECTRON_RENDERER_URL']) {
     // Auto-open DevTools in dev mode to see renderer errors
@@ -251,14 +327,15 @@ function createWindow(): void {
 
   // Forward found-in-page results back to renderer
   mainWindow.webContents.on('found-in-page', (_e, result) => {
-    mainWindow?.webContents.send('page:found', result)
+    liveWindow()?.webContents.send('page:found', result)
   })
 
   // Watchdog: si la interfaz no respondió en 25 s (carga colgada), recargar una vez.
   setTimeout(() => {
-    if (!rendererReady && mainWindow && !mainWindow.isDestroyed()) {
+    const w = liveWindow()
+    if (!rendererReady && w) {
       logger.warn('main', 'renderer not ready after 25s — reloading')
-      mainWindow.webContents.reload()
+      w.webContents.reload()
     }
   }, 25_000)
 
@@ -279,12 +356,13 @@ if (process.platform === 'win32') {
 app.on('child-process-gone', (_e, details) => {
   if (details.type !== 'Utility' || !/network/i.test(details.serviceName ?? details.name ?? '')) return
   logger.warn('main', 'network service gone', { reason: details.reason })
-  if (!rendererReady && mainWindow && !mainWindow.isDestroyed()) {
-    setTimeout(() => { if (!rendererReady && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reload() }, 800)
+  if (!rendererReady && liveWindow()) {
+    setTimeout(() => { if (!rendererReady) liveWindow()?.webContents.reload() }, 800)
   }
 })
 
 app.whenReady().then(() => {
+  if (!gotLock) return   // segunda instancia: ya le pasó el argv a la primera y se está cerrando
   // Ventanita "Abriendo Setto…" lo antes posible: se cierra cuando la principal está lista.
   showStartupSplash(getWindowIcon())
 
@@ -294,12 +372,15 @@ app.whenReady().then(() => {
   const isDev = !!process.env['ELECTRON_RENDERER_URL']
   const cspConnectExtra = isDev ? ' ws://localhost:* http://localhost:*' : ''
   const cspScriptExtra  = isDev ? " 'unsafe-inline' 'unsafe-eval' http://localhost:*" : ''  // Vite HMR preamble needs inline + eval
+  const IMG_SRC = "'self' data: blob: setto-capture: https://www.google.com https://*.gstatic.com https://*.googleusercontent.com https://avatars.githubusercontent.com https://secure.gravatar.com https://gitlab.com https://*.atl-paas.net https://bitbucket.org"
   const csp = [
     "default-src 'self'",
     `script-src 'self'${cspScriptExtra}`,
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' data: https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https: setto-capture:",
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self' data:",
+    // Sin `https:` genérico: una imagen remota en un .md (Notas, Editor) no se carga sola
+    // (core/remote-image.ts). Sólo los hosts de favicons de Claves y avatares de cuentas.
+    `img-src ${IMG_SRC}`,
     `connect-src 'self' https://api.openai.com https://api.bitbucket.org https://api.github.com${cspConnectExtra}`,
     "frame-src 'none'",
     "object-src 'none'",
@@ -330,6 +411,10 @@ app.whenReady().then(() => {
   const gastosStorage = new GastosStorageService(db, settings)
   const services = { db, settings, ai, auth, gastosStorage }
 
+  // Canales sensibles (terminal, escribir/borrar archivos, ajustes, claves, respaldos):
+  // sólo desde la ventana principal. Tiene que ir antes de registrar los handlers.
+  installIpcGuard(ipcMain, (wc) => wc === liveWindow()?.webContents)
+
   // Register all plugin IPC handlers
   loadPlugins(ipcMain, services)
 
@@ -338,22 +423,22 @@ app.whenReady().then(() => {
   // Window controls — registered once here, not inside createWindow().
   // createWindow() can be called multiple times on macOS (Dock re-activate) and
   // ipcMain.on() accumulates listeners rather than replacing them.
-  ipcMain.on('window:minimize', () => mainWindow?.minimize())
+  ipcMain.on('window:minimize', () => liveWindow()?.minimize())
   ipcMain.on('window:maximize', () => {
-    if (mainWindow?.isMaximized()) {
-      mainWindow.unmaximize()
-    } else {
-      mainWindow?.maximize()
-    }
+    const w = liveWindow()
+    if (!w) return
+    if (w.isMaximized()) w.unmaximize()
+    else w.maximize()
   })
-  ipcMain.on('window:close', () => mainWindow?.close())
+  ipcMain.on('window:close', () => liveWindow()?.close())
 
   // Find-in-page
   ipcMain.on('page:find', (_e, text: string, opts: { forward: boolean; findNext: boolean; matchCase: boolean }) => {
-    mainWindow?.webContents.findInPage(text, opts)
+    if (typeof text !== 'string' || !text) return
+    liveWindow()?.webContents.findInPage(text, opts)
   })
   ipcMain.on('page:find-stop', () => {
-    mainWindow?.webContents.stopFindInPage('clearSelection')
+    liveWindow()?.webContents.stopFindInPage('clearSelection')
   })
 
   ipcMain.handle('app:version', () => app.getVersion())
@@ -389,33 +474,42 @@ app.whenReady().then(() => {
   }
   logger.info('main', 'app ready', { pendingFileToOpen, argv: process.argv })
 
-  createWindow()
+  try {
+    createWindow()
+  } catch (err) {
+    // Sin ventana principal la app no sirve: éste sí es un error fatal.
+    reportFatalError(err)
+    app.exit(1)
+    return
+  }
+  startupComplete = true
 
   // Instalar una actualización cierra la ventana: no debe quedar escondida en la bandeja.
   // (Registrado antes que el handler del updater para correr primero.)
   ipcMain.on('updater:install', () => { quitting = true })
 
   // Init auto-updater (no-op in dev mode)
-  initUpdater(() => mainWindow)
+  initUpdater(liveWindow)
 
   // Global quick capture (Ctrl+Shift+Space) + tray icon
-  setupQuickCapture(() => mainWindow, getWindowIcon())
+  setupQuickCapture(liveWindow, getWindowIcon())
 
   // Notificaciones nativas + selector global de snippets (Ctrl+Alt+V)
-  registerNotifications(ipcMain, () => mainWindow, getWindowIcon())
+  registerNotifications(ipcMain, liveWindow, getWindowIcon())
   registerSnippetPicker(ipcMain, getWindowIcon())
   registerClipboardHistory(ipcMain, () => settings.get('app.clipboard_history') !== '0')
   registerClipboardActions(ipcMain)
   // Barra flotante a la derecha (Ajustes → Escritorio)
-  registerDock(ipcMain, settings, getWindowIcon(), () => mainWindow)
+  registerDock(ipcMain, settings, getWindowIcon(), liveWindow)
   registerBackup(ipcMain, db)
+  registerRemoteImage(ipcMain, (url, init) => net.fetch(url, init))
 
   // Sincronización opcional de Notas y Snippets con Supabase (Ajustes → Sincronización)
-  syncService = new SyncService(db, settings, gastosStorage, () => mainWindow)
+  syncService = new SyncService(db, settings, gastosStorage, liveWindow)
   syncService.register(ipcMain)
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (!liveWindow()) createWindow()
   })
 })
 

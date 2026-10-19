@@ -179,7 +179,7 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose, onReplaced }
       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
       <motion.div
-        className="mac-popover hairline pointer-events-auto flex flex-col overflow-hidden"
+        className="fl-dialog pointer-events-auto flex flex-col overflow-hidden"
         style={{
           width: 560,
           maxHeight: hasResults ? '72vh' : 'auto',
@@ -206,7 +206,7 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose, onReplaced }
             title="Reemplazar en archivos"
             aria-label="Reemplazar en archivos"
             aria-pressed={replaceMode}
-            className={`ui-btn ui-btn-ghost ui-btn-icon shrink-0 ${replaceMode ? 'bg-primary/15! text-on-surface!' : ''}`}
+            className={`ui-btn ui-btn-ghost ui-btn-icon shrink-0 ${replaceMode ? 'bg-on-surface/8! text-on-surface!' : ''}`}
           ><Replace size={14} /></button>
 
           <button
@@ -214,7 +214,7 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose, onReplaced }
             title="Expresión regular"
             aria-pressed={useRegex}
             className={`ui-btn ui-btn-ghost ui-btn-sm font-mono shrink-0 ${
-              useRegex ? 'bg-primary/15! text-on-surface!' : ''
+              useRegex ? 'bg-on-surface/8! text-on-surface!' : ''
             }`}
           >.*</button>
 
@@ -285,7 +285,7 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose, onReplaced }
                     onChange={(e) => setChecked((prev) => { const n = new Set(prev); if (e.target.checked) n.add(f.path); else n.delete(f.path); return n })}
                     aria-label={`Incluir ${f.name}`}
                   />
-                  <span className="font-semibold text-on-surface truncate">{f.name}</span>
+                  <span className="font-medium text-on-surface truncate">{f.name}</span>
                   {dirtyPaths.has(f.path) && <span className="ui-badge ui-badge-warning shrink-0">sin guardar en el editor</span>}
                   <span className="text-on-surface-variant/70 t-caption truncate flex-1">{f.path}</span>
                   <span className="ml-auto t-caption tabular-nums text-on-surface-variant shrink-0">{f.count}</span>
@@ -323,7 +323,7 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose, onReplaced }
             <p className="text-center text-on-surface-variant py-8">Escribí y presioná Enter para buscar</p>
           )}
           {searchError && (
-            <p className="mx-3 mt-3 px-3 py-2 rounded-md bg-error/10 text-error">{searchError}</p>
+            <p className="mx-3 mt-3 px-3 py-2 rounded-lg border border-error/30 text-error">{searchError}</p>
           )}
           {searched && !searchError && results.length === 0 && (
             <p className="text-center text-on-surface-variant py-8">Sin resultados</p>
@@ -332,7 +332,7 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose, onReplaced }
             <div key={filePath}>
               <div className="flex items-center gap-2 px-3 py-1 sticky top-0 hairline-b bg-surface">
                 {(() => { const Icon = languageIcon(detectLanguage(matches[0]!.name)); return <Icon size={12} className="shrink-0 text-on-surface-variant" /> })()}
-                <span className="font-semibold text-on-surface truncate">{matches[0]!.name}</span>
+                <span className="font-medium text-on-surface truncate">{matches[0]!.name}</span>
                 <span className="text-on-surface-variant/70 t-caption truncate hidden sm:block flex-1">{filePath}</span>
                 <span className="ml-auto t-caption tabular-nums text-on-surface-variant shrink-0">{matches.length}</span>
               </div>
@@ -355,8 +355,8 @@ export function FindInFiles({ folders, openTabs, onOpenAt, onClose, onReplaced }
 
         {/* Footer hint */}
         <div className="px-3 py-1.5 hairline-t flex items-center gap-3 t-caption text-on-surface-variant">
-          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/4 px-1 rounded">↵</kbd> buscar</span>
-          <span className="flex items-center gap-1"><kbd className="hairline bg-on-surface/4 px-1 rounded">Esc</kbd> cerrar</span>
+          <span className="flex items-center gap-1"><kbd className="kbd-chip">↵</kbd> buscar</span>
+          <span className="flex items-center gap-1"><kbd className="kbd-chip">Esc</kbd> cerrar</span>
           {replaceMode && replacePreview
             ? <span className="ml-auto">{replacePreview.totalMatches} coincidencias en {replacePreview.files.length} archivos · {checked.size} seleccionados</span>
             : searched && <span className="ml-auto">{results.length} coincidencias</span>}

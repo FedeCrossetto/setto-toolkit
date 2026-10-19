@@ -8,6 +8,8 @@ import {
 import type { Snippet, SnippetCollection, SnippetLanguage, SnippetsMeta } from './types'
 import { useApp, usePluginIntent } from '../../core/AppContext'
 import { useToast } from '../../core/components/Toast'
+import { useUndo } from '../../core/hooks/useUndo'
+import { useSoftDelete } from '../../core/soft-delete'
 import { useConfirm } from '../../core/components/Modal'
 import { EmptyState } from '../../core/components/EmptyState'
 import { listItemMotion, shouldAnimateList } from '../../core/motion'
@@ -40,7 +42,7 @@ function relativeTime(ms: number): string {
 
 function LangBadge({ lang }: { lang: SnippetLanguage }): JSX.Element {
   return (
-    <span className="inline-flex items-center h-[20px] px-2 rounded-full text-[11px] font-medium leading-none bg-on-surface/6 text-on-surface-variant whitespace-nowrap">
+    <span className="fl-chip h-[20px]! px-2!">
       {langLabel(lang)}
     </span>
   )
@@ -53,12 +55,12 @@ function SectionHeader({ label, collapsed, onToggle, action }: {
   onToggle?: () => void
   action?: React.ReactNode
 }): JSX.Element {
-  const cls = 'flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant/70'
+  const cls = 'fl-section px-0!'
   return (
-    <div className="flex items-center justify-between mt-5 mb-1 pl-2.5 pr-1 h-6">
+    <div className="flex items-center justify-between mt-4 mb-0.5 pl-1.5 pr-1 h-6">
       {onToggle ? (
-        <button type="button" onClick={onToggle} aria-expanded={!collapsed} className={`${cls} hover:text-on-surface-variant transition-colors`}>
-          <ChevronDown size={11} weight="bold" className={`transition-transform duration-150 ${collapsed ? '-rotate-90' : ''}`} />
+        <button type="button" onClick={onToggle} aria-expanded={!collapsed} className={`${cls} transition-colors`}>
+          <ChevronDown size={10} weight="fill" className={`transition-transform duration-150 ${collapsed ? '-rotate-90' : ''}`} />
           {label}
         </button>
       ) : (
@@ -85,14 +87,12 @@ function NavRow({
       <button
         onClick={onClick}
         aria-current={active ? 'true' : undefined}
-        className={`w-full flex items-center gap-2.5 h-[32px] px-2.5 rounded-lg text-[13px] transition-colors duration-100 ${
-          active ? 'bg-selected text-on-surface font-semibold' : 'text-on-surface/75 font-medium hover:bg-on-surface/4 dark:hover:bg-white/5 hover:text-on-surface'
-        }`}
+        className={`fl-row t-body ${active ? 'nav-active font-medium' : ''}`}
       >
-        <Icon size={16} weight={active ? 'fill' : 'regular'} className={active ? 'text-primary' : 'text-on-surface-variant'} />
+        <Icon size={16} weight={active ? 'regular' : 'light'} className={active ? 'text-on-surface' : 'text-on-surface-variant'} />
         <span className="flex-1 text-left truncate">{label}</span>
         {count !== undefined && (
-          <span className={`t-caption font-medium tabular-nums ${active ? 'text-primary' : 'text-on-surface-variant/70'} ${onDelete ? 'group-hover:opacity-0' : ''}`}>{count}</span>
+          <span className={`t-caption tabular-nums text-on-surface-variant/70 ${onDelete ? 'group-hover:opacity-0' : ''}`}>{count}</span>
         )}
       </button>
       {onDelete && (
@@ -114,9 +114,7 @@ function Chip({ active, label, onClick }: { active: boolean; label: string; onCl
     <button
       onClick={onClick}
       aria-pressed={active}
-      className={`h-[22px] px-2 rounded-full text-[11px] font-medium transition-colors ${
-        active ? 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/25' : 'bg-on-surface/6 text-on-surface-variant hover:bg-on-surface/10 hover:text-on-surface'
-      }`}
+      className={`fl-chip transition-colors ${active ? 'is-on' : ''}`}
     >
       {label}
     </button>
@@ -133,7 +131,7 @@ export function SnippetManager(): JSX.Element {
   const rootRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  const [snippets, setSnippets]       = useState<Snippet[]>([])
+  const [allSnippets, setSnippets]    = useState<Snippet[]>([])
   const [collections, setCollections] = useState<SnippetCollection[]>([])
   const [loaded, setLoaded]           = useState(false)
   const [selectedId, setSelectedId]   = useState<string | null>(null)
@@ -149,6 +147,16 @@ export function SnippetManager(): JSX.Element {
   const [pendingOpen, setPendingOpen] = useState<string | null>(null)
   const [folded, setFolded]           = useState<{ tags: boolean; langs: boolean }>({ tags: false, langs: false })
 
+  const { undoable } = useUndo()
+  // Borrar uno: desaparece al instante y se borra de verdad cuando vence el "Deshacer".
+  const softDelete = useSoftDelete((_id, err) => {
+    showToast(`No se pudo eliminar: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    void reloadRef.current?.()
+  })
+  const hiddenIds = softDelete.hidden
+  const snippets = useMemo(() => allSnippets.filter((s) => !hiddenIds.has(s.id)), [allSnippets, hiddenIds])
+  const reloadRef = useRef<(() => Promise<unknown>) | null>(null)
+
   const selected = snippets.find((s) => s.id === selectedId) ?? null
 
   // ── Load + one-time Queries migration ─────────────────────────────────────
@@ -159,6 +167,7 @@ export function SnippetManager(): JSX.Element {
     setLoaded(true)
     return data
   }, [])
+  reloadRef.current = reload
 
   // Otra máquina cambió snippets (Ajustes → Sincronización): recargar la lista.
   useEffect(() => window.api.on('sync:changed', (p) => {
@@ -358,16 +367,22 @@ export function SnippetManager(): JSX.Element {
   }
 
   const deleteSnippet = async (s: Snippet): Promise<void> => {
-    const ok = await confirm({
-      title: `¿Eliminar «${s.title || 'Sin título'}»?`,
-      message: 'Esta acción no se puede deshacer.',
-      confirmLabel: 'Eliminar',
-      destructive: true,
+    const wasSelected = selectedId === s.id
+    await undoable({
+      message: `«${s.title || 'Sin título'}» eliminado`,
+      undoneMessage: 'Snippet restaurado',
+      apply: () => {
+        softDelete.hide(s.id, async () => {
+          await window.api.invoke('snippets:delete', s.id)
+          await reload()
+        })
+        if (wasSelected) setSelectedId(null)
+      },
+      undo: () => {
+        if (!softDelete.restore(s.id)) throw new Error('ya se había eliminado')
+        if (wasSelected) setSelectedId(s.id)
+      },
     })
-    if (!ok) return
-    await window.api.invoke('snippets:delete', s.id)
-    setSelectedId(null)
-    await reload()
   }
 
   const togglePin = async (s: Snippet): Promise<void> => {
@@ -431,13 +446,13 @@ export function SnippetManager(): JSX.Element {
   return (
     <div ref={rootRef} className="flex h-full overflow-hidden bg-background">
       {/* ── Sidebar ─────────────────────────────────────────────────────── */}
-      <aside className="w-56 shrink-0 flex flex-col bg-surface hairline-r overflow-hidden">
+      <aside className="w-56 shrink-0 flex flex-col fl-pane hairline-r overflow-hidden">
         <div className="px-3 pt-4 pb-2 shrink-0 space-y-3">
           <div className="flex items-center gap-2 pl-1.5">
             <h2 className="t-headline text-on-surface">Snippets</h2>
             <span className="t-caption font-medium tabular-nums text-on-surface-variant/70">{snippets.length}</span>
           </div>
-          <div className="ui-input flex items-center gap-2 h-8 pl-2.5">
+          <div className="fl-search">
             <Search size={14} className="text-on-surface-variant/70 shrink-0" />
             <input
               value={search}
@@ -455,7 +470,7 @@ export function SnippetManager(): JSX.Element {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2.5 pb-3 pt-1">
-          <div className="flex flex-col gap-0.5">
+          <div className="flex flex-col gap-px">
             <NavRow active={isSmart('all')} icon={LayoutGrid} label="Todos" count={snippets.length} onClick={() => setSource({ kind: 'smart', id: 'all' })} />
             <NavRow active={isSmart('pinned')} icon={Pin} label="Fijados" count={snippets.filter((s) => s.pinned).length} onClick={() => setSource({ kind: 'smart', id: 'pinned' })} />
             <NavRow active={isSmart('recent')} icon={Clock} label="Recientes" onClick={() => setSource({ kind: 'smart', id: 'recent' })} />
@@ -475,7 +490,7 @@ export function SnippetManager(): JSX.Element {
               </button>
             }
           />
-          <div className="flex flex-col gap-0.5">
+          <div className="flex flex-col gap-px">
             {collections.map((col) => (
               <NavRow
                 key={col.id}
@@ -496,7 +511,7 @@ export function SnippetManager(): JSX.Element {
                   onBlur={() => void createCollection()}
                   onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setNewColName(null) } }}
                   placeholder="Nombre de la colección"
-                  className="ui-input flex-1 h-8"
+                  className="fl-search flex-1 outline-hidden t-body text-on-surface"
                 />
               </form>
             )}
@@ -509,7 +524,7 @@ export function SnippetManager(): JSX.Element {
             <>
               <SectionHeader label="Etiquetas" collapsed={folded.tags} onToggle={() => setFolded((f) => ({ ...f, tags: !f.tags }))} />
               {!folded.tags && (
-                <div className="flex flex-wrap gap-1 px-2 pt-0.5">
+                <div className="flex flex-wrap gap-1 px-1.5 pt-1">
                   {allTags.slice(0, 30).map((t) => (
                     <Chip key={t} label={`#${t}`} active={tagFilter === t} onClick={() => setTagFilter(tagFilter === t ? null : t)} />
                   ))}
@@ -522,7 +537,7 @@ export function SnippetManager(): JSX.Element {
             <>
               <SectionHeader label="Lenguajes" collapsed={folded.langs} onToggle={() => setFolded((f) => ({ ...f, langs: !f.langs }))} />
               {!folded.langs && (
-                <div className="flex flex-wrap gap-1 px-2 pt-0.5">
+                <div className="flex flex-wrap gap-1 px-1.5 pt-1">
                   {usedLangs.map((l) => (
                     <Chip key={l} label={langLabel(l)} active={langFilter === l} onClick={() => setLangFilter(langFilter === l ? null : l)} />
                   ))}
@@ -543,7 +558,7 @@ export function SnippetManager(): JSX.Element {
       </aside>
 
       {/* ── List ────────────────────────────────────────────────────────── */}
-      <section className="w-72 shrink-0 flex flex-col bg-surface hairline-r overflow-hidden">
+      <section className="w-72 shrink-0 flex flex-col hairline-r overflow-hidden">
         <div className="h-14 pl-4 pr-3 flex items-center gap-2 hairline-b shrink-0">
           <div className="flex-1 min-w-0">
             <div className="t-headline text-on-surface truncate">{sourceTitle}</div>
@@ -559,8 +574,8 @@ export function SnippetManager(): JSX.Element {
               )}
             </div>
           </div>
-          <button onClick={() => startNew()} className="ui-btn ui-btn-primary ui-btn-icon rounded-lg" title="Nuevo snippet (Ctrl+N)" aria-label="Nuevo snippet">
-            <Plus size={15} weight="bold" />
+          <button onClick={() => startNew()} className="ui-btn ui-btn-outline ui-btn-icon rounded-full w-8 h-8 justify-center" title="Nuevo snippet (Ctrl+N)" aria-label="Nuevo snippet">
+            <Plus size={15} />
           </button>
         </div>
 
@@ -583,13 +598,13 @@ export function SnippetManager(): JSX.Element {
                   data-id={s.id}
                   onClick={() => { setSelectedId(s.id); setEditing(null) }}
                   onDoubleClick={() => applySnippet(s, 'copy')}
-                  className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors duration-100 ${
-                    active ? 'bg-selected' : 'hover:bg-on-surface/3 dark:hover:bg-white/4'
+                  className={`w-full text-left px-2.5 py-2 rounded-[10px] border transition-colors duration-100 ${
+                    active ? 'nav-active' : 'border-transparent hover:bg-on-surface/3 dark:hover:bg-white/4'
                   }`}
                 >
                   <div className="flex items-center gap-1.5">
-                    {s.pinned && <Pin size={12} weight="fill" className={`shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant/70'}`} />}
-                    <span className={`text-[13px] truncate flex-1 ${active ? 'font-semibold text-on-surface' : 'font-medium text-on-surface/90'}`}>{s.title || 'Sin título'}</span>
+                    {s.pinned && <Pin size={12} weight="fill" className="shrink-0 text-on-surface-variant/70" />}
+                    <span className={`text-[13px] truncate flex-1 font-medium ${active ? 'text-on-surface' : 'text-on-surface/90'}`}>{s.title || 'Sin título'}</span>
                     {s.lastUsedAt && (
                       <span className="t-caption text-on-surface-variant/70 whitespace-nowrap">{relativeTime(s.lastUsedAt)}</span>
                     )}
@@ -642,7 +657,7 @@ export function SnippetManager(): JSX.Element {
               icon={BookMarked}
               title="Elegí un snippet para verlo"
               description="O creá uno nuevo con Ctrl+N."
-              action={<button className="ui-btn ui-btn-primary" onClick={() => startNew()}><Plus size={14} /> Nuevo snippet</button>}
+              action={<button className="ui-btn ui-btn-outline" onClick={() => startNew()}><Plus size={14} /> Nuevo snippet</button>}
             />
           </div>
         )}
@@ -687,12 +702,12 @@ function SnippetDetail({
 
   return (
     <div className="h-full overflow-y-auto px-6 py-6 flex flex-col">
-      <article className="w-full max-w-[920px] mx-auto flex-1 min-h-[420px] flex flex-col bg-surface hairline rounded-2xl shadow-sm overflow-hidden">
+      <article className="w-full max-w-[920px] mx-auto flex-1 min-h-[420px] flex flex-col bg-surface hairline rounded-xl overflow-hidden">
         <header className="pl-6 pr-4 pt-5 pb-4 flex items-start gap-3 hairline-b shrink-0">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 min-w-0">
               <h1 className="t-title3 text-on-surface truncate">{snippet.title || 'Sin título'}</h1>
-              <span className="inline-flex items-center h-[20px] px-2 rounded-full bg-primary/10 text-primary text-[11px] font-medium leading-none whitespace-nowrap shrink-0">
+              <span className="fl-chip shrink-0">
                 {langLabel(snippet.language)}
               </span>
             </div>
@@ -721,7 +736,7 @@ function SnippetDetail({
 
         <div className="px-6 py-2.5 flex items-center gap-2 flex-wrap hairline-b shrink-0">
           {collectionName && (
-            <span className="inline-flex items-center gap-1 h-[20px] px-2 rounded-full bg-on-surface/6 text-[11px] font-medium text-on-surface-variant">
+            <span className="fl-chip">
               <Folder size={11} /> {collectionName}
             </span>
           )}
@@ -729,7 +744,7 @@ function SnippetDetail({
             <button
               key={t}
               onClick={() => onTag(t)}
-              className="inline-flex items-center h-[20px] px-2 rounded-full bg-on-surface/6 text-[11px] font-medium text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-colors"
+              className="fl-chip transition-colors"
             >
               #{t}
             </button>

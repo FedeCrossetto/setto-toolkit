@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react'
 import {
-  Bot, Check, Download, Eye, EyeOff, FileText, Info, Keyboard, Lock, Monitor, Moon,
+  Bot, Check, Download, Eye, EyeOff, FileText, Info, Lock, Monitor, Moon,
   LayoutGrid, Palette, Plug, RefreshCw, ShieldCheck, Sun, TriangleAlert, Type, Upload, ZoomIn,
 } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
@@ -16,6 +16,7 @@ import { useToast } from '../../core/components/Toast'
 import { DesktopSettings } from './DesktopSettings'
 import { BackupSettings } from './BackupSettings'
 import { SyncSettings } from './SyncSettings'
+import { AboutSettings } from './AboutSettings'
 import type { IconComponent, PluginManifest } from '../../core/types'
 
 interface SettingsState {
@@ -97,7 +98,6 @@ export function SettingsPage(): JSX.Element {
   const { prefs: fontPrefs, updateFont } = useAppFont()
   const { scale: uiScale, setScale: setUiScale, resetScale: resetUiScale } = useUiScale()
   const [themeMode, setThemeMode] = useThemeMode()
-  const [version, setVersion] = useState('…')
   const [settings, setSettings] = useState<SettingsState>({
     'ai.provider': 'openai',
     'ai.openai_key': '',
@@ -122,7 +122,6 @@ export function SettingsPage(): JSX.Element {
 
   useEffect(() => {
     void window.api.invoke<boolean>('settings:encryption-available').then(setEncryptionAvailable).catch(() => {})
-    void window.api.invoke<string>('app:version').then(setVersion).catch(() => setVersion('—'))
   }, [])
 
   useEffect(() => {
@@ -259,11 +258,11 @@ export function SettingsPage(): JSX.Element {
               type="button"
               onClick={() => goToSection(id)}
               aria-current={on ? 'true' : undefined}
-              className={`flex items-center gap-2.5 h-8 px-2.5 rounded-lg t-body text-left transition-colors ${
-                on ? 'bg-selected text-on-surface font-medium' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'
+              className={`flex items-center gap-2.5 h-8 px-2.5 rounded-lg t-body text-left border border-transparent transition-colors ${
+                on ? 'nav-active text-on-surface font-medium' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'
               }`}
             >
-              <Icon size={15} weight={on ? 'fill' : undefined} className={on ? 'text-primary' : ''} />
+              <Icon size={15} />
               {label}
             </button>
           )
@@ -278,7 +277,7 @@ export function SettingsPage(): JSX.Element {
 
       {!encryptionAvailable && (
         <div className="ui-card flex items-start gap-3 px-4 py-3">
-          <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-warning/[0.14] text-warning">
+          <span className="icon-tile w-7 h-7 text-warning">
             <TriangleAlert size={15} />
           </span>
           <p className="t-footnote text-on-surface-variant">
@@ -504,7 +503,7 @@ export function SettingsPage(): JSX.Element {
         </SettingsRow>
       </SettingsGroup>
 
-      <div className={`-mt-3 flex items-center justify-end gap-3 ${dirty ? 'sticky bottom-5 z-10 ui-card shadow-lg pl-4 pr-2 py-2' : ''}`}>
+      <div className={`-mt-3 flex items-center justify-end gap-3 ${dirty ? 'sticky bottom-5 z-10 ui-card shadow-md pl-4 pr-2 py-2' : ''}`}>
         {dirty && (
           <span className="flex-1 flex items-center gap-2 t-footnote text-on-surface-variant">
             <span className="w-1.5 h-1.5 rounded-full bg-warning" aria-hidden />
@@ -530,14 +529,7 @@ export function SettingsPage(): JSX.Element {
       </SettingsGroup>
 
       {/* ── Acerca de ──────────────────────────────────────────────────────── */}
-      <SettingsGroup id="ajustes-acerca" title="Acerca de">
-        <SettingsRow icon={Info} title="Setto Toolkit" description={`Versión ${version}`}>
-          <button onClick={() => dispatch({ type: 'OPEN_TAB', pluginId: 'about' })} className="ui-btn ui-btn-ghost ui-btn-sm">Más información</button>
-        </SettingsRow>
-        <SettingsRow icon={Keyboard} title="Atajos de teclado" description="También con F1.">
-          <button onClick={() => dispatch({ type: 'OPEN_KEYBOARD_SHORTCUTS' })} className="ui-btn ui-btn-ghost ui-btn-sm">Ver atajos</button>
-        </SettingsRow>
-      </SettingsGroup>
+      <AboutSettings />
       </div>
     </div>
   )
@@ -545,5 +537,5 @@ export function SettingsPage(): JSX.Element {
 
 /** Sub-encabezado dentro de una tarjeta de grupo (Personal / Desarrollo / Sistema). */
 function SubHeader({ children }: { children: ReactNode }): JSX.Element {
-  return <div className="px-4 pt-3 pb-2 t-footnote font-semibold text-on-surface-variant bg-on-surface/2">{children}</div>
+  return <div className="px-5 pt-3.5 pb-1.5 t-section">{children}</div>
 }

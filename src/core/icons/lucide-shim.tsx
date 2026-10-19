@@ -6,15 +6,17 @@
  * y `paths` en tsconfig.web.json). Cada nombre se traduce a un ícono de Phosphor
  * (estilo redondeado, parecido a SF Symbols de macOS).
  *
- * - Cambiar el estilo global: `DEFAULT_WEIGHT` (thin | light | regular | bold | fill | duotone).
+ * - Cambiar el estilo global: `DEFAULT_WEIGHT` (light | regular | bold | fill; thin y duotone no
+ *   se incluyen en el bundle: ver `phosphor-weights.ts`).
  * - Cambiar un ícono puntual: editar la tabla de abajo.
  * - Usar un ícono nuevo: agregarlo a la tabla (si falta, tsc falla en el import).
  */
 import { forwardRef, type CSSProperties, type ForwardRefExoticComponent, type RefAttributes, type SVGProps } from 'react'
 import * as P from '@phosphor-icons/react'
 import type { Icon as PhosphorIcon, IconWeight } from '@phosphor-icons/react'
+import { coerceWeight } from './phosphor-weights'
 
-export const DEFAULT_WEIGHT: IconWeight = 'regular'
+export const DEFAULT_WEIGHT: IconWeight = 'light'
 
 export interface LucideProps extends Omit<SVGProps<SVGSVGElement>, 'ref'> {
   size?: number | string
@@ -38,7 +40,7 @@ function make(Icon: PhosphorIcon, fixedWeight?: IconWeight): LucideIcon {
     const w = weight ?? fixedWeight ?? (sw !== undefined && sw >= 2.25 ? 'bold' : sw !== undefined && sw <= 1.25 ? 'light' : DEFAULT_WEIGHT)
     // Phosphor dibuja el glifo algo más chico que lucide en el mismo tamaño: compensar levemente.
     const px = typeof size === 'number' ? Math.round(size * 1.08) : size
-    return <Icon ref={ref} size={px} weight={w} {...(rest as object)} />
+    return <Icon ref={ref} size={px} weight={coerceWeight(w)} {...(rest as object)} />
   })
   return C as unknown as LucideIcon
 }
@@ -91,6 +93,7 @@ export const FilePlus          = make(P.FilePlus)
 export const FileSearch        = make(P.FileMagnifyingGlass)
 export const FileText          = make(P.FileText)
 export const FileUp            = make(P.FileArrowUp)
+export const FileX             = make(P.FileX)
 export const Filter            = make(P.Funnel)
 export const Flame             = make(P.Flame)
 export const Folder            = make(P.Folder)
@@ -129,6 +132,7 @@ export const Network           = make(P.TreeStructure)
 export const NotebookPen       = make(P.NotePencil)
 export const Palette           = make(P.Palette)
 export const PanelLeft         = make(P.SidebarSimple)
+export const CaretDown         = make(P.CaretDown)
 export const PanelLeftClose    = make(P.SidebarSimple)
 export const PanelLeftOpen     = make(P.SidebarSimple)
 export const Paperclip         = make(P.Paperclip)
@@ -209,3 +213,4 @@ export const Tag               = make(P.Tag)
 export const Timer             = make(P.Timer)
 export const Toolbox           = make(P.Toolbox)
 export const ArrowUpDown       = make(P.ArrowsDownUp)
+export const Repeat            = make(P.Repeat)

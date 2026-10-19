@@ -280,8 +280,8 @@
   --r-2xl: 24px;    /* hero, splash */
 
   --border-w: 1px;
-  --hairline: rgb(0 0 0 / 0.07);        /* borde fino */
-  --hairline-strong: rgb(0 0 0 / 0.12);
+  --hairline: rgb(0 0 0 / 0.06);        /* borde fino */
+  --hairline-strong: rgb(0 0 0 / 0.10);
 
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.05);
   --shadow-md: 0 1px 2px rgb(0 0 0 / 0.04), 0 6px 18px -4px rgb(0 0 0 / 0.08);
@@ -604,9 +604,11 @@ select option {
 .ui-input:focus {
   outline: none;
   background: rgb(var(--c-surface));
-  border-color: rgb(var(--c-primary) / 0.7);
-  box-shadow: 0 0 0 3px rgb(var(--c-primary) / 0.18);
+  /* Líneas finas: borde un poco más marcado y un halo apenas visible */
+  border-color: rgb(var(--c-on-surface) / 0.28);
+  box-shadow: 0 0 0 3px rgb(var(--c-on-surface) / 0.05);
 }
+.dark .ui-input:focus { border-color: rgb(255 255 255 / 0.28); box-shadow: 0 0 0 3px rgb(255 255 255 / 0.05); }
 
 /* Badges */
 :where(.ui-badge) {
@@ -823,3 +825,113 @@ html[data-ui-size="small"] .text-\[11px\]   { font-size: 10.5px; }
 /* Controles nativos heredan la fuente de la app (los <button>/<input> no lo hacen solos en todos los casos). */
 button, input, select, textarea { font-family: inherit; }
 } /* @layer utilities */
+
+/* ─── Estilo "líneas finas" (barra lateral clara + panel flotante) ─────────── */
+.app-panel {
+  border: var(--border-w) solid var(--hairline);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.03), 0 0 0 0.5px rgb(0 0 0 / 0.02);
+}
+.dark .app-panel { box-shadow: none; }
+/* Ítem activo de la barra lateral: tarjeta blanca con borde fino */
+.nav-active {
+  background: rgb(var(--c-surface));
+  border: var(--border-w) solid var(--hairline-strong);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+}
+.dark .nav-active { background: rgb(255 255 255 / 0.07); border-color: rgb(255 255 255 / 0.08); box-shadow: none; }
+/* Teclas (⌘K) en chips finos */
+.kbd-chip {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px;
+  font: 500 11px/1 var(--app-font-family, Inter), sans-serif;
+  color: rgb(var(--c-on-surface-variant));
+  border: var(--border-w) solid var(--hairline-strong);
+  border-radius: 5px;
+  background: rgb(var(--c-surface));
+}
+.dark .kbd-chip { background: rgb(255 255 255 / 0.05); }
+/* Botones de contorno con forma de píldora y tarjetas con borde fino sin brillo */
+.ui-btn-outline:not(.ui-btn-icon) { border-radius: 999px; }
+:where(.ui-card) { background-image: none; box-shadow: 0 1px 2px rgb(0 0 0 / 0.03); }
+.dark :where(.ui-card) { box-shadow: none; }
+/* ─── Diseño A (líneas finas en Inicio, Gastos, Conexiones, Ajustes, Utilidades) ─── */
+/* Tile de ícono neutro: blanco con borde fino e ícono gris (reemplaza tiles lila/degradé) */
+.icon-tile {
+  display: inline-grid; place-items: center; flex-shrink: 0;
+  background: rgb(var(--c-surface));
+  border: var(--border-w) solid var(--hairline-strong);
+  border-radius: var(--r-sm);
+  color: rgb(var(--c-on-surface-variant));
+}
+.dark .icon-tile { background: rgb(255 255 255 / 0.04); }
+/* Celda de dato con borde fino (en vez de relleno gris) */
+.stat-cell { border: var(--border-w) solid var(--hairline); border-radius: var(--r-md); }
+
+/* ─── Diseño B (líneas finas en Snippets, Portapapeles, Editor, Terminal, API Lab, Repos, Comparar, Tickets, Ctrl+K, modales) ─── */
+/* Panel lateral interno: gris claro como la barra lateral de la app */
+.fl-pane { background: rgb(var(--c-sidebar)); }
+/* Fila de lista (29–32px) con el mismo estilo que la barra lateral; activa = .nav-active */
+.fl-row {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  min-height: 30px; padding: 0 10px; border-radius: 9px;
+  border: var(--border-w) solid transparent;
+  color: rgb(var(--c-on-surface) / 0.78); text-align: left;
+  transition: background-color 100ms, color 100ms;
+}
+.fl-row:hover { background: rgb(var(--c-on-surface) / 0.04); color: rgb(var(--c-on-surface)); }
+.dark .fl-row:hover { background: rgb(255 255 255 / 0.04); }
+.fl-row.nav-active { color: rgb(var(--c-on-surface)); }
+.fl-row.nav-active:hover { background: rgb(var(--c-surface)); }
+.dark .fl-row.nav-active:hover { background: rgb(255 255 255 / 0.07); }
+/* Encabezado de sección: chico, mayúsculas, con caret opcional */
+.fl-section {
+  display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 6px;
+  font-size: 11px; line-height: 14px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
+  color: rgb(var(--c-on-surface-variant) / 0.8);
+}
+button.fl-section:hover { color: rgb(var(--c-on-surface)); }
+/* Barra de herramientas de un módulo: 42px, línea fina abajo */
+.fl-toolbar {
+  display: flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 12px;
+  border-bottom: var(--border-w) solid var(--hairline);
+}
+/* Chip / etiqueta: píldora con borde fino */
+.fl-chip {
+  display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px;
+  border: var(--border-w) solid var(--hairline-strong); border-radius: 999px;
+  font-size: 11.5px; line-height: 1; color: rgb(var(--c-on-surface-variant));
+  background: transparent; white-space: nowrap;
+}
+button.fl-chip:hover { color: rgb(var(--c-on-surface)); border-color: rgb(var(--c-on-surface) / 0.2); }
+.fl-chip.is-on { color: rgb(var(--c-on-surface)); background: rgb(var(--c-surface)); border-color: rgb(var(--c-on-surface) / 0.22); }
+.dark .fl-chip.is-on { background: rgb(255 255 255 / 0.07); }
+/* Diálogos (Modal, Sheet, Ctrl+K): blanco, borde fino, sombra suave, 14px */
+.fl-dialog {
+  background: rgb(var(--c-surface));
+  border: var(--border-w) solid var(--hairline-strong);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 16px 40px -12px rgb(0 0 0 / 0.16);
+}
+.dark .fl-dialog { box-shadow: 0 16px 40px -8px rgb(0 0 0 / 0.5); }
+/* Buscador sobre un panel gris: blanco con borde fino (como "Buscar" de la barra lateral) */
+.fl-search {
+  display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px;
+  background: rgb(var(--c-surface)); border: var(--border-w) solid var(--hairline-strong); border-radius: 9px;
+  box-shadow: 0 1px 1px rgb(0 0 0 / 0.03);
+}
+.fl-search:focus-within { border-color: rgb(var(--c-primary) / 0.5); box-shadow: 0 0 0 3px rgb(var(--c-primary) / 0.12); }
+.dark .fl-search { background: rgb(255 255 255 / 0.04); box-shadow: none; }
+
+/* ── Platform: vista previa de Markdown — imagen remota bloqueada (markdown-safety.ts) ── */
+@layer utilities {
+  .md-preview .md-remote-img {
+    display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+    margin: 4px 0; padding: 6px 12px; border-radius: 999px;
+    border: var(--border-w) dashed var(--hairline-strong);
+    background: transparent; color: rgb(var(--c-on-surface-variant));
+    font-size: 12px; line-height: 1.3; cursor: pointer; text-align: left;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .md-preview .md-remote-img:hover { color: rgb(var(--c-on-surface)); border-color: rgb(var(--c-primary) / 0.5); }
+  .md-preview .md-remote-img:disabled { cursor: progress; opacity: 0.7; }
+}

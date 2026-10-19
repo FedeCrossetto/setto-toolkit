@@ -83,8 +83,8 @@ export function TabSwitcher<T extends TabLike>({ tabs, activeId, onCommit, rende
       {sw && (
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-[18vh] pointer-events-none">
           <div role="listbox" aria-label="Cambiar de archivo"
-            className="mac-popover hairline w-[360px] max-w-[90vw] max-h-[60vh] overflow-y-auto p-1.5 pointer-events-auto">
-            <p className="t-section px-2.5 pt-1 pb-1.5">Archivos recientes</p>
+            className="fl-dialog w-[360px] max-w-[90vw] max-h-[60vh] overflow-y-auto p-1.5 pointer-events-auto">
+            <p className="fl-section px-2.5! pt-1 pb-1">Archivos recientes</p>
             {sw.list.map((id, i) => {
               const tab = byId.get(id)
               if (!tab) return null
@@ -92,9 +92,9 @@ export function TabSwitcher<T extends TabLike>({ tabs, activeId, onCommit, rende
               return (
                 <div key={id} role="option" aria-selected={selected}
                   onMouseDown={(e) => { e.preventDefault(); setSw(null); onCommit(id) }}
-                  className={`flex items-center gap-2.5 h-[30px] px-2.5 rounded-lg cursor-default ${selected ? 'bg-selected text-on-surface' : 'text-on-surface/80 hover:bg-on-surface/4'}`}>
+                  className={`flex items-center gap-2.5 h-[30px] px-2.5 rounded-[9px] border cursor-default ${selected ? 'bg-on-surface/[0.05] dark:bg-white/[0.06] border-hairline text-on-surface' : 'border-transparent text-on-surface/80 hover:bg-on-surface/4'}`}>
                   <span className="shrink-0 flex">{renderIcon(tab)}</span>
-                  <span className={`text-[13px] truncate ${selected ? 'font-semibold' : 'font-medium'}`}>{tab.name}</span>
+                  <span className="text-[13px] truncate font-medium">{tab.name}</span>
                   {tab.isDirty && <span title="Sin guardar" className="w-1.5 h-1.5 rounded-full bg-on-surface-variant shrink-0" />}
                   {tab.path && <span className="ml-auto t-caption text-on-surface-variant truncate min-w-0 max-w-[45%]" title={tab.path}>{tab.path.replace(/[/\\][^/\\]+$/, '')}</span>}
                 </div>

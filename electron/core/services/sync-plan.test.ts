@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { conflictCopyId, markConflictContent, planSync, type LocalItem, type RemoteItem } from './sync-plan'
+import { conflictCopyId, markConflictContent, planSync, syncGuard, type LocalItem, type RemoteItem, type SyncOp } from './sync-plan'
 import { isValidNoteId } from '../../plugins/notes/notes-utils'
 
 const L = (hash: string): LocalItem => ({ hash, updatedAt: 1 })
@@ -51,5 +51,30 @@ describe('markConflictContent', () => {
   it('marks the title line', () => {
     const d = new Date(2026, 9, 12)
     expect(markConflictContent('\n# Ideas\ncuerpo', d)).toBe(`\n# Ideas (conflicto ${d.toLocaleDateString('es-AR')})\ncuerpo`)
+  })
+})
+
+describe('syncGuard', () => {
+  const remote = (n: number): Map<string, RemoteItem> => new Map(Array.from({ length: n }, (_, i) => [`n${i}`, R(String(i))]))
+  const dels = (n: number): SyncOp[] => Array.from({ length: n }, (_, i) => ({ type: 'push-delete', id: `n${i}` }))
+
+  it('aborts when local is empty and the plan would wipe the remote', () => {
+    expect(syncGuard('notas', 0, remote(3), dels(3))).toMatch(/no hay notas/)
+    expect(syncGuard('notas', 0, remote(1), dels(1))).toBeNull()   // borrar la única nota es legítimo
+  })
+  it('lets a fresh machine (only pulls) through', () => {
+    expect(syncGuard('notas', 0, remote(30), [{ type: 'pull', id: 'n0' }])).toBeNull()
+  })
+  it('aborts mass remote deletes (> 5 and > 30 %)', () => {
+    expect(syncGuard('notas', 10, remote(20), dels(7))).toMatch(/7 de 20/)
+  })
+  it('allows a few deletes or a small ratio', () => {
+    expect(syncGuard('notas', 10, remote(20), dels(5))).toBeNull()
+    expect(syncGuard('notas', 90, remote(100), dels(20))).toBeNull()
+  })
+  it('the full plan of an emptied folder is caught', () => {
+    const base = Object.fromEntries([...remote(8).entries()].map(([id, r]) => [id, r.hash]))
+    const ops = planSync(new Map(), remote(8), base)
+    expect(syncGuard('notas', 0, remote(8), ops)).not.toBeNull()
   })
 })

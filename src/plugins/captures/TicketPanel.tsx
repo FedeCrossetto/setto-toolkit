@@ -51,7 +51,7 @@ export function TicketPanel({ ticket, onOpenNote, onClear }: { ticket: string; o
   return (
     <>
       <div className="mx-6 mb-3 flex items-center gap-3 rounded-xl hairline bg-surface px-4 py-2.5 flex-wrap">
-        <Ticket size={16} className="text-primary shrink-0" />
+        <Ticket size={16} className="text-on-surface-variant shrink-0" />
         <span className="t-body font-semibold text-on-surface font-mono">{ticket}</span>
         <span className="t-footnote text-on-surface-variant flex items-center gap-3">
           <span className="flex items-center gap-1"><Images size={12} /> {ids.length} captura{ids.length === 1 ? '' : 's'}</span>

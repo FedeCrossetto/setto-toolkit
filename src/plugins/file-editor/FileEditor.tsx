@@ -956,7 +956,7 @@ export function FileEditor(): JSX.Element {
       {/* ── Left sidebar ─────────────────────────────────────────────────── */}
       <aside
         className={[
-          'shrink-0 flex flex-col hairline-r bg-surface overflow-hidden',
+          'shrink-0 flex flex-col hairline-r fl-pane overflow-hidden',
           sidebarCollapsed ? 'w-10 transition-[width] duration-200 ease-out' : '',
           zenMode ? 'hidden' : '',
         ].join(' ')}
@@ -1061,7 +1061,7 @@ export function FileEditor(): JSX.Element {
           </div>
 
           {(tabs.length > 6 || openView.filter) && (
-            <div className="ui-input mx-2.5 mb-1 flex items-center gap-1.5 py-1! px-2! shrink-0">
+            <div className="fl-search h-7! mx-2.5 mb-1 gap-1.5! px-2! shrink-0">
               <Filter size={12} className="text-on-surface-variant/50 shrink-0" />
               <input value={openView.filter} onChange={(e) => openView.setFilter(e.target.value)} placeholder="Filtrar abiertos…" aria-label="Filtrar archivos abiertos"
                 onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); openView.setFilter('') } }}
@@ -1075,8 +1075,8 @@ export function FileEditor(): JSX.Element {
           )}
 
           {selectedIds.size > 0 && (
-            <div className="mx-2.5 mb-1 px-2.5 py-1 rounded-lg flex items-center gap-2 shrink-0 bg-primary/10">
-              <span className="t-caption font-medium text-primary">
+            <div className="mx-2.5 mb-1 px-2.5 py-1 rounded-[9px] flex items-center gap-2 shrink-0 hairline bg-surface">
+              <span className="t-caption font-medium text-on-surface">
                 {selectedIds.size}/2 seleccionados
               </span>
               {selectedIds.size === 2 && (
@@ -1092,15 +1092,15 @@ export function FileEditor(): JSX.Element {
             </div>
           )}
 
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-1 px-2.5 flex flex-col gap-0.5">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-1 px-2.5 flex flex-col gap-px">
             {tabs.length === 0 ? (
               <div className="flex flex-col items-center gap-2.5 pt-5 px-3 text-center select-none">
-                <span className="w-9 h-9 rounded-xl bg-selected text-primary flex items-center justify-center">
+                <span className="icon-tile w-9 h-9 rounded-[10px]">
                   <FileText size={18} />
                 </span>
                 <p className="t-footnote text-on-surface-variant/80">
                   No hay archivos abiertos.<br />Soltá un archivo acá o presioná
-                  {' '}<kbd className="text-[11px] px-1.5 py-px rounded-[5px] bg-on-surface/6 font-sans font-medium">Ctrl+T</kbd>
+                  {' '}<kbd className="kbd-chip">Ctrl+T</kbd>
                 </p>
               </div>
             ) : openGroups.length === 0 ? (
@@ -1111,12 +1111,12 @@ export function FileEditor(): JSX.Element {
               const hasActive = group.items.some((t) => t.id === activeId)
               const dirtyCount = group.items.filter((t) => t.isDirty).length
               return (
-              <div key={group.key} className="flex flex-col gap-0.5">
+              <div key={group.key} className="flex flex-col gap-px">
                 {group.label && (
                   <button type="button" onClick={() => openView.toggleCollapsed(group.key)} title={group.title}
                     aria-expanded={!isCollapsed}
-                    className={`group/fold flex items-center gap-1.5 w-full text-left rounded-md px-1.5 ${isCollapsed ? 'py-1' : 'pt-2 pb-0.5'} t-caption font-semibold select-none transition-colors hover:bg-on-surface/4 ${
-                      isCollapsed && hasActive ? 'text-primary' : 'text-on-surface-variant/80 hover:text-on-surface'}`}>
+                    className={`group/fold flex items-center gap-1.5 w-full text-left rounded-md px-1.5 ${isCollapsed ? 'py-1' : 'pt-2 pb-0.5'} t-caption font-medium select-none transition-colors hover:bg-on-surface/4 ${
+                      isCollapsed && hasActive ? 'text-on-surface' : 'text-on-surface-variant/80 hover:text-on-surface'}`}>
                     <ChevronRight size={10} className={`shrink-0 transition-transform duration-150 ${isCollapsed ? '' : 'rotate-90'}`} />
                     {group.key === 'pinned' ? <Pin size={11} className="shrink-0" /> : isCollapsed ? <Folder size={11} className="shrink-0" /> : <FolderOpen size={11} className="shrink-0" />}
                     <span className="truncate flex-1">{group.label}</span>
@@ -1186,12 +1186,12 @@ export function FileEditor(): JSX.Element {
                 </button>
               </Tooltip>
             </div>
-            <div className="overflow-y-auto max-h-40 pb-2 px-2.5 flex flex-col gap-0.5">
+            <div className="overflow-y-auto max-h-40 pb-2 px-2.5 flex flex-col gap-px">
               {recents.slice(0, 8).map((r) => (
                 <button key={r.path} onClick={() => openFile(r.path)} title={r.path}
-                  className="flex items-center gap-2.5 w-full px-2.5 h-[30px] rounded-lg text-left hover:bg-on-surface/4 dark:hover:bg-white/5 transition-colors group">
+                  className="fl-row group">
                   {(() => { const lang = detectLanguage(r.name); const Icon = languageIcon(lang); return <Icon size={14} className="shrink-0" style={{ color: langColor(lang) }} /> })()}
-                  <span className="text-[13px] font-medium text-on-surface/75 group-hover:text-on-surface truncate flex-1">{r.name}</span>
+                  <span className="text-[13px] truncate flex-1">{r.name}</span>
                   <ArrowUpRight size={11} className="shrink-0 text-on-surface-variant opacity-0 group-hover:opacity-70 transition-opacity" />
                 </button>
               ))}
@@ -1217,7 +1217,7 @@ export function FileEditor(): JSX.Element {
       <div className="fe-pane flex-1 flex flex-col overflow-hidden relative" style={editorPaneStyle} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
 
         {/* Tab bar + settings */}
-        <div className={`flex items-stretch h-9 hairline-b fe-chrome shrink-0 ${zenMode ? 'hidden' : ''}`}>
+        <div className={`flex items-stretch h-10 hairline-b fe-chrome shrink-0 ${zenMode ? 'hidden' : ''}`}>
           {/* Archivo activo (los abiertos se listan sólo en la barra lateral) */}
           <div className="flex-1 min-w-0 flex items-center gap-2 pl-4 pr-2">
             {activeTab && (
@@ -1330,7 +1330,7 @@ export function FileEditor(): JSX.Element {
                     <div className="flex flex-col p-1">
                       {FONT_FAMILIES.map((f) => (
                         <button key={f} onClick={() => updatePrefs({ fontFamily: f })}
-                          className={`text-left t-body px-2.5 py-1 rounded-md transition-colors ${prefs.fontFamily === f ? 'bg-primary text-on-primary' : 'text-on-surface hover:bg-on-surface/6'}`}
+                          className={`text-left t-body px-2.5 py-1 rounded-md transition-colors ${prefs.fontFamily === f ? 'bg-on-surface/[0.07] text-on-surface font-medium' : 'text-on-surface hover:bg-on-surface/5'}`}
                           style={{ fontFamily: `'${f}', monospace` }}>{f}</button>
                       ))}
                     </div>
@@ -1578,7 +1578,7 @@ export function FileEditor(): JSX.Element {
                 transition={{ duration: 0.15 }}
               >
                 Zen
-                <kbd className="px-1 rounded hairline bg-surface font-mono">Ctrl+⇧+Z</kbd>
+                <kbd className="kbd-chip">Ctrl+⇧+Z</kbd>
               </motion.button>
             )}
           </AnimatePresence>
@@ -1762,14 +1762,14 @@ function FolderRoot({ folder, expanded, onToggle, onClose, cb }: {
   const isOpen = expanded.has(folder.path)
   return (
     <div>
-      <div className="flex items-center gap-1 mx-1.5 px-1.5 h-[30px] rounded-lg group cursor-pointer hover:bg-on-surface/4 dark:hover:bg-white/5 transition-colors"
+      <div className="flex items-center gap-1 mx-1.5 px-1.5 h-[30px] rounded-[9px] group cursor-pointer hover:bg-on-surface/4 dark:hover:bg-white/5 transition-colors"
         onContextMenu={(e) => cb.onContextMenu(e, folder, folder.path)}>
         <button onClick={() => onToggle(folder.path)} className="flex items-center gap-1.5 flex-1 min-w-0 text-left">
           <ChevronRight size={13} className="text-on-surface-variant/60 shrink-0 transition-transform duration-150" style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }} />
-          {isOpen ? <FolderOpen size={14} className="text-primary shrink-0" /> : <Folder size={14} className="text-primary shrink-0" />}
+          {isOpen ? <FolderOpen size={14} className="text-on-surface-variant shrink-0" /> : <Folder size={14} className="text-on-surface-variant shrink-0" />}
           {cb.renaming === folder.path
             ? <InlineInput defaultValue={folder.name} onCommit={(n) => cb.onRenameCommit(folder.path, n)} onCancel={cb.onCancel} />
-            : <span className="text-[13px] font-semibold text-on-surface truncate" title={folder.path}>{folder.name}</span>
+            : <span className="text-[13px] font-medium text-on-surface truncate" title={folder.path}>{folder.name}</span>
           }
         </button>
         <button onClick={() => onClose(folder.path)} title="Cerrar carpeta" aria-label="Cerrar carpeta"
@@ -1809,7 +1809,7 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
       <div onClick={() => node.isDir ? onToggle(node.path) : cb.onOpen(node.path)}
         onContextMenu={(e) => cb.onContextMenu(e, node, rootPath)}
         title={node.path}
-        className="relative flex items-center gap-1.5 h-[28px] mx-1.5 rounded-lg cursor-default hover:bg-on-surface/4 dark:hover:bg-white/5 group transition-colors"
+        className="relative flex items-center gap-1.5 h-[28px] mx-1.5 rounded-[9px] cursor-default hover:bg-on-surface/4 dark:hover:bg-white/5 group transition-colors"
         style={{ paddingLeft: `${2 + indent}px`, paddingRight: '6px' }}>
         {/* Indent guide lines — one vertical hairline per ancestor level */}
         {Array.from({ length: depth }).map((_, d) => (
@@ -1825,7 +1825,7 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
           : <span className="shrink-0" style={{ width: '13px' }} />
         }
         {node.isDir
-          ? (isOpen ? <FolderOpen size={14} className="text-primary shrink-0" /> : <Folder size={14} className="text-primary shrink-0" />)
+          ? (isOpen ? <FolderOpen size={14} className="text-on-surface-variant shrink-0" /> : <Folder size={14} className="text-on-surface-variant shrink-0" />)
           : (() => { const lang = detectLanguage(node.name); const Icon = languageIcon(lang); return <Icon size={13} className="shrink-0" style={{ color: langColor(lang) }} /> })()
         }
         {cb.renaming === node.path
@@ -1890,7 +1890,7 @@ function CollapsedSidebarRail({
               onClick={() => onSelectTab(tab.id)}
               onContextMenu={(e) => onTabContextMenu(e, tab)}
               title={tab.path ? `${tab.name}\n${tab.path}` : tab.name}
-              className={`relative w-8 h-8 rounded-lg flex items-center justify-center transition-colors shrink-0 ${isActive ? 'bg-selected' : 'hover:bg-on-surface/4'}`}
+              className={`relative w-8 h-8 rounded-lg flex items-center justify-center transition-colors shrink-0 ${isActive ? 'nav-active' : 'hover:bg-on-surface/4'}`}
             >
               <Icon size={15} style={{ color: langColor(tab.language) }} />
               {tab.isDirty && (
@@ -1905,7 +1905,7 @@ function CollapsedSidebarRail({
 }
 
 /** Encabezado de sección de la barra lateral (mismo estilo que la barra de la app). */
-const SIDEBAR_SECTION = 'text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant/70'
+const SIDEBAR_SECTION = 'text-[11px] font-medium uppercase tracking-[0.08em] text-on-surface-variant/80'
 
 function FileListItem({
  tab, isActive, isSelected = false, pinned = false, savedFlash = false, gitModified = false, onClick, onCtrlClick, onClose, onSave, onContextMenu, renaming, onRenameCommit, onRenameCancel, onDragStart: onDragStartProp, onDragEnd: onDragEndProp }: {
@@ -1928,18 +1928,16 @@ function FileListItem({
       onClick={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); onCtrlClick?.() } else { onClick() } }}
       onContextMenu={onContextMenu}
       title={`${tab.name}${tab.path ? `\n${tab.path}` : ''}\nCtrl+clic para seleccionar · Arrastrá para reordenar · Compará desde el menú contextual o Smart Diff`}
-      className={`flex items-center gap-2.5 w-full max-w-full h-[30px] px-2.5 rounded-lg cursor-default group overflow-hidden transition-colors duration-100 ${
+      className={`fl-row cursor-default group overflow-hidden ${
         isSelected
-          ? 'bg-primary/[0.14] ring-1 ring-inset ring-primary/30 text-on-surface'
-          : isActive
-            ? 'bg-selected text-on-surface'
-            : 'text-on-surface/75 hover:bg-on-surface/4 dark:hover:bg-white/5 hover:text-on-surface'
+          ? 'bg-primary/[0.08]! border-primary/30! text-on-surface'
+          : isActive ? 'nav-active' : ''
       }`}>
       {(() => { const Icon = languageIcon(tab.language); return <Icon size={14} className="shrink-0" style={{ color: langColor(tab.language) }} /> })()}
       {renaming ? (
         <InlineInput defaultValue={tab.name} onCommit={onRenameCommit} onCancel={onRenameCancel} />
       ) : (
-        <span className={`text-[13px] truncate flex-1 ${isActive ? 'font-semibold' : 'font-medium'}`}>{tab.name}</span>
+        <span className={`text-[13px] truncate flex-1 ${isActive ? 'font-medium' : ''}`}>{tab.name}</span>
       )}
       {pinned && <Pin size={11} aria-label="Fijado" className="text-on-surface-variant shrink-0" />}
       {tab.watchActive && !tab.frozen && <span title="Monitoreando" className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />}
@@ -1971,7 +1969,7 @@ function EmptyState({ onOpen }: { onOpen: () => void }): JSX.Element {
       className="flex flex-col items-center justify-center h-full gap-5 text-center select-none px-6 bg-surface"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}
     >
-      <FileText size={44} className="text-on-surface-variant/40" strokeWidth={1.2} />
+      <span className="icon-tile w-12 h-12 rounded-xl"><FileText size={22} /></span>
 
       <div>
         <p className="t-headline text-on-surface">Ningún archivo abierto</p>
@@ -1980,7 +1978,7 @@ function EmptyState({ onOpen }: { onOpen: () => void }): JSX.Element {
         </p>
       </div>
 
-      <button onClick={onOpen} className="ui-btn ui-btn-primary">
+      <button onClick={onOpen} className="ui-btn ui-btn-outline">
         <Import size={14} />Abrir archivo
       </button>
 
@@ -1992,7 +1990,7 @@ function EmptyState({ onOpen }: { onOpen: () => void }): JSX.Element {
           ['Ctrl+⇧+F', 'Buscar en archivos'],
         ] as const).map(([key, label]) => (
           <span key={key} className="flex items-center gap-2">
-            <kbd className="hairline bg-on-surface/4 px-1.5 py-px rounded t-caption font-mono text-on-surface-variant shrink-0">{key}</kbd>
+            <kbd className="kbd-chip px-1.5! shrink-0">{key}</kbd>
             <span>{label}</span>
           </span>
         ))}

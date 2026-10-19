@@ -8,13 +8,13 @@ export function WindowControls(): JSX.Element | null {
   const isMac = window.api.platform === 'darwin'
   if (isMac) return null
 
-  const btn = 'w-[44px] h-full flex items-center justify-center text-white/55 hover:text-white transition-colors no-drag'
+  const btn = 'w-[44px] h-full flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors no-drag'
   return (
-    <div className="flex items-stretch self-stretch -mr-3 ml-1">
-      <button onClick={() => window.api.send('window:minimize')} title="Minimizar" className={`${btn} hover:bg-white/10`}>
+    <div className="flex items-stretch self-stretch -mr-1 ml-1 gap-0.5">
+      <button onClick={() => window.api.send('window:minimize')} title="Minimizar" className={`${btn} hover:bg-on-surface/6`}>
         <Minus size={14} strokeWidth={1.4} />
       </button>
-      <button onClick={() => window.api.send('window:maximize')} title="Maximizar" className={`${btn} hover:bg-white/10`}>
+      <button onClick={() => window.api.send('window:maximize')} title="Maximizar" className={`${btn} hover:bg-on-surface/6`}>
         <Square size={11} strokeWidth={1.4} />
       </button>
       <button onClick={() => window.api.send('window:close')} title="Cerrar" className={`${btn} hover:bg-[#e81123]! hover:text-white!`}>

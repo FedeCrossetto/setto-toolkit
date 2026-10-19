@@ -55,7 +55,73 @@ export interface Gasto {
   updated_at: string  // ISO
 }
 
-/** Respuesta de `gastos:load`. `credenciales` se mantiene para el plugin Credenciales. */
+/** Totales de un mes (Inicio, dock, `gastos:summary`). */
+export interface GastosMonthSummary {
+  mes: string /* YYYY-MM */
+  total: number
+  fijos: number
+  variables: number
+  pendientes: number
+  pendientesCount: number
+  presupuesto: number | null
+  previousTotal: number
+  /** Hasta 2 categorías al 80 % o más de su presupuesto (Inicio). */
+  presupuestosEnRiesgo?: CategoryBudgetRow[]
+}
+
+/** Progreso del presupuesto de una categoría en un mes (`budgets.ts`). */
+export interface CategoryBudgetRow {
+  categoria: string
+  gastado: number
+  presupuesto: number
+  /** gastado / presupuesto (1 = 100 %) */
+  pct: number
+  restante: number
+  /** ok < 80 % · warning ≥ 80 % · error > 100 % */
+  estado: 'ok' | 'warning' | 'error'
+}
+
+export type Frecuencia = 'mensual' | 'semanal' | 'anual'
+
+/**
+ * Regla de gasto recurrente ("Netflix todos los meses el día 5"). Las instancias se generan solas
+ * con id estable `rec-<ruleId>-<yyyy-mm-dd>` (`recurrence.ts`). Vive en las prefs del caché local.
+ */
+export interface ReglaRecurrente {
+  id: string
+  descripcion: string
+  monto: number
+  moneda: Moneda
+  categoria: string
+  metodoPago: string
+  frecuencia: Frecuencia
+  /** mensual / anual: día del mes (1..31, se ajusta al último día); semanal: día de la semana (0 = domingo) */
+  dia: number
+  /** anual: mes (1..12) */
+  mesAnual?: number
+  /** Primera fecha posible (YYYY-MM-DD) */
+  desde: string
+  /** Generado hasta esta fecha inclusive (YYYY-MM-DD); lo anterior no se vuelve a crear aunque se borre */
+  hasta?: string | null
+  pausada?: boolean
+  created_at: string
+}
+
+/**
+ * Respuesta de `gastos:summary`. `summary` puede venir del caché local aunque el estado no sea
+ * 'ok' (offline / error); es `null` si no hay nada guardado en este equipo.
+ */
+export interface GastosSummaryResult {
+  status: 'ok' | 'offline' | 'error' | 'not-configured'
+  summary: GastosMonthSummary | null
+  error?: string
+  /** Cambios guardados en este equipo que todavía no subieron */
+  pendingCount: number
+  /** ISO de la última escritura del caché local */
+  cachedAt: string | null
+}
+
+/** Respuesta de `gastos:load`. `credenciales` lleva sólo metadata (las contraseñas no salen del main). */
 export interface GastosLoadResult {
   servicios: Servicio[]
   pagos: PagoMensual[]
@@ -106,6 +172,10 @@ export interface GastosPrefs {
   autoPendientesMes?: string | null
   /** Día del mes en que vence cada servicio (id → 1..31). Sólo local: alimenta los avisos. */
   diasVencimiento?: Record<string, number>
+  /** Presupuesto mensual por categoría (nombre → monto). */
+  presupuestosCategoria?: Record<string, number>
+  /** Gastos recurrentes que se cargan solos. */
+  recurrentes?: ReglaRecurrente[]
 }
 
 export interface GastosCacheState {

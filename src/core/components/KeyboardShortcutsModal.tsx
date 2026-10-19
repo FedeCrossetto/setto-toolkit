@@ -20,6 +20,8 @@ const LEFT: ShortcutGroup[] = [
     items: [
       { combos: [['Ctrl', 'K'], ['/']], description: 'Buscar en todo' },
       { combos: [['Ctrl', 'Shift', 'Espacio']], description: 'Captura rápida (funciona aunque la app esté de fondo)' },
+      { combos: [['Ctrl', '1…9']], description: 'Ir al módulo N de la barra lateral' },
+      { combos: [['Ctrl', '`'], ['Ctrl', 'Tab']], description: 'Recorrer los módulos recientes (en el Editor, Ctrl+Tab alterna archivos)' },
       { combos: [['Ctrl', 'Shift', 'L']], description: 'Alternar tema claro / oscuro' },
       { combos: [['Ctrl', 'Alt', 'V']], description: 'Selector de portapapeles, capturas y snippets (pega en cualquier app)' },
       { combos: [['Ctrl', 'Alt', 'Shift', 'V']], description: 'Pegar el siguiente de la secuencia' },
@@ -36,6 +38,7 @@ const LEFT: ShortcutGroup[] = [
       { combos: [['↑'], ['↓']], description: 'Moverse entre resultados' },
       { combos: [['Tab']], description: 'Saltar al siguiente grupo' },
       { combos: [['Enter']], description: 'Abrir o ejecutar' },
+      { combos: [['Shift', 'Enter']], description: 'Acción alternativa (p. ej. copiar el usuario de una clave)' },
     ],
   },
   {
@@ -79,7 +82,7 @@ const RIGHT: ShortcutGroup[] = [
 export function Kbd({ children }: { children: ReactNode }): JSX.Element {
   return (
     <kbd
-      className="inline-flex items-center justify-center min-w-[22px] h-[20px] px-1.5 rounded-[6px] text-[11px] font-medium font-sans text-on-surface bg-surface dark:bg-white/8 hairline shadow-sm whitespace-nowrap"
+      className="kbd-chip px-1.5! whitespace-nowrap"
     >
       {children}
     </kbd>
@@ -97,9 +100,9 @@ function Combo({ keys }: { keys: string[] }): JSX.Element {
 function Group({ group }: { group: ShortcutGroup }): JSX.Element {
   return (
     <section className="flex flex-col">
-      <h3 className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant/70">{group.title}</h3>
+      <h3 className="fl-section px-2.5! mb-0.5">{group.title}</h3>
       {group.items.map((s) => (
-        <div key={s.description} className="flex items-center justify-between gap-3 px-2.5 h-9 rounded-lg hover:bg-on-surface/3 transition-colors">
+        <div key={s.description} className="flex items-center justify-between gap-3 px-2.5 min-h-8 py-1 rounded-[9px] hover:bg-on-surface/3 transition-colors">
           <span className="t-body text-on-surface-variant">{s.description}</span>
           <span className="flex items-center gap-1 shrink-0">
             {s.combos.map((c, i) => (

@@ -1,11 +1,13 @@
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { MotionConfig } from 'framer-motion'
-import { LayoutGrid, ArrowDownToLine, X } from 'lucide-react'
+import { LayoutGrid } from 'lucide-react'
 import { AppProvider, useApp } from './core/AppContext'
 import { useAppFont } from './core/hooks/useAppFont'
 import { useUiScale } from './core/hooks/useUiScale'
 import { Sidebar } from './core/components/Sidebar'
-import { TabBar } from './core/components/TabBar'
+import { TopBar } from './core/components/TopBar'
+import { ModuleSwitcher } from './core/components/ModuleSwitcher'
+import { Onboarding } from './core/components/Onboarding'
 import { CommandPalette } from './core/components/CommandPalette'
 import { KeyboardShortcutsModal } from './core/components/KeyboardShortcutsModal'
 import { GlobalTooltip } from './core/components/GlobalTooltip'
@@ -16,19 +18,19 @@ import { ConfirmProvider } from './core/components/Modal'
 import { QuickCapture } from './core/components/QuickCapture'
 import { ErrorBoundary } from './core/components/ErrorBoundary'
 import { ToastProvider } from './core/components/Toast'
-import { getPlugin } from './core/plugin-registry'
+import { UpdateBanner } from './core/components/UpdateBanner'
+import { allPlugins, getPlugin } from './core/plugin-registry'
 import { useNotificationClicks } from './core/notify'
 import { useGastosReminders } from './plugins/gastos/useGastosReminders'
 import { useNoteReminders } from './plugins/notes/reminders'
 
-type UpdaterStatus =
-  | { type: 'available'; version: string }
-  | { type: 'ready'; version: string }
-  | null
+// Novedades: trae el CHANGELOG, marked y DOMPurify (~130 KB) — no hacen falta para el primer pintado.
+const WhatsNew = lazy(() => import('./core/components/WhatsNew').then((m) => ({ default: m.WhatsNew })))
+
+const pluginIndex = (id: string): number => allPlugins.findIndex((p) => p.id === id)
 
 function AppShell(): JSX.Element {
   const { state, dispatch } = useApp()
-  const [updateStatus, setUpdateStatus] = useState<UpdaterStatus>(null)
   useAppFont()        // applies persisted font prefs to DOM on mount
   useUiScale()         // applies persisted window zoom (Settings → Escala de la interfaz)
   useNotificationClicks()   // clic en una notificación del sistema → abre el módulo
@@ -76,20 +78,8 @@ function AppShell(): JSX.Element {
     }
   }, [dispatch])
 
-  // ── Auto-updater notifications ────────────────────────────────────────────
-  useEffect(() => {
-    const off = window.api.on('updater:status', (status: unknown) => {
-      const s = status as { type: string; version?: string }
-      if (s.type === 'available' || s.type === 'ready') {
-        setUpdateStatus({ type: s.type as 'available' | 'ready', version: s.version ?? '' })
-      }
-    })
-    return off
-  }, [])
-
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-background text-on-surface font-sans">
-      <TabBar />
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-sidebar text-on-surface font-sans">
       <div className="flex flex-1 min-h-0">
       <Sidebar />
       <CommandPalette />
@@ -97,22 +87,30 @@ function AppShell(): JSX.Element {
       <KeyboardShortcutsModal />
       <GlobalSearch />
       <GlobalTooltip />
+      <ModuleSwitcher />
+      <Onboarding />
+      <Suspense fallback={null}><WhatsNew /></Suspense>
 
       {/* Contenido: toolbar unificada + módulo activo */}
-      <main className="flex-1 min-w-0 flex flex-col overflow-hidden bg-background">
+      {/* Panel de contenido flotante: borde fino, esquinas redondeadas, sobre el fondo de la barra lateral */}
+      <main className="app-panel flex-1 min-w-0 flex flex-col overflow-hidden bg-background my-2 mr-2">
+        <TopBar />
 
-        {/* Plugin content — all tabs stay mounted, inactive ones are hidden */}
+        {/* Un módulo visible a la vez; los usados hace poco quedan montados y
+            ocultos (LRU en AppContext / navigation.ts) para conservar su estado. */}
         <div className="flex-1 overflow-hidden relative">
           {state.openTabs.length === 0 ? (
             <div className="flex items-center justify-center h-full min-h-[200px]">
               <EmptyState
                 icon={LayoutGrid}
-                title="Ninguna pestaña abierta"
+                title="Ningún módulo abierto"
                 description="Elegí un módulo en la barra lateral o presioná Ctrl+K para buscar."
               />
             </div>
           ) : (
-            state.openTabs.map((tab) => {
+            // Orden estable (el del registro), no el del LRU: si React moviera los
+            // nodos al cambiar de módulo, se perdería el scroll y se recargarían iframes.
+            [...state.openTabs].sort((a, b) => pluginIndex(a.pluginId) - pluginIndex(b.pluginId)).map((tab) => {
               const plugin = getPlugin(tab.pluginId)
               if (!plugin) return null
               const Component = plugin.component
@@ -121,6 +119,8 @@ function AppShell(): JSX.Element {
                 <div
                   key={tab.tabId}
                   className={`absolute inset-0 w-full h-full overflow-auto ${active ? '' : 'hidden'}`}
+                  data-module={tab.pluginId}
+                  aria-hidden={active ? undefined : true}
                   // Sin fill-mode `both`: un transform residual rompería los `position: fixed` del módulo.
                   style={active ? { animation: 'tabIn 0.18s var(--ease-mac) backwards' } : undefined}
                 >
@@ -140,36 +140,7 @@ function AppShell(): JSX.Element {
       </div>
 
 
-      {/* Update banner */}
-      {updateStatus && (
-        <div className="fixed bottom-4 right-4 z-500 flex items-center gap-3 mac-popover hairline px-4 py-2.5 t-body">
-          <ArrowDownToLine size={18} className="text-accent" />
-          {updateStatus.type === 'available' ? (
-            <>
-              <span className="text-on-surface">Actualización <span className="font-semibold">{updateStatus.version}</span> disponible</span>
-              <button
-                onClick={() => { void window.api.invoke('updater:download') }}
-                className="ui-btn ui-btn-primary ui-btn-sm"
-              >
-                Descargar
-              </button>
-            </>
-          ) : (
-            <>
-              <span className="text-on-surface">Lista para instalar <span className="font-semibold">{updateStatus.version}</span></span>
-              <button
-                onClick={() => window.api.send('updater:install')}
-                className="ui-btn ui-btn-primary ui-btn-sm"
-              >
-                Reiniciar e instalar
-              </button>
-            </>
-          )}
-          <button onClick={() => setUpdateStatus(null)} aria-label="Descartar" className="text-on-surface-variant hover:text-on-surface transition-colors ml-1">
-            <X size={14} />
-          </button>
-        </div>
-      )}
+      <UpdateBanner />
     </div>
   )
 }

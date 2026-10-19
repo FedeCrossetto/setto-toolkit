@@ -52,8 +52,8 @@ export function SessionHistoryPanel({ onNewSession }: Props): JSX.Element {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 h-10 hairline-b shrink-0">
-        <span className="t-headline text-on-surface">Historial</span>
+      <div className="fl-toolbar justify-between shrink-0">
+        <span className="t-body font-medium text-on-surface">Historial</span>
         <div className="flex items-center gap-1">
           <button onClick={load} className="ui-btn ui-btn-ghost ui-btn-icon" title="Actualizar" aria-label="Actualizar">
             <RefreshCw size={13} />
@@ -73,7 +73,7 @@ export function SessionHistoryPanel({ onNewSession }: Props): JSX.Element {
           </div>
         ) : sessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 gap-2">
-            <Terminal size={22} className="text-on-surface-variant/40" strokeWidth={1.5} />
+            <span className="icon-tile w-9 h-9 rounded-[10px]"><Terminal size={18} /></span>
             <span className="t-footnote text-on-surface-variant">Todavía no hay sesiones</span>
           </div>
         ) : (
@@ -81,7 +81,7 @@ export function SessionHistoryPanel({ onNewSession }: Props): JSX.Element {
             {sessions.map((s) => (
               <div
                 key={s.id}
-                className="group flex items-center gap-3 px-2.5 py-2 rounded-md hover:bg-on-surface/5 transition-colors"
+                className="group flex items-center gap-3 px-2.5 py-2 rounded-[9px] hover:bg-on-surface/4 dark:hover:bg-white/4 transition-colors"
               >
                 {/* Status dot */}
                 <div
@@ -103,7 +103,7 @@ export function SessionHistoryPanel({ onNewSession }: Props): JSX.Element {
                     <span className="t-body font-medium truncate text-on-surface">
                       {s.shell.split(/[/\\]/).pop() ?? s.shell}
                     </span>
-                    {!s.closedAt && <span className="ui-badge ui-badge-primary">activa</span>}
+                    {!s.closedAt && <span className="fl-chip h-[18px]! px-1.5! text-[10.5px]! text-success! border-success/35!">activa</span>}
                   </div>
                   <div className="t-caption truncate text-on-surface-variant mt-0.5" title={s.cwd}>
                     {s.cwd}

@@ -8,18 +8,18 @@ import { currentMes, prevMes } from '../analytics'
 export function MonthNav({ mes, onChange }: { mes: string; onChange: (mes: string) => void }): JSX.Element {
   const isCurrent = mes === currentMes()
   return (
-    <div className="flex items-center h-8 p-[2px] rounded-lg bg-surface hairline shadow-sm">
-      <button type="button" className="h-full w-7 flex items-center justify-center rounded-[7px] text-on-surface-variant hover:bg-on-surface/6 hover:text-on-surface"
+    <div className="flex items-center h-8 p-[2px] rounded-full bg-surface hairline">
+      <button type="button" className="h-full w-7 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-on-surface/6 hover:text-on-surface"
         onClick={() => onChange(prevMes(mes))} aria-label="Mes anterior">
         <ChevronLeft size={14} />
       </button>
       <button type="button" onClick={() => onChange(currentMes())} disabled={isCurrent}
-        className="h-full t-body font-semibold text-on-surface min-w-[124px] text-center px-2 rounded-[7px] hover:bg-on-surface/6 disabled:hover:bg-transparent flex items-center justify-center gap-1.5"
+        className="h-full t-body font-semibold text-on-surface min-w-[124px] text-center px-2 rounded-full hover:bg-on-surface/6 disabled:hover:bg-transparent flex items-center justify-center gap-1.5"
         title={isCurrent ? 'Mes actual' : 'Volver al mes actual'}>
         {mesLong(mes)}
         {!isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-primary" aria-hidden />}
       </button>
-      <button type="button" className="h-full w-7 flex items-center justify-center rounded-[7px] text-on-surface-variant hover:bg-on-surface/6 hover:text-on-surface"
+      <button type="button" className="h-full w-7 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-on-surface/6 hover:text-on-surface"
         onClick={() => onChange(prevMes(mes, -1))} aria-label="Mes siguiente">
         <ChevronRight size={14} />
       </button>
@@ -47,7 +47,7 @@ export function SyncPill({ state, pendingCount, error, onClick }: {
   }[state]
   return (
     <button type="button" onClick={onClick} disabled={state === 'syncing'} title={cfg.title}
-      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-surface hairline shadow-sm t-footnote font-medium text-on-surface-variant hover:text-on-surface disabled:cursor-wait">
+      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-surface hairline t-footnote font-medium text-on-surface-variant hover:text-on-surface disabled:cursor-wait">
       {state === 'syncing'
         ? <Loader2 size={12} className="animate-spin" />
         : <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />}
@@ -101,8 +101,8 @@ export function MoreMenu({ items }: { items: MenuItem[] }): JSX.Element {
 /** Aviso calmo (no error) dentro del contenido. */
 export function Notice({ children, action }: { children: ReactNode; action?: ReactNode }): JSX.Element {
   return (
-    <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-surface hairline shadow-sm t-footnote text-on-surface-variant">
-      <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-warning/[0.14] text-warning">
+    <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-surface hairline t-footnote text-on-surface-variant">
+      <span className="icon-tile w-7 h-7 text-warning">
         <CircleAlert size={14} />
       </span>
       <span className="flex-1">{children}</span>

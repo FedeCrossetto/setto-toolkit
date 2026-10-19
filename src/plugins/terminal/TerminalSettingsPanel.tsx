@@ -28,8 +28,8 @@ export function TerminalSettingsPanel({ prefs, onChange }: Props): JSX.Element {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex items-center px-3 h-10 hairline-b shrink-0">
-        <span className="t-headline text-on-surface">Ajustes de la terminal</span>
+      <div className="fl-toolbar shrink-0">
+        <span className="t-body font-medium text-on-surface">Ajustes de la terminal</span>
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-5">

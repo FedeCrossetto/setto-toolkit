@@ -46,7 +46,7 @@ export function PinPrompt({ open, onDone }: { open: boolean; onDone: (ok: boolea
           <Lock size={19} weight="fill" />
         </div>
         <div>
-          <p className="t-headline text-on-surface">Credenciales bloqueadas</p>
+          <p className="t-headline text-on-surface">Claves bloqueadas</p>
           <p className="t-footnote text-on-surface-variant mt-1">Ingresá tu PIN para ver o copiar contraseñas.</p>
         </div>
         <input

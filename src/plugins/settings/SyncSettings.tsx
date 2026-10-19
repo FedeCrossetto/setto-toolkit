@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { CloudCheck, CloudOff, RefreshCw } from 'lucide-react'
 import { SettingsGroup, SettingsRow, Toggle } from '../../core/components/Form'
 import { useToast } from '../../core/components/Toast'
+import { useConfirm } from '../../core/components/Modal'
 
 interface SyncSummary { pushed: number; pulled: number; deleted: number; conflicts: number; skipped: number }
 interface SyncStatus {
@@ -24,9 +25,19 @@ function describe(s: SyncSummary): string {
   return parts.length ? parts.join(' · ') : 'Todo al día'
 }
 
+/**
+ * El guard de borrados masivos (sync-plan.ts) cancela con un mensaje que pide
+ * confirmar. El caso "no hay datos en esta PC" NO se ofrece: confirmar borraría
+ * toda la nube por una carpeta que no está disponible.
+ */
+function isMassDeleteGuard(error?: string): boolean {
+  return !!error && error.startsWith('Sincronización cancelada') && error.includes('confirmando los borrados')
+}
+
 /** Ajustes → Sincronización: Notas y Snippets entre equipos vía Supabase (opcional). */
 export function SyncSettings(): JSX.Element {
   const toast = useToast()
+  const confirm = useConfirm()
   const [st, setSt] = useState<SyncStatus | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -40,16 +51,29 @@ export function SyncSettings(): JSX.Element {
     if (on) void runNow()
   }
 
-  const runNow = async (): Promise<void> => {
+  const runNow = async (allowMassDelete = false): Promise<void> => {
     setBusy(true)
+    let retry = false
     try {
-      const r = await window.api.invoke<{ ok: boolean; summary?: SyncSummary; error?: string }>('sync:run')
+      const r = await window.api.invoke<{ ok: boolean; summary?: SyncSummary; error?: string }>(
+        'sync:run', allowMassDelete ? { allowMassDelete: true } : undefined,
+      )
       if (r.ok && r.summary) toast.show(`Sincronizado: ${describe(r.summary)}`, 'success')
-      else toast.show(r.error ?? 'No se pudo sincronizar', 'error', 6000)
+      else if (!allowMassDelete && isMassDeleteGuard(r.error)) {
+        // El guard frenó muchos borrados en la nube: si el usuario confirma, se reintenta con el permiso.
+        retry = await confirm({
+          title: '¿Borrar en la nube?',
+          message: r.error,
+          confirmLabel: 'Sincronizar y borrar',
+          destructive: true,
+        })
+        if (!retry) toast.show('Sincronización cancelada; no se borró nada', 'info')
+      } else toast.show(r.error ?? 'No se pudo sincronizar', 'error', 6000)
     } finally {
       setBusy(false)
       void refresh()
     }
+    if (retry) await runNow(true)
   }
 
   const last = st?.lastSync ? new Date(st.lastSync).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }) : null

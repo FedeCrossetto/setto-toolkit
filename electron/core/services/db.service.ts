@@ -7,6 +7,7 @@ import { app, safeStorage } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { logger } from '../logger'
+import { writeFileAtomic } from '../atomic-write'
 
 const ENC_MAGIC = 'ENCV1:'
 
@@ -46,41 +47,54 @@ export class DatabaseService {
   /** Write an object as JSON to userData using an atomic tmp→rename pattern
    *  to avoid leaving a half-written (corrupted) file on crash. */
   writeJSON(filename: string, data: unknown): void {
-    const filePath = path.join(this.dataDir, filename)
-    const tmpPath  = `${filePath}.tmp`
-    fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8')
-    fs.renameSync(tmpPath, filePath)
+    writeFileAtomic(path.join(this.dataDir, filename), JSON.stringify(data, null, 2))
   }
 
   /**
    * Read a JSON file that was stored encrypted.
-   * Falls back to plain-JSON read if encryption is unavailable or the file is not encrypted,
-   * so existing unencrypted files are seamlessly migrated on next write.
+   * Falls back to plain-JSON read if the file is not encrypted, so existing
+   * unencrypted files are seamlessly migrated on next write.
+   *
+   * If the file exists but can't be decrypted or parsed (other user/PC, keyring
+   * unavailable, truncated file) it is MOVED to `<name>.corrupt-<ts>` and logged:
+   * the caller gets null and its next write must not silently destroy the only copy.
    */
   readEncryptedJSON<T>(filename: string): T | null {
     const filePath = path.join(this.dataDir, filename)
+    let raw: string
     try {
-      const raw = fs.readFileSync(filePath, 'utf-8').trim()
-      if (raw.startsWith(ENC_MAGIC) && safeStorage.isEncryptionAvailable()) {
+      raw = fs.readFileSync(filePath, 'utf-8').trim()
+    } catch {
+      return null // file does not exist — normal on first run
+    }
+    try {
+      if (raw.startsWith(ENC_MAGIC)) {
+        if (!safeStorage.isEncryptionAvailable()) throw new Error('safeStorage unavailable for an encrypted file')
         const decrypted = safeStorage.decryptString(Buffer.from(raw.slice(ENC_MAGIC.length), 'base64'))
         return JSON.parse(decrypted) as T
       }
-      // Plain JSON fallback (unencrypted legacy file or encryption unavailable)
+      // Plain JSON (unencrypted legacy file or encryption unavailable when written)
       return JSON.parse(raw) as T
-    } catch {
+    } catch (err) {
+      const aside = `${filePath}.corrupt-${Date.now()}`
+      try {
+        fs.renameSync(filePath, aside)
+      } catch {
+        try { fs.copyFileSync(filePath, aside) } catch { /* ignore */ }
+      }
+      logger.error('DatabaseService', `Unreadable encrypted JSON "${filename}" — moved aside`, {
+        aside, error: err instanceof Error ? err.message : String(err),
+      })
       return null
     }
   }
 
-  /** Write an object as encrypted JSON to userData. Falls back to plain JSON if safeStorage unavailable. */
+  /** Write an object as encrypted JSON to userData (atomic tmp→rename). Falls back to plain JSON if safeStorage unavailable. */
   writeEncryptedJSON(filename: string, data: unknown): void {
-    const filePath = path.join(this.dataDir, filename)
     const json = JSON.stringify(data)
-    if (safeStorage.isEncryptionAvailable()) {
-      const encrypted = ENC_MAGIC + safeStorage.encryptString(json).toString('base64')
-      fs.writeFileSync(filePath, encrypted, 'utf-8')
-    } else {
-      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8')
-    }
+    const content = safeStorage.isEncryptionAvailable()
+      ? ENC_MAGIC + safeStorage.encryptString(json).toString('base64')
+      : JSON.stringify(data, null, 2)
+    writeFileAtomic(path.join(this.dataDir, filename), content)
   }
 }

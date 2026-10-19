@@ -5,7 +5,7 @@ const TicketResolver = lazy(() => import('./TicketResolver').then((m) => ({ defa
 
 export const ticketResolverPlugin: PluginManifest = {
   id: 'ticket-resolver',
-  name: 'Tickets',
+  name: 'Resolver con IA',
   description: 'Analizá tickets de Jira con ayuda de IA',
   icon: 'ticket',
   section: 'dev',

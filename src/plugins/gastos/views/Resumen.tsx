@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { BarChart2, CalendarClock, Check, Circle, LayoutGrid, ListPlus, PiggyBank, Receipt, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
+import { AlertTriangle, BarChart2, CalendarClock, Check, Circle, LayoutGrid, ListPlus, PiggyBank, Receipt, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
 import type { IconComponent } from '../../../core/types'
 import { KpiCard } from '../../../core/components/Form'
 import { CountUp } from '../../../core/components/CountUp'
@@ -14,11 +14,14 @@ import { ServiceTile } from '../components/ServiceIcon'
 import type { PagoMensual, Servicio } from '../types'
 import { parseAmount } from '../quick-add-parser'
 import { montoSugerido } from '../recurring'
+import { budgetAlerts, budgetProgress, type CategoryBudgetRow } from '../budgets'
 
-export function Resumen({ data, mes, presupuesto, onSelectMes, onEditPresupuesto, onPagar, onEditPago, onGenerarPendientes, onOpenMovimiento, onShowMovimientos }: {
+export function Resumen({ data, mes, presupuesto, budgets, onSelectMes, onEditPresupuesto, onPagar, onEditPago, onGenerarPendientes, onOpenMovimiento, onShowMovimientos }: {
   data: GastosData
   mes: string
   presupuesto: number | null
+  /** Presupuesto por categoría (nombre → monto) */
+  budgets: Record<string, number>
   onSelectMes: (mes: string) => void
   onEditPresupuesto: () => void
   /** Marca pagados con el monto indicado (fecha de hoy) */
@@ -36,6 +39,7 @@ export function Resumen({ data, mes, presupuesto, onSelectMes, onEditPresupuesto
   const pendientes = useMemo(() => pendientesDelMes(data, mes), [data, mes])
   const faltantes = useMemo(() => buildPendientes(data, mes).length, [data, mes])
   const top = useMemo(() => buildMovimientos(data, { mes }).filter((m) => m.moneda === 'ARS').sort((a, b) => b.monto - a.monto).slice(0, 6), [data, mes])
+  const budgetRows = useMemo(() => budgetProgress(data, mes, budgets), [data, mes, budgets])
   const usd = variablesUsdDelMes(data, mes)
   const svc = new Map(data.servicios.map((x) => [x.id, x]))
 
@@ -65,21 +69,23 @@ export function Resumen({ data, mes, presupuesto, onSelectMes, onEditPresupuesto
       </div>
 
       {s.presupuesto && (
-        <div className="h-1.5 rounded-full bg-on-surface/[0.07] overflow-hidden" aria-hidden>
+        <div className="h-1 rounded-full bg-on-surface/[0.06] overflow-hidden" aria-hidden>
           <div className={`h-full rounded-full ${usado > 1 ? 'bg-error' : usado > 0.9 ? 'bg-warning' : 'bg-primary'}`}
             style={{ width: `${Math.min(usado, 1) * 100}%`, transition: 'width 300ms var(--ease-mac)' }} />
         </div>
       )}
 
+      {budgetRows.length > 0 && <PresupuestosCard rows={budgetRows} onEdit={onEditPresupuesto} />}
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-        <section className="ui-card px-5 pt-4 pb-4 xl:col-span-2 flex flex-col gap-3 min-w-0">
+        <section className="ui-card px-6 pt-5 pb-5 xl:col-span-2 flex flex-col gap-3 min-w-0">
           <CardHeader icon={BarChart2} title={`Año ${year}`}
             right={<span className="t-footnote text-on-surface-variant tabular-nums">Total {fmtMoney(series.totals.reduce((a, b) => a + b, 0))}</span>} />
           <YearChart months={series.months} fijos={series.fijos} variables={series.variables}
             previous={prevSeries.totals} prevLabel={String(year - 1)} selectedMes={mes} onSelectMes={onSelectMes} />
         </section>
 
-        <section className="ui-card px-5 pt-4 pb-4 flex flex-col justify-start self-stretch gap-3 min-w-0">
+        <section className="ui-card px-6 pt-5 pb-5 flex flex-col justify-start self-stretch gap-3 min-w-0">
           <CardHeader icon={LayoutGrid} title="Por categoría" />
           {cats.length
             ? <Donut slices={cats} total={s.total} />
@@ -92,7 +98,7 @@ export function Resumen({ data, mes, presupuesto, onSelectMes, onEditPresupuesto
           onPagar={onPagar} onEditPago={onEditPago} onGenerarPendientes={onGenerarPendientes} />
 
         <section className="ui-card overflow-hidden min-w-0">
-          <header className="flex items-center gap-2.5 px-4 py-3 hairline-b">
+          <header className="flex items-center gap-2.5 px-5 py-3.5 hairline-b">
             <CardHeader icon={Receipt} title="Movimientos más grandes" />
             <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={onShowMovimientos}>Ver todos</button>
           </header>
@@ -103,7 +109,7 @@ export function Resumen({ data, mes, presupuesto, onSelectMes, onEditPresupuesto
               {top.map((m) => (
                 <li key={m.id}>
                   <button type="button" onClick={() => onOpenMovimiento(m)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-on-surface/3 dark:hover:bg-on-surface/5 transition-colors">
+                    className="w-full flex items-center gap-3 px-5 py-2.5 text-left hover:bg-on-surface/3 dark:hover:bg-on-surface/5 transition-colors">
                     <span className="t-caption text-on-surface-variant w-12 tabular-nums">{fechaCorta(m.fecha)}</span>
                     <span className="flex-1 min-w-0">
                       <span className="block t-body text-on-surface truncate">{m.descripcion}</span>
@@ -122,14 +128,53 @@ export function Resumen({ data, mes, presupuesto, onSelectMes, onEditPresupuesto
 }
 
 
-/** Encabezado de tarjeta: tile de ícono + título + acción a la derecha. */
+const BAR_TONE: Record<CategoryBudgetRow['estado'], string> = { ok: 'bg-primary', warning: 'bg-warning', error: 'bg-error' }
+
+/** Avance de cada categoría contra su presupuesto (más comprometidas primero) + avisos. */
+function PresupuestosCard({ rows, onEdit }: { rows: CategoryBudgetRow[]; onEdit: () => void }): JSX.Element {
+  const alerts = budgetAlerts(rows, fmtMoney)
+  return (
+    <section className="ui-card px-6 pt-5 pb-5 flex flex-col gap-3 min-w-0">
+      <CardHeader icon={PiggyBank} title="Presupuestos"
+        right={<button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={onEdit}>Editar</button>} />
+      {alerts.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5" aria-live="polite">
+          {alerts.map((a) => (
+            <li key={a.categoria} className={`ui-badge ${a.tone === 'error' ? 'ui-badge-error' : 'ui-badge-warning'}`}>
+              <AlertTriangle size={11} /> {a.text}
+            </li>
+          ))}
+        </ul>
+      )}
+      <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
+        {rows.map((r) => (
+          <li key={r.categoria} className="flex flex-col gap-1.5 min-w-0">
+            <div className="flex items-baseline gap-2 t-footnote min-w-0">
+              <span className="flex-1 min-w-0 truncate text-on-surface">{r.categoria}</span>
+              <span className="tabular-nums text-on-surface-variant">{fmtMoney(r.gastado)} / {fmtMoney(r.presupuesto)}</span>
+              <span className={`tabular-nums font-medium w-10 text-right ${r.estado === 'error' ? 'text-error' : r.estado === 'warning' ? 'text-warning' : 'text-on-surface'}`}>
+                {Math.round(r.pct * 100)}%
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-on-surface/[0.06] overflow-hidden" role="progressbar"
+              aria-label={`${r.categoria}: ${Math.round(r.pct * 100)} % del presupuesto`}
+              aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, Math.round(r.pct * 100))}>
+              <div className={`h-full rounded-full ${BAR_TONE[r.estado]}`}
+                style={{ width: `${Math.min(r.pct, 1) * 100}%`, transition: 'width 300ms var(--ease-mac)' }} />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/** Encabezado de tarjeta: ícono gris fino + título + acción a la derecha. */
 function CardHeader({ icon: Icon, title, right }: { icon: IconComponent; title: string; right?: ReactNode }): JSX.Element {
   return (
-    <div className="flex items-center gap-2.5 w-full min-w-0">
-      <span className="w-7 h-7 rounded-lg flex items-center justify-center bg-selected text-primary shrink-0">
-        <Icon size={15} />
-      </span>
-      <h2 className="t-headline text-on-surface flex-1 min-w-0 truncate">{title}</h2>
+    <div className="flex items-center gap-2 w-full min-w-0">
+      <Icon size={15} className="text-on-surface-variant shrink-0" />
+      <h2 className="t-callout font-semibold text-on-surface flex-1 min-w-0 truncate">{title}</h2>
       {right}
     </div>
   )
@@ -173,7 +218,7 @@ function PorPagar({ pendientes, pagos, svc, faltantes, onPagar, onEditPago, onGe
 
   return (
     <section className="ui-card overflow-hidden min-w-0">
-      <header className="flex items-center gap-2.5 px-4 py-3 hairline-b">
+      <header className="flex items-center gap-2.5 px-5 py-3.5 hairline-b">
         <CardHeader icon={CalendarClock} title="Por pagar" />
         {sel.length > 0 ? (
           <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={!selValid.length} onClick={() => pagar(sel)}
@@ -194,7 +239,7 @@ function PorPagar({ pendientes, pagos, svc, faltantes, onPagar, onEditPago, onGe
       ) : (
         <ul className="divide-y divide-(--hairline)">
           {pendientes.length > 1 && (
-            <li className="flex items-center gap-3 px-4 py-1.5 t-caption text-on-surface-variant">
+            <li className="flex items-center gap-3 px-5 py-1.5 t-caption text-on-surface-variant">
               <input type="checkbox" checked={allOn} aria-label="Seleccionar todos"
                 onChange={(e) => setSelected(e.target.checked ? new Set(pendientes.map((p) => p.id)) : new Set())} />
               <span>Seleccionar todos · Enter en el monto paga esa fila</span>
@@ -205,7 +250,7 @@ function PorPagar({ pendientes, pagos, svc, faltantes, onPagar, onEditPago, onGe
             const value = amounts[p.id] ?? amountText(montoSugerido(pagos, p))
             const valid = amountOf(p) !== null
             return (
-              <li key={p.id} className={`flex items-center gap-3 px-4 py-2 transition-colors ${selected.has(p.id) ? 'bg-selected' : 'hover:bg-on-surface/3 dark:hover:bg-on-surface/5'}`}>
+              <li key={p.id} className={`flex items-center gap-3 px-5 py-2 transition-colors ${selected.has(p.id) ? 'bg-selected' : 'hover:bg-on-surface/3 dark:hover:bg-on-surface/5'}`}>
                 <input type="checkbox" checked={selected.has(p.id)} aria-label={`Seleccionar ${sv?.nombre ?? ''}`}
                   onChange={(e) => toggle(p.id, e.target.checked)} />
                 <ServiceTile icon={sv?.emoji ?? 'receipt'} />
@@ -215,7 +260,7 @@ function PorPagar({ pendientes, pagos, svc, faltantes, onPagar, onEditPago, onGe
                 </button>
                 <span className="relative">
                   <span className="absolute left-2 top-1/2 -translate-y-1/2 t-footnote text-on-surface-variant pointer-events-none">$</span>
-                  <input className="ui-input w-28 pl-5 text-right tabular-nums" inputMode="decimal" value={value}
+                  <input className="ui-input w-32 pl-5 text-right tabular-nums" inputMode="decimal" value={value}
                     aria-label={`Monto de ${sv?.nombre ?? ''}`} placeholder="Monto"
                     onChange={(e) => setAmounts((prev) => ({ ...prev, [p.id]: e.target.value }))}
                     onFocus={(e) => e.currentTarget.select()}

@@ -1,7 +1,7 @@
 import * as http  from 'http'
 import * as https from 'https'
 import * as dns   from 'dns'
-import vm from 'vm'
+import { runUserScript, type ScriptResponse } from './script-runner'
 import type { IpcMain } from 'electron'
 import type { PluginHandlers, CoreServices } from '../../core/types'
 import type { Collection, HttpRequest, HistoryEntry, Environment, HttpResponse, FormDataField } from '../../../src/plugins/api-tester/types'
@@ -226,61 +226,14 @@ export const handlers: PluginHandlers = {
     })
 
     // ── Script runner ──────────────────────────────────────────────────────
-    // Executes a user script in a sandboxed vm context.
+    // Executes a user script in its own worker thread + locked-down vm context (see script-runner.ts).
     // The script receives a `pm` object with environment get/set and optional response data.
 
     registerHandler(ipcMain, 'api-tester:run-script', (_e, payload: {
       script: string
       envVars: Record<string, string>
-      response?: { status: number; body: string; headers: Record<string, string> }
-    }) => {
-      const { script, envVars, response } = payload
-      if (!script || typeof script !== 'string') return { envVars, logs: [] }
-
-      const logs: string[] = []
-      const updatedVars = { ...envVars }
-
-      const pm = {
-        environment: {
-          get: (key: string) => updatedVars[key] ?? null,
-          set: (key: string, value: unknown) => { updatedVars[key] = String(value) },
-          unset: (key: string) => { delete updatedVars[key] },
-        },
-        response: response
-          ? {
-              status: response.status,
-              body: response.body,
-              headers: response.headers,
-              json: () => {
-                try { return JSON.parse(response.body) }
-                catch { return null }
-              },
-            }
-          : null,
-      }
-
-      // Use a null-prototype context to block prototype-chain escapes.
-      // Only expose safe primitives — deliberately exclude Array/Object constructors.
-      const ctx = Object.create(null) as Record<string, unknown>
-      ctx['pm']         = pm
-      ctx['console']    = Object.freeze({ log: (...args: unknown[]) => logs.push(args.map(String).join(' ')) })
-      ctx['JSON']       = Object.freeze({ parse: JSON.parse.bind(JSON), stringify: JSON.stringify.bind(JSON) })
-      ctx['parseInt']   = parseInt
-      ctx['parseFloat'] = parseFloat
-      ctx['String']     = String
-      ctx['Number']     = Number
-      ctx['Boolean']    = Boolean
-      ctx['Math']       = Object.freeze({ ...Math })
-      const sandbox     = vm.createContext(ctx)
-
-      try {
-        vm.runInContext(script, sandbox, { timeout: 2000, filename: 'script' })
-      } catch (err) {
-        return { envVars: updatedVars, logs, error: err instanceof Error ? err.message : String(err) }
-      }
-
-      return { envVars: updatedVars, logs }
-    })
+      response?: ScriptResponse
+    }) => runUserScript(payload?.script, payload?.envVars ?? {}, payload?.response))
 
     // ── Execute ────────────────────────────────────────────────────────────
 

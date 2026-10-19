@@ -2,17 +2,19 @@ import { useEffect, useState } from 'react'
 import { Sheet } from '../../../core/components/Modal'
 import { Field } from '../../../core/components/Form'
 import { SegmentedControl } from '../../../core/components/SegmentedControl'
-import type { Gasto, Moneda } from '../types'
+import type { Frecuencia, Gasto, Moneda } from '../types'
 import { randomId } from '../format'
 import { CATEGORIAS_VARIABLES, METODOS_VARIABLES, isoDate, parseAmount } from '../quick-add-parser'
 import { readLastMethod, writeLastMethod } from '../local-store'
+import { ruleIdOf } from '../recurrence'
 
 export function GastoSheet({ open, initial, categoriasUsadas, onSave, onDelete, onClose }: {
   open: boolean
   /** Gasto a editar (con id) o prellenado (sin id) */
   initial?: Partial<Gasto>
   categoriasUsadas: string[]
-  onSave: (g: Gasto) => void
+  /** `repite` ≠ null: además crear un gasto recurrente desde este */
+  onSave: (g: Gasto, repite: Frecuencia | null) => void
   onDelete?: (g: Gasto) => void
   onClose: () => void
 }): JSX.Element {
@@ -25,6 +27,8 @@ export function GastoSheet({ open, initial, categoriasUsadas, onSave, onDelete, 
   const [catCustom, setCatCustom] = useState('')
   const [metodo, setMetodo] = useState('Efectivo')
   const [notas, setNotas] = useState('')
+  const [repite, setRepite] = useState<Frecuencia | ''>('')
+  const fromRule = Boolean(initial?.id && ruleIdOf(initial.id))
 
   useEffect(() => {
     if (!open) return
@@ -36,6 +40,7 @@ export function GastoSheet({ open, initial, categoriasUsadas, onSave, onDelete, 
     setCatCustom('')
     setMetodo(initial?.metodoPago ?? readLastMethod() ?? 'Efectivo')
     setNotas(initial?.notas ?? '')
+    setRepite('')
   }, [open, initial])
 
   const cats = Array.from(new Set([...CATEGORIAS_VARIABLES, ...categoriasUsadas.filter(Boolean), categoria].filter((c) => c !== '__new__')))
@@ -54,7 +59,7 @@ export function GastoSheet({ open, initial, categoriasUsadas, onSave, onDelete, 
       descripcion: descripcion.trim() || cat,
       categoria: cat, metodoPago: metodo, notas: notas.trim() || undefined,
       created_at: initial?.created_at ?? now, updated_at: now,
-    })
+    }, fromRule ? null : repite || null)
   }
 
   return (
@@ -111,6 +116,18 @@ export function GastoSheet({ open, initial, categoriasUsadas, onSave, onDelete, 
         <Field label="Notas">
           <input className="ui-input w-full" value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Opcional" />
         </Field>
+        {fromRule ? (
+          <p className="t-footnote text-on-surface-variant">Se cargó solo (gasto recurrente). Para cambiar los próximos, editalo en Recurrentes.</p>
+        ) : (
+          <Field label="Se repite" hint={repite ? 'Se carga solo en cada fecha a partir de la próxima.' : undefined}>
+            <select className="ui-input w-full" value={repite} onChange={(e) => setRepite(e.target.value as Frecuencia | '')}>
+              <option value="">No</option>
+              <option value="mensual">Todos los meses (mismo día)</option>
+              <option value="semanal">Todas las semanas (mismo día)</option>
+              <option value="anual">Todos los años (misma fecha)</option>
+            </select>
+          </Field>
+        )}
       </form>
     </Sheet>
   )

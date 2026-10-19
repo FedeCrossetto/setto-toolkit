@@ -1,11 +1,14 @@
 import { createContext, useContext, useReducer, useEffect, useRef, type ReactNode } from 'react'
 import type { AppState, AppAction, Tab, Theme, PluginIntent } from './types'
-import { allPlugins } from './plugin-registry'
+import { allPlugins, getPlugin } from './plugin-registry'
+import { touchMounted } from './navigation'
 
 const THEME_KEY    = 'app-theme'
 const SIDEBAR_KEY  = 'app-sidebar-collapsed'
 const DISABLED_KEY = 'plugins-disabled'
 const TABS_KEY     = 'app-open-tabs'
+/** '1' once the welcome flow was completed or skipped. */
+export const ONBOARDING_KEY = 'app-onboarding-done'
 /** Rediseño v2: aplica una vez los módulos ocultos por defecto (defaultDisabled). */
 const MODULES_V2_KEY = 'plugins-defaults-v2'
 
@@ -46,20 +49,38 @@ function getInitialDisabledPlugins(): string[] {
 }
 
 function getInitialTabs(disabled: string[]): { openTabs: Tab[]; activeTabId: string | null } {
+  // Se restaura sólo el último módulo usado: montar todos los recientes al
+  // arrancar lo haría más lento. Los demás se montan al volver a ellos.
   const fallback = { openTabs: [{ tabId: 'dashboard', pluginId: 'dashboard' }], activeTabId: 'dashboard' }
   try {
     const raw = localStorage.getItem(TABS_KEY)
     if (!raw) return fallback
-    const parsed = JSON.parse(raw) as { openTabs: Tab[]; activeTabId: string | null }
-    const valid = new Set(allPlugins.map(p => p.id))
-    const openTabs = (parsed.openTabs ?? []).filter(t => valid.has(t.pluginId) && !disabled.includes(t.pluginId))
-    if (openTabs.length === 0) return fallback
-    const activeTabId = openTabs.some(t => t.tabId === parsed.activeTabId) ? parsed.activeTabId : openTabs[0]!.tabId
-    return { openTabs, activeTabId }
+    const parsed = JSON.parse(raw) as { openTabs?: Tab[]; activeTabId?: string | null }
+    const id = parsed.activeTabId
+    if (!id || !getPlugin(id) || disabled.includes(id)) return fallback
+    return { openTabs: [{ tabId: id, pluginId: id }], activeTabId: id }
   } catch {
     return fallback
   }
 }
+
+function getInitialOnboarding(): boolean {
+  try {
+    if (localStorage.getItem(ONBOARDING_KEY) === '1') return false
+    // Quien ya usaba la app (hay un módulo guardado) no la ve al actualizar;
+    // la puede abrir desde Ajustes → Acerca de.
+    if (localStorage.getItem(TABS_KEY) !== null) {
+      localStorage.setItem(ONBOARDING_KEY, '1')
+      return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Primer arranque en esta PC (se muestra la bienvenida). Se calcula una sola vez. */
+export const IS_FRESH_INSTALL = getInitialOnboarding()
 
 const initialDisabled = getInitialDisabledPlugins()
 const initialTabs = getInitialTabs(initialDisabled)
@@ -73,6 +94,21 @@ const initialState: AppState = {
   sidebarCollapsed: getInitialSidebarCollapsed(),
   disabledPlugins: initialDisabled,
   dirtyPlugins: {},
+  moduleSubtitles: {},
+  onboardingOpen: IS_FRESH_INSTALL,
+}
+
+const keepAlive = (pluginId: string): boolean => !!getPlugin(pluginId)?.keepAlive
+
+/**
+ * Reducer del shell + LRU de módulos montados: cada vez que cambia el módulo
+ * activo (o el estado "sin guardar"), se reordena y se desmontan los viejos.
+ */
+function rootReducer(state: AppState, action: AppAction): AppState {
+  const next = appReducer(state, action)
+  if (next.openTabs === state.openTabs && next.activeTabId === state.activeTabId && next.dirtyPlugins === state.dirtyPlugins) return next
+  const openTabs = touchMounted(next.openTabs, next.activeTabId, next.dirtyPlugins, undefined, keepAlive)
+  return openTabs === next.openTabs ? next : { ...next, openTabs }
 }
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -208,6 +244,14 @@ function appReducer(state: AppState, action: AppAction): AppState {
     }
     case 'CLEAR_PLUGIN_INTENT':
       return { ...state, pluginIntent: undefined }
+    case 'SET_MODULE_SUBTITLE': {
+      if (state.moduleSubtitles[action.pluginId] === action.subtitle) return state
+      return { ...state, moduleSubtitles: { ...state.moduleSubtitles, [action.pluginId]: action.subtitle } }
+    }
+    case 'OPEN_ONBOARDING':
+      return { ...state, onboardingOpen: true, commandPaletteOpen: false }
+    case 'CLOSE_ONBOARDING':
+      return { ...state, onboardingOpen: false }
     case 'TOGGLE_PLUGIN': {
       const isDisabled = state.disabledPlugins.includes(action.pluginId)
       const disabledPlugins = isDisabled
@@ -236,7 +280,7 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null)
 
 export function AppProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [state, dispatch] = useReducer(appReducer, initialState)
+  const [state, dispatch] = useReducer(rootReducer, initialState)
 
   useEffect(() => {
     const html = document.documentElement
@@ -256,9 +300,16 @@ export function AppProvider({ children }: { children: ReactNode }): JSX.Element 
     localStorage.setItem(DISABLED_KEY, JSON.stringify(state.disabledPlugins))
   }, [state.disabledPlugins])
 
+  // Main pregunta antes de cerrar la ventana si algún módulo tiene cambios sin guardar.
   useEffect(() => {
-    localStorage.setItem(TABS_KEY, JSON.stringify({ openTabs: state.openTabs, activeTabId: state.activeTabId }))
-  }, [state.openTabs, state.activeTabId])
+    const names = Object.entries(state.dirtyPlugins).filter(([, d]) => d).map(([id]) => getPlugin(id)?.name ?? id)
+    try { window.api.send('app:dirty', names) } catch { /* ventana sin preload (tests) */ }
+  }, [state.dirtyPlugins])
+
+  useEffect(() => {
+    // Sólo importa el último módulo (se restaura al abrir la app).
+    try { localStorage.setItem(TABS_KEY, JSON.stringify({ activeTabId: state.activeTabId })) } catch { /* cuota / modo privado */ }
+  }, [state.activeTabId])
 
   return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>
 }
@@ -283,4 +334,17 @@ export function usePluginIntent(pluginId: string, handler: (intent: PluginIntent
     handlerRef.current(intent)
     dispatch({ type: 'CLEAR_PLUGIN_INTENT' })
   }, [intent, pluginId, dispatch])
+}
+
+/**
+ * Subtítulo o "migas" que el módulo muestra junto a su nombre en la barra
+ * superior (p. ej. la nota abierta). Se limpia al desmontar.
+ */
+export function useModuleSubtitle(pluginId: string, subtitle: string | null | undefined): void {
+  const { dispatch } = useApp()
+  const value = subtitle || undefined
+  useEffect(() => {
+    dispatch({ type: 'SET_MODULE_SUBTITLE', pluginId, subtitle: value })
+  }, [dispatch, pluginId, value])
+  useEffect(() => () => dispatch({ type: 'SET_MODULE_SUBTITLE', pluginId, subtitle: undefined }), [dispatch, pluginId])
 }

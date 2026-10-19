@@ -1,3 +1,4 @@
+import { app } from 'electron'
 import type { IpcMain, WebContents } from 'electron'
 import type { PluginHandlers, CoreServices } from '../../core/types'
 import type { TerminalSession, TerminalPrefs } from '../../../src/plugins/terminal/types'
@@ -6,6 +7,7 @@ import os from 'os'
 import fs from 'fs'
 import path from 'path'
 import { registerHandler } from '../../core/ipc-handler'
+import { logger } from '../../core/logger'
 
 const SESSIONS_FILE = 'terminal-sessions.json'
 const PREFS_FILE    = 'terminal-prefs.json'
@@ -38,6 +40,15 @@ interface LiveSession {
 
 const liveSessions = new Map<string, LiveSession>()
 
+/** Cierra todas las consolas vivas (al salir: que no queden shells huérfanas). */
+export function killAllTerminals(): void {
+  for (const [id, live] of liveSessions) {
+    if (live.flushTimer) clearTimeout(live.flushTimer)
+    try { live.pty.kill() } catch { /* ya terminó */ }
+    liveSessions.delete(id)
+  }
+}
+
 // ── Handlers ───────────────────────────────────────────────────────────────────
 
 export const handlers: PluginHandlers = {
@@ -52,6 +63,8 @@ export const handlers: PluginHandlers = {
     } catch (err) {
       console.error('[terminal] node-pty not available — run: npm run rebuild', err)
     }
+
+    app.on('will-quit', killAllTerminals)
 
     // ── terminal:create ──────────────────────────────────────────────────────
     registerHandler(ipcMain, 'terminal:create', (event, opts: { shell?: string; cwd?: string; cols?: number; rows?: number }) => {
@@ -120,18 +133,22 @@ export const handlers: PluginHandlers = {
         if (!wc.isDestroyed()) wc.send('terminal:exit', { sessionId, exitCode })
         liveSessions.delete(sessionId)
 
-        // Persist session to history
-        const now = new Date().toISOString()
-        const sessions = db.readJSON<TerminalSession[]>(SESSIONS_FILE) ?? []
-        const existing = sessions.findIndex((s) => s.id === sessionId)
-        if (existing >= 0) {
-          sessions[existing] = { ...sessions[existing]!, closedAt: now, exitCode }
-        } else {
-          sessions.unshift({ id: sessionId, title: shell, shell, cwd, createdAt: now, closedAt: now, exitCode })
+        // Persist session to history (callback de node-pty: un error acá no puede tumbar el proceso)
+        try {
+          const now = new Date().toISOString()
+          const sessions = db.readJSON<TerminalSession[]>(SESSIONS_FILE) ?? []
+          const existing = sessions.findIndex((s) => s.id === sessionId)
+          if (existing >= 0) {
+            sessions[existing] = { ...sessions[existing]!, closedAt: now, exitCode }
+          } else {
+            sessions.unshift({ id: sessionId, title: shell, shell, cwd, createdAt: now, closedAt: now, exitCode })
+          }
+          // Trim history
+          if (sessions.length > MAX_HISTORY) sessions.splice(MAX_HISTORY)
+          db.writeJSON(SESSIONS_FILE, sessions)
+        } catch (err) {
+          logger.warn('terminal', 'could not save session history', err instanceof Error ? err.message : String(err))
         }
-        // Trim history
-        if (sessions.length > MAX_HISTORY) sessions.splice(MAX_HISTORY)
-        db.writeJSON(SESSIONS_FILE, sessions)
       })
 
       // Save session start to history

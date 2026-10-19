@@ -1,0 +1,70 @@
+name: Release
+
+# Publica el instalador de Windows en GitHub Releases (lo que lee el auto-updater).
+# Se dispara SOLO al empujar un tag de versión: `git tag v2.14.0 && git push origin v2.14.0`.
+# Pasos completos en CHANGELOG.md / CLAUDE.md ("Cómo publicar una versión").
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write   # crear el release y subir el instalador
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Tag matches package.json version
+        shell: bash
+        run: |
+          PKG="v$(node -p "require('./package.json').version")"
+          if [ "$PKG" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::El tag ${GITHUB_REF_NAME} no coincide con package.json ($PKG). Subí la versión antes de taggear."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      # node-pty es nativo: se recompila para la versión de Electron.
+      - name: Rebuild native modules
+        run: npm run rebuild
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npx electron-vite build
+        env:
+          # Sólo identificadores OAuth públicos (ver electron.vite.config.ts). Nunca claves de servicio.
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.OAUTH_GITHUB_CLIENT_ID }}
+          GITLAB_CLIENT_ID: ${{ secrets.OAUTH_GITLAB_CLIENT_ID }}
+
+      - name: No secrets in the bundle
+        shell: bash
+        run: |
+          if grep -qE 'eyJ[A-Za-z0-9_-]{10,}\.eyJ' out/main/main.js; then
+            echo "::error::Hay un JWT embebido en out/main/main.js (¿una Service Role Key?)."
+            exit 1
+          fi
+
+      - name: Package and publish
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

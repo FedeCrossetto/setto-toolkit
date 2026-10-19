@@ -115,7 +115,7 @@ export function Tabla({ servicios, pagos, year, onEditPago, onAddPago }: {
                 })}
               </Fragment>
             ))}
-            <tr className="hairline-t bg-on-surface/2">
+            <tr className="hairline-t">
               <td className="px-3 py-2.5 sticky left-0 bg-surface t-body font-semibold text-on-surface">Total</td>
               {months.map((mes) => (
                 <td key={mes} className="px-2.5 py-2 text-right tabular-nums font-semibold text-on-surface">

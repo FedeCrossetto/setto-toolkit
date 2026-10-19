@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { collectFiles, fromPortable, openBackup, safeRelPath, sealBackup, toPortable, type BackupPayload, type Codec } from './backup'
+import { collectFiles, fromPortable, openBackup, safeRelPath, sealBackup, sealBackupAsync, toPortable, type BackupPayload, type Codec } from './backup'
 
 // "Cifrado de máquina" de juguete: reversible y distinto en cada PC.
 const machine = (id: string): Codec => ({
@@ -66,6 +66,12 @@ describe('sealBackup / openBackup', () => {
     expect(() => openBackup(sealed, 'otra contraseña')).toThrow(/Contraseña incorrecta/)
     expect(() => sealBackup(payload, 'corta')).toThrow(/al menos/)
     expect(() => openBackup(Buffer.from('hola'), 'x')).toThrow(/no es un respaldo/)
+  })
+
+  it('la versión async (sin trabar el main) es compatible con openBackup', async () => {
+    const sealed = await sealBackupAsync(payload, 'una contraseña larga')
+    expect(openBackup(sealed, 'una contraseña larga')).toEqual(payload)
+    await expect(sealBackupAsync(payload, 'corta')).rejects.toThrow(/al menos/)
   })
 })
 

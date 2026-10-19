@@ -1,4 +1,4 @@
-import { app, clipboard, dialog } from 'electron'
+import { app, clipboard, dialog, powerMonitor } from 'electron'
 import { ignoreClipboardText } from '../../core/clipboard-history'
 import type { IpcMain } from 'electron'
 import crypto from 'node:crypto'
@@ -17,6 +17,9 @@ import {
   credentialsToCsv, markDuplicates, parseCredentialsCsv, type ImportedCredential,
 } from '../../../src/plugins/credentials/csv'
 import { topByUsage } from '../../../src/plugins/credentials/usage'
+import type { E2EResult, E2EStatus } from '../../../src/plugins/credentials/types'
+import { E2ESync } from './e2e-sync'
+import { supabaseE2ERemote } from './e2e-remote'
 
 // ── Files in <userData> ─────────────────────────────────────────────────────
 /** Owned by GastosStorageService; read-only here (writes go through saveCredencial/deleteCredencial). */
@@ -101,9 +104,31 @@ function sha(s: string): string {
 export const handlers: PluginHandlers = {
   pluginId: 'credentials',
 
-  register(ipcMain: IpcMain, { db, gastosStorage }: CoreServices): void {
+  register(ipcMain: IpcMain, { db, gastosStorage, settings }: CoreServices): void {
     // ── Persistence helpers ────────────────────────────────────────────────
     const readVault = (): Record<string, string> => db.readEncryptedJSON<Record<string, string>>(PASSWORD_VAULT_FILE) ?? {}
+    /**
+     * Local mode: no Supabase configured, or the user chose "solo local"
+     * (`app.local_only = '1'`). Everything lives in this computer's vault and
+     * cache; nothing is uploaded, retried or queued.
+     */
+    const isLocalMode = (): boolean => {
+      const lo = settings.get('app.local_only')   // same rule as localOnlySetting() in src/plugins/credentials/local-mode.ts
+      if (lo === '1' || lo === 'true') return true
+      try {
+        const cfg = gastosStorage.getSupabasePublicConfig()
+        return !cfg.url || !cfg.keyConfigured
+      } catch {
+        return true
+      }
+    }
+    /** Same file and format GastosStorageService uses (only written here in local mode, where it is never called). */
+    const writeVaultPassword = (id: string, password: string | null): void => {
+      const vault = readVault()
+      if (password) vault[id] = password
+      else delete vault[id]
+      db.writeEncryptedJSON(PASSWORD_VAULT_FILE, vault)
+    }
     const readCache = (): CacheData => {
       const c = db.readEncryptedJSON<CacheData>(CACHE_FILE)
       return { items: Array.isArray(c?.items) ? c.items : [], syncedAt: c?.syncedAt ?? null }
@@ -147,33 +172,58 @@ export const handlers: PluginHandlers = {
       }
     }
 
+    // ── End-to-end password sync (opt-in, master password) ─────────────────
+    const e2e = new E2ESync({
+      remote: () => supabaseE2ERemote(gastosStorage),
+      store: {
+        read: <T>(file: string) => db.readEncryptedJSON<T>(file),
+        write: (file, data) => db.writeEncryptedJSON(file, data),
+        remove: (file) => fs.rmSync(path.join(app.getPath('userData'), file), { force: true }),
+      },
+      readVault,
+      setVaultPassword: (id, pwd) => writeVaultPassword(id, pwd),
+      isLocalMode,
+      lockMinutes: () => pinMinutes(),
+    })
+
     const buildResult = (meta: CredentialMeta[], queue: QueueOp[], status: SyncStatus, syncedAt: number | null, error?: string): CredentialsListResult => {
       const vault = readVault()
       const local = readLocal()
-      const items: Credential[] = applyQueue(meta, queue)
+      const merged = applyQueue(meta, queue)
+      const sync = e2e.itemStates(merged.map((c) => c.id))
+      const items: Credential[] = merged
         .map((c) => ({
           ...metaOf(c), hasPassword: !!vault[c.id], ...(c.pending ? { pending: true } : {}),
           useCount: Number(local.useCount[c.id]) || 0,
           ...(local.usedAt[c.id] ? { lastUsedAt: local.usedAt[c.id] } : {}),
+          ...(sync[c.id] ? { e2e: sync[c.id] } : {}),
         }))
         .sort((a, b) => a.orden - b.orden)
       return { items, status, error, syncedAt, pendingCount: queue.length, favorites: local.favorites, usedAt: local.usedAt }
     }
 
-    const currentItems = (): CredentialMeta[] => applyQueue(readCache().items, readQueue()).map(metaOf)
+    const currentItems = (): CredentialMeta[] => applyQueue(readCache().items, isLocalMode() ? [] : readQueue()).map(metaOf)
 
     const saveOne = async (draft: CredentialDraft): Promise<SaveResult> => {
       const meta = metaOf(draft)
-      const password = draft.password ?? readVault()[meta.id] ?? ''
+      const before = readVault()[meta.id] ?? ''
+      const password = draft.password ?? before
+      if (password !== before) e2e.notePasswordChange(meta.id)
       const cache = readCache()
       const i = cache.items.findIndex((c) => c.id === meta.id)
       if (i >= 0) cache.items[i] = meta
       else cache.items.push(meta)
       writeCache(cache)
+      if (isLocalMode()) {
+        writeVaultPassword(meta.id, password)
+        return { ok: true, queued: false }
+      }
       try {
         // saveCredencial writes the local vault first, so the password survives a network failure.
         await withTimeout(gastosStorage.saveCredencial({ ...meta, password }))
         writeQueue(dequeue(readQueue(), meta.id))
+        // With the sync unlocked, the encrypted copy goes up too (if it fails, the next merge retries).
+        if (password !== before || e2e.itemStates([meta.id])[meta.id] === 'local') await e2e.pushOne(meta.id)
         return { ok: true, queued: false }
       } catch (err) {
         if (classify(err) !== 'offline') {
@@ -212,11 +262,14 @@ export const handlers: PluginHandlers = {
     const lockStatus = (): LockStatus => ({ pinEnabled: !!readPin(), unlocked: isUnlocked(), minutes: pinMinutes() })
 
     /** Lock N minutes after the app loses focus. */
+    /** The sync key (if only in memory) follows the same timing, with or without PIN. */
     app.on('browser-window-blur', () => {
-      if (!readPin()) return
       if (blurTimer) clearTimeout(blurTimer)
-      blurTimer = setTimeout(() => { unlockedUntil = 0; blurTimer = null }, pinMinutes() * 60_000)
+      blurTimer = setTimeout(() => { unlockedUntil = 0; e2e.lock(); blurTimer = null }, pinMinutes() * 60_000)
     })
+    const lockAll = (): void => { unlockedUntil = 0; e2e.lock() }
+    powerMonitor.on('suspend', lockAll)
+    powerMonitor.on('lock-screen', lockAll)
     app.on('browser-window-focus', () => {
       if (blurTimer) clearTimeout(blurTimer)
       blurTimer = null
@@ -242,6 +295,10 @@ export const handlers: PluginHandlers = {
 
     registerHandler(ipcMain, 'credentials:list', (_e, opts?: { localOnly?: boolean }) => {
       // Instant answer from the local copy (first paint, Ctrl+K) — no network.
+      if (isLocalMode()) {
+        const cache = readCache()
+        return buildResult(cache.items, [], 'local', cache.syncedAt)
+      }
       if (opts?.localOnly) {
         const cache = readCache()
         const st = lastStatus ?? { status: (cache.syncedAt ? 'synced' : 'offline') as SyncStatus }
@@ -265,10 +322,12 @@ export const handlers: PluginHandlers = {
           flushError = r.error
           if (r.error && classify(r.error) === 'offline') throw new Error(r.error)
         }
-        const data = await withTimeout(gastosStorage.load())
-        const meta = (data.credenciales ?? []).map(metaOf)
+        // Sólo la tabla de credenciales (metadatos), no todo Gastos.
+        const meta = (await withTimeout(gastosStorage.loadCredenciales())).map(metaOf)
         const syncedAt = Date.now()
         writeCache({ items: meta, syncedAt })
+        // Encrypted passwords from other PCs (never fails the list: problems show in the sync sheet).
+        await e2e.refresh()
         return buildResult(meta, queue, flushError ? 'error' : 'synced', syncedAt, flushError ? friendlyError(flushError) : undefined)
       } catch (err) {
         const cache = readCache()
@@ -290,6 +349,11 @@ export const handlers: PluginHandlers = {
         delete local.usedAt[id]
         delete local.useCount[id]
         writeLocal({ favorites: local.favorites.filter((f) => f !== id), usedAt: local.usedAt, useCount: local.useCount })
+        e2e.forget(id)
+        if (isLocalMode()) {
+          writeVaultPassword(id, null)
+          return { ok: true, queued: false }
+        }
         try {
           await withTimeout(gastosStorage.deleteCredencial(id))
           writeQueue(dequeue(readQueue(), id))
@@ -317,7 +381,7 @@ export const handlers: PluginHandlers = {
     /** Copies the stored password (it never crosses to the renderer); clears the clipboard after 30 s. */
     registerHandler(ipcMain, 'credentials:copy-password', (_e, id: string): CopyResult => {
       if (typeof id !== 'string' || !id) return { ok: false, error: 'Id inválido' }
-      if (!isUnlocked()) return { ok: false, error: 'Credenciales bloqueadas', locked: true }
+      if (!isUnlocked()) return { ok: false, error: 'Claves bloqueadas', locked: true }
       const pwd = readVault()[id]
       if (!pwd) return { ok: false, error: 'No hay contraseña guardada en esta computadora' }
       writeClipboard(pwd, PASSWORD_CLEAR_MS)
@@ -341,7 +405,7 @@ export const handlers: PluginHandlers = {
       const cache = readCache()
       const local = readLocal()
       const favs = new Set(local.favorites)
-      const { items } = buildResult(cache.items, readQueue(), 'synced', cache.syncedAt)
+      const { items } = buildResult(cache.items, isLocalMode() ? [] : readQueue(), 'synced', cache.syncedAt)
       return topByUsage(items, favs, n).map((c) => (favs.has(c.id) ? { ...c, favorite: true } : c))
     })
 
@@ -384,8 +448,55 @@ export const handlers: PluginHandlers = {
     registerHandler(ipcMain, 'credentials:lock-status', (): LockStatus => lockStatus())
 
     registerHandler(ipcMain, 'credentials:lock', (): LockStatus => {
-      unlockedUntil = 0
+      lockAll()
       return lockStatus()
+    })
+
+    // ── End-to-end sync IPC (the master password only travels renderer → main) ──
+    const ids = (): string[] => currentItems().map((c) => c.id)
+    const validMaster = (v: unknown): v is string => typeof v === 'string' && v.length <= 1024
+    const afterE2E = (r: E2EResult): E2EResult => {
+      if (r.pulled || r.pushed) logger.info('credentials', `Sincronización cifrada: ${r.pulled ?? 0} bajadas, ${r.pushed ?? 0} subidas`)
+      return r
+    }
+
+    registerHandler(ipcMain, 'credentials:e2e-status', (): Promise<E2EStatus> => serial(() => e2e.getStatus(ids())))
+
+    registerHandler(ipcMain, 'credentials:e2e-setup', (_e, payload: { password?: unknown; remember?: unknown }) => {
+      if (!payload || !validMaster(payload.password)) throw new Error('Payload inválido')
+      const pwd = payload.password
+      return serial(async () => afterE2E(await e2e.setup(ids(), pwd, payload.remember === true)))
+    })
+
+    registerHandler(ipcMain, 'credentials:e2e-unlock', (_e, payload: { password?: unknown; remember?: unknown }) => {
+      if (!payload || !validMaster(payload.password)) throw new Error('Payload inválido')
+      const pwd = payload.password
+      return serial(async () => afterE2E(await e2e.unlock(ids(), pwd, payload.remember === true)))
+    })
+
+    registerHandler(ipcMain, 'credentials:e2e-change', (_e, payload: { current?: unknown; next?: unknown }) => {
+      if (!payload || !validMaster(payload.current) || !validMaster(payload.next)) throw new Error('Payload inválido')
+      const { current, next } = payload
+      return serial(async () => afterE2E(await e2e.change(ids(), current, next)))
+    })
+
+    registerHandler(ipcMain, 'credentials:e2e-disable', () => serial(async () => {
+      const r = await e2e.disable(ids())
+      if (r.ok) logger.info('credentials', 'Sincronización cifrada desactivada (copias remotas borradas)')
+      return r
+    }))
+
+    registerHandler(ipcMain, 'credentials:e2e-lock', (): E2EResult => {
+      e2e.lock()
+      return { ok: true, status: e2e.status(ids()) }
+    })
+
+    registerHandler(ipcMain, 'credentials:e2e-remember', (_e, on: unknown): E2EResult => e2e.setRemember(ids(), on === true))
+
+    /** Conflict: keep this PC's password (`local`), take the synced one (`remote`), or undo the last `remote`. */
+    registerHandler(ipcMain, 'credentials:e2e-resolve', (_e, id: unknown, choice: unknown) => {
+      if (typeof id !== 'string' || !id || (choice !== 'local' && choice !== 'remote' && choice !== 'undo')) throw new Error('Payload inválido')
+      return serial(async () => afterE2E(await e2e.resolveConflict(ids(), id, choice)))
     })
 
     registerHandler(ipcMain, 'credentials:pin-verify', (_e, pin: string): PinVerifyResult => {

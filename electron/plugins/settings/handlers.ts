@@ -5,6 +5,7 @@ import type { PluginHandlers, CoreServices } from '../../core/types'
 import type { IpcMain } from 'electron'
 import { registerHandler } from '../../core/ipc-handler'
 import { testConnection, TESTABLE_CONNECTIONS, type TestableConnection } from './connection-tests'
+import { maskSecretSettings, SECURE_SET_SENTINEL } from './settings-mask'
 
 /** Keys that are never exported even if present in the store (secrets stay local) */
 const EXPORT_BLOCKED_KEYS = new Set(['ai.openai_key', 'ai.anthropic_key'])
@@ -43,6 +44,7 @@ const ALLOWED_KEYS = new Set([
   'app.clipboard_history',         // '0' = sin historial del portapapeles (default: activado)
   'app.dock',                      // '0' = sin barra flotante (default: activada)
   'app.dock_side',                 // 'left' | 'right' (default: right)
+  'app.local_only',                // '1' = el usuario eligió no usar Supabase (bienvenida)
   'ticket-resolver.jira_url',
   'ticket-resolver.jira_user',
   'ticket-resolver.jira_token',
@@ -59,7 +61,7 @@ const ALLOWED_KEYS = new Set([
  * The renderer must treat this value as "already configured" and never
  * save it back — the handler ignores any set() call that sends this value.
  */
-export const SECURE_SET_SENTINEL = '__CONFIGURED__'
+export { SECURE_SET_SENTINEL }
 
 /**
  * Keys that are encrypted at rest (via safeStorage) and must never be
@@ -111,7 +113,8 @@ export const handlers: PluginHandlers = {
       if (!ALLOWED_PREFIXES.has(prefix.trim())) {
         throw new Error(`settings:getAll prefix not permitted: "${prefix}"`)
       }
-      return settings.getAll(prefix)
+      // Nunca secretos en claro hacia el renderer (repo-search.*.token, ai.*_key…).
+      return maskSecretSettings(settings.getAll(prefix), RENDERER_MASKED_KEYS)
     })
 
     // ── Encryption status ──────────────────────────────────────────────────
@@ -220,7 +223,6 @@ export const handlers: PluginHandlers = {
           if (typeof data?.url === 'string' && data.url.trim()) return { source: 'local-file' as const }
         }
       } catch { /* ignore unreadable file */ }
-      if (typeof process.env.SUPABASE_URL === 'string' && process.env.SUPABASE_URL.trim()) return { source: 'env' as const }
       return { source: 'none' as const }
     })
   }

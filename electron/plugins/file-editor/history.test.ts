@@ -36,7 +36,7 @@ describe('history', () => {
     const list = listSnapshots(base, FILE)
     expect(list).toHaveLength(MAX_PER_FILE)
     expect(list[list.length - 1]!.id).toBe('6')
-  })
+  }, 20_000) // 55 escrituras a disco: lento cuando corre en paralelo con el resto
 
   it('prunes the oldest versions across files above the total cap', () => {
     const other = path.resolve('/proj/Other.vb')

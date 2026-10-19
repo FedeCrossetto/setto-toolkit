@@ -112,8 +112,8 @@ export function SnippetEditor({
 
   return (
     <div className="h-full overflow-y-auto px-6 py-6">
-      <div className="max-w-3xl mx-auto bg-surface hairline rounded-2xl shadow-sm">
-      <div className="pl-6 pr-4 h-14 hairline-b flex items-center gap-2 sticky top-0 z-10 bg-surface rounded-t-2xl">
+      <div className="max-w-3xl mx-auto bg-surface hairline rounded-xl">
+      <div className="pl-6 pr-4 h-14 hairline-b flex items-center gap-2 sticky top-0 z-10 bg-surface rounded-t-xl">
         <h2 className="t-headline text-on-surface flex-1 truncate">{isNew ? 'Nuevo snippet' : 'Editar snippet'}</h2>
         <button onClick={onCancel} className="ui-btn ui-btn-outline">Cancelar</button>
         <button onClick={onSave} disabled={!canSave} className="ui-btn ui-btn-primary" title="Guardar (Ctrl+S)">Guardar</button>
@@ -166,13 +166,13 @@ export function SnippetEditor({
             <span className="t-footnote font-medium text-on-surface-variant">Etiquetas</span>
             <div className="ui-input w-full flex flex-wrap items-center gap-1.5 min-h-[32px]">
               {form.tags.map((t) => (
-                <span key={t} className="ui-badge inline-flex items-center gap-1 bg-primary/10 text-primary font-medium">
+                <span key={t} className="fl-chip h-[20px]! pr-1.5! text-on-surface!">
                   {t}
                   <button
                     type="button"
                     aria-label={`Quitar etiqueta ${t}`}
                     onClick={() => setForm((f) => ({ ...f, tags: f.tags.filter((x) => x !== t) }))}
-                    className="text-primary/70 hover:text-primary"
+                    className="text-on-surface-variant/70 hover:text-on-surface"
 
                   >
                     <X size={11} />
@@ -213,7 +213,7 @@ export function SnippetEditor({
             />
           </Field>
 
-          <div className="flex items-center justify-between rounded-xl bg-surface-container dark:bg-white/4 px-3.5 py-2.5">
+          <div className="flex items-center justify-between rounded-[10px] hairline px-3.5 py-2.5">
             <span className="t-body text-on-surface">Fijar arriba</span>
             <Toggle checked={form.pinned} onChange={(v) => setForm((f) => ({ ...f, pinned: v }))} label="Fijar snippet" />
           </div>

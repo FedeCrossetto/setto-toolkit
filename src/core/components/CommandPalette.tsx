@@ -6,12 +6,20 @@ import { useToast } from './Toast'
 import { searchProviders } from '../search-registry'
 import { actionsProvider, modulesProvider } from '../search-builtin'
 import {
-  buildGroups, cycleGroup, moveSelection, resolveSelection, type ProviderResult,
+  buildGroups, cycleGroup, moveSelection, pushRecent, resolveSelection, type ProviderResult,
 } from '../palette-logic'
 import { setExplicitTheme, useSystemThemeSync } from '../themeMode'
 import type { SearchContext, SearchItem, SearchProvider } from '../search'
 
 const DEBOUNCE_MS = 80
+
+/** Lo último que se ejecutó desde el palette (sólo esta sesión: `run` no se puede guardar). */
+let recentItems: SearchItem[] = []
+const recentProvider: SearchProvider = {
+  id: 'recent',
+  group: 'Recientes',
+  search: (q) => (q ? [] : recentItems.map((i) => ({ ...i, id: i.id, score: 0 }))),
+}
 
 /** Open the palette from anywhere with a prefilled query:
  *  `window.dispatchEvent(new CustomEvent(OPEN_PALETTE_EVENT, { detail: { query } }))` */
@@ -102,6 +110,7 @@ export function CommandPalette(): JSX.Element | null {
     const q = query.trim()
     // Group order: with no query, actions first; while searching, modules first.
     const ordered: { provider: SearchProvider; order: number; limit?: number }[] = [
+      { provider: recentProvider, order: -100, limit: 5 },
       { provider: providers.actions, order: q ? 1 : 0, limit: q ? 5 : 8 },
       { provider: providers.modules, order: q ? 0 : 1, limit: q ? 5 : 6 },
       ...providers.external.map((provider, i) => ({ provider, order: provider.order ?? 10 + i })),
@@ -154,13 +163,14 @@ export function CommandPalette(): JSX.Element | null {
     notify: (message, kind = 'info') => toast.show(message, kind),
   }), [dispatch, toast])
 
-  const runItem = (item: SearchItem): void => {
+  const runItem = (item: SearchItem, alt = false): void => {
     close()
+    recentItems = pushRecent(recentItems, item)
     const fail = (err: unknown): void => {
       toast.show(err instanceof Error ? err.message : 'No se pudo completar la acción', 'error')
     }
     try {
-      const r = item.run(ctx)
+      const r = (alt && item.altRun ? item.altRun : item.run)(ctx)
       if (r instanceof Promise) r.catch(fail)
     } catch (err) {
       fail(err)
@@ -181,13 +191,14 @@ export function CommandPalette(): JSX.Element | null {
     } else if (e.key === 'Enter') {
       e.preventDefault()
       const item = flatItems.find((i) => i.id === effectiveSelected)
-      if (item) runItem(item)
+      if (item) runItem(item, e.shiftKey)
     } else if (e.key === 'Escape') {
       e.preventDefault(); e.stopPropagation(); close()
     }
   }
 
   const showEmpty = !loading && groups.length === 0
+  const selectedItem = flatItems.find((i) => i.id === effectiveSelected)
 
   return createPortal(
     <div
@@ -199,12 +210,12 @@ export function CommandPalette(): JSX.Element | null {
         role="dialog"
         aria-modal="true"
         aria-label="Buscar"
-        className="mac-pop-in bg-surface hairline rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden"
+        className="mac-pop-in fl-dialog w-full flex flex-col overflow-hidden"
         style={{ maxWidth: 640 }}
       >
         {/* Search field */}
-        <div className="p-2.5 hairline-b">
-        <div className="flex items-center gap-3 px-3.5 h-12 rounded-xl bg-surface-container dark:bg-white/5 focus-within:bg-surface focus-within:shadow-[0_0_0_3px_rgb(var(--c-primary)/0.16)] focus-within:border-primary/60 border border-transparent transition-colors">
+        <div className="hairline-b">
+        <div className="flex items-center gap-3 px-4 h-[52px]">
           <Search size={18} className="text-on-surface-variant shrink-0" />
           <input
             ref={inputRef}
@@ -228,7 +239,7 @@ export function CommandPalette(): JSX.Element | null {
         <div ref={listRef} className="max-h-[min(56vh,440px)] overflow-y-auto px-2 py-2" role="listbox">
           {showEmpty ? (
             <div className="flex flex-col items-center text-center py-10">
-              <span className="w-10 h-10 mb-3 rounded-xl bg-selected text-primary flex items-center justify-center">
+              <span className="icon-tile w-10 h-10 mb-3 rounded-[10px]">
                 <Search size={18} />
               </span>
               <p className="t-body text-on-surface-variant">
@@ -238,14 +249,14 @@ export function CommandPalette(): JSX.Element | null {
           ) : (
             groups.map((g) => (
               <div key={g.id} className="pb-1">
-                <div className="px-2.5 pt-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant/70">{g.label}</div>
+                <div className="fl-section px-2.5 pt-1.5">{g.label}</div>
                 {g.items.map((item) => (
                   <PaletteRow
                     key={item.id}
                     item={item}
                     selected={item.id === effectiveSelected}
                     onHover={() => setSelectedId(item.id)}
-                    onRun={() => runItem(item)}
+                    onRun={(alt) => runItem(item, alt)}
                   />
                 ))}
               </div>
@@ -254,8 +265,11 @@ export function CommandPalette(): JSX.Element | null {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-4 px-4 h-10 hairline-t bg-background/50 dark:bg-white/2 t-caption text-on-surface-variant">
-          <span className="flex items-center gap-1.5"><Kbd><CornerDownLeft size={10} /></Kbd> Abrir</span>
+        <div className="flex items-center gap-4 px-4 h-10 hairline-t t-caption text-on-surface-variant">
+          <span className="flex items-center gap-1.5"><Kbd><CornerDownLeft size={10} /></Kbd> {selectedItem?.hint && selectedItem.altRun ? selectedItem.hint : 'Abrir'}</span>
+          {selectedItem?.altRun && (
+            <span className="flex items-center gap-1.5"><Kbd>⇧ <CornerDownLeft size={10} /></Kbd> {selectedItem.altHint ?? 'Alternativa'}</span>
+          )}
           <span className="flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> Moverse</span>
           <span className="flex items-center gap-1.5"><Kbd>Tab</Kbd> Siguiente grupo</span>
           <span className="flex items-center gap-1.5"><Kbd>Esc</Kbd> Cerrar</span>
@@ -275,7 +289,7 @@ export function CommandPalette(): JSX.Element | null {
 
 function Kbd({ children }: { children: React.ReactNode }): JSX.Element {
   return (
-    <kbd className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-[6px] bg-surface hairline shadow-sm text-[11px] font-medium font-sans text-on-surface-variant shrink-0">
+    <kbd className="kbd-chip inline-flex! items-center gap-0.5 shrink-0">
       {children}
     </kbd>
   )
@@ -285,7 +299,7 @@ function PaletteRow({ item, selected, onHover, onRun }: {
   item: SearchItem
   selected: boolean
   onHover: () => void
-  onRun: () => void
+  onRun: (alt: boolean) => void
 }): JSX.Element {
   const Icon = item.icon
   return (
@@ -295,20 +309,18 @@ function PaletteRow({ item, selected, onHover, onRun }: {
       aria-selected={selected}
       data-selected={selected}
       onMouseMove={onHover}
-      onClick={onRun}
-      className={`w-full flex items-center gap-3 px-2.5 h-10 rounded-lg text-left text-on-surface transition-colors duration-75 ${
-        selected ? 'bg-selected' : ''
+      onClick={(e) => onRun(e.shiftKey)}
+      className={`w-full flex items-center gap-3 px-2.5 h-10 rounded-[9px] border text-left text-on-surface transition-colors duration-75 ${
+        selected ? 'bg-on-surface/[0.045] dark:bg-white/[0.06] border-hairline' : 'border-transparent'
       }`}
     >
       <span
-        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-          selected ? 'bg-surface dark:bg-white/8 text-primary shadow-sm' : 'bg-on-surface/5 text-on-surface-variant'
-        }`}
+        className={`icon-tile w-7 h-7 transition-colors ${selected ? 'text-on-surface!' : ''}`}
       >
         {Icon ? <Icon size={15} /> : <Search size={14} />}
       </span>
       <span className="flex-1 min-w-0 flex items-baseline gap-2">
-        <span className={`t-body truncate ${selected ? 'font-semibold' : 'font-medium'}`}>{item.title}</span>
+        <span className="t-body truncate font-medium">{item.title}</span>
         {item.subtitle && (
           <span className="t-footnote truncate text-on-surface-variant">
             {item.subtitle}
@@ -316,10 +328,15 @@ function PaletteRow({ item, selected, onHover, onRun }: {
         )}
       </span>
       {(item.hint || selected) && (
-        <kbd className={`shrink-0 inline-flex items-center gap-1 h-[20px] px-1.5 rounded-[6px] text-[11px] font-medium font-sans ${
-          selected ? 'bg-surface dark:bg-white/8 hairline text-on-surface-variant' : 'bg-on-surface/5 text-on-surface-variant/80'
-        }`}>
-          {item.hint ?? <><CornerDownLeft size={10} /> Abrir</>}
+        <kbd className={`kbd-chip inline-flex! items-center shrink-0 gap-1 px-1.5! ${selected ? '' : 'border-transparent! bg-transparent! text-on-surface-variant/80'}`}>
+          {selected && <CornerDownLeft size={10} />}
+          {item.hint ?? 'Abrir'}
+        </kbd>
+      )}
+      {selected && item.altRun && (
+        <kbd className="kbd-chip inline-flex! items-center shrink-0 gap-1 px-1.5!">
+          ⇧<CornerDownLeft size={10} />
+          {item.altHint ?? 'Alternativa'}
         </kbd>
       )}
     </button>

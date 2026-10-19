@@ -1,9 +1,11 @@
-import { app, BrowserWindow, clipboard, globalShortcut, screen } from 'electron'
+import { app, BrowserWindow, clipboard, globalShortcut, Notification, screen } from 'electron'
 import type { IpcMain, NativeImage } from 'electron'
 import { execFile } from 'child_process'
 import { writeFileSync, existsSync } from 'fs'
 import path from 'path'
 import { logger } from './logger'
+import { isPrivateClipboard, writeClipboardSilently } from './clipboard-history'
+import { RESTORE_DELAY_MS, restorableText, shouldRestore } from './paste-restore'
 
 /**
  * Snippets desde cualquier app: un atajo global abre una ventanita flotante con
@@ -47,6 +49,7 @@ function createPicker(icon: NativeImage | string): BrowserWindow {
     icon,
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
+      additionalArguments: ['--setto-role=picker'],   // canales del selector (electron/preload.ts)
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
@@ -106,17 +109,80 @@ function windowsPasteScript(): string {
   return winScript
 }
 
-/** Simula Ctrl+V (Cmd+V) en la app que tiene el foco. */
-export function simulatePaste(): void {
-  const done = (err: Error | null): void => { if (err) logger.warn('snippet-picker', 'auto-paste failed', err.message) }
+function run(cmd: string, args: string[]): Promise<boolean> {
+  return new Promise((resolve) => {
+    execFile(cmd, args, { windowsHide: true, timeout: 5000 }, (err) => {
+      if (err) logger.warn('snippet-picker', `auto-paste (${path.basename(cmd)}) failed`, err.message)
+      resolve(!err)
+    })
+  })
+}
+
+const PASTE_KEYS = process.platform === 'darwin' ? 'Cmd+V' : 'Ctrl+V'
+const live = new Set<Notification>()
+
+/** No se pudo simular la tecla: el texto ya está en el portapapeles, avisar para pegarlo a mano. */
+function notifyManualPaste(): void {
+  try {
+    if (!Notification.isSupported()) return
+    const n = new Notification({ title: `Copiado — pegalo con ${PASTE_KEYS}`, body: 'No se pudo pegar automáticamente en la app de adelante.', silent: true })
+    live.add(n)
+    n.on('close', () => live.delete(n))
+    n.on('click', () => live.delete(n))
+    n.show()
+  } catch { /* sin notificaciones */ }
+}
+
+/**
+ * Simula Ctrl+V (Cmd+V) en la app que tiene el foco. En Windows prueba wscript
+ * (rápido) y, si falla (WSH deshabilitado por política), PowerShell SendKeys.
+ * Si nada funciona avisa con una notificación. Devuelve si se pudo.
+ */
+export async function simulatePaste(): Promise<boolean> {
+  let ok: boolean
   if (process.platform === 'win32') {
-    execFile('wscript.exe', ['//E:JScript', '//B', '//Nologo', windowsPasteScript()], { windowsHide: true }, done)
+    ok = await run('wscript.exe', ['//E:JScript', '//B', '//Nologo', windowsPasteScript()])
+    if (!ok) {
+      ok = await run('powershell.exe', [
+        '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command',
+        "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')",
+      ])
+    }
   } else if (process.platform === 'darwin') {
     // Requiere permiso de Accesibilidad para Setto (Ajustes del sistema → Privacidad).
-    execFile('osascript', ['-e', 'tell application "System Events" to keystroke "v" using command down'], done)
+    ok = await run('osascript', ['-e', 'tell application "System Events" to keystroke "v" using command down'])
   } else {
-    execFile('xdotool', ['key', '--clearmodifiers', 'ctrl+v'], done)
+    ok = await run('xdotool', ['key', '--clearmodifiers', 'ctrl+v'])
   }
+  if (!ok) notifyManualPaste()
+  return ok
+}
+
+/** Texto que había en el portapapeles antes de pegar (null = no restaurar: imagen, privado, vacío). */
+export function snapshotClipboardText(): string | null {
+  try {
+    return restorableText(clipboard.availableFormats(), clipboard.readText(), isPrivateClipboard())
+  } catch {
+    return null
+  }
+}
+
+/** Después de pegar `pasted`, devolver el texto previo (si el portapapeles no cambió entretanto). */
+export function restoreClipboardLater(prev: string | null, pasted: string): void {
+  if (prev === null || prev === pasted) return
+  setTimeout(() => {
+    try { if (shouldRestore(prev, pasted, clipboard.readText())) writeClipboardSilently(prev) } catch { /* nada */ }
+  }, RESTORE_DELAY_MS)
+}
+
+/** Copiar `text`, simular el pegado y restaurar lo que había. Si no se pudo pegar, el texto queda copiado. */
+export async function pasteKeepingClipboard(text: string, delayMs: number): Promise<boolean> {
+  const prev = snapshotClipboardText()
+  clipboard.writeText(text)
+  await new Promise((r) => setTimeout(r, delayMs))
+  const ok = await simulatePaste()
+  if (ok) restoreClipboardLater(prev, text)
+  return ok
 }
 
 export function registerSnippetPicker(ipcMain: IpcMain, icon: NativeImage | string): void {
@@ -137,14 +203,14 @@ export function registerSnippetPicker(ipcMain: IpcMain, icon: NativeImage | stri
 
   ipcMain.handle('snippet-picker:paste', async (_e, text: unknown, autoPaste: unknown) => {
     if (typeof text !== 'string') throw new Error('Texto inválido')
-    clipboard.writeText(text)
     if (picker && !picker.isDestroyed()) picker.hide()
-    if (autoPaste === true) {
-      // Esperar a que el SO devuelva el foco a la app anterior.
-      await new Promise((r) => setTimeout(r, 140))
-      simulatePaste()
+    if (autoPaste !== true) {
+      clipboard.writeText(text)
+      return { ok: true, pasted: false }
     }
-    return { ok: true }
+    // Esperar a que el SO devuelva el foco a la app anterior; después se restaura lo que había copiado.
+    const pasted = await pasteKeepingClipboard(text, 140)
+    return { ok: true, pasted }
   })
 
   /** El renderer ya dejó algo en el portapapeles (imagen, texto sensible): ocultar y pegar. */
@@ -152,9 +218,9 @@ export function registerSnippetPicker(ipcMain: IpcMain, icon: NativeImage | stri
     if (picker && !picker.isDestroyed()) picker.hide()
     if (autoPaste === true) {
       await new Promise((r) => setTimeout(r, 140))
-      simulatePaste()
+      return { ok: true, pasted: await simulatePaste() }
     }
-    return { ok: true }
+    return { ok: true, pasted: false }
   })
 
   ipcMain.on('snippet-picker:close', () => { if (picker && !picker.isDestroyed()) picker.hide() })

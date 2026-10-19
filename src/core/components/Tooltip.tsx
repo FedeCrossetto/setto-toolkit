@@ -58,7 +58,7 @@ export function Tooltip({ label, shortcut, side = 'bottom', children }: TooltipP
       {pos && label && createPortal(
         <div
           role="tooltip"
-          className="pointer-events-none fixed z-700 flex items-center gap-1.5 px-2 py-[5px] rounded-md bg-[rgb(var(--c-topbar))] text-white text-[12px] font-medium leading-none whitespace-nowrap shadow-md"
+          className="pointer-events-none fixed z-700 flex items-center gap-1.5 px-2 py-[5px] rounded-[7px] bg-[rgb(var(--c-topbar))] text-white text-[12px] font-medium leading-none whitespace-nowrap shadow-[0_4px_12px_-2px_rgb(0_0_0/0.18)] border border-white/8"
           style={{
             left: pos.x,
             top: pos.y,
@@ -68,7 +68,7 @@ export function Tooltip({ label, shortcut, side = 'bottom', children }: TooltipP
         >
           {label}
           {shortcut && (
-            <span className="px-1 py-[2px] rounded-[4px] bg-white/12 text-white/70 text-[11px] font-medium">{shortcut}</span>
+            <span className="px-1 py-[2px] rounded-[4px] border border-white/15 text-white/70 text-[11px] font-medium">{shortcut}</span>
           )}
         </div>,
         document.body

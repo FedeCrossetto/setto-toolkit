@@ -115,7 +115,7 @@ export function LogToolbar({
   const cleared = view.fromLine > 1
 
   return (
-    <div ref={rootRef} className="flex items-center gap-2 px-2 h-8 hairline-b bg-surface shrink-0 t-footnote whitespace-nowrap overflow-hidden">
+    <div ref={rootRef} className="flex items-center gap-2 px-3 h-9 hairline-b bg-surface shrink-0 t-footnote whitespace-nowrap overflow-hidden">
       <button onClick={onToggleWatch} title={tab.watchActive ? 'Dejar de monitorear' : 'Monitorear cambios del archivo'} aria-pressed={tab.watchActive}
         className={`ui-btn ui-btn-ghost ui-btn-sm gap-1.5 shrink-0 ${tab.watchActive ? ACTIVE : ''}`}>
         {tab.watchActive ? <Eye size={13} /> : <EyeOff size={13} />}

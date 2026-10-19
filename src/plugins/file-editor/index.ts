@@ -9,6 +9,7 @@ export const fileEditorPlugin: PluginManifest = {
   description: 'Abrí, editá y monitoreá archivos',
   icon: 'editor',
   section: 'dev',
+  keepAlive: true,   // no se desmonta: perdería el estado de los archivos y watchers
   component: FileEditor,
   keywords: ['editor', 'file', 'log', 'viewer', 'tail', 'text', 'read', 'open'],
 }

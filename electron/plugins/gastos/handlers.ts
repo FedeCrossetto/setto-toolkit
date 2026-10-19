@@ -34,7 +34,11 @@ export const handlers: PluginHandlers = {
 
   register(ipcMain: IpcMain, { gastosStorage }: CoreServices): void {
 
-    registerHandler(ipcMain, 'gastos:load', async () => gastosStorage.load())
+    // Las credenciales no viajan con la carga de Gastos: Claves usa sus propios canales.
+    registerHandler(ipcMain, 'gastos:load', async () => ({ ...(await gastosStorage.load()), credenciales: [] }))
+
+    /** Totales del mes (Inicio, dock): consulta liviana + caché local; no lanza por problemas de red. */
+    registerHandler(ipcMain, 'gastos:summary', async (_e, mes: string) => gastosStorage.getMonthSummary(mes))
 
     registerHandler(ipcMain, 'gastos:save-servicio', async (_e, servicio: Servicio) => {
       await gastosStorage.saveServicio(servicio)

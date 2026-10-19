@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { IconComponent } from '../types'
 
-/** Estado vacío tranquilo: ícono en tile lila, título, descripción y acción opcional. */
+/** Estado vacío tranquilo: ícono gris en tile con borde fino, título, descripción y acción opcional. */
 export function EmptyState({
   icon: Icon,
   title,
@@ -24,13 +24,11 @@ export function EmptyState({
       style={{ animation: 'fadeIn 0.2s ease both' }}
     >
       <div
-        className={`rounded-xl flex items-center justify-center bg-selected text-primary ${
-          compact ? 'w-9 h-9 mb-2.5' : 'w-11 h-11 mb-3.5'
-        }`}
+        className={`icon-tile ${compact ? 'w-8 h-8 mb-2.5' : 'w-10 h-10 mb-3.5'}`}
       >
-        <Icon size={compact ? 18 : 21} aria-hidden />
+        <Icon size={compact ? 16 : 19} aria-hidden />
       </div>
-      <p className="t-headline text-on-surface">{title}</p>
+      <p className="t-callout font-semibold text-on-surface">{title}</p>
       {description && (
         <p className="t-body text-on-surface-variant whitespace-pre-line mt-1 max-w-[300px]">{description}</p>
       )}
