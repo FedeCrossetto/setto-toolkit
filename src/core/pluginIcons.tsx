@@ -17,6 +17,8 @@ import {
   Ticket,
   Toolbox,
   Wallet,
+  FilePen,
+  Server,
 } from 'lucide-react'
 
 /** Maps each plugin manifest icon string to its Lucide component. */
@@ -26,7 +28,7 @@ const PLUGIN_ICON_MAP: Record<string, IconComponent> = {
   snippets:      Code2,
   wallet:        Wallet,
   key:           KeyRound,
-  editor:        FileCode2,
+  editor:        FilePen,   // hoja con lápiz: no se confunde con Snippets (</>)
   terminal:      SquareTerminal,
   api:           Send,
   'repo-search': FolderSearch,
@@ -37,6 +39,7 @@ const PLUGIN_ICON_MAP: Record<string, IconComponent> = {
   info:          Info,
   extension:     Puzzle,
   utilities:     Toolbox,
+  database:      Server,
   captures:      ClipboardText,
   // Legacy keys (manifests antiguos)
   space_dashboard:          House,

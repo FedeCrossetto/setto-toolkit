@@ -17,6 +17,7 @@ import { connectionsPlugin } from '../plugins/connections'
 import { notesPlugin } from '../plugins/notes'
 import { credentialsPlugin } from '../plugins/credentials'
 import { utilitiesPlugin } from '../plugins/utilities'
+import { sqlRunnerPlugin } from '../plugins/sql-runner'
 import { capturesPlugin } from '../plugins/captures'
 import { ticketsPlugin } from '../plugins/tickets'
 
@@ -33,6 +34,7 @@ export const allPlugins: PluginManifest[] = [
   terminalPlugin,
   apiLabPlugin,
   utilitiesPlugin,
+  sqlRunnerPlugin,
   capturesPlugin,
   repoSearchPlugin,
   smartDiffPlugin,

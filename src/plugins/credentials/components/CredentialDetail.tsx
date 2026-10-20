@@ -131,7 +131,7 @@ export function CredentialView({
               <button
                 type="button"
                 onClick={onOpenSync}
-                className={`inline-flex items-center gap-1 t-caption rounded-full hairline px-2 py-0.5 hover:bg-on-surface/4 transition-colors ${
+                className={`inline-flex items-center gap-1 t-caption rounded-[6px] hairline px-2 py-0.5 hover:bg-on-surface/4 transition-colors ${
                   c.e2e === 'synced' ? 'text-success' : c.e2e === 'remote' ? 'text-primary' : c.e2e === 'conflict' ? 'text-warning' : 'text-on-surface-variant'
                 }`}
                 title={E2E_ITEM_LABEL[c.e2e].hint}

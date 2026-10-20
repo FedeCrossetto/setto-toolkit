@@ -16,6 +16,7 @@ import {
   exportMarkdown, filterSummaries, jiraUrl, normalizeKey, noteIdFor, noteTemplate, SOURCE_LABEL,
   type TicketDetail, type TicketRef, type TicketSource, type TicketSummary,
 } from './logic'
+import { DetailSkeleton } from '../../core/components/Skeleton'
 
 const invoke = window.api.invoke
 const errMsg = (e: unknown): string =>
@@ -177,7 +178,7 @@ function TicketPage({ ticketKey, rev, onChanged, onForget }: { ticketKey: string
     return () => { alive = false }
   }, [ticketKey, rev, toast])
 
-  if (!d) return <div className="p-6 t-footnote text-on-surface-variant">Cargando…</div>
+  if (!d) return <DetailSkeleton />
 
   const open = (pluginId: string, action: string, payload: unknown): void => dispatch({ type: 'OPEN_WITH_INTENT', pluginId, action, payload })
   const url = jiraUrl(d.jiraBase, d.key)

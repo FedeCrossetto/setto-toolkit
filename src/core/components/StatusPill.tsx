@@ -31,7 +31,7 @@ export function StatusPill({
 }): JSX.Element {
   const t = TONES[tone]
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full t-caption font-medium ${t.bg} ${t.text} ${className}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[6px] t-caption font-medium ${t.bg} ${t.text} ${className}`}>
       {Icon
         ? <Icon size={11} className="shrink-0" />
         : <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${t.dot} ${pulse ? 'animate-pulse' : ''}`} />}

@@ -1,6 +1,6 @@
 import { createElement } from 'react'
 import {
-  CalendarDays, Code2, Keyboard, Moon, NotebookPen, Settings, Sun, Wallet, Zap,
+  CalendarDays, Code2, Keyboard, Minimize2, Moon, NotebookPen, Settings, Sun, Wallet, Zap,
 } from 'lucide-react'
 import { allPlugins } from './plugin-registry'
 import { PluginIcon } from './pluginIcons'
@@ -82,6 +82,10 @@ export function actionsProvider(disabled: string[], theme: Theme): SearchProvide
           id: 'theme-dark', title: 'Cambiar a tema oscuro', keywords: 'tema apariencia oscuro dark modo', icon: Moon,
           run: (ctx) => setExplicitTheme('dark', ctx.dispatch),
         },
+    {
+      id: 'focus-mode', title: 'Modo foco', keywords: 'foco zen concentrar pantalla completa ocultar barras', icon: Minimize2, hint: 'F11',
+      run: () => { window.dispatchEvent(new CustomEvent('setto:toggle-focus')) },
+    },
     {
       id: 'shortcuts', title: 'Atajos de teclado', keywords: 'ayuda teclas shortcuts', icon: Keyboard, hint: 'F1',
       run: (ctx) => ctx.dispatch({ type: 'OPEN_KEYBOARD_SHORTCUTS' }),

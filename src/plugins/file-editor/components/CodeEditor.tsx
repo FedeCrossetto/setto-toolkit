@@ -378,7 +378,26 @@ export function CodeEditor({
   }, [])
 
   useEffect(() => {
-    if (editorRef) editorRef.current = { scrollToBottom, scrollToLine, setFilter, openGotoLine, getScrollDOM, gotoLogError }
+    const getSelection = (): { text: string; fromLine: number } => {
+      const v = viewRef.current
+      if (!v) return { text: '', fromLine: 1 }
+      const { from, to } = v.state.selection.main
+      return { text: v.state.sliceDoc(from, to), fromLine: v.state.doc.lineAt(from).number }
+    }
+    const focusLine = (line: number): void => {
+      const v = viewRef.current
+      if (!v) return
+      const l = v.state.doc.line(Math.min(Math.max(line, 1), v.state.doc.lines))
+      v.dispatch({ selection: { anchor: l.from, head: l.to }, effects: EditorView.scrollIntoView(l.from, { y: 'center' }) })
+      v.focus()
+    }
+    const insertText = (text: string): void => {
+      const v = viewRef.current
+      if (!v) return
+      v.dispatch(v.state.replaceSelection(text))
+      v.focus()
+    }
+    if (editorRef) editorRef.current = { scrollToBottom, scrollToLine, setFilter, openGotoLine, getScrollDOM, gotoLogError, getSelection, focusLine, insertText }
   }, [editorRef, scrollToBottom, scrollToLine, setFilter, openGotoLine, getScrollDOM, gotoLogError])
 
   // Build and mount editor

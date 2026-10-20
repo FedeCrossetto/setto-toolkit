@@ -97,7 +97,7 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
       onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); handleDismiss() } }}
-      className="fl-dialog rounded-full! flex items-center gap-2.5 pl-2.5 pr-1.5 py-1.5 t-body text-on-surface"
+      className="fl-dialog rounded-[12px]! flex items-center gap-2.5 pl-2.5 pr-1.5 py-1.5 t-body text-on-surface"
       style={{ minWidth: 220, maxWidth: 440 }}
     >
       <span aria-hidden className="shrink-0 w-5 h-5 flex items-center justify-center">
@@ -108,7 +108,7 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
         <button
           type="button"
           onClick={handleAction}
-          className="shrink-0 h-6 px-2.5 rounded-full border border-hairline-strong t-footnote font-medium text-on-surface hover:bg-on-surface/5 focus-visible:outline-2 focus-visible:outline-primary transition-colors"
+          className="shrink-0 h-6 px-2.5 rounded-[7px] border border-hairline-strong t-footnote font-medium text-on-surface hover:bg-on-surface/5 focus-visible:outline-2 focus-visible:outline-primary transition-colors"
         >
           {toast.action.label}
         </button>
@@ -117,7 +117,7 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
         type="button"
         onClick={handleDismiss}
         aria-label="Cerrar aviso"
-        className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-on-surface-variant/60 hover:text-on-surface hover:bg-on-surface/6 transition-colors"
+        className="shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-on-surface-variant/60 hover:text-on-surface hover:bg-on-surface/6 transition-colors"
       >
         <X size={13} />
       </button>

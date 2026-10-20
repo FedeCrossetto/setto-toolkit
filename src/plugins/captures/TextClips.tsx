@@ -152,7 +152,7 @@ export function TextClips({ header }: { header: React.ReactNode }): JSX.Element 
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative w-72 max-w-full">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/70 pointer-events-none" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar en lo copiado" className="ui-input w-full h-8 pl-8 rounded-full" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar en lo copiado" className="ui-input w-full h-8 pl-8" />
             </div>
             {([{ id: 'all', label: 'Todo' }, ...CLIP_CATEGORIES, { id: 'pinned', label: 'Fijados' }] as { id: Filter; label: string }[]).map((c) => (
               <button key={c.id} type="button" aria-pressed={filter === c.id} onClick={() => setFilter(c.id)}

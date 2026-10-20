@@ -6,7 +6,7 @@ import {
   Pencil, Pin, Plus, Search, SquareTerminal, Trash2, Upload, X,
 } from 'lucide-react'
 import type { Snippet, SnippetCollection, SnippetLanguage, SnippetsMeta } from './types'
-import { useApp, usePluginIntent } from '../../core/AppContext'
+import { useApp, useModuleSubtitle, usePluginIntent } from '../../core/AppContext'
 import { useToast } from '../../core/components/Toast'
 import { useUndo } from '../../core/hooks/useUndo'
 import { useSoftDelete } from '../../core/soft-delete'
@@ -18,6 +18,7 @@ import { hasVariables, stripDataUrls } from './template'
 import { CodeViewer, MixedContentViewer, hasImages } from './SnippetViewer'
 import { SnippetEditor, collapseImages, emptyForm, expandImages, type SnippetFormState } from './SnippetEditor'
 import { VariablesModal, type VariablesMode } from './VariablesModal'
+import { useModulePrimaryAction } from '../../core/module-actions'
 
 type SmartFilter = 'all' | 'pinned' | 'recent' | 'popular'
 type Source = { kind: 'smart'; id: SmartFilter } | { kind: 'collection'; id: string }
@@ -443,6 +444,11 @@ export function SnippetManager(): JSX.Element {
   const isSmart = (id: SmartFilter): boolean => source.kind === 'smart' && source.id === id
 
   // ── Render ────────────────────────────────────────────────────────────────
+
+  // Barra superior: "Nuevo snippet" y cuántos hay.
+  useModulePrimaryAction('snippets', { label: 'Nuevo snippet', title: 'Nuevo snippet (Ctrl+N)' }, () => startNew())
+  useModuleSubtitle('snippets', snippets.length ? `${snippets.length} snippet${snippets.length === 1 ? '' : 's'}` : null)
+
   return (
     <div ref={rootRef} className="flex h-full overflow-hidden bg-background">
       {/* ── Sidebar ─────────────────────────────────────────────────────── */}
@@ -574,7 +580,7 @@ export function SnippetManager(): JSX.Element {
               )}
             </div>
           </div>
-          <button onClick={() => startNew()} className="ui-btn ui-btn-outline ui-btn-icon rounded-full w-8 h-8 justify-center" title="Nuevo snippet (Ctrl+N)" aria-label="Nuevo snippet">
+          <button onClick={() => startNew()} className="ui-btn ui-btn-outline ui-btn-icon w-8 h-8 justify-center" title="Nuevo snippet (Ctrl+N)" aria-label="Nuevo snippet">
             <Plus size={15} />
           </button>
         </div>

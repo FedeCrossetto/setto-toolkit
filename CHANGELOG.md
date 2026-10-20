@@ -2,6 +2,24 @@
 
 Novedades de Setto por versión. Lo lee Ajustes → Acerca de → "Ver novedades".
 
+## 2.15.0 (sin publicar)
+
+### Consultas (nuevo)
+- Nuevo módulo Consultas: SQL contra las conexiones de Conexiones → Bases de datos, con pestañas que se guardan solas (cerrar una no la borra: Ctrl+Shift+T la reabre), historial de todo lo ejecutado, F5 / Ctrl+Enter (sólo lo seleccionado si hay selección), varios resultados y mensajes PRINT, "Ir a la línea" del error y modo lectura por defecto (todo corre en una transacción que se deshace).
+- Comparar: la misma consulta en dos conexiones y sólo lo distinto (viene lista para los General Params).
+- Si la conexión falla (contraseña vencida, IP o instancia que cambió) se abre un aviso para poner el dato nuevo: se prueba, se guarda en la conexión y la consulta se reintenta sola.
+- Explorador de objetos: tablas (con filas), vistas, procedimientos, funciones, disparadores y sinónimos de la base; columnas y parámetros; doble clic trae 100 filas o abre la definición; clic derecho para Modificar (ALTER), script CREATE, plantilla EXEC y copiar o insertar el nombre.
+- Selectores de conexión y de base propios (con búsqueda), ícono de SQL Server, color por ambiente sólo para lo que no es Prod (QA ámbar, LPS celeste, Dev verde), barra de estado al pie y botón Ejecutar verde.
+
+### Gastos
+- Panorama del mes con mini barras y anillos con brillo (este mes, variables, pendientes y presupuesto); gráfico del año con degradé, el mes elegido encendido y la curva del año anterior suavizada.
+
+### Diseño
+- Botones, chips, controles segmentados, buscadores y avisos rectangulares con esquinas redondeadas (sin forma de píldora).
+- El encabezado se integra a la barra lateral; modo foco (F11); menús contextuales con atajos; esqueletos de carga; scrollbars finas.
+- Claves agrupadas de la A a la Z con índice de letras; íconos de archivos del Editor que siguen al tema; widget flotante renovado con apertura suave.
+- Estilo oscuro Negro con fondo negro puro.
+
 ## 2.14.0 (sin publicar)
 
 ### Gastos

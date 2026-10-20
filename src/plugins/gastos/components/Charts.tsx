@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { fmtCompact, fmtMoney, mesShort } from '../format'
 import type { CategorySlice } from '../analytics'
 
@@ -45,6 +45,7 @@ export function YearChart({ months, fijos, variables, previous, selectedMes, onS
   prevLabel: string
 }): JSX.Element {
   const [hover, setHover] = useState<number | null>(null)
+  const gid = useId().replace(/:/g, '')
   const W = 720, H = 200, top = 8
   const totals = months.map((_, i) => fijos[i]! + variables[i]!)
   const max = niceMax(Math.max(...totals, ...previous, 1))
@@ -52,7 +53,15 @@ export function YearChart({ months, fijos, variables, previous, selectedMes, onS
   const barW = Math.min(22, slot * 0.4)
   const y = (v: number): number => top + (H - top) * (1 - v / max)
   const hasPrev = previous.some((v) => v > 0)
-  const prevPath = previous.map((v, i) => `${i === 0 ? 'M' : 'L'} ${slot * (i + 0.5)} ${y(v)}`).join(' ')
+  // Curva suave (Catmull-Rom → Bézier) para el año anterior.
+  const pts = previous.map((v, i) => [slot * (i + 0.5), y(v)] as const)
+  const prevPath = pts.map((p, i) => {
+    if (i === 0) return `M ${p[0]} ${p[1]}`
+    const p0 = pts[i - 2] ?? pts[i - 1]!, p1 = pts[i - 1]!, p3 = pts[i + 1] ?? p
+    const c1 = [p1[0] + (p[0] - p0[0]) / 6, p1[1] + (p[1] - p0[1]) / 6]
+    const c2 = [p[0] - (p3[0] - p1[0]) / 6, p[1] - (p3[1] - p1[1]) / 6]
+    return `C ${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${p[0]} ${p[1]}`
+  }).join(' ')
   const active = hover ?? months.indexOf(selectedMes)
 
   return (
@@ -69,6 +78,17 @@ export function YearChart({ months, fijos, variables, previous, selectedMes, onS
         </div>
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-y-0 left-10 right-0 h-full" style={{ width: 'calc(100% - 2.5rem)' }}
           role="img" aria-label="Gastos por mes">
+          <defs>
+            <linearGradient id={`yf-${gid}`} x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stopColor="rgb(var(--c-primary))" stopOpacity="1" />
+              <stop offset="1" stopColor="rgb(var(--c-primary))" stopOpacity="0.45" />
+            </linearGradient>
+            <linearGradient id={`yv-${gid}`} x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stopColor="rgb(var(--c-chart-2))" stopOpacity="0.9" />
+              <stop offset="1" stopColor="rgb(var(--c-chart-2))" stopOpacity="0.4" />
+            </linearGradient>
+            <filter id={`yg-${gid}`} x="-100%" y="-30%" width="300%" height="160%"><feGaussianBlur stdDeviation="7" /></filter>
+          </defs>
           {[0, 0.5, 1].map((t) => (
             <line key={t} x1={0} x2={W} y1={y(max * t)} y2={y(max * t)} stroke={C.grid} vectorEffect="non-scaling-stroke" />
           ))}
@@ -76,17 +96,19 @@ export function YearChart({ months, fijos, variables, previous, selectedMes, onS
           {months.map((m, i) => {
             const x = slot * (i + 0.5) - barW / 2
             const f = fijos[i]!, v = variables[i]!
+            const on = i === active
             return (
-              <g key={m}>
-                {f > 0 && <rect x={x} y={y(f)} width={barW} height={H - y(f)} fill={C.fijos} rx={2} />}
-                {v > 0 && <rect x={x} y={y(f + v)} width={barW} height={y(f) - y(f + v)} fill={C.variables} rx={2} />}
+              <g key={m} opacity={active >= 0 && !on ? 0.7 : 1}>
+                {on && f + v > 0 && <rect x={x} y={y(f + v)} width={barW} height={H - y(f + v)} fill="rgb(var(--c-primary))" opacity={0.55} filter={`url(#yg-${gid})`} />}
+                {f > 0 && <rect x={x} y={y(f)} width={barW} height={H - y(f)} fill={`url(#yf-${gid})`} rx={3} />}
+                {v > 0 && <rect x={x} y={y(f + v)} width={barW} height={y(f) - y(f + v)} fill={`url(#yv-${gid})`} rx={3} />}
                 <rect x={slot * i} y={0} width={slot} height={H} fill="transparent" style={{ cursor: 'pointer' }}
                   onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onClick={() => onSelectMes(m)} />
               </g>
             )
           })}
           {hasPrev && (
-            <path d={prevPath} fill="none" stroke={C.prev} strokeWidth={1} strokeDasharray="4 4"
+            <path d={prevPath} fill="none" stroke={C.prev} strokeWidth={1.25} strokeDasharray="4 4"
               vectorEffect="non-scaling-stroke" pointerEvents="none" />
           )}
         </svg>
@@ -135,7 +157,7 @@ export function Donut({ slices, total }: { slices: CategorySlice[]; total: numbe
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-4">
       <div className="relative shrink-0" style={{ width: 132, height: 132 }}>
-        <svg viewBox="0 0 132 132" width={132} height={132} role="img" aria-label="Gastos por categoría">
+        <svg viewBox="0 0 132 132" width={132} height={132} role="img" aria-label="Gastos por categoría" className="overflow-visible" style={{ filter: 'drop-shadow(0 0 10px rgb(var(--c-primary) / 0.25))' }}>
           <circle cx={66} cy={66} r={R} fill="none" stroke="rgb(var(--c-on-surface) / 0.05)" strokeWidth={SW} />
           {total > 0 && data.map((d, i) => {
             const len = (d.value / total) * CIRC
@@ -157,7 +179,7 @@ export function Donut({ slices, total }: { slices: CategorySlice[]; total: numbe
       </div>
       <ul className="flex-1 min-w-[150px] flex flex-col gap-1.5">
         {data.map((d, i) => (
-          <li key={d.key} className="flex items-center gap-2 t-footnote" onMouseEnter={() => setHover(d.key)} onMouseLeave={() => setHover(null)}>
+          <li key={d.key} className={`flex items-center gap-2 t-footnote px-2 py-1 -mx-2 rounded-[7px] transition-colors ${hover === d.key ? 'bg-on-surface/5' : ''}`} onMouseEnter={() => setHover(d.key)} onMouseLeave={() => setHover(null)}>
             <span className="w-2 h-2 rounded-full shrink-0" style={{ background: CATEGORY_COLORS[d.key === '__rest' ? 6 : i] }} />
             <span className="flex-1 truncate text-on-surface">{d.label}</span>
             <span className="tabular-nums text-on-surface-variant">{total > 0 ? Math.round((d.value / total) * 100) : 0}%</span>

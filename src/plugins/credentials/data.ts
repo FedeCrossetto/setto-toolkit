@@ -124,9 +124,9 @@ export interface CredentialGroup<T = Credential> { key: string; items: T[] }
 const NO_CATEGORY = 'Sin categoría'
 
 /** Group by category when at least one has it; otherwise alphabetically (A–Z, "#" for the rest). */
-export function groupCredentials<T extends Searchable>(items: T[]): CredentialGroup<T>[] {
+export function groupCredentials<T extends Searchable>(items: T[], by: 'auto' | 'letter' = 'auto'): CredentialGroup<T>[] {
   const byName = (a: T, b: T): number => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
-  const useCategory = items.some((c) => c.categoria?.trim())
+  const useCategory = by === 'auto' && items.some((c) => c.categoria?.trim())
   const keyOf = (c: T): string => {
     if (useCategory) return c.categoria?.trim() || NO_CATEGORY
     const first = normalize(c.nombre.trim().charAt(0)).toUpperCase()

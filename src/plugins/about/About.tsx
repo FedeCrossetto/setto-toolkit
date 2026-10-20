@@ -28,7 +28,7 @@ export function About(): JSX.Element {
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
         />
         <h1 className="t-title2 text-on-surface mt-5">Setto Toolkit</h1>
-        <span className="mt-2 inline-flex items-center gap-1.5 rounded-full hairline px-2.5 py-[3px] t-caption font-medium text-on-surface-variant tabular-nums">
+        <span className="mt-2 inline-flex items-center gap-1.5 rounded-[7px] hairline px-2.5 py-[3px] t-caption font-medium text-on-surface-variant tabular-nums">
           <span className="w-1.5 h-1.5 rounded-full bg-on-surface-variant/50" aria-hidden />
           Versión {version}
         </span>

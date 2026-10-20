@@ -512,7 +512,7 @@ export function NotesPlugin(): JSX.Element {
                     type="button"
                     aria-pressed={on}
                     onClick={() => setTagFilter(on ? null : t)}
-                    className={`inline-flex items-center gap-1 h-[22px] px-2 rounded-full text-[11px] font-medium transition-colors ${
+                    className={`inline-flex items-center gap-1 h-[22px] px-2 rounded-[6px] text-[11px] font-medium transition-colors ${
                       on ? 'bg-primary text-on-primary' : 'bg-on-surface/6 text-on-surface-variant hover:bg-on-surface/10 hover:text-on-surface'
                     }`}
                   >
@@ -591,7 +591,7 @@ export function NotesPlugin(): JSX.Element {
           <article className="flex-1 flex flex-col bg-surface hairline rounded-2xl shadow-sm">
             <header className="sticky top-0 z-10 flex items-center gap-2 pl-6 pr-3 h-12 shrink-0 hairline-b bg-surface rounded-t-2xl">
               {selected.pinned && (
-                <span className="inline-flex items-center gap-1 h-[20px] px-2 rounded-full bg-primary/10 text-primary text-[11px] font-medium shrink-0">
+                <span className="inline-flex items-center gap-1 h-[20px] px-2 rounded-[6px] bg-primary/10 text-primary text-[11px] font-medium shrink-0">
                   <Pin size={11} weight="fill" /> Fijada
                 </span>
               )}
@@ -600,7 +600,7 @@ export function NotesPlugin(): JSX.Element {
                   type="button"
                   onClick={() => setReminderFor(selected.id)}
                   title="Cambiar recordatorio"
-                  className="inline-flex items-center gap-1 h-[20px] px-2 rounded-full bg-primary/10 text-primary text-[11px] font-medium shrink-0 hover:bg-primary/16"
+                  className="inline-flex items-center gap-1 h-[20px] px-2 rounded-[6px] bg-primary/10 text-primary text-[11px] font-medium shrink-0 hover:bg-primary/16"
                 >
                   <BellRing size={11} weight="fill" /> {formatReminder(reminders.get(selected.id)!.at)}
                 </button>

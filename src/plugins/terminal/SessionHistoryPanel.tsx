@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Trash2, Terminal, RefreshCw } from 'lucide-react'
 import type { TerminalSession } from './types'
+import { ListSkeleton } from '../../core/components/Skeleton'
 
 interface Props {
   onNewSession: () => void
@@ -68,9 +69,7 @@ export function SessionHistoryPanel({ onNewSession }: Props): JSX.Element {
       {/* List */}
       <div className="flex-1 overflow-y-auto px-2 py-2">
         {loading ? (
-          <div className="flex items-center justify-center h-32 t-footnote text-on-surface-variant">
-            Cargando…
-          </div>
+          <ListSkeleton rows={4} avatar={false} className="px-0!" />
         ) : sessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 gap-2">
             <span className="icon-tile w-9 h-9 rounded-[10px]"><Terminal size={18} /></span>

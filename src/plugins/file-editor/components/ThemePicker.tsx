@@ -88,7 +88,7 @@ export function ThemeGrid({ value, editorTheme, appDark, onChange, onPreview, co
                       {def.followsApp ? f.name : def.name}
                     </span>
                     {selected && <Check size={12} className="text-on-surface shrink-0" />}
-                    <span className="px-1.5 rounded-full bg-on-surface/6 t-caption text-on-surface-variant shrink-0">
+                    <span className="px-1.5 rounded-[5px] bg-on-surface/6 t-caption text-on-surface-variant shrink-0">
                       {def.variant === 'dark' ? 'Oscuro' : 'Claro'}
                     </span>
                   </span>

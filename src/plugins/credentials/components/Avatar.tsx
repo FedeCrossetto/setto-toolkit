@@ -29,6 +29,8 @@ export function Avatar({ name, url, size = 30 }: { name: string; url?: string; s
           loading="lazy"
           referrerPolicy="no-referrer"
           onError={() => setFailed(true)}
+          // Sin logo, el servicio devuelve un globo genérico de 16 px (pedimos 64): mejor las iniciales.
+          onLoad={(e) => { if (e.currentTarget.naturalWidth > 0 && e.currentTarget.naturalWidth <= 16) setFailed(true) }}
         />
       </span>
     )

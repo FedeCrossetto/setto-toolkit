@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, MotionConfig, motion, useAnimationControls, type Variants } from 'framer-motion'
 import {
   ArrowLeftRight, ArrowUpRight, AtSign, Braces, Check, ChevronDown, ChevronUp, Clock, ClipboardText, Code2, Columns2, ExternalLink,
-  Fingerprint, FolderOpen, Grid3x3, Images, KeyRound, Link, ListOrdered, Lock, LockOpen, NotebookPen, Pin, PinOff, ScanText, Search,
+  Fingerprint, FolderOpen, Grid3x3, Images, KeyRound, Link, ListOrdered, Lock, LockOpen, NotebookPen, Pin, PinOff, Plus, ScanText, Search,
   Ticket, Toolbox, Trash2, TriangleAlert, Type, User, Wallet, Wand2, X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -62,6 +62,9 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'bloc', label: 'Bloc' },
 ]
 const TAB_KEY = 'dock:tab'
+const TAB_ICON: Record<TabId, LucideIcon> = {
+  clips: ClipboardText, caps: Images, snippets: Code2, tickets: Ticket, keys: KeyRound, bloc: NotebookPen,
+}
 
 const HOVER_OPEN_MS = 280
 const PREVIEW_HOVER_MS = 450
@@ -72,6 +75,11 @@ const SMALL_WINDOW = 120
 const TOP_CREDENTIALS = 8
 
 const POP = { type: 'spring', stiffness: 520, damping: 22 } as const
+/** Contenido del panel: entra apenas después del marco, con un fundido corto. */
+const CONTENT_IN = (delay: number) => ({
+  initial: { opacity: 0, y: 6 },
+  animate: { opacity: 1, y: 0, transition: { delay, duration: 0.3, ease: [0.22, 1, 0.36, 1] as const } },
+})
 /** Desaceleración larga y suave (tipo iOS): entra rápido y se asienta sin rebotar. */
 const EASE_OUT = [0.22, 1, 0.36, 1] as const
 const EASE_IN = [0.4, 0, 0.7, 0.2] as const
@@ -84,33 +92,36 @@ const itemVariants: Variants = {
 /** Sombras que caben en el aire transparente de la ventana (ver PAD / HANDLE en main). */
 // Estilo "líneas finas": panel blanco con un filo fino (un poco más marcado que el hairline
 // de la app para que se despegue sobre fondos blancos) y una sombra larga y suave.
-const PANEL_SURFACE = 'bg-surface border border-black/[0.11] dark:border-white/[0.09]'
+const PANEL_SURFACE = 'bg-sidebar border border-black/[0.11] dark:border-white/[0.09]'
+/** Tarjeta de contenido dentro del marco: la misma que el panel de la ventana principal. */
+const CARD_SURFACE = 'app-panel bg-background'
 const PANEL_SHADOW = 'shadow-[0_1px_2px_rgb(0_0_0/0.05),0_12px_32px_-12px_rgb(0_0_0/0.22)] dark:shadow-[0_1px_2px_rgb(0_0_0/0.4),0_12px_28px_-14px_rgb(0_0_0/0.6)]'
-const TAB_SURFACE = 'bg-surface border border-black/[0.12] dark:border-white/[0.10]'
+const TAB_SURFACE = 'bg-sidebar border border-black/[0.12] dark:border-white/[0.10]'
 const TAB_SHADOW = 'shadow-[0_1px_2px_rgb(0_0_0/0.10),0_6px_16px_-6px_rgb(0_0_0/0.32)] dark:shadow-[0_1px_2px_rgb(0_0_0/0.45),0_6px_16px_-6px_rgb(0_0_0/0.7)]'
 
 /** Ícono y color de cada tipo de copiado (colores de datos del tema: chart-N). */
+/** Tile de tipo: gris, igual para todos (el ícono distingue el tipo). */
+const KIND_TILE = 'bg-on-surface/[0.06] text-on-surface-variant'
+/** La fila elegida: su tile toma el acento de la app. */
+const ACTIVE_TILE = 'bg-primary/[0.13] text-primary'
 const KIND_STYLE: Record<ClipKind, { icon: LucideIcon; cls: string; bar: string }> = {
-  ticket: { icon: Ticket, cls: 'bg-primary/15 text-primary', bar: 'bg-primary' },
-  url: { icon: Link, cls: 'bg-chart-3/15 text-chart-3', bar: 'bg-chart-3' },
-  path: { icon: FolderOpen, cls: 'bg-chart-4/15 text-chart-4', bar: 'bg-chart-4' },
-  json: { icon: Braces, cls: 'bg-chart-6/15 text-chart-6', bar: 'bg-chart-6' },
-  jwt: { icon: KeyRound, cls: 'bg-warning/15 text-warning', bar: 'bg-warning' },
-  stacktrace: { icon: TriangleAlert, cls: 'bg-error/15 text-error', bar: 'bg-error' },
-  guid: { icon: Fingerprint, cls: 'bg-chart-7/15 text-chart-7', bar: 'bg-chart-7' },
-  timestamp: { icon: Clock, cls: 'bg-chart-7/15 text-chart-7', bar: 'bg-chart-7' },
-  sql: { icon: Grid3x3, cls: 'bg-chart-2/15 text-chart-2', bar: 'bg-chart-2' },
-  email: { icon: AtSign, cls: 'bg-chart-3/15 text-chart-3', bar: 'bg-chart-3' },
-  table: { icon: Columns2, cls: 'bg-chart-8/15 text-chart-8', bar: 'bg-chart-8' },
-  list: { icon: ListOrdered, cls: 'bg-chart-8/15 text-chart-8', bar: 'bg-chart-8' },
-  code: { icon: Code2, cls: 'bg-chart-5/15 text-chart-5', bar: 'bg-chart-5' },
-  text: { icon: Type, cls: 'bg-on-surface/[0.07] text-on-surface-variant', bar: 'bg-primary' },
+  ticket: { icon: Ticket, cls: KIND_TILE, bar: 'bg-primary' },
+  url: { icon: Link, cls: KIND_TILE, bar: 'bg-chart-3' },
+  path: { icon: FolderOpen, cls: KIND_TILE, bar: 'bg-chart-4' },
+  json: { icon: Braces, cls: KIND_TILE, bar: 'bg-chart-6' },
+  jwt: { icon: KeyRound, cls: KIND_TILE, bar: 'bg-warning' },
+  stacktrace: { icon: TriangleAlert, cls: KIND_TILE, bar: 'bg-error' },
+  guid: { icon: Fingerprint, cls: KIND_TILE, bar: 'bg-chart-7' },
+  timestamp: { icon: Clock, cls: KIND_TILE, bar: 'bg-chart-7' },
+  sql: { icon: Grid3x3, cls: KIND_TILE, bar: 'bg-chart-2' },
+  email: { icon: AtSign, cls: KIND_TILE, bar: 'bg-chart-3' },
+  table: { icon: Columns2, cls: KIND_TILE, bar: 'bg-chart-8' },
+  list: { icon: ListOrdered, cls: KIND_TILE, bar: 'bg-chart-8' },
+  code: { icon: Code2, cls: KIND_TILE, bar: 'bg-chart-5' },
+  text: { icon: Type, cls: KIND_TILE, bar: 'bg-primary' },
 }
 /** Iniciales de las claves: un color de datos por nombre (estable). */
-const AVATAR_CLS = [
-  'bg-chart-1/15 text-chart-1', 'bg-chart-2/15 text-chart-2', 'bg-chart-3/15 text-chart-3', 'bg-chart-4/15 text-chart-4',
-  'bg-chart-5/15 text-chart-5', 'bg-chart-6/15 text-chart-6', 'bg-chart-7/15 text-chart-7', 'bg-chart-8/15 text-chart-8',
-]
+const AVATAR_CLS = ['bg-on-surface/[0.07] text-on-surface-variant']
 const MULTILINE_KINDS: ClipKind[] = ['code', 'sql', 'json', 'stacktrace', 'table', 'list']
 /** Valores que se pegan tal cual: sin transformaciones genéricas (mayúsculas, string de C#…). */
 const ID_KINDS: ClipKind[] = ['ticket', 'url', 'email', 'guid', 'timestamp', 'jwt']
@@ -619,22 +630,32 @@ export function Dock(): JSX.Element {
               paddingLeft: left ? pad.edge : pad.outer, paddingRight: left ? pad.outer : pad.edge,
               transformOrigin: left ? '0% 50%' : '100% 50%',
             }}
-            initial={{ opacity: 0, x: left ? -22 : 22, scale: 0.985 }}
-            animate={{ opacity: 1, x: 0, scale: 1, transition: { duration: 0.34, ease: EASE_OUT } }}
-            exit={{ opacity: 0, x: left ? -18 : 18, scale: 0.985, transition: { duration: 0.2, ease: EASE_IN } }}>
+            // Se despliega desde el borde de la pantalla: el recorte se abre hacia afuera y el
+            // contenido entra un instante después (ver CONTENT_IN). Al cerrar, al revés.
+            initial={{ opacity: 0, x: left ? -10 : 10, clipPath: left ? 'inset(0% 78% 0% 0%)' : 'inset(0% 0% 0% 78%)' }}
+            animate={{ opacity: 1, x: 0, clipPath: 'inset(0% 0% 0% 0%)', transition: { duration: 0.42, ease: EASE_OUT, opacity: { duration: 0.18 } } }}
+            exit={{ opacity: 0, x: left ? -8 : 8, clipPath: left ? 'inset(0% 70% 0% 0%)' : 'inset(0% 0% 0% 70%)', transition: { duration: 0.22, ease: EASE_IN } }}>
             <div className={`relative h-full flex flex-col rounded-[18px] overflow-hidden text-on-surface ${PANEL_SURFACE} ${PANEL_SHADOW}`}>
+              {/* Un toque del color de la app: brillo suave del acento arriba. */}
+              <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-linear-to-b from-primary/[0.11] via-primary/[0.04] to-transparent" />
 
               {/* Encabezado */}
-              <div className="flex items-center gap-2.5 px-3.5 pt-3 pb-2.5 shrink-0">
+              <motion.div {...CONTENT_IN(0.06)} className="relative flex items-center gap-2 pl-3.5 pr-2.5 pt-3 pb-2.5 shrink-0">
                 <motion.img src="setto-logo.png" alt="" className="w-7 h-7 rounded-[8px]"
                   initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.4, delay: 0.06, ease: EASE_OUT }}
                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                <span className="flex-1 min-w-0 leading-tight">
-                  <span className="block text-[13px] font-semibold tracking-[-0.01em]">Setto</span>
-                  <span className="block text-[11px] text-on-surface-variant truncate">
-                    {st.shortcut ? `${st.shortcut} abre y cierra` : 'Barra rápida'}
-                  </span>
-                </span>
+                <span className="flex-1 min-w-0 text-[14px] font-semibold tracking-[-0.01em]" title={st.shortcut ? `${st.shortcut} abre y cierra` : undefined}>Setto</span>
+                <QuickMenu items={[
+                  { icon: NotebookPen, label: 'Nota rápida', run: () => window.api.send('dock:quick-capture') },
+                  { icon: Wallet, label: 'Nuevo gasto', run: () => openMain({ pluginId: 'gastos', action: 'quick-add', payload: {} }) },
+                  { icon: ScanText, label: 'Texto de imagen', hint: 'OCR de lo copiado', run: () => {
+                    void window.api.invoke<{ ok: boolean; reason?: string }>('clipboard:ocr-image').then((r) => { say(r.ok ? 'Texto copiado: pegalo con Ctrl+V' : r.reason ?? 'No se pudo leer'); void load() })
+                  } },
+                  { divider: true, icon: ClipboardText, label: 'Abrir Portapapeles', run: () => openMain({ pluginId: 'captures', action: 'text' }) },
+                  { icon: KeyRound, label: 'Abrir Claves', run: () => openMain({ pluginId: 'credentials' }) },
+                  { icon: Code2, label: 'Abrir Snippets', run: () => openMain({ pluginId: 'snippets' }) },
+                  { icon: Toolbox, label: 'Abrir Utilidades', run: () => openMain({ pluginId: 'utilities' }) },
+                ]} />
                 <IconBtn title={left ? 'Pasar al borde derecho' : 'Pasar al borde izquierdo'} onClick={() => window.api.send('dock:set-side', left ? 'right' : 'left')}>
                   <ArrowLeftRight size={14} />
                 </IconBtn>
@@ -643,35 +664,47 @@ export function Dock(): JSX.Element {
                 </IconBtn>
                 <IconBtn title="Abrir Setto" onClick={() => openMain({ pluginId: 'dashboard' })}><ArrowUpRight size={14} /></IconBtn>
                 <IconBtn title="Cerrar (Esc)" onClick={collapse}><X size={14} /></IconBtn>
-              </div>
+              </motion.div>
 
               {/* Buscador */}
-              <div className="relative px-3.5 shrink-0">
+              <motion.div {...CONTENT_IN(0.09)} className="relative px-3.5 shrink-0">
                 <Search size={14} className="absolute left-[26px] top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
                 <input ref={inputRef} value={q} onChange={(e) => { setQ(e.target.value); setActive(0) }} placeholder="Buscar en todo…"
                   onFocus={() => window.api.send('dock:want-focus')}
-                  className="w-full h-9 pl-[34px] pr-8 rounded-full bg-on-surface/[0.025] border border-hairline-strong focus:bg-surface focus:border-primary/40 focus:shadow-[0_0_0_3px_rgb(var(--c-primary)/0.12)] outline-hidden text-[13px] text-on-surface placeholder:text-on-surface-variant/70 transition-[background-color,border-color,box-shadow] duration-200" />
+                  className="w-full h-9 pl-[34px] pr-8 rounded-[10px] bg-on-surface/[0.025] border border-hairline-strong focus:bg-surface focus:border-primary/40 focus:shadow-[0_0_0_3px_rgb(var(--c-primary)/0.12)] outline-hidden text-[13px] text-on-surface placeholder:text-on-surface-variant/70 transition-[background-color,border-color,box-shadow] duration-200" />
                 {q && (
                   <button type="button" title="Limpiar" onClick={() => { setQ(''); inputRef.current?.focus() }}
-                    className="absolute right-5 top-1/2 -translate-y-1/2 grid place-items-center w-5 h-5 rounded-full text-on-surface-variant hover:bg-on-surface/8">
+                    className="absolute right-5 top-1/2 -translate-y-1/2 grid place-items-center w-5 h-5 rounded-[5px] text-on-surface-variant hover:bg-on-surface/8">
                     <X size={11} />
                   </button>
                 )}
-              </div>
+              </motion.div>
 
-              {/* Acciones rápidas */}
-              <div className="flex items-center gap-1 px-3.5 pt-2.5 shrink-0">
-                <Quick icon={NotebookPen} label="Nota rápida" onClick={() => window.api.send('dock:quick-capture')} />
-                <Quick icon={Wallet} label="Nuevo gasto" onClick={() => openMain({ pluginId: 'gastos', action: 'quick-add', payload: {} })} />
-                <Quick icon={ScanText} label="Texto de imagen (OCR del portapapeles)" onClick={() => {
-                  void window.api.invoke<{ ok: boolean; reason?: string }>('clipboard:ocr-image').then((r) => { say(r.ok ? 'Texto copiado: pegalo con Ctrl+V' : r.reason ?? 'No se pudo leer'); void load() })
-                }} />
-                <Quick icon={ClipboardText} label="Abrir Portapapeles" onClick={() => openMain({ pluginId: 'captures', action: 'text' })} />
-                <Quick icon={KeyRound} label="Abrir Claves" onClick={() => openMain({ pluginId: 'credentials' })} />
-                <Quick icon={Code2} label="Abrir Snippets" onClick={() => openMain({ pluginId: 'snippets' })} />
-                <Quick icon={Toolbox} label="Abrir Utilidades" onClick={() => openMain({ pluginId: 'utilities' })} />
-              </div>
+              {/* Pestañas: íconos; la activa como tarjeta con su nombre (igual que la barra lateral de la app) */}
+              <motion.div {...CONTENT_IN(0.12)} className="relative flex items-center gap-1 px-2.5 pt-2.5 pb-2 shrink-0" role="tablist">
+                {TABS.map((t) => {
+                  const n = lists[t.id].length
+                  const on = tab === t.id
+                  const Icon = TAB_ICON[t.id]
+                  return (
+                    <motion.button key={t.id} type="button" layout role="tab" aria-selected={on} onClick={() => setTab(t.id)}
+                      title={on ? undefined : t.id === 'bloc' ? 'Bloc: anotador rápido' : `${t.label}${n ? ` (${n})` : ''}`}
+                      transition={{ duration: 0.28, ease: EASE_OUT }}
+                      className={`relative h-8 flex items-center justify-center gap-1.5 rounded-[9px] transition-colors duration-150 ${
+                        on ? 'px-2.5 text-on-surface' : 'w-8 text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.05]'}`}>
+                      {on && <motion.span layoutId="dock-tab" className="nav-active absolute inset-0 rounded-[9px]" transition={{ duration: 0.28, ease: EASE_OUT }} />}
+                      <Icon size={15} className={`relative z-10 shrink-0 ${on ? 'text-primary' : ''}`} />
+                      {on && <motion.span layout="position" className="relative z-10 text-[12px] font-medium whitespace-nowrap">{t.label}</motion.span>}
+                      {!on && n > 0 && words.length > 0 && (
+                        <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-primary text-on-primary text-[9px] font-semibold grid place-items-center">{n}</span>
+                      )}
+                    </motion.button>
+                  )
+                })}
+              </motion.div>
 
+              {/* Tarjeta de contenido (como el panel de la ventana principal) */}
+              <motion.div {...CONTENT_IN(0.16)} className={`relative flex-1 min-h-0 flex flex-col mx-2 mb-2 rounded-[14px] overflow-hidden ${CARD_SURFACE}`}>
               {/* Para lo que estás usando (SSMS → SQL, Jira → el ticket…) y pagos pendientes */}
               <AnimatePresence initial={false}>
                 {!words.length && (suggestions.length > 0 || pending > 0) && (
@@ -684,13 +717,13 @@ export function Dock(): JSX.Element {
                     <div className="flex flex-wrap gap-1.5">
                       {pending > 0 && (
                         <button type="button" onClick={() => openMain({ pluginId: 'gastos' })}
-                          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border border-warning/30 text-warning text-[12px] font-medium hover:bg-warning/8 transition-colors">
+                          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-[8px] border border-warning/30 text-warning text-[12px] font-medium hover:bg-warning/8 transition-colors">
                           <Wallet size={12} /> {pending} pago{pending === 1 ? '' : 's'} pendiente{pending === 1 ? '' : 's'}
                         </button>
                       )}
                       {suggestions.map((sg) => (
                         <button key={sg.key} type="button" onClick={sg.run} title={sg.hint}
-                          className={`inline-flex items-center gap-1.5 h-7 max-w-full px-2.5 rounded-full border text-[12px] transition-colors ${
+                          className={`inline-flex items-center gap-1.5 h-7 max-w-full px-2.5 rounded-[8px] border text-[12px] transition-colors ${
                             pastedKey === sg.key ? 'border-primary/30 bg-primary/8 text-primary' : 'border-hairline-strong text-on-surface hover:bg-on-surface/[0.04]'}`}>
                           {pastedKey === sg.key ? <Check size={12} /> : <sg.icon size={12} className="text-on-surface-variant shrink-0" />}
                           <span className="truncate">{sg.label}</span>
@@ -701,25 +734,6 @@ export function Dock(): JSX.Element {
                 )}
               </AnimatePresence>
 
-              {/* Pestañas: texto tranquilo con una raya fina debajo de la activa */}
-              <div className="mx-3.5 mt-2.5 flex items-stretch hairline-b shrink-0">
-                {TABS.map((t) => {
-                  const n = lists[t.id].length
-                  const on = tab === t.id
-                  return (
-                    <button key={t.id} type="button" onClick={() => setTab(t.id)} title={t.id === 'bloc' ? 'Bloc: anotador rápido' : `${t.label} (${n})`}
-                      className={`relative flex-1 h-8 flex items-center justify-center text-[12px] transition-colors duration-200 ${on ? 'text-on-surface font-medium' : 'text-on-surface-variant hover:text-on-surface'}`}>
-                      <span className="inline-flex items-center gap-1">
-                        {t.id === 'bloc' && <NotebookPen size={13} />}
-                        {t.label}
-                        {n > 0 && words.length > 0 && <span className="text-[10px] tabular-nums text-primary font-semibold">{n}</span>}
-                      </span>
-                      {on && <motion.span layoutId="dock-tab" className="absolute left-1.5 right-1.5 -bottom-px h-[1.5px] rounded-full bg-on-surface" transition={{ duration: 0.32, ease: EASE_OUT }} />}
-                    </button>
-                  )
-                })}
-              </div>
-
               {/* Buscando: filtrar la búsqueda unificada (copiado + capturas por su texto) */}
               {words.length > 0 && hits && tab === 'clips' && (
                 <div className="flex items-center gap-1 px-3.5 pt-2 shrink-0">
@@ -728,7 +742,7 @@ export function Dock(): JSX.Element {
                     const on = scope === sc.id
                     return (
                       <button key={sc.id} type="button" aria-pressed={on} onClick={() => { setScope(sc.id); setActive(0) }}
-                        className={`inline-flex items-center gap-1 h-6 px-2.5 rounded-full border text-[11px] transition-colors ${
+                        className={`inline-flex items-center gap-1 h-6 px-2.5 rounded-[7px] border text-[11px] transition-colors ${
                           on ? 'border-primary/30 bg-primary/8 text-primary font-medium' : 'border-hairline-strong text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.04]'}`}>
                         {sc.label}<span className="tabular-nums opacity-70">{n}</span>
                       </button>
@@ -802,7 +816,7 @@ export function Dock(): JSX.Element {
                     {flash ? <><Check size={12} className="text-primary shrink-0" /><span className="truncate">{flash.text}</span>
                       {flash.undo && (
                         <button type="button" onClick={() => { const u = flash.undo; setFlash(null); u?.() }}
-                          className="ml-auto shrink-0 h-6 px-2.5 rounded-full border border-hairline-strong text-[11px] font-medium text-primary hover:bg-primary/8 transition-colors">
+                          className="ml-auto shrink-0 h-6 px-2.5 rounded-[7px] border border-hairline-strong text-[11px] font-medium text-primary hover:bg-primary/8 transition-colors">
                           Deshacer
                         </button>
                       )}
@@ -810,6 +824,7 @@ export function Dock(): JSX.Element {
                   </motion.span>
                 </AnimatePresence>
               </div>
+              </motion.div>
             </div>
           </motion.div>
         )}
@@ -903,7 +918,7 @@ function ItemView({ item, index, active, done, onActivate, onPin, onRemove }: It
       draggable={dragText !== null}
       onDragStart={dragText !== null ? (e) => { e.dataTransfer.setData('text/plain', dragText); e.dataTransfer.effectAllowed = 'copy' } : undefined}
       title={dragText !== null ? 'Clic pega · arrastrá para soltarlo en otra app' : undefined}>
-      <span className={`relative grid place-items-center w-8 h-8 rounded-[9px] shrink-0 self-start mt-px ${iconCls}`}>
+      <span className={`relative grid place-items-center w-8 h-8 rounded-[9px] shrink-0 self-start mt-px transition-colors duration-150 ${active && !done ? ACTIVE_TILE : iconCls}`}>
         <AnimatePresence initial={false} mode="wait">
           {done
             ? <motion.span key="ok" initial={{ scale: 0, rotate: -40 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0 }} transition={POP}><Check size={14} /></motion.span>
@@ -973,7 +988,7 @@ function HitRow({ hit, index, active, done, onActivate, onCopyOcr }: {
           </span>
         </span>
       ) : (
-        <span className={`relative grid place-items-center w-8 h-8 rounded-[9px] shrink-0 self-start mt-px ${style.cls}`}>
+        <span className={`relative grid place-items-center w-8 h-8 rounded-[9px] shrink-0 self-start mt-px transition-colors duration-150 ${active && !done ? ACTIVE_TILE : style.cls}`}>
           {done ? <Check size={14} /> : <Icon size={14} />}
         </span>
       )}
@@ -1088,7 +1103,7 @@ function Preview({ item, onPaste, onOpen, onError, onClose, onCopyOcr }: {
 
   const pasteLabel = item.type === 'ticket' ? 'Ver capturas' : item.type === 'snippet' && item.vars ? 'Completar' : 'Pegar'
   const runAction = (run: () => Promise<void> | void): void => { Promise.resolve().then(run).catch((e: unknown) => onError(cleanErr(e))) }
-  const chip = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-full border border-hairline-strong hover:bg-on-surface/[0.04] text-[11px] text-on-surface transition-colors'
+  const chip = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-[8px] border border-hairline-strong hover:bg-on-surface/[0.04] text-[11px] text-on-surface transition-colors'
 
   return (
     <motion.div
@@ -1100,7 +1115,7 @@ function Preview({ item, onPaste, onOpen, onError, onClose, onCopyOcr }: {
       </button>
       <div className="pr-5">{body}</div>
       <div className="flex flex-wrap items-center gap-1">
-        <button type="button" onClick={() => onPaste()} className="inline-flex items-center gap-1 h-7 px-3 rounded-full bg-primary text-on-primary text-[11px] font-semibold hover:brightness-110">
+        <button type="button" onClick={() => onPaste()} className="inline-flex items-center gap-1 h-7 px-3 rounded-[8px] bg-primary text-on-primary text-[11px] font-semibold hover:brightness-110">
           {item.type === 'ticket' ? <Images size={12} /> : <ClipboardText size={12} />} {pasteLabel}
         </button>
         {clip && transforms.map((t) => (
@@ -1179,19 +1194,49 @@ function Empty({ tab, searching }: { tab: TabId; searching: boolean }): JSX.Elem
 function IconBtn({ title, active, onClick, children }: { title: string; active?: boolean; onClick: () => void; children: React.ReactNode }): JSX.Element {
   return (
     <motion.button type="button" title={title} aria-label={title} onClick={onClick} whileTap={{ scale: 0.9 }} transition={POP}
-      className={`grid place-items-center w-7 h-7 rounded-full transition-colors ${active ? 'text-primary bg-primary/10' : 'text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.05]'}`}>
+      className={`grid place-items-center w-7 h-7 rounded-[8px] transition-colors ${active ? 'text-primary bg-primary/10' : 'text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.05]'}`}>
       {children}
     </motion.button>
   )
 }
 
-function Quick({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick: () => void }): JSX.Element {
+interface QuickItem { icon: LucideIcon; label: string; hint?: string; divider?: boolean; run: () => void }
+
+/** Acciones rápidas en un menú "+" con nombres (antes eran 7 íconos sueltos). */
+function QuickMenu({ items }: { items: QuickItem[] }): JSX.Element {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent): void => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
+    const esc = (e: KeyboardEvent): void => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false) } }
+    window.addEventListener('mousedown', close)
+    window.addEventListener('keydown', esc, true)
+    return () => { window.removeEventListener('mousedown', close); window.removeEventListener('keydown', esc, true) }
+  }, [open])
   return (
-    <motion.button type="button" onClick={onClick} title={label} aria-label={label}
-      whileTap={{ scale: 0.9 }} transition={POP}
-      className="flex-1 grid place-items-center h-9 rounded-full text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.05] transition-colors">
-      <Icon size={17} />
-    </motion.button>
+    <div ref={ref} className="relative">
+      <IconBtn title="Acciones rápidas" active={open} onClick={() => setOpen((v) => !v)}><Plus size={15} /></IconBtn>
+      <AnimatePresence>
+        {open && (
+          <motion.div role="menu" className="ui-menu absolute right-0 top-full mt-1.5 z-30 w-[220px] p-1"
+            initial={{ opacity: 0, y: -4, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.14, ease: EASE_OUT }} style={{ transformOrigin: 'top right' }}>
+            {items.map((it) => (
+              <div key={it.label}>
+                {it.divider && <div className="hairline-t my-1 mx-1" role="separator" />}
+                <button type="button" role="menuitem" onClick={() => { setOpen(false); it.run() }}
+                  className="w-full flex items-center gap-2.5 h-[30px] px-2.5 rounded-[7px] text-left text-[13px] text-on-surface hover:bg-on-surface/[0.07] transition-colors">
+                  <it.icon size={14} className="text-on-surface-variant shrink-0" />
+                  <span className="flex-1 truncate">{it.label}</span>
+                  {it.hint && <span className="text-[11px] text-on-surface-variant/80 shrink-0">{it.hint}</span>}
+                </button>
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   )
 }
 
@@ -1258,7 +1303,8 @@ function Handle({ side, shortcut, unseen, bumpKey, kind }: { side: Side; shortcu
     clickTimer.current = setTimeout(() => window.api.send('dock:expand'), DOUBLE_CLICK_MS - 60)
   }
 
-  const badge = unseen && kind ? KIND_STYLE[kind].bar : 'bg-primary'
+  const badge = 'bg-primary'
+  void kind
   const out = left ? 1 : -1
   const showGrip = hover || dragging
 
@@ -1302,15 +1348,15 @@ function Handle({ side, shortcut, unseen, bumpKey, kind }: { side: Side; shortcu
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        {/* Filo de color del tema: la pestaña se ve sobre cualquier fondo (también blanco). */}
-        <span className={`absolute top-[12px] bottom-[12px] w-[3px] rounded-full bg-primary/80 ${left ? '-right-px' : '-left-px'}`} aria-hidden />
+        {/* Filo fino del acento: el toque de color de la app sobre cualquier fondo. */}
+        <span className={`absolute top-[14px] bottom-[14px] w-[2.5px] rounded-full bg-primary/75 ${left ? '-right-px' : '-left-px'}`} aria-hidden />
         {/* Agarradera: aparece al pasar el mouse. */}
         <span className={`grid grid-cols-2 gap-[2px] w-[8px] shrink-0 transition-opacity duration-200 ${showGrip ? 'opacity-100' : 'opacity-0'}`} aria-hidden>
           {Array.from({ length: 6 }, (_, i) => <span key={i} className="w-[3px] h-[3px] rounded-full bg-on-surface-variant/50" />)}
         </span>
         <span className={`relative ${left ? 'mr-[4px]' : 'ml-[4px]'} ${unseen || hover || dragging ? '' : 'dock-idle'}`}>
           <motion.img src="setto-logo.png" alt="" draggable={false} animate={logo}
-            className="block w-[28px] h-[28px] rounded-[8px] pointer-events-none" />
+            className="block w-[30px] h-[30px] rounded-[9px] pointer-events-none shadow-sm" />
           {/* Onda al copiar algo. */}
           <AnimatePresence>
             {bumpKey > 0 && (

@@ -841,7 +841,7 @@ export function RepoSearch(): JSX.Element {
                         : 'Buscar código…'
                   }
                   aria-label="Buscar código"
-                  className="ui-input w-full rounded-full! pl-9! pr-10!"
+                  className="ui-input w-full pl-9! pr-10!"
                 />
                 <kbd className="kbd-chip absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                   /

@@ -71,6 +71,12 @@ export interface EditorHandle {
   getScrollDOM?: () => HTMLElement | null
   /** Move to previous/next ERROR line (log mode, F8 / Shift+F8). False if none */
   gotoLogError?: (dir: 1 | -1) => boolean
+  /** Texto seleccionado y la línea (1-based) donde empieza; vacío si no hay selección */
+  getSelection?: () => { text: string; fromLine: number }
+  /** Llevar el cursor a una línea y enfocar el editor */
+  focusLine?: (line: number) => void
+  /** Reemplazar la selección (o insertar en el cursor) y enfocar */
+  insertText?: (text: string) => void
 }
 
 /** A single find-in-files match */

@@ -133,7 +133,7 @@ export function DeltaPill({ tone = 'neutral', children }: { tone?: KpiTone; chil
     neutral: 'bg-on-surface/6 text-on-surface-variant',
   }[tone]
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-px t-caption font-medium tabular-nums whitespace-nowrap ${cls}`}>
+    <span className={`inline-flex items-center gap-1 rounded-[6px] px-2 py-px t-caption font-medium tabular-nums whitespace-nowrap ${cls}`}>
       {children}
     </span>
   )
