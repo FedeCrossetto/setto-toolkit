@@ -33,6 +33,7 @@ import { Resumen } from './views/Resumen'
 import { Movimientos } from './views/Movimientos'
 import { Tabla } from './views/Tabla'
 import { Servicios } from './views/Servicios'
+import { useModulePrimaryAction } from '../../core/module-actions'
 
 type View = 'resumen' | 'movimientos' | 'tabla' | 'servicios' | 'recurrentes'
 
@@ -327,6 +328,13 @@ export function GastosPlugin(): JSX.Element {
 
   const setupNeeded = status === 'unconfigured' && !hasData && !store.loading
   const blocking = store.error && !hasData && !setupNeeded
+
+
+  // Barra superior: "Nuevo gasto" enfoca el agregado rápido.
+  useModulePrimaryAction('gastos', { label: 'Nuevo gasto' }, () => {
+    setView((v) => (v === 'resumen' || v === 'movimientos' ? v : 'resumen'))
+    setTimeout(() => quickRef.current?.focus(''), 0)
+  })
 
   return (
     <div className="h-full overflow-y-auto bg-background text-on-surface">

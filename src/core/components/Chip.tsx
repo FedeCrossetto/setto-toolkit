@@ -25,7 +25,7 @@ export function Chip({
   className?: string
 }): JSX.Element {
   return (
-    <span className={`inline-flex items-center gap-1 h-[20px] px-2 rounded-full text-[11px] font-medium leading-none whitespace-nowrap ${TONES[tone]} ${className}`}>
+    <span className={`inline-flex items-center gap-1 h-[20px] px-2 rounded-[6px] text-[11px] font-medium leading-none whitespace-nowrap ${TONES[tone]} ${className}`}>
       {Icon && <Icon size={11} className="shrink-0" />}
       {children}
     </span>

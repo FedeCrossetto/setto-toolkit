@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { AlertTriangle, BarChart2, CalendarClock, Check, Circle, LayoutGrid, ListPlus, PiggyBank, Receipt, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
+import { AlertTriangle, BarChart2, CalendarClock, Check, Circle, LayoutGrid, ListPlus, PiggyBank, Receipt, Wallet } from 'lucide-react'
 import type { IconComponent } from '../../../core/types'
-import { KpiCard } from '../../../core/components/Form'
 import { CountUp } from '../../../core/components/CountUp'
 import {
   buildMovimientos, buildPendientes, prevMes, categoryBreakdown, computeMonthSummary, pctChange, pendientesDelMes,
@@ -10,6 +9,7 @@ import {
 } from '../analytics'
 import { fmt, fmtMoney, mesLong, mesShort, fechaCorta } from '../format'
 import { Donut, YearChart } from '../components/Charts'
+import { GlowRing, SparkBars, StatTile } from '../components/Glow'
 import { ServiceTile } from '../components/ServiceIcon'
 import type { PagoMensual, Servicio } from '../types'
 import { parseAmount } from '../quick-add-parser'
@@ -46,39 +46,49 @@ export function Resumen({ data, mes, presupuesto, budgets, onSelectMes, onEditPr
   const delta = pctChange(s.total, s.previousTotal)
   const usado = s.presupuesto ? s.total / s.presupuesto : 0
   const restante = s.presupuesto ? s.presupuesto - s.total : 0
+  const idx = series.months.indexOf(mes)
+  const prevVariables = idx > 0 ? series.variables[idx - 1]! : prevSeries.variables[11] ?? 0
+  const deltaVar = pctChange(s.variables, prevVariables)
+  const pagosMes = data.pagos.filter((p) => p.mes === mes)
+  const pagados = pagosMes.filter((p) => p.pagado).length
+  const pctPagado = pagosMes.length ? pagados / pagosMes.length : null
+  const mesLabels = series.months.map(mesShort)
+  const pctText = (d: number | null): string | undefined => (d === null ? undefined : `${d > 0 ? '+' : ''}${d.toFixed(0)}%`)
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard icon={Wallet} label="Este mes" value={<CountUp value={s.total} format={fmtMoney} />}
-          sub={`Fijos ${fmtMoney(s.fijos)} · Variables ${fmtMoney(s.variables)}${usd ? ` · US$ ${fmt(usd)}` : ''}`} />
-        <KpiCard icon={delta !== null && delta > 0 ? TrendingUp : TrendingDown} tone="neutral" label="Vs. mes anterior"
-          value={<CountUp value={s.previousTotal} format={fmtMoney} />}
-          delta={delta === null ? undefined : `${delta > 0 ? '+' : ''}${delta.toFixed(0)}%`}
-          deltaTone={delta === null ? 'neutral' : delta > 0 ? 'warning' : 'success'}
-          sub={delta === null ? `Sin datos de ${mesShort(prevMes(mes))}` : `este mes vs. ${mesShort(prevMes(mes))}`} />
-        <KpiCard icon={CalendarClock} tone={s.pendientesCount ? 'warning' : faltantes ? 'neutral' : 'success'} label="Pendientes"
-          value={s.pendientesCount ? <CountUp value={s.pendientes} format={fmtMoney} /> : faltantes ? `${faltantes} sin cargar` : 'Al día'}
-          sub={s.pendientesCount ? `${s.pendientesCount} sin pagar` : faltantes ? 'Servicios sin pago este mes' : 'Nada por pagar'} />
-        <KpiCard icon={PiggyBank} tone={!s.presupuesto ? 'neutral' : usado > 1 ? 'error' : usado > 0.9 ? 'warning' : 'success'}
-          label="Presupuesto restante" onClick={onEditPresupuesto}
-          value={s.presupuesto ? <CountUp value={restante} format={fmtMoney} /> : 'Sin definir'}
-          delta={s.presupuesto ? `${Math.round(usado * 100)}%` : undefined}
-          deltaTone={usado > 1 ? 'error' : usado > 0.9 ? 'warning' : 'primary'}
-          sub={s.presupuesto ? `usado de ${fmtMoney(s.presupuesto)}` : 'Clic para definir un tope mensual'} />
-      </div>
-
-      {s.presupuesto && (
-        <div className="h-1 rounded-full bg-on-surface/[0.06] overflow-hidden" aria-hidden>
-          <div className={`h-full rounded-full ${usado > 1 ? 'bg-error' : usado > 0.9 ? 'bg-warning' : 'bg-primary'}`}
-            style={{ width: `${Math.min(usado, 1) * 100}%`, transition: 'width 300ms var(--ease-mac)' }} />
+      <section className="ui-card px-5 pt-4 pb-5 flex flex-col gap-3.5 min-w-0">
+        <CardHeader icon={Wallet} title={`Panorama de ${mesLong(mes).toLowerCase()}`}
+          right={<button type="button" className="ui-btn ui-btn-outline ui-btn-sm" onClick={onEditPresupuesto}><PiggyBank size={13} /> Presupuesto</button>} />
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+          <StatTile label="Este mes" value={<CountUp value={s.total} format={fmtMoney} />}
+            visual={<SparkBars values={series.totals} active={idx} color="rgb(var(--c-primary))" labels={mesLabels} />}
+            delta={pctText(delta)} deltaTone={delta === null ? 'neutral' : delta > 0 ? 'warning' : 'success'}
+            sub={delta === null ? `Fijos ${fmtMoney(s.fijos)}${usd ? ` · US$ ${fmt(usd)}` : ''}` : `vs. ${mesShort(prevMes(mes))} (${fmtMoney(s.previousTotal)})${usd ? ` · US$ ${fmt(usd)}` : ''}`} />
+          <StatTile label="Variables" value={<CountUp value={s.variables} format={fmtMoney} />}
+            visual={<SparkBars values={series.variables} active={idx} color="rgb(var(--c-chart-2))" labels={mesLabels} />}
+            delta={pctText(deltaVar)} deltaTone={deltaVar === null ? 'neutral' : deltaVar > 0 ? 'warning' : 'success'}
+            sub={`Fijos ${fmtMoney(s.fijos)}`} />
+          <StatTile label="Pendientes"
+            value={s.pendientesCount ? <CountUp value={s.pendientes} format={fmtMoney} /> : faltantes ? `${faltantes} sin cargar` : 'Al día'}
+            visual={<GlowRing pct={pctPagado} color={s.pendientesCount ? 'rgb(var(--c-warning))' : 'rgb(var(--c-success))'} />}
+            delta={s.pendientesCount ? `${s.pendientesCount} sin pagar` : undefined} deltaTone="warning"
+            sub={pctPagado === null ? 'Sin pagos este mes' : `${pagados} de ${pagosMes.length} pagados`} />
+          <StatTile label="Presupuesto restante" onClick={onEditPresupuesto} title="Editar presupuesto"
+            value={s.presupuesto ? <CountUp value={restante} format={fmtMoney} /> : 'Sin definir'}
+            visual={<GlowRing pct={s.presupuesto ? usado : null}
+              color={usado > 1 ? 'rgb(var(--c-error))' : usado > 0.9 ? 'rgb(var(--c-warning))' : 'rgb(var(--c-primary))'} />}
+            delta={s.presupuesto ? `${Math.round(usado * 100)}%` : undefined}
+            deltaTone={usado > 1 ? 'error' : usado > 0.9 ? 'warning' : 'success'}
+            sub={s.presupuesto ? `usado de ${fmtMoney(s.presupuesto)}` : 'Clic para definir un tope mensual'} />
         </div>
-      )}
+      </section>
 
       {budgetRows.length > 0 && <PresupuestosCard rows={budgetRows} onEdit={onEditPresupuesto} />}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-        <section className="ui-card px-6 pt-5 pb-5 xl:col-span-2 flex flex-col gap-3 min-w-0">
+        <section className="ui-card relative overflow-hidden px-6 pt-5 pb-5 xl:col-span-2 flex flex-col gap-3 min-w-0">
+          <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(55%_70%_at_75%_100%,rgb(var(--c-primary)/0.13),transparent_70%),radial-gradient(40%_60%_at_15%_100%,rgb(var(--c-chart-2)/0.08),transparent_70%)]" />
           <CardHeader icon={BarChart2} title={`Año ${year}`}
             right={<span className="t-footnote text-on-surface-variant tabular-nums">Total {fmtMoney(series.totals.reduce((a, b) => a + b, 0))}</span>} />
           <YearChart months={series.months} fijos={series.fijos} variables={series.variables}

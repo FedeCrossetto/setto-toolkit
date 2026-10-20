@@ -265,7 +265,7 @@ export const QuickAdd = forwardRef<QuickAddHandle, {
           <span className="t-caption text-on-surface-variant mr-0.5">Rápidos</span>
           {favorites.map((f) => (
             <button key={f.key} type="button"
-              className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full hairline t-caption font-medium text-on-surface hover:border-hairline-strong hover:bg-on-surface/3 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1 h-6 px-2.5 rounded-[7px] hairline t-caption font-medium text-on-surface hover:border-hairline-strong hover:bg-on-surface/3 transition-colors cursor-pointer"
               title={`Clic: prellenar · Alt+clic: guardar ${money(f.moneda, f.montoTipico)} con fecha de hoy`}
               onClick={(e) => favorite(f, e.altKey)}>
               {f.descripcion} <span className="tabular-nums opacity-70">· {money(f.moneda, f.montoTipico)}</span>

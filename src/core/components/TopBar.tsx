@@ -3,6 +3,7 @@ import { useApp } from '../AppContext'
 import { getPlugin } from '../plugin-registry'
 import { PluginIcon } from '../pluginIcons'
 import { WindowControls } from './TitleBar'
+import { usePrimaryAction } from '../module-actions'
 
 /**
  * Encabezado del panel de contenido: módulo actual (con subtítulo opcional, ver
@@ -14,9 +15,12 @@ export function TopBar(): JSX.Element {
   const plugin = state.activeTabId ? getPlugin(state.activeTabId) : undefined
   const subtitle = plugin ? state.moduleSubtitles[plugin.id] : undefined
   const dirty = plugin ? !!state.dirtyPlugins[plugin.id] : false
+  // "Nuevo" contextual: la acción principal del módulo (Nueva clave, Nuevo snippet…) o la captura rápida.
+  const primary = usePrimaryAction(plugin?.id)
 
   return (
-    <header className="drag-region h-(--topbar-h) flex items-center gap-2 pl-5 pr-3 shrink-0 hairline-b bg-surface">
+    // Misma altura que la fila del logo de la barra lateral y su mismo fondo: una sola franja.
+    <header className="drag-region h-[52px] flex items-center gap-2 pl-[14px] pr-2 shrink-0">
       <div className="flex items-center gap-2 flex-1 min-w-0" data-testid="topbar-title">
         {plugin && (
           <>
@@ -40,12 +44,14 @@ export function TopBar(): JSX.Element {
       </div>
 
       <button
-        onClick={() => window.dispatchEvent(new CustomEvent('setto:quick-capture'))}
-        title="Captura rápida (Ctrl+Shift+Espacio)"
-        className="no-drag ui-btn ui-btn-outline ui-btn-sm h-(--control-h) px-3 shrink-0 rounded-full!"
+        key={primary?.label ?? 'nuevo'}
+        onClick={() => (primary ? primary.run() : window.dispatchEvent(new CustomEvent('setto:quick-capture')))}
+        title={primary ? primary.title ?? primary.label : 'Captura rápida (Ctrl+Shift+Espacio)'}
+        className="no-drag ui-btn ui-btn-outline ui-btn-sm h-(--control-h) px-3 shrink-0"
+        style={{ animation: 'fadeIn 0.18s ease both' }}
       >
         <Plus size={13} />
-        Nuevo
+        {primary?.label ?? 'Nuevo'}
       </button>
 
       <WindowControls />

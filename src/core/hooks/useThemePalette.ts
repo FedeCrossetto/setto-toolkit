@@ -384,7 +384,7 @@ export function settoSurfaces(isDark: boolean, darkStyle: DarkStyle): SurfaceTok
   if (darkStyle === 'black') {
     // Negro puro (OLED): el lienzo es #000 y las tarjetas apenas se separan.
     return {
-      background: '8 8 9', surface: '14 14 16', surfaceLow: '18 18 20', surfaceContainer: '24 24 27',
+      background: '0 0 0', surface: '15 15 17', surfaceLow: '19 19 21', surfaceContainer: '25 25 28',
       surfaceHigh: '34 34 38', surfaceHighest: '46 46 51', onSurface: '240 240 241', onSurfaceVariant: '150 150 156',
       outlineVariant: '38 38 42', outline: '96 96 102', ...status, sidebar: '0 0 0', topbar: '0 0 0',
     }

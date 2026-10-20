@@ -15,11 +15,12 @@ import {
 import type { ActiveRequest, Collection, Environment, HttpMethod, BodyType, KeyValuePair, FormDataField, HistoryEntry } from './types'
 import { Modal, useConfirm } from '../../core/components/Modal'
 import { SegmentedControl } from '../../core/components/SegmentedControl'
+import { ListSkeleton } from '../../core/components/Skeleton'
 
 /** Segmented-control look for inline tab rows (matches core SegmentedControl). */
 const SEG_GROUP = 'inline-flex items-center gap-1'
 const segBtn = (active: boolean): string =>
-  `flex items-center gap-1.5 px-3 h-7 rounded-full border t-footnote font-medium transition-colors ${
+  `flex items-center gap-1.5 px-3 h-7 rounded-[8px] border t-footnote font-medium transition-colors ${
     active ? 'nav-active text-on-surface' : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-on-surface/4'}`
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
@@ -482,7 +483,7 @@ export function ApiLab(): JSX.Element {
 
             <div className="flex-1 overflow-y-auto pb-2">
               {loading ? (
-                <p className="t-footnote text-on-surface-variant text-center py-8">Cargando…</p>
+                <ListSkeleton rows={4} avatar={false} />
               ) : collections.length === 0 ? (
                 <p className="t-footnote text-on-surface-variant text-center py-8 px-4">Sin colecciones aún.<br />Creá una para guardar requests.</p>
               ) : (

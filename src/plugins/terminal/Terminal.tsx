@@ -11,6 +11,7 @@ import { TerminalSettingsPanel } from './TerminalSettingsPanel'
 import { resolveTerminalTheme } from './themes'
 import { presetCodeThemes, useAppearance } from '../../core/hooks/useThemePalette'
 import '@xterm/xterm/css/xterm.css'
+import { useModulePrimaryAction } from '../../core/module-actions'
 
 type SidePanel = 'history' | 'settings' | null
 
@@ -479,6 +480,10 @@ export function Terminal(): JSX.Element {
     }
     return out
   })()
+
+
+  // Barra superior: "Nueva sesión".
+  useModulePrimaryAction('terminal', { label: 'Nueva sesión', title: 'Nueva sesión (Ctrl+T)' }, () => { void createSession() })
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-surface">

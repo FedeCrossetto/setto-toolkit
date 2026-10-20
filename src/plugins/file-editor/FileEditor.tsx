@@ -36,7 +36,7 @@ import type { FileChangedEvent, OpenFile, RecentFile, FileLanguage, FileTreeNode
 import { Badge } from '../../core/components/Badge'
 import { Tooltip } from '../../core/components/Tooltip'
 import type { MenuItem } from './components/ContextMenu'
-import { usePluginIntent } from '../../core/AppContext'
+import { useModuleSubtitle, usePluginIntent } from '../../core/AppContext'
 import { LogToolbar } from './components/LogToolbar'
 import { TabSwitcher } from './components/TabSwitcher'
 import { SplitLayout, SplitPaneHeader } from './components/SplitView'
@@ -46,17 +46,10 @@ import { publishOpenFiles } from './openFilesStore'
 import { arrangeOpenFiles, tabsToClose, type BulkCloseMode } from './navigation'
 import { DEFAULT_LOG_VIEW, isLogFile, isLogViewFiltered, type LogViewState } from './logParsing'
 import { Columns2, FolderTree, Pin, PinOff } from 'lucide-react'
+import { useModulePrimaryAction } from '../../core/module-actions'
 
-// ── Language color map ────────────────────────────────────────────────────────
-const LANG_COLORS: Partial<Record<FileLanguage, string>> = {
-  javascript: '#F7DF1E', typescript: '#3178C6',
-  json: '#FF7A00', html: '#E34F26', css: '#1572B6',
-  python: '#3776AB', rust: '#CE422B', go: '#00ADD8', java: '#ED8B00',
-  sql: '#F29111', markdown: '#083FA1', yaml: '#CB171E', xml: '#005FAD',
-  shell: '#4EAA25',
-}
-const langColor = (lang: FileLanguage): string =>
-  LANG_COLORS[lang] ?? 'rgb(var(--c-on-surface-variant) / 0.5)'
+// Íconos de archivo sin colores de marca: gris; el del archivo activo, con el color del tema.
+const FILE_ICON_CLS = 'shrink-0 text-on-surface-variant/80'
 
 let newFileCount = 0
 
@@ -772,8 +765,8 @@ export function FileEditor(): JSX.Element {
     setCtxMenu({
       x: e.clientX, y: e.clientY,
       items: [
-        { label: 'Renombrar',          icon: Pencil, action: () => setRenamingTabId(tab.id) },
-        { label: 'Guardar',            icon: Save,   action: saveActive },
+        { label: 'Renombrar',          icon: Pencil, shortcut: 'F2', action: () => setRenamingTabId(tab.id) },
+        { label: 'Guardar',            icon: Save,   shortcut: 'Ctrl+S', action: saveActive },
         { divider: true, label: '', action: () => {} },
         { label: 'Comparar en Smart Diff', icon: Diff, action: () => dispatch({ type: 'SEND_TO_DIFF', name: tab.name, path: tab.path, content: tab.content }) },
         ...(selectedIds.size === 2 && selectedIds.has(tab.id) ? [
@@ -815,11 +808,11 @@ export function FileEditor(): JSX.Element {
     setCtxMenu({
       x: e.clientX, y: e.clientY,
       items: [
-        { label: 'Nuevo archivo',   icon: FilePlus,   action: createNewFile },
-        { label: 'Abrir archivo…', icon: FileInput, action: openDialog },
+        { label: 'Nuevo archivo',   icon: FilePlus,   shortcut: 'Ctrl+T', action: createNewFile },
+        { label: 'Abrir archivo…', icon: FileInput, shortcut: 'Ctrl+O', action: openDialog },
         ...(tabs.some((t) => t.isDirty) ? [
           { divider: true, label: '', action: () => {} },
-          { label: 'Guardar todo', icon: Save, action: () => void saveAllDirty() },
+          { label: 'Guardar todo', icon: Save, shortcut: 'Ctrl+Shift+S', action: () => void saveAllDirty() },
         ] : []),
       ],
     })
@@ -944,13 +937,19 @@ export function FileEditor(): JSX.Element {
   }
 
   // ── JSX ───────────────────────────────────────────────────────────────────
+
+  // Barra superior: "Nuevo archivo" y el archivo activo (+ cuántos sin guardar).
+  useModulePrimaryAction('file-editor', { label: 'Nuevo archivo', title: 'Nuevo archivo (Ctrl+T)' }, () => createNewFile())
+  const dirtyCount = tabs.filter((t) => t.isDirty).length
+  useModuleSubtitle('file-editor', activeTab ? `${activeTab.name}${dirtyCount ? ` · ${dirtyCount} sin guardar` : ''}` : null)
+
   return (
     <div ref={rootRef} className="flex h-full overflow-hidden relative">
       <TabSwitcher
         tabs={tabs}
         activeId={split.open && split.focused === 'split' ? (split.tab?.id ?? activeId) : activeId}
         onCommit={selectTab}
-        renderIcon={(t) => { const Icon = languageIcon(t.language); return <Icon size={14} style={{ color: langColor(t.language) }} /> }}
+        renderIcon={(t) => { const Icon = languageIcon(t.language); return <Icon size={14} className={FILE_ICON_CLS} /> }}
       />
 
       {/* ── Left sidebar ─────────────────────────────────────────────────── */}
@@ -1190,7 +1189,7 @@ export function FileEditor(): JSX.Element {
               {recents.slice(0, 8).map((r) => (
                 <button key={r.path} onClick={() => openFile(r.path)} title={r.path}
                   className="fl-row group">
-                  {(() => { const lang = detectLanguage(r.name); const Icon = languageIcon(lang); return <Icon size={14} className="shrink-0" style={{ color: langColor(lang) }} /> })()}
+                  {(() => { const Icon = languageIcon(detectLanguage(r.name)); return <Icon size={14} className={FILE_ICON_CLS} /> })()}
                   <span className="text-[13px] truncate flex-1">{r.name}</span>
                   <ArrowUpRight size={11} className="shrink-0 text-on-surface-variant opacity-0 group-hover:opacity-70 transition-opacity" />
                 </button>
@@ -1222,7 +1221,7 @@ export function FileEditor(): JSX.Element {
           <div className="flex-1 min-w-0 flex items-center gap-2 pl-4 pr-2">
             {activeTab && (
               <>
-                {(() => { const Icon = languageIcon(activeTab.language); return <Icon size={14} style={{ color: langColor(activeTab.language) }} /> })()}
+                {(() => { const Icon = languageIcon(activeTab.language); return <Icon size={14} className="shrink-0 text-primary" /> })()}
                 {activeTab.path
                   ? <Breadcrumb inline filePath={activeTab.path} onPathCopied={() => showToast('Ruta copiada', 'success', 2000)} />
                   : <span className="t-footnote font-semibold text-on-surface truncate">{activeTab.name}</span>}
@@ -1826,7 +1825,7 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
         }
         {node.isDir
           ? (isOpen ? <FolderOpen size={14} className="text-on-surface-variant shrink-0" /> : <Folder size={14} className="text-on-surface-variant shrink-0" />)
-          : (() => { const lang = detectLanguage(node.name); const Icon = languageIcon(lang); return <Icon size={13} className="shrink-0" style={{ color: langColor(lang) }} /> })()
+          : (() => { const Icon = languageIcon(detectLanguage(node.name)); return <Icon size={13} className={FILE_ICON_CLS} /> })()
         }
         {cb.renaming === node.path
           ? <InlineInput defaultValue={node.name} onCommit={(n) => cb.onRenameCommit(node.path, n)} onCancel={cb.onCancel} />
@@ -1892,7 +1891,7 @@ function CollapsedSidebarRail({
               title={tab.path ? `${tab.name}\n${tab.path}` : tab.name}
               className={`relative w-8 h-8 rounded-lg flex items-center justify-center transition-colors shrink-0 ${isActive ? 'nav-active' : 'hover:bg-on-surface/4'}`}
             >
-              <Icon size={15} style={{ color: langColor(tab.language) }} />
+              <Icon size={15} className={isActive ? 'text-primary' : 'text-on-surface-variant/80'} />
               {tab.isDirty && (
                 <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-on-surface-variant" aria-hidden />
               )}
@@ -1933,7 +1932,7 @@ function FileListItem({
           ? 'bg-primary/[0.08]! border-primary/30! text-on-surface'
           : isActive ? 'nav-active' : ''
       }`}>
-      {(() => { const Icon = languageIcon(tab.language); return <Icon size={14} className="shrink-0" style={{ color: langColor(tab.language) }} /> })()}
+      {(() => { const Icon = languageIcon(tab.language); return <Icon size={14} className={`shrink-0 transition-colors ${isActive ? 'text-primary' : 'text-on-surface-variant/80 group-hover:text-on-surface-variant'}`} /> })()}
       {renaming ? (
         <InlineInput defaultValue={tab.name} onCommit={onRenameCommit} onCancel={onRenameCancel} />
       ) : (

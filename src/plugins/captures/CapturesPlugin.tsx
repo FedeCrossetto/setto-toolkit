@@ -20,6 +20,7 @@ import { formatBytes, groupItems } from './logic'
 import {
   captureUrl, thumbUrl, type CaptureEntry, type CaptureLite, type CaptureQuery, type CaptureQueryResult, type CaptureSettings, type CaptureSort,
 } from './types'
+import { DetailSkeleton } from '../../core/components/Skeleton'
 
 const PAGE = 60
 
@@ -262,7 +263,7 @@ function ImagesView({ header, pending }: { header: React.ReactNode; pending: Plu
             <div className="relative w-80 max-w-full">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/70 pointer-events-none" />
               <input ref={searchRef} type="search" value={text} onChange={(e) => setText(e.target.value)}
-                placeholder="Buscar texto de la imagen, ticket, app…" className="ui-input w-full h-8 pl-8 rounded-full" aria-label="Buscar capturas" />
+                placeholder="Buscar texto de la imagen, ticket, app…" className="ui-input w-full h-8 pl-8" aria-label="Buscar capturas" />
             </div>
             <FilterChip active={onlyPinned} onClick={() => setOnlyPinned((v) => !v)} icon={<Pin size={11} />}>Fijadas</FilterChip>
             {facets?.tickets.slice(0, 6).map((t) => (
@@ -504,7 +505,7 @@ function Detail({ id, onClose, onCopy, onAnnotate, onDelete, onReveal, onExport 
   useEffect(() => { void load(true) }, [load])
   useEffect(() => window.api.on('captures:changed', () => { void load(false) }), [load])
 
-  if (!entry) return <div className="p-6 t-footnote text-on-surface-variant">Cargando…</div>
+  if (!entry) return <DetailSkeleton />
 
   const save = (patch: Partial<CaptureEntry>): void => {
     editing.current = false

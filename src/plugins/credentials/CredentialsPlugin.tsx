@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowDownToLine, ArrowUpDown, Check, ChevronDown, CloudCheck, CloudOff, CloudUpload, Copy, Download, ExternalLink, FileUp, KeyRound,
-  Lock, LockOpen, Monitor, MoreHorizontal, Plus, RefreshCw, Search, ShieldAlert, ShieldCheck, Star, TriangleAlert, User, X,
+  Lock, LockOpen, Monitor, MoreHorizontal, Pencil, Plus, RefreshCw, Search, ShieldAlert, ShieldCheck, Star, Trash2, TriangleAlert, User, X,
 } from 'lucide-react'
 import { EmptyState } from '../../core/components/EmptyState'
 import { listItemMotion, shouldAnimateList } from '../../core/motion'
 import { SegmentedControl } from '../../core/components/SegmentedControl'
-import { usePluginIntent } from '../../core/AppContext'
+import { useModuleSubtitle, usePluginIntent } from '../../core/AppContext'
 import { useToast } from '../../core/components/Toast'
 import { useConfirm } from '../../core/components/Modal'
 import { useUndo } from '../../core/hooks/useUndo'
@@ -26,6 +26,9 @@ import { PinPrompt } from './components/PinPrompt'
 import { SecuritySheet } from './components/SecuritySheet'
 import { ImportSheet } from './components/ImportSheet'
 import { SyncSheet } from './components/SyncSheet'
+import { ListSkeleton } from '../../core/components/Skeleton'
+import { ContextMenu, type MenuItem } from '../../core/components/ContextMenu'
+import { useModulePrimaryAction } from '../../core/module-actions'
 
 type Filter = 'all' | 'fav' | 'risk'
 
@@ -71,6 +74,8 @@ export function CredentialsPlugin(): JSX.Element {
   const [lock, setLock]             = useState<LockStatus | null>(null)
   const [search, setSearch]         = useState('')
   const [filter, setFilter]         = useState<Filter>('all')
+  /** Clic derecho sobre una fila. */
+  const [ctx, setCtx] = useState<{ x: number; y: number; c: Credential } | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editing, setEditing]       = useState<null | 'new' | string>(null)
   const [pendingOpen, setPendingOpen] = useState<string | null>(null)
@@ -199,10 +204,19 @@ export function CredentialsPlugin(): JSX.Element {
     const rest = pinned.length ? sorted.filter((c) => !favorites.has(c.id)) : sorted
     const head = pinned.length ? [{ key: 'Favoritas', items: pinned }] : []
     if (sort === 'category') return [...head, ...groupCredentials(rest)]
+    // A–Z sin búsqueda: por inicial (encabezados fijos + índice a la derecha).
+    if (sort === 'az' && !search.trim()) return [...head, ...groupCredentials(rest, 'letter')]
     if (!rest.length) return head
     const label = search.trim() ? 'Resultados' : SORT_LABELS[sort]
     return [...head, { key: label, items: rest }]
   }, [items, search, filter, sort, favorites, reusedOf, weakSet])
+
+  /** Letras del índice lateral: sólo en A–Z sin búsqueda y con varias iniciales. */
+  const letterIndex = useMemo(() => {
+    if (sort !== 'az' || search.trim() || filter !== 'all') return []
+    const keys = groups.map((g) => g.key).filter((k) => /^[A-Z#]$/.test(k))
+    return keys.length >= 4 ? keys : []
+  }, [groups, sort, search, filter])
 
   /** "Acceso rápido": the most used (favorites first), in the order of the last load. */
   const quick = useMemo(
@@ -495,13 +509,18 @@ export function CredentialsPlugin(): JSX.Element {
     : filter === 'risk' ? 'Ninguna contraseña débil ni repetida.'
     : 'Sin resultados.'
 
+
+  // Barra superior: "Nueva clave" y cuántas hay.
+  useModulePrimaryAction('credentials', { label: 'Nueva clave', title: 'Nueva credencial (N)' }, () => setEditing('new'))
+  useModuleSubtitle('credentials', items.length ? `${items.length} ${items.length === 1 ? 'clave' : 'claves'}` : null)
+
   return (
     <div ref={rootRef} className="flex h-full overflow-hidden bg-background">
       {/* ── List ────────────────────────────────────────────────────────── */}
-      <aside className="w-80 shrink-0 flex flex-col bg-surface hairline-r overflow-hidden">
-        <div className="px-3 pt-4 pb-2 shrink-0 space-y-2.5">
-          <div className="flex items-center gap-1.5 pl-1.5">
-            <h2 className="t-headline text-on-surface">Claves</h2>
+      <aside className="w-[340px] shrink-0 flex flex-col bg-surface hairline-r overflow-hidden">
+        <div className="px-[14px] pt-[16px] pb-[10px] shrink-0 flex flex-col gap-[10px]">
+          <div className="flex items-center gap-2 pl-1 min-h-[30px]">
+            <h2 className="t-title3 text-on-surface">Claves</h2>
             <span className="t-caption font-medium tabular-nums text-on-surface-variant/70">{items.length}</span>
             {lock?.pinEnabled && (
               <button
@@ -582,14 +601,14 @@ export function CredentialsPlugin(): JSX.Element {
               <Plus size={15} weight="bold" />
             </button>
           </div>
-          <div className="ui-input flex items-center gap-2 h-8 pl-2.5">
-            <Search size={14} className="text-on-surface-variant/70 shrink-0" />
+          <div className="ui-input flex items-center gap-2 h-[34px] pl-3 pr-1.5">
+            <Search size={15} className="text-on-surface-variant/70 shrink-0" />
             <input
               ref={searchRef}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Escape' && search) { e.preventDefault(); setSearch('') } }}
-              placeholder="Buscar nombre, usuario, sitio…"
+              placeholder="Buscar por nombre, usuario o sitio"
               aria-label="Buscar credenciales"
               className="flex-1 min-w-0 bg-transparent t-body text-on-surface outline-hidden"
             />
@@ -598,7 +617,7 @@ export function CredentialsPlugin(): JSX.Element {
                 <X size={13} />
               </button>
             ) : (
-              <span className="kbd-chip mr-1.5">Ctrl F</span>
+              <span className="kbd-chip shrink-0">Ctrl F</span>
             )}
           </div>
           <SegmentedControl
@@ -622,7 +641,8 @@ export function CredentialsPlugin(): JSX.Element {
           </button>
         )}
 
-        <motion.div layoutScroll ref={listRef} className="flex-1 overflow-y-auto px-2 pb-3" role="listbox" aria-label="Claves">
+        <div className="relative flex-1 min-h-0 flex">
+        <motion.div layoutScroll ref={listRef} className={`flex-1 overflow-y-auto px-[10px] pb-3 ${letterIndex.length ? 'pr-[22px]' : ''}`} role="listbox" aria-label="Claves">
           {fatal && !data ? (
             <div className="px-3 py-8 text-center flex flex-col items-center gap-2">
               <p className="t-body font-medium text-on-surface">No se pudieron cargar las credenciales</p>
@@ -632,7 +652,7 @@ export function CredentialsPlugin(): JSX.Element {
               </button>
             </div>
           ) : loading && !data ? (
-            <p className="t-footnote text-on-surface-variant px-3 py-6 text-center">Cargando…</p>
+            <ListSkeleton rows={6} />
           ) : groups.length === 0 ? (
             <p className="t-footnote text-on-surface-variant px-3 py-6 text-center">{emptyText}</p>
           ) : (
@@ -642,14 +662,15 @@ export function CredentialsPlugin(): JSX.Element {
                   type="button"
                   onClick={() => setFolded((f) => ({ ...f, [g.key]: !f[g.key] }))}
                   aria-expanded={!folded[g.key]}
-                  className="w-full flex items-center gap-1 px-2.5 pt-4 pb-1.5 t-section uppercase tracking-[0.08em] hover:text-on-surface-variant transition-colors"
+                  data-group={g.key}
+                  className="sticky top-0 z-10 bg-surface w-full flex items-center gap-1.5 px-[10px] pt-[14px] pb-[6px] t-section uppercase tracking-[0.08em] hover:text-on-surface-variant transition-colors"
                 >
                   <ChevronDown size={11} weight="bold" className={`transition-transform duration-150 ${folded[g.key] ? '-rotate-90' : ''}`} />
                   <span className="truncate">{g.key}</span>
                   <span className="ml-auto font-medium tabular-nums">{g.items.length}</span>
                 </button>
                 {!folded[g.key] && (
-                  <div className="relative flex flex-col gap-0.5">
+                  <div className="relative flex flex-col gap-[2px]">
                     <AnimatePresence initial={false} mode="popLayout">
                     {g.items.map((c) => (
                       <motion.div key={c.id} {...rowMotion}>
@@ -663,6 +684,7 @@ export function CredentialsPlugin(): JSX.Element {
                         onToggleFavorite={() => void toggleFavorite(c)}
                         onCopyUser={() => void copyUser(c)}
                         onCopyPassword={() => void copyPassword(c)}
+                        onContextMenu={(e) => { e.preventDefault(); setSelectedId(c.id); setCtx({ x: e.clientX, y: e.clientY, c }) }}
                       />
                       </motion.div>
                     ))}
@@ -673,6 +695,33 @@ export function CredentialsPlugin(): JSX.Element {
             ))
           )}
         </motion.div>
+        {letterIndex.length > 0 && (
+          <nav aria-label="Índice alfabético" className="absolute right-[3px] top-2 bottom-2 flex flex-col items-center justify-center gap-px select-none">
+            {letterIndex.map((k) => (
+              <button key={k} type="button" title={`Ir a ${k}`}
+                onClick={() => listRef.current?.querySelector<HTMLElement>(`[data-group="${CSS.escape(k)}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' })}
+                className="w-[16px] h-[15px] grid place-items-center rounded-[4px] text-[9.5px] font-semibold text-on-surface-variant/70 hover:text-primary hover:bg-primary/10 transition-colors">
+                {k}
+              </button>
+            ))}
+          </nav>
+        )}
+        </div>
+
+        {ctx && (
+          <ContextMenu x={ctx.x} y={ctx.y} onClose={() => setCtx(null)} items={((): MenuItem[] => {
+            const c = ctx.c
+            const fav = favorites.has(c.id)
+            return [
+              ...(c.hasPassword ? [{ label: 'Copiar contraseña', icon: KeyRound, shortcut: 'Enter', action: () => void copyPassword(c) }] : []),
+              ...(c.usuario ? [{ label: 'Copiar usuario', icon: User, shortcut: 'Shift+Enter', action: () => void copyUser(c) }] : []),
+              ...(c.url ? [{ label: 'Abrir sitio', icon: ExternalLink, action: () => { window.open(absoluteUrl(c.url!), '_blank', 'noopener') } }] : []),
+              { label: fav ? 'Quitar de favoritas' : 'Marcar como favorita', icon: Star, divider: true, action: () => void toggleFavorite(c) },
+              { label: 'Editar', icon: Pencil, action: () => { setSelectedId(c.id); setEditing(c.id) } },
+              { label: 'Eliminar', icon: Trash2, danger: true, divider: true, action: () => void remove(c) },
+            ]
+          })()} />
+        )}
 
         <SyncFooter data={data} loading={loading} onRetry={() => void load(true)} e2e={e2e} onOpenSync={() => setSyncOpen(true)} />
       </aside>
@@ -783,7 +832,7 @@ function QuickButton({ label, onClick, children, href }: { label: string; onClic
 }
 
 function CredentialRow({
-  c, active, favorite, risk, usage, onSelect, onToggleFavorite, onCopyUser, onCopyPassword,
+  c, active, favorite, risk, usage, onSelect, onToggleFavorite, onCopyUser, onCopyPassword, onContextMenu,
 }: {
   c: Credential
   active: boolean
@@ -794,6 +843,7 @@ function CredentialRow({
   onToggleFavorite: () => void
   onCopyUser: () => void
   onCopyPassword: () => void
+  onContextMenu?: (e: React.MouseEvent) => void
 }): JSX.Element {
   const when = relativeTime(usage.lastUsedAt)
   const hint = usageHint(usage.useCount, when)
@@ -805,11 +855,12 @@ function CredentialRow({
       tabIndex={active ? 0 : -1}
       onClick={onSelect}
       onDoubleClick={onCopyPassword}
-      className={`group relative w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left cursor-default transition-colors duration-100 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/45 ${
+      onContextMenu={onContextMenu}
+      className={`group relative w-full flex items-center gap-3 px-[10px] py-[9px] rounded-[10px] text-left cursor-default transition-colors duration-100 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/45 ${
         active ? 'nav-active' : 'border border-transparent hover:bg-on-surface/4'
       }`}
     >
-      <Avatar name={c.nombre} url={c.url} size={30} />
+      <Avatar name={c.nombre} url={c.url} size={34} />
       <span className="flex-1 min-w-0">
         <span className="flex items-center gap-1 min-w-0">
           <span className={`t-body truncate ${active ? 'font-semibold text-on-surface' : 'font-medium text-on-surface'}`}>{c.nombre}</span>
@@ -820,7 +871,7 @@ function CredentialRow({
           {c.e2e === 'local' && <span title={E2E_ITEM_LABEL.local.hint} className="text-on-surface-variant/70 shrink-0"><Monitor size={12} /></span>}
           {risk && <span title={risk} className="text-warning shrink-0"><ShieldAlert size={12} /></span>}
         </span>
-        <span className="block t-footnote text-on-surface-variant truncate">{c.usuario || displayHost(c.url) || '—'}</span>
+        <span className="block t-footnote text-on-surface-variant truncate mt-px">{c.usuario || displayHost(c.url) || '—'}</span>
       </span>
       {(usage.useCount > 0 || when) && (
         <span

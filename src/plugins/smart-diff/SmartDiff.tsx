@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { diffLines, diffWords, type Change } from 'diff'
 import {
   ArrowLeftRight, CheckCircle2, ChevronLeft, ChevronRight, Code2, Diff,
-  FileCode2, FileText, FolderOpen, Palette,
+  FileCode2, FileText, FileUp, FolderOpen, Palette,
   Settings, Terminal, Trash2, X,
 } from 'lucide-react'
 import { useEditorPrefs, FONT_FAMILIES, FONT_SIZE_MIN, FONT_SIZE_MAX } from '../file-editor/hooks/useEditorPrefs'
@@ -311,14 +311,14 @@ function FileCard({ label, dotColor, info, onClear }: {
   label: string; dotColor: string; info: FileInfo | null; onClear: () => void
 }): JSX.Element {
   return (
-    <div className="px-3 py-2.5">
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
+    <div className="px-[14px] pt-[14px] pb-[6px]">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
         <span className="fl-section px-0!">{label}</span>
       </div>
       {info ? (
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-[9px] bg-surface hairline group">
-          {(() => { const Icon = fileIcon(info.name); return <Icon size={14} className="text-on-surface-variant shrink-0" /> })()}
+        <div className="flex items-center gap-2.5 px-[10px] py-[8px] rounded-[10px] bg-surface hairline group">
+          {(() => { const Icon = fileIcon(info.name); return <Icon size={16} className="text-on-surface-variant shrink-0" /> })()}
           <div className="min-w-0 flex-1">
             <p className="t-footnote font-medium text-on-surface truncate">{info.name}</p>
             <p className="t-caption text-on-surface-variant">{formatBytes(info.size)}</p>
@@ -333,8 +333,12 @@ function FileCard({ label, dotColor, info, onClear }: {
           </button>
         </div>
       ) : (
-        <div className="px-2 py-1.5 rounded-md border border-dashed border-hairline-strong t-caption text-on-surface-variant text-center">
-          Sin archivo
+        <div className="flex items-center gap-2.5 px-[10px] py-[9px] rounded-[10px] border border-dashed border-hairline-strong text-on-surface-variant">
+          <FileUp size={16} className="shrink-0 opacity-70" />
+          <span className="min-w-0">
+            <span className="block t-footnote font-medium text-on-surface">Sin archivo</span>
+            <span className="block t-caption">Arrastralo al panel {label === 'Original' ? 'izquierdo' : 'derecho'} o pegá el texto</span>
+          </span>
         </div>
       )}
     </div>
@@ -474,7 +478,7 @@ export function SmartDiff(): JSX.Element {
     <div className="flex h-full overflow-hidden">
 
       {/* ── Sidebar (collapsible — same pattern as File Editor) ───────────── */}
-      <aside className={`shrink-0 flex flex-col hairline-r fl-pane overflow-hidden transition-[width] duration-200 ${sidebarCollapsed ? 'w-9' : 'w-56'}`}>
+      <aside className={`shrink-0 flex flex-col hairline-r fl-pane overflow-hidden transition-[width] duration-200 ${sidebarCollapsed ? 'w-[40px]' : 'w-[260px]'}`}>
         {sidebarCollapsed ? (
           <button type="button" onClick={() => setSidebarCollapsed(false)} title="Expandir barra lateral" aria-label="Expandir barra lateral"
             className="flex-1 flex flex-col items-center justify-center gap-3 hover:bg-on-surface/5 transition-colors w-full min-h-0 py-4">
@@ -486,7 +490,7 @@ export function SmartDiff(): JSX.Element {
           </button>
         ) : (
           <>
-            <div className="flex items-center justify-between px-3 h-[42px] hairline-b shrink-0 gap-2">
+            <div className="flex items-center justify-between px-[14px] h-[42px] hairline-b shrink-0 gap-2">
               <span className="fl-section px-0! truncate">Archivos</span>
               <button type="button" onClick={() => setSidebarCollapsed(true)} title="Colapsar barra lateral" aria-label="Colapsar barra lateral"
                 className="ui-btn ui-btn-ghost ui-btn-icon shrink-0">
@@ -496,7 +500,6 @@ export function SmartDiff(): JSX.Element {
 
             <div className="flex-1 overflow-y-auto min-h-0">
               <FileCard label="Original" dotColor={REMOVED()} info={origFile} onClear={() => clearSide('orig')} />
-              <div className="mx-3 hairline-t" />
               <FileCard label="Modificado" dotColor={ADDED()}   info={modFile}  onClear={() => clearSide('mod')} />
 
               {/* Diff stats */}
@@ -529,15 +532,15 @@ export function SmartDiff(): JSX.Element {
               )}
 
               {/* Options */}
-              <div className="mx-3 mt-2 hairline-t" />
-              <div className="px-3 py-2.5 flex flex-col gap-2">
+              <div className="mx-[14px] mt-3 hairline-t" />
+              <div className="px-[14px] py-[12px] flex flex-col gap-2.5">
                 <span className="fl-section px-0!">Opciones</span>
                 {([
                   { label: 'Ignorar espacios', value: ignoreWs,   set: setIgnoreWs },
                   { label: 'Desplazamiento sincronizado', value: syncScroll, set: setSyncScroll },
                 ] as const).map(({ label, value, set }) => (
-                  <div key={label} className="flex items-center justify-between gap-2 select-none">
-                    <span className="t-footnote text-on-surface">{label}</span>
+                  <div key={label} className="flex items-center justify-between gap-3 select-none">
+                    <span className="t-footnote text-on-surface leading-tight">{label}</span>
                     <Toggle checked={value} onChange={(v) => set(v)} label={label} />
                   </div>
                 ))}
@@ -545,7 +548,7 @@ export function SmartDiff(): JSX.Element {
             </div>
 
             {/* Sidebar actions */}
-            <div className="hairline-t px-3 py-2 shrink-0 flex flex-col gap-1.5">
+            <div className="hairline-t px-[10px] py-[8px] shrink-0 flex flex-col gap-1">
               <button type="button" onClick={swapSides} disabled={!original && !modified}
                 className="ui-btn ui-btn-ghost ui-btn-sm w-full justify-start!">
                 <ArrowLeftRight size={14} />

@@ -1,6 +1,6 @@
 {
   "name": "mytools-app",
-  "version": "2.14.0",
+  "version": "2.15.0",
   "description": "Setto — modular developer utilities",
   "main": "out/main/main.js",
   "scripts": {
@@ -92,7 +92,6 @@
     "postcss": "^8.4.38",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-icons": "^5.6.0",
     "sharp": "^0.35.5",
     "simple-git-hooks": "^2.13.1",
     "tailwindcss": "^4.3.3",

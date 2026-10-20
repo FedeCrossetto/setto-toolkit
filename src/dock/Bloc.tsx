@@ -154,7 +154,7 @@ export const Bloc = forwardRef<BlocHandle, Props>(function Bloc({ expanded, say,
 
   const stats = useMemo(() => formatStats(blocStats(text)), [text])
   const status = saveState === 'saving' ? 'Guardando…' : saveState === 'saved' ? 'Guardado' : saveState === 'error' ? 'Sin guardar' : ''
-  const pill = 'inline-flex items-center gap-1.5 h-7 px-3 rounded-full border border-hairline-strong text-[12px] text-on-surface hover:bg-on-surface/[0.04] disabled:opacity-40 disabled:pointer-events-none transition-colors'
+  const pill = 'inline-flex items-center gap-1.5 h-7 px-3 rounded-[8px] border border-hairline-strong text-[12px] text-on-surface hover:bg-on-surface/[0.04] disabled:opacity-40 disabled:pointer-events-none transition-colors'
 
   return (
     <div className="h-full flex flex-col gap-2 px-1.5 pb-1">

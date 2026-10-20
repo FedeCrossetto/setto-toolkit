@@ -21,6 +21,8 @@ const MAIN_ONLY_EXACT = new Set([
   'gastos:supabase-config-save', 'gastos:export-csv',
   'ticket-resolver:apply-changes',
   'sql:copy', 'sql:save', 'sql:delete',
+  // Consultas SQL: ejecutar contra una base sólo desde la ventana principal.
+  'sql:query', 'sql:cancel', 'sql:tabs-get', 'sql:tabs-save', 'sql:history-get', 'sql:history-clear', 'sql:meta',
 ])
 
 export function isMainOnlyChannel(channel: string): boolean {

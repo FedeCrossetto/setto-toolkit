@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { MotionConfig } from 'framer-motion'
 import { LayoutGrid } from 'lucide-react'
 import { AppProvider, useApp } from './core/AppContext'
@@ -6,6 +6,7 @@ import { useAppFont } from './core/hooks/useAppFont'
 import { useUiScale } from './core/hooks/useUiScale'
 import { Sidebar } from './core/components/Sidebar'
 import { TopBar } from './core/components/TopBar'
+import { FocusBar } from './core/components/FocusBar'
 import { ModuleSwitcher } from './core/components/ModuleSwitcher'
 import { Onboarding } from './core/components/Onboarding'
 import { CommandPalette } from './core/components/CommandPalette'
@@ -36,6 +37,18 @@ function AppShell(): JSX.Element {
   useNotificationClicks()   // clic en una notificación del sistema → abre el módulo
   useGastosReminders(!state.disabledPlugins.includes('gastos'))   // avisos de vencimientos
   useNoteReminders(!state.disabledPlugins.includes('notes'))      // recordatorios de notas
+
+  // ── Modo foco (F11): sólo el contenido, sin barra lateral ni encabezado ──
+  const [focusMode, setFocusMode] = useState(false)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'F11' && !e.ctrlKey && !e.altKey) { e.preventDefault(); setFocusMode((v) => !v) }
+    }
+    const onToggle = (): void => setFocusMode((v) => !v)
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('setto:toggle-focus', onToggle)
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('setto:toggle-focus', onToggle) }
+  }, [])
 
   // ── Open file from OS (double-click / "Open with") ───────────────────────
   useEffect(() => {
@@ -81,7 +94,7 @@ function AppShell(): JSX.Element {
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-sidebar text-on-surface font-sans">
       <div className="flex flex-1 min-h-0">
-      <Sidebar />
+      {!focusMode && <Sidebar />}
       <CommandPalette />
       <QuickCapture />
       <KeyboardShortcutsModal />
@@ -93,8 +106,12 @@ function AppShell(): JSX.Element {
 
       {/* Contenido: toolbar unificada + módulo activo */}
       {/* Panel de contenido flotante: borde fino, esquinas redondeadas, sobre el fondo de la barra lateral */}
-      <main className="app-panel flex-1 min-w-0 flex flex-col overflow-hidden bg-background my-2 mr-2">
-        <TopBar />
+      {/* El encabezado es parte del marco (mismo fondo que la barra lateral, a la altura del
+          logo) y el panel flotante, debajo, sólo lleva el contenido. */}
+      <div className="flex-1 min-w-0 flex flex-col">
+      {!focusMode && <TopBar />}
+      <main className={`flex-1 min-w-0 flex flex-col overflow-hidden bg-background relative ${focusMode ? '' : 'app-panel mb-2 mr-2'}`}>
+        {focusMode && <FocusBar onExit={() => setFocusMode(false)} />}
 
         {/* Un módulo visible a la vez; los usados hace poco quedan montados y
             ocultos (LRU en AppContext / navigation.ts) para conservar su estado. */}
@@ -137,6 +154,7 @@ function AppShell(): JSX.Element {
           )}
         </div>
       </main>
+      </div>
       </div>
 
 

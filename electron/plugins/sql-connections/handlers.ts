@@ -1,9 +1,13 @@
 import { clipboard } from 'electron'
-import { spawn } from 'child_process'
+import { spawn, type ChildProcess } from 'child_process'
 import { randomUUID } from 'crypto'
 import type { CoreServices, PluginHandlers } from '../../core/types'
 import { registerHandler } from '../../core/ipc-handler'
 import { logger } from '../../core/logger'
+import { runQuery } from './query-runner'
+import { splitBatches } from '../../../src/plugins/sql-runner/sql-text'
+import { childrenSql, DATABASES_SQL, definitionSql, OBJECTS_SQL, type MetaKind } from '../../../src/plugins/sql-runner/sql-meta'
+import type { QueryHistoryEntry, QueryResult, QueryTabsState } from '../../../src/plugins/sql-runner/types'
 import {
   buildConnectionString, buildSqlcmd, validateDraft,
   type SqlCopyFormat, type SqlProfile, type SqlProfileDraft, type SqlTestResult,
@@ -21,6 +25,13 @@ import {
 const FILE = 'sql-connections.json'
 const CLEAR_AFTER_MS = 60_000
 const TEST_TIMEOUT_SEC = 8
+/** Consultas: pestañas (se guardan solas) e historial, cifrados como el resto. */
+const TABS_FILE = 'sql-tabs.json'
+const HISTORY_FILE = 'sql-history.json'
+const HISTORY_MAX = 300
+const MAX_ROWS_CAP = 20_000
+/** Consultas en curso, por id de ejecución (para cancelar). */
+const running = new Map<string, ChildProcess>()
 
 interface Stored extends Omit<SqlProfile, 'hasPassword'> { password?: string }
 
@@ -157,5 +168,71 @@ export const handlers: PluginHandlers = {
       }
       return { ok: true, clears: false }
     })
+
+    // ── Consultas ──────────────────────────────────────────────────────────
+    registerHandler(ipcMain, 'sql:query', async (_e, req: {
+      runId: string; profileId: string; database?: string; sql: string; readOnly?: boolean; maxRows?: number; timeoutSec?: number
+    }): Promise<QueryResult> => {
+      const prof = find(req.profileId)
+      const batches = splitBatches(String(req.sql ?? ''))
+      if (!batches.length) return { ok: false, error: 'No hay nada para ejecutar', sets: [], messages: [], ms: 0 }
+      const database = (req.database ?? '').trim() || prof.database
+      const cs = buildConnectionString({ ...prof, database }, prof.auth === 'windows' ? null : prof.password ?? '', { timeoutSec: 10, appName: 'Setto' })
+      const readOnly = req.readOnly !== false
+      const result = await runQuery(cs, batches, {
+        readOnly,
+        maxRows: Math.min(MAX_ROWS_CAP, Math.max(1, Math.round(Number(req.maxRows) || 1000))),
+        timeoutSec: Math.min(3600, Math.max(5, Math.round(Number(req.timeoutSec) || 120))),
+      }, (p) => running.set(req.runId, p))
+      running.delete(req.runId)
+      // El número de línea del error es relativo al lote: pasarlo a la línea del editor.
+      // Al fallar la conexión, SqlClient informa la línea 65536: no es del editor.
+      if (result.phase === 'connect') result.line = null
+      if (!result.ok && typeof result.line === 'number' && typeof result.batch === 'number') {
+        const b = batches[result.batch]
+        if (b) result.line = b.startLine + result.line - 1
+      }
+      update(prof.id, { lastUsedAt: Date.now() })
+      const entry: QueryHistoryEntry = {
+        id: randomUUID(), at: Date.now(), profileId: prof.id, profileName: prof.name, database,
+        sql: String(req.sql).slice(0, 20_000), ok: result.ok, ms: result.ms, readOnly,
+        rows: result.sets.reduce((n, x) => n + (x.total ?? x.rows.length), 0),
+        ...(result.ok ? {} : { error: (result.error ?? '').slice(0, 300) }),
+      }
+      const hist = db.readEncryptedJSON<QueryHistoryEntry[]>(HISTORY_FILE) ?? []
+      db.writeEncryptedJSON(HISTORY_FILE, [entry, ...hist].slice(0, HISTORY_MAX))
+      logger.info('sql', `consulta ${result.ok ? 'ok' : 'falló'} en ${prof.name} (${result.ms} ms)`)
+      return result
+    })
+
+    /** Explorador: catálogo de la base (sin historial, siempre en modo lectura). */
+    registerHandler(ipcMain, 'sql:meta', async (_e, req: { profileId: string; database?: string; kind: MetaKind; objectId?: number }): Promise<QueryResult> => {
+      const prof = find(req.profileId)
+      const sql = req.kind === 'databases' ? DATABASES_SQL
+        : req.kind === 'objects' ? OBJECTS_SQL
+          : req.kind === 'children' ? childrenSql(Number(req.objectId))
+            : req.kind === 'definition' ? definitionSql(Number(req.objectId))
+              : null
+      if (!sql) throw new Error('Consulta de catálogo desconocida')
+      const database = req.kind === 'databases' ? (prof.database || 'master') : ((req.database ?? '').trim() || prof.database)
+      const cs = buildConnectionString({ ...prof, database }, prof.auth === 'windows' ? null : prof.password ?? '', { timeoutSec: 10, appName: 'Setto' })
+      return runQuery(cs, splitBatches(sql), { readOnly: true, maxRows: 50_000, timeoutSec: 60 })
+    })
+
+    registerHandler(ipcMain, 'sql:cancel', (_e, runId: string) => {
+      const p = running.get(runId)
+      if (p && !p.killed) p.kill()
+      running.delete(runId)
+      return { ok: true }
+    })
+
+    registerHandler(ipcMain, 'sql:tabs-get', (): QueryTabsState | null => db.readEncryptedJSON<QueryTabsState>(TABS_FILE))
+    registerHandler(ipcMain, 'sql:tabs-save', (_e, state: QueryTabsState) => {
+      if (!state || !Array.isArray(state.tabs)) throw new Error('Estado inválido')
+      db.writeEncryptedJSON(TABS_FILE, { ...state, closed: (state.closed ?? []).slice(0, 30) })
+      return { ok: true }
+    })
+    registerHandler(ipcMain, 'sql:history-get', (): QueryHistoryEntry[] => db.readEncryptedJSON<QueryHistoryEntry[]>(HISTORY_FILE) ?? [])
+    registerHandler(ipcMain, 'sql:history-clear', () => { db.writeEncryptedJSON(HISTORY_FILE, []); return { ok: true } })
   },
 }

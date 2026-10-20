@@ -363,8 +363,8 @@
 /* ─── Focus visibility (keyboard / a11y) ───────────────────────────────────── */
 /* Campos de texto dibujan su propio foco (.ui-input / anillo propio) */
 :focus-visible:not(input):not(textarea):not(.cm-content) {
-  outline: 3px solid rgb(var(--c-primary) / 0.45);
-  outline-offset: 1px;
+  outline: 2px solid rgb(var(--c-primary) / 0.6);
+  outline-offset: 2px;
 }
 button:focus:not(:focus-visible),
 [role="button"]:focus:not(:focus-visible) {
@@ -428,30 +428,30 @@ html {
 }
 
 /* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+/* Finas e invisibles en reposo: aparecen al pasar el mouse por el panel que scrollea
+   y se engrosan un poco sobre la barra misma (como macOS). */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
 }
-::-webkit-scrollbar-track {
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgb(var(--c-on-surface) / 0.18);
-  border-radius: 10px;
-  border: 3px solid transparent;
-  background-clip: padding-box;
-  transition: background-color 150ms;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--c-on-surface) / 0.35);
+  background: transparent;
+  border-radius: 9px;
+  border: 2.5px solid transparent;
   background-clip: padding-box;
 }
-.dark ::-webkit-scrollbar-thumb {
+:hover::-webkit-scrollbar-thumb {
   background: rgb(var(--c-on-surface) / 0.2);
   background-clip: padding-box;
 }
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--c-on-surface) / 0.35);
+::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:active {
+  background: rgb(var(--c-on-surface) / 0.38);
+  border-width: 1.5px;
   background-clip: padding-box;
 }
 
@@ -566,6 +566,15 @@ select option {
 .ui-btn-dark:hover { filter: brightness(1.15); }
 .dark .ui-btn-dark:hover { filter: brightness(0.95); }
 .ui-btn-primary:hover { filter: brightness(1.08); }
+/* Ejecutar (Consultas): verde flúor tipo WhatsApp, con brillo */
+.ui-btn-run {
+  background: linear-gradient(180deg, #4cf78d 0%, #1fe468 100%);
+  color: #04290f;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45), 0 0 0 1px rgb(22 190 86 / 0.55), 0 4px 16px -3px rgb(37 230 110 / 0.6);
+}
+.ui-btn-run:hover { filter: brightness(1.06) saturate(1.1); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), 0 0 0 1px rgb(22 190 86 / 0.6), 0 6px 22px -3px rgb(37 230 110 / 0.75); }
+.ui-btn-run:active { filter: brightness(0.95); }
 .ui-btn-primary:active { filter: brightness(0.94); }
 .ui-btn-outline {
   background: rgb(var(--c-surface));
@@ -615,7 +624,7 @@ select option {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border-radius: 999px;
+  border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
   padding: 1px 8px;
@@ -730,7 +739,7 @@ select option {
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 /* Cambio de pestaña: fundido + desplazamiento mínimo. Usar con fill-mode `backwards`. */
-@keyframes tabIn { from { opacity: 0; transform: translateY(6px); } }
+@keyframes tabIn { from { opacity: 0; transform: translateY(3px); } }
 @keyframes sheetIn {
   from { opacity: 0; transform: translateX(24px); }
   to   { opacity: 1; transform: translateX(0); }
@@ -850,8 +859,7 @@ button, input, select, textarea { font-family: inherit; }
   background: rgb(var(--c-surface));
 }
 .dark .kbd-chip { background: rgb(255 255 255 / 0.05); }
-/* Botones de contorno con forma de píldora y tarjetas con borde fino sin brillo */
-.ui-btn-outline:not(.ui-btn-icon) { border-radius: 999px; }
+/* Botones: rectángulos con esquinas redondeadas (sin forma de cápsula), tarjetas con borde fino sin brillo */
 :where(.ui-card) { background-image: none; box-shadow: 0 1px 2px rgb(0 0 0 / 0.03); }
 .dark :where(.ui-card) { box-shadow: none; }
 /* ─── Diseño A (líneas finas en Inicio, Gastos, Conexiones, Ajustes, Utilidades) ─── */
@@ -898,7 +906,7 @@ button.fl-section:hover { color: rgb(var(--c-on-surface)); }
 /* Chip / etiqueta: píldora con borde fino */
 .fl-chip {
   display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px;
-  border: var(--border-w) solid var(--hairline-strong); border-radius: 999px;
+  border: var(--border-w) solid var(--hairline-strong); border-radius: 6px;
   font-size: 11.5px; line-height: 1; color: rgb(var(--c-on-surface-variant));
   background: transparent; white-space: nowrap;
 }
@@ -926,7 +934,7 @@ button.fl-chip:hover { color: rgb(var(--c-on-surface)); border-color: rgb(var(--
 @layer utilities {
   .md-preview .md-remote-img {
     display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
-    margin: 4px 0; padding: 6px 12px; border-radius: 999px;
+    margin: 4px 0; padding: 6px 12px; border-radius: var(--r-sm);
     border: var(--border-w) dashed var(--hairline-strong);
     background: transparent; color: rgb(var(--c-on-surface-variant));
     font-size: 12px; line-height: 1.3; cursor: pointer; text-align: left;

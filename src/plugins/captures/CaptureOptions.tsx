@@ -56,9 +56,9 @@ export function CaptureOptions({ open, settings, facets, dir, onClose, onChange 
         <div className="flex flex-wrap gap-1.5">
           {settings.excludeApps.length === 0 && <span className="t-footnote text-on-surface-variant/70">Ninguna</span>}
           {settings.excludeApps.map((a) => (
-            <span key={a} className="inline-flex items-center gap-1 h-[26px] pl-2.5 pr-1 rounded-full bg-on-surface/[0.07] t-footnote text-on-surface">
+            <span key={a} className="inline-flex items-center gap-1 h-[26px] pl-2.5 pr-1 rounded-[7px] bg-on-surface/[0.07] t-footnote text-on-surface">
               {a}
-              <button type="button" className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-on-surface/10" aria-label={`Dejar de ignorar ${a}`}
+              <button type="button" className="w-5 h-5 rounded-[5px] flex items-center justify-center hover:bg-on-surface/10" aria-label={`Dejar de ignorar ${a}`}
                 onClick={() => void onChange({ excludeApps: settings.excludeApps.filter((x) => x !== a) })}>
                 <X size={11} />
               </button>
@@ -74,7 +74,7 @@ export function CaptureOptions({ open, settings, facets, dir, onClose, onChange 
             Sugeridas:
             {suggestions.slice(0, 8).map((a) => (
               <button key={a} type="button" onClick={() => addExcluded(a)}
-                className="inline-flex items-center gap-1 h-[22px] px-2 rounded-full hairline hover:bg-on-surface/5 text-on-surface">
+                className="inline-flex items-center gap-1 h-[22px] px-2 rounded-[6px] hairline hover:bg-on-surface/5 text-on-surface">
                 <Plus size={10} /> {a}
               </button>
             ))}

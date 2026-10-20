@@ -1,0 +1,159 @@
+/**
+ * Explorador de objetos y diagnóstico de conexión: consultas al catálogo de SQL Server
+ * (sys.*) y helpers puros para armar scripts. Los usan main (que corre las consultas)
+ * y el renderer (que arma el árbol y los scripts).
+ */
+import type { QueryResult } from './types'
+
+export type MetaKind = 'databases' | 'objects' | 'children' | 'definition'
+
+/** Tipos de sys.objects que muestra el explorador. */
+export type SqlObjectType = 'U' | 'V' | 'P' | 'FN' | 'IF' | 'TF' | 'TR' | 'SN'
+
+export interface SqlObject {
+  schema: string
+  name: string
+  type: SqlObjectType
+  id: number
+  modified: string
+  /** Tabla de un disparador */
+  parent: string | null
+  /** Filas aproximadas (sólo tablas) */
+  rows: number | null
+}
+
+export interface SqlColumn {
+  name: string
+  type: string
+  nullable: boolean
+  identity: boolean
+  pk: boolean
+  default: string | null
+}
+
+export interface SqlParam { name: string; type: string; output: boolean }
+
+export interface ObjectGroup { id: string; label: string; types: SqlObjectType[] }
+
+export const OBJECT_GROUPS: ObjectGroup[] = [
+  { id: 'tables', label: 'Tablas', types: ['U'] },
+  { id: 'views', label: 'Vistas', types: ['V'] },
+  { id: 'procs', label: 'Procedimientos', types: ['P'] },
+  { id: 'functions', label: 'Funciones', types: ['FN', 'IF', 'TF'] },
+  { id: 'triggers', label: 'Disparadores', types: ['TR'] },
+  { id: 'synonyms', label: 'Sinónimos', types: ['SN'] },
+]
+
+export const DATABASES_SQL = `SELECT name FROM sys.databases
+WHERE state = 0 AND HAS_DBACCESS(name) = 1
+ORDER BY CASE WHEN database_id <= 4 THEN 1 ELSE 0 END, name`
+
+export const OBJECTS_SQL = `SELECT s.name AS sch, o.name, RTRIM(o.type) AS type, o.object_id,
+  CONVERT(varchar(16), o.modify_date, 120) AS modified,
+  CASE WHEN o.type = 'TR' THEN OBJECT_NAME(o.parent_object_id) END AS parent,
+  r.rows
+FROM sys.objects o
+JOIN sys.schemas s ON s.schema_id = o.schema_id
+LEFT JOIN (SELECT object_id, SUM(rows) AS rows FROM sys.partitions WHERE index_id IN (0, 1) GROUP BY object_id) r
+  ON r.object_id = o.object_id AND o.type = 'U'
+WHERE o.is_ms_shipped = 0 AND o.type IN ('U','V','P','FN','IF','TF','TR','SN')
+ORDER BY s.name, o.name`
+
+/** Columnas (1er resultado) y parámetros (2do) de un objeto. */
+export function childrenSql(objectId: number): string {
+  const id = safeId(objectId)
+  return `SELECT c.name, TYPE_NAME(c.user_type_id) AS type, c.max_length, c.precision, c.scale, c.is_nullable, c.is_identity,
+  CASE WHEN EXISTS (SELECT 1 FROM sys.index_columns ic JOIN sys.indexes i ON i.object_id = ic.object_id AND i.index_id = ic.index_id
+    WHERE i.is_primary_key = 1 AND ic.object_id = c.object_id AND ic.column_id = c.column_id) THEN 1 ELSE 0 END AS pk,
+  OBJECT_DEFINITION(c.default_object_id) AS dflt
+FROM sys.columns c WHERE c.object_id = ${id} ORDER BY c.column_id;
+SELECT p.name, TYPE_NAME(p.user_type_id) AS type, p.max_length, p.precision, p.scale, p.is_output
+FROM sys.parameters p WHERE p.object_id = ${id} AND p.parameter_id > 0 ORDER BY p.parameter_id;`
+}
+
+/** Texto del objeto (procedimientos, vistas, funciones, disparadores) o destino del sinónimo. */
+export function definitionSql(objectId: number): string {
+  const id = safeId(objectId)
+  return `SELECT OBJECT_DEFINITION(${id}) AS def, (SELECT base_object_name FROM sys.synonyms WHERE object_id = ${id}) AS syn`
+}
+
+function safeId(n: number): number {
+  if (!Number.isInteger(n)) throw new Error('Id de objeto inválido')
+  return n
+}
+
+export function quoteName(n: string): string {
+  return `[${n.replace(/]/g, ']]')}]`
+}
+
+export const fullName = (o: Pick<SqlObject, 'schema' | 'name'>): string => `${quoteName(o.schema)}.${quoteName(o.name)}`
+
+/** `nvarchar(50)`, `decimal(18,2)`, `varchar(MAX)`… a partir de sys.columns. */
+export function formatType(type: string, maxLength: number, precision: number, scale: number): string {
+  const t = type.toLowerCase()
+  if (['varchar', 'char', 'varbinary', 'binary'].includes(t)) return `${type}(${maxLength === -1 ? 'MAX' : maxLength})`
+  if (['nvarchar', 'nchar'].includes(t)) return `${type}(${maxLength === -1 ? 'MAX' : maxLength / 2})`
+  if (['decimal', 'numeric'].includes(t)) return `${type}(${precision},${scale})`
+  if (['datetime2', 'time', 'datetimeoffset'].includes(t)) return `${type}(${scale})`
+  return type
+}
+
+const num = (v: string | null | undefined): number => Number(v ?? 0) || 0
+const bool = (v: string | null | undefined): boolean => v === '1' || v?.toLowerCase() === 'true'
+
+export function parseObjects(r: QueryResult): SqlObject[] {
+  return (r.sets[0]?.rows ?? []).map((x) => ({
+    schema: x[0] ?? '', name: x[1] ?? '', type: (x[2] ?? 'U') as SqlObjectType, id: num(x[3]),
+    modified: x[4] ?? '', parent: x[5] ?? null, rows: x[6] == null ? null : num(x[6]),
+  }))
+}
+
+export function parseChildren(r: QueryResult): { columns: SqlColumn[]; params: SqlParam[] } {
+  return {
+    columns: (r.sets[0]?.rows ?? []).map((x) => ({
+      name: x[0] ?? '', type: formatType(x[1] ?? '', num(x[2]), num(x[3]), num(x[4])),
+      nullable: bool(x[5]), identity: bool(x[6]), pk: bool(x[7]), default: x[8] ?? null,
+    })),
+    params: (r.sets[1]?.rows ?? []).map((x) => ({ name: x[0] ?? '', type: formatType(x[1] ?? '', num(x[2]), num(x[3]), num(x[4])), output: bool(x[5]) })),
+  }
+}
+
+/** CREATE TABLE aproximado (columnas, identidad, nulos, defaults y clave primaria). */
+export function tableScript(o: Pick<SqlObject, 'schema' | 'name'>, cols: SqlColumn[]): string {
+  const lines = cols.map((c) => `    ${quoteName(c.name)} ${c.type}${c.identity ? ' IDENTITY' : ''}${c.nullable ? ' NULL' : ' NOT NULL'}${c.default ? ` DEFAULT ${c.default}` : ''}`)
+  const pk = cols.filter((c) => c.pk).map((c) => quoteName(c.name))
+  if (pk.length) lines.push(`    PRIMARY KEY (${pk.join(', ')})`)
+  return `-- Generado desde las columnas (sin índices ni claves foráneas)\nCREATE TABLE ${fullName(o)} (\n${lines.join(',\n')}\n)\n`
+}
+
+export function selectTopScript(o: Pick<SqlObject, 'schema' | 'name'>, n = 100): string {
+  return `SELECT TOP (${n}) *\nFROM ${fullName(o)}\n`
+}
+
+/** Plantilla para ejecutar un procedimiento o una función con sus parámetros. */
+export function execScript(o: Pick<SqlObject, 'schema' | 'name' | 'type'>, params: SqlParam[]): string {
+  if (o.type === 'P') {
+    if (!params.length) return `EXEC ${fullName(o)}\n`
+    return `EXEC ${fullName(o)}\n${params.map((p, i) => `    ${p.name} = NULL${p.output ? ' OUTPUT' : ''}${i < params.length - 1 ? ',' : ''}  -- ${p.type}`).join('\n')}\n`
+  }
+  const args = params.map(() => 'NULL').join(', ')
+  return o.type === 'FN' ? `SELECT ${fullName(o)}(${args})\n` : `SELECT *\nFROM ${fullName(o)}(${args})\n`
+}
+
+/** El primer CREATE (o CREATE OR ALTER) del texto pasa a ALTER, como "Modificar" en SSMS. */
+export function createToAlter(def: string): string {
+  return def.replace(/^((?:\s|--[^\n]*\n|\/\*[\s\S]*?\*\/)*)CREATE(\s+OR\s+ALTER)?\b/i, '$1ALTER')
+}
+
+/**
+ * ¿La consulta falló al conectar? `auth`: usuario o contraseña (vencida, cambiada,
+ * bloqueada); `server`: no se llega al servidor (IP, nombre, instancia o puerto).
+ * null: conectó bien y el error es de la consulta.
+ */
+export function connectionProblem(r: Pick<QueryResult, 'ok' | 'phase' | 'number' | 'error'>): 'auth' | 'server' | null {
+  if (r.ok || r.phase !== 'connect') return null
+  if ([18456, 18487, 18488, 18470, 18486].includes(r.number ?? 0)) return 'auth'
+  if (/login failed|password|contraseña|error de inicio de sesi/i.test(r.error ?? '')) return 'auth'
+  if (r.number === 4060) return null // conecta, pero no puede abrir la base
+  return 'server'
+}

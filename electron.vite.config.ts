@@ -80,7 +80,6 @@ export default defineConfig(({ mode }) => {
             if (id.includes('/framer-motion/') || id.includes('/motion-dom/') || id.includes('/motion-utils/')) return 'vendor-motion'
             if (id.includes('/@codemirror/') || id.includes('/codemirror/') || id.includes('/@lezer/') || id.includes('/@replit/codemirror')) return 'vendor-codemirror'
             if (id.includes('/react-dom/') || id.includes('/node_modules/react/') || id.includes('/node_modules/scheduler/')) return 'vendor-react-dom'
-            if (id.includes('/react-icons/')) return 'vendor-react-icons'
             // Aparte para que la barra flotante y el selector no los carguen.
             if (id.includes('/@xterm/') || id.includes('/xterm')) return 'vendor-xterm'
             if (id.includes('/@phosphor-icons/')) return 'vendor-icons'

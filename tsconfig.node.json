@@ -15,6 +15,9 @@
     "src/plugins/tickets/logic.ts",
     "src/plugins/captures/clip-search.ts",
     "src/plugins/connections/sql.ts",
+    "src/plugins/sql-runner/sql-text.ts",
+    "src/plugins/sql-runner/sql-meta.ts",
+    "src/plugins/sql-runner/types.ts",
     "src/core/icons/phosphor-weights.ts"
   ],
   "compilerOptions": {

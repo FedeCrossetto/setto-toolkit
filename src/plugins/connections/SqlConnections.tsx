@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { EnvChip } from '../sql-runner/env'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check, ChevronDown, CircleAlert, Copy, Pencil, Plus, Server, Trash2, Zap } from 'lucide-react'
 import { Sheet, useConfirm } from '../../core/components/Modal'
@@ -131,7 +132,7 @@ function ProfileCard({ p, testing, onTest, onCopy, onEdit, onDelete }: {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <h3 className="t-body font-semibold text-on-surface truncate">{p.name}</h3>
-            {p.tag && <span className="t-caption px-1.5 py-px rounded-full hairline text-on-surface-variant shrink-0">{p.tag}</span>}
+            {p.tag && <EnvChip tag={p.tag} />}
           </div>
           <p className="t-footnote text-on-surface-variant font-mono truncate" title={p.server}>{p.server}{p.database ? ` · ${p.database}` : ''}</p>
           <p className="t-caption text-on-surface-variant/80 truncate">{p.auth === 'windows' ? 'Windows' : `SQL · ${p.user}`}</p>
