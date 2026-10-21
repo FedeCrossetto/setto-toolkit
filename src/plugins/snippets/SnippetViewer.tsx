@@ -1,5 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Check, Copy, ZoomIn } from 'lucide-react'
 import { EditorView, basicSetup } from 'codemirror'
+import { Decoration, MatchDecorator, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view'
+import { Modal } from '../../core/components/Modal'
 import { EditorState, type Extension } from '@codemirror/state'
 import { StreamLanguage, syntaxHighlighting } from '@codemirror/language'
 import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark'
@@ -47,11 +50,21 @@ const tokenTheme = EditorView.theme({
   '&.cm-focused': { outline: 'none' },
   '.cm-scroller': { fontFamily: "'JetBrains Mono','Cascadia Code','Fira Code',Consolas,monospace", lineHeight: '1.6', overflow: 'auto' },
   '.cm-content': { padding: '14px 0', caretColor: 'rgb(var(--c-primary))' },
-  '.cm-gutters': { backgroundColor: 'rgb(var(--c-on-surface) / 0.02)', color: 'rgb(var(--c-on-surface-variant) / 0.5)', borderRight: '1px solid var(--hairline)', paddingLeft: '6px' },
+  // Opaco: con scroll horizontal el código pasa por debajo de los números de línea.
+  '.cm-gutters': { backgroundColor: 'rgb(var(--c-surface))', color: 'rgb(var(--c-on-surface-variant) / 0.5)', borderRight: '1px solid var(--hairline)', paddingLeft: '6px', zIndex: '3' },
+  '.cm-snippet-var': { backgroundColor: 'rgb(var(--c-primary) / 0.12)', color: 'rgb(var(--c-primary))', borderRadius: '4px', boxShadow: '0 0 0 1px rgb(var(--c-primary) / 0.25)', fontWeight: '600' },
   '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: 'rgb(var(--c-on-surface) / 0.035)' },
   '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { backgroundColor: 'rgb(var(--c-primary) / 0.22) !important' },
   '.cm-foldPlaceholder': { backgroundColor: 'transparent', border: 'none', color: 'rgb(var(--c-on-surface-variant))' },
 })
+
+/** Variables `{{nombre}}` / `{{nombre:valor}}` resaltadas: se ve qué te va a pedir al copiar. */
+const varMatcher = new MatchDecorator({ regexp: /\{\{[^{}\n]+\}\}/g, decoration: Decoration.mark({ class: 'cm-snippet-var' }) })
+const highlightVars = ViewPlugin.fromClass(class {
+  decorations: DecorationSet
+  constructor(view: EditorView) { this.decorations = varMatcher.createDeco(view) }
+  update(u: ViewUpdate): void { this.decorations = varMatcher.updateDeco(u, this.decorations) }
+}, { decorations: (v) => v.decorations })
 
 export function CodeViewer({ content, language, dark }: { content: string; language: SnippetLanguage; dark: boolean }): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
@@ -68,6 +81,7 @@ export function CodeViewer({ content, language, dark }: { content: string; langu
           EditorView.editable.of(false),
           ...(ext ? [ext] : []),
           ...(dark ? [syntaxHighlighting(oneDarkHighlightStyle)] : []),
+          highlightVars,
           tokenTheme,
         ],
       }),
@@ -103,19 +117,51 @@ export function hasImages(content: string): boolean {
   return /!\[\]\(data:image\//.test(content)
 }
 
+/** Copia una imagen (data URL) al portapapeles como PNG. */
+export async function copyImage(dataUrl: string): Promise<void> {
+  let blob = await (await fetch(dataUrl)).blob()
+  if (blob.type !== 'image/png') {
+    const bmp = await createImageBitmap(blob)
+    const c = document.createElement('canvas')
+    c.width = bmp.width; c.height = bmp.height
+    c.getContext('2d')!.drawImage(bmp, 0, 0)
+    blob = await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('No se pudo convertir la imagen'))), 'image/png'))
+  }
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+}
+
+/** Imagen del snippet: clic la agranda; botones para copiarla o verla grande. */
+function ImageCard({ src, n, onZoom }: { src: string; n: number; onZoom: () => void }): JSX.Element {
+  const [copied, setCopied] = useState(false)
+  const copy = (): void => { void copyImage(src).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1400) }, () => undefined) }
+  return (
+    <figure className="group relative w-fit max-w-full mx-auto rounded-[12px] overflow-hidden ring-1 ring-(--hairline-strong) bg-on-surface/[0.03]">
+      <img src={src} alt={`Imagen ${n}`} onClick={onZoom} className="block max-w-full object-contain cursor-zoom-in" style={{ maxHeight: 420 }} />
+      <figcaption className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button type="button" onClick={copy} title="Copiar imagen" className="ui-btn ui-btn-sm bg-surface/90! backdrop-blur ring-1 ring-(--hairline-strong)">
+          {copied ? <Check size={13} className="text-success" /> : <Copy size={13} />} {copied ? 'Copiada' : 'Copiar'}
+        </button>
+        <button type="button" onClick={onZoom} title="Ver grande" aria-label="Ver grande" className="ui-btn ui-btn-sm ui-btn-icon bg-surface/90! backdrop-blur ring-1 ring-(--hairline-strong)"><ZoomIn size={13} /></button>
+      </figcaption>
+    </figure>
+  )
+}
+
 export function MixedContentViewer({ content }: { content: string }): JSX.Element {
   const blocks = useMemo(() => parseContent(content), [content])
+  const [zoom, setZoom] = useState<string | null>(null)
+  let n = 0
   return (
-    <div className="h-full overflow-auto p-4 space-y-3">
-      {blocks.map((block, i) =>
-        block.type === 'image' ? (
-          <div key={i} className="flex justify-center">
-            <img src={block.value} alt="" className="max-w-full rounded-lg hairline object-contain" style={{ maxHeight: 400 }} />
-          </div>
-        ) : block.value.trim() ? (
-          <pre key={i} className="t-footnote font-mono text-on-surface whitespace-pre-wrap wrap-break-word">{block.value}</pre>
-        ) : null,
-      )}
+    <div className="h-full overflow-auto px-6 py-5 space-y-4">
+      {blocks.map((block, i) => {
+        if (block.type === 'image') { const k = ++n; return <ImageCard key={i} src={block.value} n={k} onZoom={() => setZoom(block.value)} /> }
+        return block.value.trim() ? (
+          <pre key={i} className="t-footnote font-mono leading-relaxed text-on-surface whitespace-pre-wrap wrap-break-word">{block.value.replace(/^\n+|\n+$/g, '')}</pre>
+        ) : null
+      })}
+      <Modal open={!!zoom} onClose={() => setZoom(null)} width={1100}>
+        {zoom && <img src={zoom} alt="" className="block max-w-full max-h-[75vh] mx-auto object-contain rounded-[8px]" />}
+      </Modal>
     </div>
   )
 }

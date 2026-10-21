@@ -204,7 +204,7 @@ export function SyncSheet({
                 title="Copiar SQL"
                 aria-label="Copiar SQL"
               >
-                {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
+                {copied ? <Check size={14} className="fx-pop text-success" /> : <Copy size={14} />}
               </button>
             </div>
           </div>

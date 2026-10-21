@@ -1,9 +1,9 @@
-import { app, BrowserWindow, clipboard, globalShortcut, Notification, screen } from 'electron'
+import { BrowserWindow, clipboard, globalShortcut, Notification, screen } from 'electron'
 import type { IpcMain, NativeImage } from 'electron'
 import { execFile } from 'child_process'
-import { writeFileSync, existsSync } from 'fs'
 import path from 'path'
 import { logger } from './logger'
+import { sendPasteKeys } from './win-helper'
 import { isPrivateClipboard, writeClipboardSilently } from './clipboard-history'
 import { RESTORE_DELAY_MS, restorableText, shouldRestore } from './paste-restore'
 
@@ -100,15 +100,6 @@ function reveal(): void {
 
 // ── Pegado automático ────────────────────────────────────────────────────────
 
-let winScript: string | null = null
-function windowsPasteScript(): string {
-  if (winScript && existsSync(winScript)) return winScript
-  // JScript vía wscript: arranca mucho más rápido que PowerShell (~100 ms vs ~600 ms).
-  winScript = path.join(app.getPath('userData'), 'paste-keystroke.js')
-  writeFileSync(winScript, 'new ActiveXObject("WScript.Shell").SendKeys("^v");\r\n', 'utf8')
-  return winScript
-}
-
 function run(cmd: string, args: string[]): Promise<boolean> {
   return new Promise((resolve) => {
     execFile(cmd, args, { windowsHide: true, timeout: 5000 }, (err) => {
@@ -134,14 +125,15 @@ function notifyManualPaste(): void {
 }
 
 /**
- * Simula Ctrl+V (Cmd+V) en la app que tiene el foco. En Windows prueba wscript
- * (rápido) y, si falla (WSH deshabilitado por política), PowerShell SendKeys.
+ * Simula Ctrl+V (Cmd+V) en la app que tiene el foco. En Windows usa el ayudante
+ * que ya está corriendo (rápido) y, si no está disponible, PowerShell SendKeys.
  * Si nada funciona avisa con una notificación. Devuelve si se pudo.
  */
 export async function simulatePaste(): Promise<boolean> {
   let ok: boolean
   if (process.platform === 'win32') {
-    ok = await run('wscript.exe', ['//E:JScript', '//B', '//Nologo', windowsPasteScript()])
+    // No usar wscript + .js: CrowdStrike mata Setto.exe con ese patrón (ver sendPasteKeys).
+    ok = await sendPasteKeys()
     if (!ok) {
       ok = await run('powershell.exe', [
         '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command',

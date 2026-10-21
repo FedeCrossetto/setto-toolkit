@@ -100,8 +100,8 @@ export function YearChart({ months, fijos, variables, previous, selectedMes, onS
             return (
               <g key={m} opacity={active >= 0 && !on ? 0.7 : 1}>
                 {on && f + v > 0 && <rect x={x} y={y(f + v)} width={barW} height={H - y(f + v)} fill="rgb(var(--c-primary))" opacity={0.55} filter={`url(#yg-${gid})`} />}
-                {f > 0 && <rect x={x} y={y(f)} width={barW} height={H - y(f)} fill={`url(#yf-${gid})`} rx={3} />}
-                {v > 0 && <rect x={x} y={y(f + v)} width={barW} height={y(f) - y(f + v)} fill={`url(#yv-${gid})`} rx={3} />}
+                {f > 0 && <rect className="grow-y" style={{ '--i': i } as React.CSSProperties} x={x} y={y(f)} width={barW} height={H - y(f)} fill={`url(#yf-${gid})`} rx={3} />}
+                {v > 0 && <rect className="grow-y" style={{ '--i': i + 2 } as React.CSSProperties} x={x} y={y(f + v)} width={barW} height={y(f) - y(f + v)} fill={`url(#yv-${gid})`} rx={3} />}
                 <rect x={slot * i} y={0} width={slot} height={H} fill="transparent" style={{ cursor: 'pointer' }}
                   onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onClick={() => onSelectMes(m)} />
               </g>

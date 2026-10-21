@@ -14,7 +14,7 @@ import { useConfirm } from '../../core/components/Modal'
 import { EmptyState } from '../../core/components/EmptyState'
 import { listItemMotion, shouldAnimateList } from '../../core/motion'
 import { LANGUAGES, SHELL_LANGUAGES, langLabel } from './langs'
-import { hasVariables, stripDataUrls } from './template'
+import { hasVariables, parseVariables, stripDataUrls } from './template'
 import { CodeViewer, MixedContentViewer, hasImages } from './SnippetViewer'
 import { SnippetEditor, collapseImages, emptyForm, expandImages, type SnippetFormState } from './SnippetEditor'
 import { VariablesModal, type VariablesMode } from './VariablesModal'
@@ -734,7 +734,7 @@ function SnippetDetail({
               </button>
             )}
             <button onClick={onCopy} className="ui-btn ui-btn-primary" disabled={!snippet.content.trim()}>
-              {copied ? <Check size={14} weight="bold" /> : <Copy size={14} />}
+              {copied ? <Check className="fx-pop" size={14} weight="bold" /> : <Copy size={14} />}
               {copied ? 'Copiado' : mixed ? 'Copiar texto' : 'Copiar'}
             </button>
           </div>
@@ -756,7 +756,12 @@ function SnippetDetail({
             </button>
           ))}
           {withVars && (
-            <span className="t-caption text-on-surface-variant">Tiene variables: al copiar o ejecutar te pide los valores.</span>
+            <span className="flex items-center gap-1 flex-wrap t-caption text-on-surface-variant" title="Al copiar o ejecutar te pide estos valores">
+              Pide:
+              {parseVariables(snippet.content).map((v) => (
+                <span key={v.name} className="h-[18px] px-1.5 rounded-[5px] bg-primary/10 text-primary font-mono font-semibold leading-[18px]">{v.name}</span>
+              ))}
+            </span>
           )}
           <span className="ml-auto t-caption text-on-surface-variant/80">
             {snippet.useCount ? `Usado ${snippet.useCount} ${snippet.useCount === 1 ? 'vez' : 'veces'}` : 'Sin usar'}

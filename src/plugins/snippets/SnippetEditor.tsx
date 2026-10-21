@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Braces, Images, X } from 'lucide-react'
 import { Field, Toggle } from '../../core/components/Form'
 import type { SnippetCollection, SnippetLanguage } from './types'
 import { LANGUAGES, LANG_LABEL } from './langs'
 import { IMAGE_MARKER_RE } from './SnippetViewer'
+import { parseVariables } from './template'
 
 export interface SnippetFormState {
   title: string
@@ -56,6 +57,23 @@ export function SnippetEditor({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [tagInput, setTagInput] = useState('')
   const canSave = !!form.title.trim() && !!form.content.trim()
+  const vars = useMemo(() => parseVariables(form.content.replace(/!\[img:[^\]]+\]/g, '')), [form.content])
+  /** Imágenes que siguen en el texto, en orden (las borradas del texto no se muestran). */
+  const pasted = useMemo(() => [...form.content.matchAll(/!\[img:([^\]]+)\]/g)].map((m) => m[1]!).filter((id) => form.images[id]), [form.content, form.images])
+  const removeImage = (id: string): void => setForm((f) => {
+    const images = { ...f.images }; delete images[id]
+    return { ...f, images, content: f.content.split(`![img:${id}]`).join('') }
+  })
+  const insertVar = (): void => {
+    const ta = textareaRef.current
+    const s = ta ? ta.selectionStart : form.content.length
+    const e = ta ? ta.selectionEnd : form.content.length
+    const sel = form.content.slice(s, e).trim()
+    const text = `{{${sel || 'nombre'}}}`
+    setForm((f) => ({ ...f, content: f.content.slice(0, s) + text + f.content.slice(e) }))
+    // Dejar seleccionado el nombre para escribir encima.
+    requestAnimationFrame(() => { ta?.focus(); ta?.setSelectionRange(s + 2, s + 2 + (sel || 'nombre').length) })
+  }
 
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
@@ -195,10 +213,14 @@ export function SnippetEditor({
             </div>
           </div>
 
-          <Field
-            label="Contenido"
-            hint={<>Usá <code className="font-mono">{'{{nombre}}'}</code> o <code className="font-mono">{'{{nombre:valor}}'}</code> para variables. Podés pegar o arrastrar imágenes.</>}
-          >
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <span className="t-footnote font-medium text-on-surface-variant flex-1">Contenido</span>
+              <button type="button" onClick={insertVar} className="ui-btn ui-btn-ghost ui-btn-sm" title="Convierte lo seleccionado en una variable que se pide al copiar">
+                <Braces size={13} /> Variable
+              </button>
+              <span className="t-caption text-on-surface-variant/80 flex items-center gap-1"><Images size={12} /> Pegá o arrastrá imágenes</span>
+            </div>
             <textarea
               ref={textareaRef}
               value={form.content}
@@ -211,7 +233,41 @@ export function SnippetEditor({
               className="ui-input w-full font-mono t-footnote resize-y leading-relaxed"
               style={{ minHeight: 260 }}
             />
-          </Field>
+
+            {pasted.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {pasted.map((id, i) => (
+                  <figure key={id} className="group relative w-[132px] rounded-[10px] overflow-hidden ring-1 ring-(--hairline-strong) bg-on-surface/[0.03]">
+                    <img src={form.images[id]} alt={`Imagen ${i + 1}`} className="block w-full h-[84px] object-cover" />
+                    <figcaption className="px-2 h-[22px] flex items-center t-caption text-on-surface-variant font-mono truncate" title={`En el texto aparece como ![img:${id}]`}>Imagen {i + 1}</figcaption>
+                    <button type="button" onClick={() => removeImage(id)} title="Quitar imagen" aria-label={`Quitar imagen ${i + 1}`}
+                      className="absolute top-1 right-1 grid place-items-center w-5 h-5 rounded-full bg-surface/90 ring-1 ring-(--hairline-strong) text-on-surface-variant hover:text-error opacity-0 group-hover:opacity-100 transition-opacity">
+                      <X size={11} />
+                    </button>
+                  </figure>
+                ))}
+              </div>
+            )}
+
+            {/* Cómo funcionan las variables, con lo que ya se detectó en el texto */}
+            <div className="rounded-[10px] bg-primary/[0.05] ring-1 ring-primary/15 px-3 py-2.5 t-caption text-on-surface-variant">
+              {vars.length ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-on-surface font-medium mr-0.5">Al copiar te va a pedir:</span>
+                  {vars.map((v) => (
+                    <span key={v.name} className="inline-flex items-center gap-1 h-[20px] px-1.5 rounded-[5px] bg-primary/10 text-primary font-mono font-semibold">
+                      {v.name}{v.defaultValue !== undefined && <span className="font-normal text-on-surface-variant">= {v.defaultValue || '""'}</span>}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                  <code className="font-mono text-primary font-semibold">{'{{servidor}}'}</code><span>se completa al copiar o pegar (te pregunta el valor)</span>
+                  <code className="font-mono text-primary font-semibold">{'{{puerto:1433}}'}</code><span>igual, pero con un valor sugerido</span>
+                </div>
+              )}
+            </div>
+          </div>
 
           <div className="flex items-center justify-between rounded-[10px] hairline px-3.5 py-2.5">
             <span className="t-body text-on-surface">Fijar arriba</span>

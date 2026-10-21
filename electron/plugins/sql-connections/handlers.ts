@@ -1,13 +1,14 @@
-import { clipboard } from 'electron'
-import { spawn, type ChildProcess } from 'child_process'
+import { app, clipboard } from 'electron'
+import type { ChildProcess } from 'child_process'
 import { randomUUID } from 'crypto'
 import type { CoreServices, PluginHandlers } from '../../core/types'
 import { registerHandler } from '../../core/ipc-handler'
 import { logger } from '../../core/logger'
-import { runQuery } from './query-runner'
+import { runQuery, shutdownWorkers, warmUp } from './query-runner'
 import { splitBatches } from '../../../src/plugins/sql-runner/sql-text'
-import { childrenSql, DATABASES_SQL, definitionSql, OBJECTS_SQL, type MetaKind } from '../../../src/plugins/sql-runner/sql-meta'
-import type { QueryHistoryEntry, QueryResult, QueryTabsState } from '../../../src/plugins/sql-runner/types'
+import { pkSql } from '../../../src/plugins/sql-runner/edit-script'
+import { childrenSql, COMPLETION_SQL, DATABASES_SQL, definitionSql, locateSql, OBJECTS_SQL, type MetaKind } from '../../../src/plugins/sql-runner/sql-meta'
+import type { QueryFavorite, QueryHistoryEntry, QueryResult, QueryTabsState } from '../../../src/plugins/sql-runner/types'
 import {
   buildConnectionString, buildSqlcmd, validateDraft,
   type SqlCopyFormat, type SqlProfile, type SqlProfileDraft, type SqlTestResult,
@@ -29,62 +30,23 @@ const TEST_TIMEOUT_SEC = 8
 const TABS_FILE = 'sql-tabs.json'
 const HISTORY_FILE = 'sql-history.json'
 const HISTORY_MAX = 300
+/** Consultas favoritas (plantillas que se repiten), cifradas. */
+const FAVS_FILE = 'sql-favorites.json'
 const MAX_ROWS_CAP = 20_000
 /** Consultas en curso, por id de ejecución (para cancelar). */
 const running = new Map<string, ChildProcess>()
 
 interface Stored extends Omit<SqlProfile, 'hasPassword'> { password?: string }
 
-const TEST_SCRIPT = `
-$ErrorActionPreference = 'Stop'
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$cs = [Console]::In.ReadToEnd()
-$sw = [Diagnostics.Stopwatch]::StartNew()
-try {
-  $c = New-Object System.Data.SqlClient.SqlConnection $cs
-  $c.Open()
-  $cmd = $c.CreateCommand()
-  $cmd.CommandText = "SELECT ISNULL(@@SERVERNAME, ''), CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(64)), ISNULL(DB_NAME(), '')"
-  $r = $cmd.ExecuteReader()
-  [void]$r.Read()
-  $o = @{ ok = $true; server = $r.GetString(0); version = $r.GetString(1); db = $r.GetString(2); ms = $sw.ElapsedMilliseconds }
-  $r.Close(); $c.Close()
-  $o | ConvertTo-Json -Compress
-} catch {
-  @{ ok = $false; error = $_.Exception.GetBaseException().Message; ms = $sw.ElapsedMilliseconds } | ConvertTo-Json -Compress
-}
-`
-
-function runTest(connectionString: string): Promise<SqlTestResult> {
-  return new Promise((resolve) => {
-    const at = Date.now()
-    if (process.platform !== 'win32') { resolve({ ok: false, detail: 'La prueba sólo está disponible en Windows', at }); return }
-    const encoded = Buffer.from(TEST_SCRIPT, 'utf16le').toString('base64')
-    const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded], { windowsHide: true })
-    let out = ''
-    let err = ''
-    const killer = setTimeout(() => p.kill(), (TEST_TIMEOUT_SEC + 12) * 1000)
-    p.stdout.setEncoding('utf8')
-    p.stdout.on('data', (d: string) => { out += d })
-    p.stderr.on('data', (d: Buffer) => { err += d.toString() })
-    p.on('error', (e) => { clearTimeout(killer); resolve({ ok: false, detail: `No se pudo ejecutar PowerShell: ${e.message}`, at }) })
-    p.on('close', () => {
-      clearTimeout(killer)
-      const line = out.trim().split(/\r?\n/).pop() ?? ''
-      try {
-        const r = JSON.parse(line) as { ok: boolean; server?: string; version?: string; db?: string; error?: string; ms?: number }
-        if (r.ok) {
-          const where = [r.server, r.db].filter(Boolean).join(' · ')
-          resolve({ ok: true, detail: `Conectado${where ? ` a ${where}` : ''} · SQL Server ${r.version ?? ''}`.trim(), serverName: r.server, version: r.version, ms: r.ms, at })
-        } else {
-          resolve({ ok: false, detail: (r.error ?? 'Error desconocido').trim(), ms: r.ms, at })
-        }
-      } catch {
-        resolve({ ok: false, detail: (err.trim() || 'La prueba no respondió').slice(0, 300), at })
-      }
-    })
-    p.stdin.end(connectionString)
-  })
+/** Prueba de conexión: misma vía que las consultas (worker ya encendido y conexiones reutilizadas). */
+async function runTest(connectionString: string): Promise<SqlTestResult> {
+  const at = Date.now()
+  const sql = "SELECT ISNULL(@@SERVERNAME, ''), CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(64)), ISNULL(DB_NAME(), '')"
+  const r = await runQuery(connectionString, [{ sql, startLine: 1, repeat: 1 }], { readOnly: false, maxRows: 1, timeoutSec: TEST_TIMEOUT_SEC })
+  if (!r.ok) return { ok: false, detail: (r.error ?? 'Error desconocido').trim(), ms: r.ms, at }
+  const [server, version, db] = r.sets[0]?.rows[0] ?? []
+  const where = [server, db].filter(Boolean).join(' · ')
+  return { ok: true, detail: `Conectado${where ? ` a ${where}` : ''} · SQL Server ${version ?? ''}`.trim(), serverName: server ?? undefined, version: version ?? undefined, ms: r.ms, at }
 }
 
 export const handlers: PluginHandlers = {
@@ -108,7 +70,10 @@ export const handlers: PluginHandlers = {
       write(read().map((x) => (x.id === id ? { ...x, ...patch } : x)))
     }
 
-    registerHandler(ipcMain, 'sql:list', (): SqlProfile[] => read().map(view))
+    // Los workers de consultas se cierran con la app.
+    app.on('will-quit', shutdownWorkers)
+    // Abrir Consultas o Conexiones deja un worker listo: la primera consulta no espera el arranque.
+    registerHandler(ipcMain, 'sql:list', (): SqlProfile[] => { warmUp(); return read().map(view) })
 
     registerHandler(ipcMain, 'sql:save', (_e, draft: SqlProfileDraft): SqlProfile => {
       const list = read()
@@ -206,12 +171,15 @@ export const handlers: PluginHandlers = {
     })
 
     /** Explorador: catálogo de la base (sin historial, siempre en modo lectura). */
-    registerHandler(ipcMain, 'sql:meta', async (_e, req: { profileId: string; database?: string; kind: MetaKind; objectId?: number }): Promise<QueryResult> => {
+    registerHandler(ipcMain, 'sql:meta', async (_e, req: { profileId: string; database?: string; kind: MetaKind; objectId?: number; table?: string }): Promise<QueryResult> => {
       const prof = find(req.profileId)
       const sql = req.kind === 'databases' ? DATABASES_SQL
         : req.kind === 'objects' ? OBJECTS_SQL
           : req.kind === 'children' ? childrenSql(Number(req.objectId))
             : req.kind === 'definition' ? definitionSql(Number(req.objectId))
+              : req.kind === 'completion' ? COMPLETION_SQL
+                : req.kind === 'pk' ? pkSql(String(req.table ?? ''))
+                  : req.kind === 'locate' ? locateSql(String(req.table ?? ''))
               : null
       if (!sql) throw new Error('Consulta de catálogo desconocida')
       const database = req.kind === 'databases' ? (prof.database || 'master') : ((req.database ?? '').trim() || prof.database)
@@ -233,6 +201,12 @@ export const handlers: PluginHandlers = {
       return { ok: true }
     })
     registerHandler(ipcMain, 'sql:history-get', (): QueryHistoryEntry[] => db.readEncryptedJSON<QueryHistoryEntry[]>(HISTORY_FILE) ?? [])
+    registerHandler(ipcMain, 'sql:favs-get', (): QueryFavorite[] => db.readEncryptedJSON<QueryFavorite[]>(FAVS_FILE) ?? [])
+    registerHandler(ipcMain, 'sql:favs-save', (_e, list: QueryFavorite[]) => {
+      if (!Array.isArray(list)) throw new Error('Lista inválida')
+      db.writeEncryptedJSON(FAVS_FILE, list.slice(0, 500))
+      return { ok: true }
+    })
     registerHandler(ipcMain, 'sql:history-clear', () => { db.writeEncryptedJSON(HISTORY_FILE, []); return { ok: true } })
   },
 }

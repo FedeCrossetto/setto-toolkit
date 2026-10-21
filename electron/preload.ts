@@ -15,7 +15,7 @@ const INVOKE_CHANNELS = new Set([
   'editor:read-file', 'editor:read-image', 'editor:write-file', 'editor:save-dialog',
   'editor:watch-start', 'editor:watch-stop', 'editor:reveal',
   'editor:create-file', 'editor:create-dir', 'editor:rename', 'editor:delete', 'editor:delete-permanent',
-  'editor:find-in-files', 'editor:recent-get', 'editor:exists', 'editor:recent-clear', 'editor:git-diff',
+  'editor:find-in-files', 'editor:recent-get', 'editor:exists', 'editor:recent-clear', 'editor:git-diff', 'editor:git-branch',
   'editor:replace-in-files', 'editor:history-list', 'editor:history-read', 'editor:history-restore',
   'app:version', 'app:pending-file', 'app:fetch-remote-image',
   'auth:google-user', 'auth:google-start', 'auth:google-logout',
@@ -61,21 +61,22 @@ const INVOKE_CHANNELS = new Set([
   'notes:list', 'notes:read', 'notes:write', 'notes:delete', 'notes:set-pinned',
   'notes:today', 'notes:get-dir', 'notes:choose-dir', 'notes:reveal',
   'tickets:list', 'tickets:get', 'tickets:pin', 'tickets:add', 'tickets:forget', 'tickets:set-title', 'tickets:export',
-  'app:notify',
+  'app:notify', 'app:mica', 'app:set-mica',
   'snippet-picker:shortcut', 'snippet-picker:paste',
   'clipboard:history', 'clipboard:clear', 'clipboard:remove', 'clipboard:copy', 'clipboard:set-enabled',
   'clipboard:pin', 'clipboard:open-path', 'clipboard:queue-set', 'clipboard:queue-state', 'clipboard:queue-advance', 'clipboard:queue-clear',
   'clipboard:ocr-image', 'clipboard:shortcuts', 'snippet-picker:paste-current', 'clipboard:search',
   'dock:state', 'dock:enabled', 'dock:set-enabled', 'dock:paste',
   'sync:status', 'sync:run', 'sync:set-enabled',
-  'sql:list', 'sql:save', 'sql:delete', 'sql:test', 'sql:copy', 'sql:query', 'sql:cancel', 'sql:tabs-get', 'sql:tabs-save', 'sql:history-get', 'sql:history-clear', 'sql:meta',
+  'sql:list', 'sql:save', 'sql:delete', 'sql:test', 'sql:copy', 'sql:query', 'sql:cancel', 'sql:tabs-get', 'sql:tabs-save', 'sql:history-get', 'sql:history-clear', 'sql:meta', 'sql:favs-get', 'sql:favs-save',
   'backup:info', 'backup:export', 'backup:pick', 'backup:inspect', 'backup:restore', 'backup:auto-pick-dir', 'backup:auto-set', 'backup:auto-run',
   'captures:query', 'captures:get', 'captures:settings', 'captures:update', 'captures:update-many', 'captures:delete',
-  'captures:copy', 'captures:reveal', 'captures:export', 'captures:save-annotated', 'captures:copy-ocr',
+  'captures:copy', 'captures:reveal', 'captures:export', 'captures:save-annotated', 'captures:copy-ocr', 'captures:active-ticket', 'tickets:jira-url',
 ])
 
 /** Channels the renderer may send (fire-and-forget → main) */
 const SEND_CHANNELS = new Set([
+  'app:theme',
   'window:minimize', 'window:maximize', 'window:close',
   'app:renderer-error', 'app:dirty',
   'page:find', 'page:find-stop',
@@ -112,7 +113,7 @@ const ON_CHANNELS = new Set([
 /** Barra flotante (`#dock`, src/dock/**, incl. resumen y alta rápida de Gastos y el Bloc de notas). */
 const DOCK_CHANNELS = new Set([
   'app:open-in-main', 'app:renderer-error', 'app:version',
-  'dock:state', 'dock:paste', 'dock:bump', 'dock:drag',
+  'dock:state', 'dock:paste', 'dock:copy-text', 'dock:bump', 'dock:drag',
   'dock:expand', 'dock:collapse', 'dock:pin', 'dock:want-focus', 'dock:quick-capture', 'dock:move', 'dock:move-end',
   'dock:move-reset', 'dock:set-side',
   'clipboard:history', 'clipboard:copy', 'clipboard:remove', 'clipboard:pin', 'clipboard:open-path', 'clipboard:ocr-image',
@@ -121,6 +122,7 @@ const DOCK_CHANNELS = new Set([
   'credentials:top', 'credentials:list', 'credentials:lock-status',
   'credentials:copy-password', 'credentials:copy-username', 'credentials:copy-secret',
   'snippets:load', 'snippets:mark-used',
+  'sql:favs-get', 'captures:active-ticket', 'tickets:jira-url',
   'notes:list', 'notes:read', 'notes:write',
   'gastos:summary', 'gastos:load', 'gastos:cache-get', 'gastos:cache-set', 'gastos:pending-get', 'gastos:pending-set',
   'gastos:save-gasto', 'gastos:delete-gasto', 'gastos:save-pago', 'gastos:delete-pago', 'gastos:save-pagos-bulk',

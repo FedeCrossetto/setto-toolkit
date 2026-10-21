@@ -2,6 +2,81 @@
 
 Novedades de Setto por versión. Lo lee Ajustes → Acerca de → "Ver novedades".
 
+## 2.16.0 (sin publicar)
+
+### Diseño
+- Íconos nuevos: Fluent UI System Icons, los de Windows 11 y Office (el módulo activo de la barra lateral se ve relleno, en el color de acento). Los íconos de lenguajes del Editor siguen como estaban.
+- Fondo Mica de Windows 11: la barra lateral y la superior toman el tono del escritorio, como el Explorador. Se activa cuando el modo de Setto (claro u oscuro) coincide con el de Windows; se apaga en Ajustes → Apariencia.
+- Letra Segoe UI Variable (la de Windows 11) por defecto; Inter sigue disponible en Ajustes → Texto. El código usa JetBrains Mono y, si falta, Cascadia.
+- Avisos apilados: el más nuevo adelante y los anteriores asomando detrás; se abren al pasar el mouse, se cierran deslizándolos a la derecha y muestran cuánto les queda.
+- Esqueletos de carga con la forma del contenido en lugar de "Cargando…" (resultados y explorador de Consultas, Gastos, historial del Editor).
+- Estados vacíos con ilustración en el color de acento.
+
+### Correcciones
+- Ctrl+K: al escribir rápido y apretar Enter (o hacer clic) se abría un resultado de la búsqueda anterior. Los módulos, acciones y recientes ahora responden al instante; sólo lo externo espera.
+- Inicio: el tema oscuro se aplica antes de pintar también en la app instalada (el script estaba bloqueado por la política de seguridad y dejaba un error en el registro).
+- Terminal: las pestañas del mismo shell mantienen su número (cmd 1, cmd 2) al reordenarlas.
+- Consultas: en la vista apilada cada resultado toma el alto de sus filas y se puede agrandar arrastrando el borde de abajo (doble clic: alto automático).
+- Conexiones: pegar "ip,puerto" en el campo Servidor reparte la IP y el puerto en sus campos.
+- Widget: el clic ahora **copia** (como Ctrl+C) y el doble clic, Enter o 1–9 pegan en la app de adelante. Al pasar el mouse: botones Copiar y Pegar; la vista previa tiene "Copiar" como principal y las transformaciones (MAYÚSCULAS, sin espacios…) se copian. El historial se agrupa en Fijados / Recién / Hoy / Antes, con una barrita del color del tipo, y la confirmación dice "Copiado" o "Pegado". Ctrl+C copia el elegido.
+- Consultas: con varias consultas, los resultados se ven todos juntos, uno debajo del otro como en SSMS (pestaña "Todos"); "Ver solo este" o las pestañas Resultado N muestran uno solo, y se recuerda la preferencia.
+- Consultas: si una tabla "no existe" porque la consulta corrió en otra base (conexión sin base elegida → master), se avisa en qué base está y se ofrece "Ejecutar en wgdb_000" con un clic.
+- Conexiones: el puerto tiene su propio campo; cambiar la IP ya no obliga a reescribir ",puerto".
+- Terminal: renombrar pestañas con doble clic, F2 o clic derecho (antes la terminal se quedaba con el foco y lo escrito iba a la consola) y reordenarlas arrastrando o desde el menú.
+- Snippets: con scroll horizontal el código ya no pasa por encima de los números de línea; las imágenes pegadas se ven (en el editor, como miniaturas en vez de sólo `![img:…]`; en la vista, con Copiar imagen y Ver grande); las variables `{{…}}` se resaltan y se listan ("Pide: usuario, perfil"), y el editor explica cómo escribirlas y tiene un botón "Variable".
+- Widget y selector de snippets: pegar cerraba Setto instalado. El Ctrl+V se simulaba lanzando wscript con un .js y el antivirus de la empresa (CrowdStrike) mataba Setto.exe con ese patrón (código 0xE0000027). Ahora la tecla la manda el ayudante que ya está corriendo (con PowerShell de respaldo).
+- Widget: si el proceso de la barra se cae, se recarga sola; los cierres de ventanas quedan en el registro.
+
+### Consultas
+- Autocompletado de T-SQL con las tablas, vistas, columnas y procedimientos de la base elegida (también `esquema.tabla`).
+- Resultados: exportar a Excel (.xlsx con encabezado fijo y filtros) y "Copiar como INSERT" (de a 1000 filas).
+- Favoritas: la ★ guarda la consulta; aparecen en Historial y en Ctrl+K (que también busca en el historial y crea una consulta nueva).
+- Botón Ejecutar dividido: dice "Ejecutar selección" cuando hay algo seleccionado, menú con Ejecutar todo / selección / lote actual (Ctrl+Shift+Enter) y "Detener" con el tiempo mientras corre.
+- Tema de color propio (botón de paleta), independiente del Editor.
+- Conexiones desde Consultas: "Nueva conexión" en el selector, "Editar" con el formulario completo y errores de conexión resumidos ("El servidor no responde", "Usuario o contraseña rechazados") con el detalle a un clic.
+
+### Consultas: edición como DataGrip y formateo
+- Mucho más rápido: el ejecutor queda encendido y reutiliza las conexiones, y las filas se leen con código compilado (un SELECT de 100 filas pasó de ~2 s a ~0,2 s; el autocompletado, de 13 s a 1 s; probar una conexión, a 20 ms).
+- Al editar una celda: escribir NULL la deja en NULL; vaciar un número o una fecha también; en texto, vacío es texto vacío.
+- Editar resultados de una tabla: doble clic en la celda, + Fila, clic derecho para NULL o eliminar; ✓ Commit (Ctrl+Enter) aplica en una transacción y ✕ Rollback descarta. Funciona con `USE base` y con tablas sin clave primaria.
+- Selección de celdas: Ctrl+A, Shift+clic, arrastrar o Shift+flechas; Ctrl+C copia para Excel.
+- Formatear SQL (Ctrl+Shift+F) y tamaño propio de Consultas (interfaz y letra del editor), junto al tema.
+
+### Consultas: más herramientas
+- Ordenar por columna (clic en el encabezado; Ctrl+clic selecciona la columna).
+- Parámetros: escribí `@cuenta` y al ejecutar te pide el valor (números como número, NULL como NULL); se recuerdan por pestaña.
+- Copiar como tabla de Jira o Markdown (todo o la selección), además de Excel e INSERT.
+- Visor de valores: doble clic en un resultado no editable (o Shift+Enter / clic derecho) muestra el valor completo, con JSON y XML formateados.
+- Estadísticas: muestra lecturas lógicas y CPU por consulta, con las tablas que más leen.
+- Pestañas: renombrar con F2 o clic derecho (Duplicar, Guardar en favoritas, Cerrar las demás).
+- Sólo se editan tablas de usuario (no vistas ni tablas del sistema) y sin columnas calculadas.
+
+### Editor y Consultas: detalles visuales
+- Editor: la ruta muestra carpetas y unidad con su ícono (clic abre esa carpeta en el Explorador, Ctrl+clic copia la ruta), la barra de estado muestra el lenguaje con su ícono y la rama de git, el archivo abierto queda resaltado en el árbol y la pantalla vacía lista los recientes.
+- Consultas: filas alternadas, columnas que se agrandan arrastrando el borde (doble clic vuelve al ancho automático), ícono del tipo en cada encabezado, filas compactas o cómodas, la línea del error marcada en rojo en el editor, Mensajes como línea de tiempo (el detalle técnico de estadísticas plegado), ★ en las pestañas favoritas y encabezados fijos en el explorador de objetos.
+
+### Widget
+- Ticket en curso: "Trabajar en WIGOS-…" y las capturas nuevas se le asignan solas; abrir en Jira o ver sus capturas desde el widget.
+- Recién copiado: según el tipo (ticket, SQL, JSON, ruta, fecha…) sus acciones a un clic, como abrir el SQL en Consultas o pegarlo formateado.
+- Lo que más usás: tus claves, snippets y consultas favoritas más usadas, a un clic.
+- Elegí qué pestañas ver y en qué orden.
+
+### Claves
+- Logos también para claves sin URL: por marca conocida en el nombre (AWS, Atlassian, Bamboo, bancos…), por el dominio del correo o probando "nombre.com".
+
+### Animaciones
+- Cambio de módulo con fundido suave (View Transitions), barras que crecen, anillos que se dibujan y números que cuentan en Inicio y Gastos, resultados de Ctrl+K en cascada.
+- Detalles: la ★ rebota con chispas, copiar muestra ✓, las filas guardadas destellan en verde y las descartadas vuelven con un fundido, el botón brilla mientras ejecuta, los botones se hunden al apretarlos y las tarjetas tienen una luz que sigue al mouse.
+- Festejos chiquitos: al pagar lo último del mes en Gastos y en el primer commit del día en Consultas.
+- Ajustes → Apariencia → Animaciones: Completas, Sutiles (sin festejos ni brillos) o Ninguna. Si Windows tiene las animaciones apagadas, se respeta.
+
+### Inicio
+- Inicio nuevo en formato bento (tarjetas de distintos tamaños, fondo casi negro): bienvenida con chequeo de estado (conexiones, gastos, claves débiles o repetidas, tickets y consultas con error), Gastos y Conexiones con anillo y botón de acción ("Probar todas"), actividad de Consultas en un gráfico de área de 2 semanas y ajustes rápidos (modo oscuro, animaciones, barra lateral).
+
+### Gastos
+- Movimientos: filtros con selector propio, resumen (total, cantidad, promedio y categoría principal) y categorías con su color.
+- Tabla: totales del año con mini barras y montos teñidos según su peso (resalta los meses caros).
+
 ## 2.15.0 (sin publicar)
 
 ### Consultas (nuevo)

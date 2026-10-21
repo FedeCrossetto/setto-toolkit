@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, MotionConfig, motion, useAnimationControls, type Variants } from 'framer-motion'
 import {
-  ArrowLeftRight, ArrowUpRight, AtSign, Braces, Check, ChevronDown, ChevronUp, Clock, ClipboardText, Code2, Columns2, ExternalLink,
+  ArrowLeftRight, ArrowUpRight, AtSign, Braces, Check, ChevronDown, ChevronUp, Clock, ClipboardText, Code2, Copy, Columns2, Database, ExternalLink,
   Fingerprint, FolderOpen, Grid3x3, Images, KeyRound, Link, ListOrdered, Lock, LockOpen, NotebookPen, Pin, PinOff, Plus, ScanText, Search,
   Ticket, Toolbox, Trash2, TriangleAlert, Type, User, Wallet, Wand2, X,
 } from 'lucide-react'
@@ -19,6 +19,8 @@ import type { Credential, CredentialsListResult } from '../plugins/credentials/t
 import { getMonthSummary } from '../plugins/gastos/summary'
 import { classifyContext, isSqlSnippet } from './context'
 import { Bloc, type BlocHandle } from './Bloc'
+import { ActiveTicketBar, FrequentRow, LastCopiedCard, TabsConfig, type FrequentItem } from './DockTop'
+import type { QueryFavorite } from '../plugins/sql-runner/types'
 
 /**
  * Barra flotante al borde (ventana `#dock`, ver electron/core/dock.ts).
@@ -234,12 +236,42 @@ export function Dock(): JSX.Element {
   const [previewKey, setPreviewKey] = useState<string | null>(null)
   const [flash, setFlash] = useState<{ text: string; undo?: () => void } | null>(null)
   const [pastedKey, setPastedKey] = useState<string | null>(null)
+  /** Lo último que se hizo con el ítem marcado: copiar (clic) o pegar (doble clic / Enter) */
+  const [doneHow, setDoneHow] = useState<How>('copy')
   const [unseen, setUnseen] = useState(0)
   const [bumpKey, setBumpKey] = useState(0)
   const [lastKind, setLastKind] = useState<ClipKind | null>(null)
   /** Pagos del mes sin marcar (Gastos), para el aviso de arriba. */
   const [pending, setPending] = useState(0)
   const [small, setSmall] = useState(() => window.innerWidth < SMALL_WINDOW)
+  /** Consultas favoritas (para "Lo que más usás") */
+  const [favs, setFavs] = useState<QueryFavorite[]>([])
+  /** Ticket en curso: las capturas nuevas se le asignan solas (main) */
+  const [activeTicket, setActiveTicketState] = useState(() => { try { return localStorage.getItem('dock:active-ticket') ?? '' } catch { return '' } })
+  /** "Recién copiado" que el usuario ocultó */
+  const [dismissedClip, setDismissedClip] = useState<string | null>(null)
+  /** Pestañas visibles y su orden */
+  const [tabPrefs, setTabPrefs] = useState<{ order: TabId[]; hidden: TabId[] }>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem('dock:tabs') ?? 'null') as { order?: TabId[]; hidden?: TabId[] } | null
+      const known = TABS.map((t) => t.id)
+      const order = [...(v?.order ?? []).filter((id) => known.includes(id)), ...known.filter((id) => !(v?.order ?? []).includes(id))]
+      return { order, hidden: (v?.hidden ?? []).filter((id) => known.includes(id)) }
+    } catch { return { order: TABS.map((t) => t.id), hidden: [] } }
+  })
+  const visible = useMemo(() => {
+    const v = tabPrefs.order.filter((id) => !tabPrefs.hidden.includes(id)).map((id) => TABS.find((t) => t.id === id)!).filter(Boolean)
+    return v.length ? v : TABS
+  }, [tabPrefs])
+  const saveTabPrefs = (order: TabId[], hidden: TabId[]): void => {
+    setTabPrefs({ order, hidden })
+    try { localStorage.setItem('dock:tabs', JSON.stringify({ order, hidden })) } catch { /* nada */ }
+  }
+  const setActiveTicket = (t: string): void => {
+    setActiveTicketState(t)
+    try { localStorage.setItem('dock:active-ticket', t) } catch { /* nada */ }
+    void window.api.invoke('captures:active-ticket', t).catch(() => undefined)
+  }
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -252,7 +284,7 @@ export function Dock(): JSX.Element {
     if (flashTimer.current) clearTimeout(flashTimer.current)
     flashTimer.current = setTimeout(() => setFlash(null), ms)
   }, [])
-  const markPasted = (key: string): void => { setPastedKey(key); setTimeout(() => setPastedKey((v) => (v === key ? null : v)), 900) }
+  const markPasted = (key: string, how: How = 'copy'): void => { setDoneHow(how); setPastedKey(key); setTimeout(() => setPastedKey((v) => (v === key ? null : v)), 1100) }
 
   // La pestaña se dibuja recién cuando main achicó la ventana (si no, aparecería en medio del panel).
   useEffect(() => {
@@ -310,6 +342,7 @@ export function Dock(): JSX.Element {
         setCapTickets(r.facets.tickets.slice(0, 12))
       }, () => setCaps([])),
       window.api.invoke<{ snippets: Snippet[] }>('snippets:load').then((r) => setSnippets(r.snippets), () => setSnippets([])),
+      window.api.invoke<QueryFavorite[]>('sql:favs-get').then(setFavs, () => setFavs([])),
       loadPending(),
     ])
   }, [loadCreds, loadPending])
@@ -351,6 +384,8 @@ export function Dock(): JSX.Element {
     return () => clearInterval(t)
   }, [st.expanded, load])
 
+  useEffect(() => { if (!visible.some((t) => t.id === tab)) showTab(visible[0]!.id) }, [visible]) // eslint-disable-line react-hooks/exhaustive-deps
+
   /** Pestaña pedida desde afuera (sin animación de dirección). */
   function showTab(next: TabId): void {
     setTabState(next)
@@ -360,8 +395,8 @@ export function Dock(): JSX.Element {
   }
 
   const setTab = (next: TabId): void => {
-    const from = TABS.findIndex((t) => t.id === tab)
-    const to = TABS.findIndex((t) => t.id === next)
+    const from = visible.findIndex((t) => t.id === tab)
+    const to = visible.findIndex((t) => t.id === next)
     setTabDir(to >= from ? 1 : -1)
     setTabState(next)
     setActive(0)
@@ -369,11 +404,28 @@ export function Dock(): JSX.Element {
     try { localStorage.setItem(TAB_KEY, next) } catch { /* nada */ }
   }
 
+  /** Pegar directo en la app de adelante (doble clic, Enter, 1–9). */
   const paste = async (payload: { text?: string; clipId?: string; current?: boolean }, key?: string): Promise<void> => {
     try {
       await window.api.invoke('dock:paste', payload)
-      if (key) markPasted(key)
+      if (key) markPasted(key, 'paste')
     } catch (e) { say(cleanErr(e)) }
+  }
+  /** Dejarlo en el portapapeles, como un Ctrl+C (clic). */
+  const copy = async (payload: { text?: string; clipId?: string }, key?: string): Promise<void> => {
+    try {
+      if (payload.clipId) await window.api.invoke('clipboard:copy', payload.clipId)
+      else await window.api.invoke('dock:copy-text', payload.text)
+      if (key) markPasted(key, 'copy')
+      say('Copiado · pegalo con Ctrl+V')
+      void load()
+    } catch (e) { say(cleanErr(e)) }
+  }
+  /** Captura: la imagen al portapapeles y, si se pide, pegarla. */
+  const takeCapture = (id: string, key: string, how: How): void => {
+    void window.api.invoke('captures:copy', id).then(
+      () => (how === 'paste' ? paste({ current: true }, key) : (markPasted(key, 'copy'), say('Imagen copiada · pegala con Ctrl+V'))),
+      (e: unknown) => say(cleanErr(e)))
   }
   const openMain = (a: { pluginId: string; action?: string; payload?: unknown }): void => window.api.send('app:open-in-main', a)
   const collapse = (): void => { window.api.send('dock:pin', false); window.api.send('dock:collapse') }
@@ -439,6 +491,27 @@ export function Dock(): JSX.Element {
     return { clips: clipItems, caps: capItems, snippets: snipItems, tickets: ticketItems, keys: credItems, bloc: [] } satisfies Record<TabId, Item[]>
   }, [clips, caps, capTickets, snippets, topCreds, allCreds, q, hits, scope])
 
+  // ── Arriba del widget: último copiado y lo que más usás ───────────────────
+  const lastClip = useMemo(() => {
+    const c = clips.find((x) => !x.sensitive)
+    return c && c.id !== dismissedClip && Date.now() - c.at < 20 * 60_000 ? c : null
+  }, [clips, dismissedClip])
+  const frequent = useMemo((): FrequentItem[] => {
+    const out: FrequentItem[] = []
+    for (const c of topCreds.slice(0, 3)) out.push({ key: `k:${c.id}`, icon: KeyRound, label: c.nombre, sub: c.hasPassword ? 'Copiar contraseña' : 'Copiar usuario', run: () => activate({ type: 'cred', key: `k:${c.id}`, cred: c }) })
+    const topSnips = [...snippets].filter((x) => (x.useCount ?? 0) > 0).sort((a, b) => (b.useCount ?? 0) - (a.useCount ?? 0)).slice(0, 2)
+    for (const sn of topSnips) {
+      const content = stripDataUrls(sn.content)
+      out.push({ key: `s:${sn.id}`, icon: Code2, label: sn.title, sub: hasVariables(content) ? 'Completar' : 'Copiar', run: () => activate({ type: 'snippet', key: `s:${sn.id}`, snippet: sn, content, vars: hasVariables(content) }, false, false, 'copy') })
+    }
+    for (const f of favs.slice(0, 6 - out.length)) out.push({ key: `q:${f.id}`, icon: Database, label: f.title, sub: 'Abrir en Consultas', run: () => openMain({ pluginId: 'sql-runner', action: 'open-sql', payload: { title: f.title, sql: f.sql, profileId: f.profileId, database: f.database } }) })
+    return out.slice(0, 6)
+  }, [topCreds, snippets, favs]) // eslint-disable-line react-hooks/exhaustive-deps
+  const openJira = (t: string): void => {
+    const a = actionsFor('ticket', t).find((x) => x.id === 'jira')
+    if (a) Promise.resolve().then(() => a.run(t, openMain)).catch((e: unknown) => say(cleanErr(e)))
+  }
+
   // ── Sugerencias según la app de adelante ─────────────────────────────────
   const ctx = useMemo(() => classifyContext(st.context?.app, st.context?.title), [st.context])
   const suggestions = useMemo((): Suggestion[] => {
@@ -449,14 +522,14 @@ export function Dock(): JSX.Element {
         const content = stripDataUrls(sn.content)
         out.push({
           key: `sg:s:${sn.id}`, label: sn.title || 'Snippet', icon: Code2,
-          hint: hasVariables(content) ? 'tiene variables' : 'clic pega',
-          run: () => (hasVariables(content) ? openMain({ pluginId: 'snippets', action: 'open', payload: sn.id }) : void paste({ text: content }, `sg:s:${sn.id}`)),
+          hint: hasVariables(content) ? 'tiene variables' : 'clic copia',
+          run: () => (hasVariables(content) ? openMain({ pluginId: 'snippets', action: 'open', payload: sn.id }) : void copy({ text: content }, `sg:s:${sn.id}`)),
         })
       }
     }
     const byClip = (kinds: ClipKind[]): void => {
       for (const c of clips.filter((x) => !x.sensitive && kinds.includes(x.kind)).slice(0, 2)) {
-        out.push({ key: `sg:c:${c.id}`, label: oneLine(c.text, 40), icon: KIND_STYLE[c.kind].icon, hint: 'copiado', run: () => void paste({ clipId: c.id }, `sg:c:${c.id}`) })
+        out.push({ key: `sg:c:${c.id}`, label: oneLine(c.text, 40), icon: KIND_STYLE[c.kind].icon, hint: 'clic copia', run: () => void copy({ clipId: c.id }, `sg:c:${c.id}`) })
       }
     }
     switch (ctx.kind) {
@@ -467,13 +540,13 @@ export function Dock(): JSX.Element {
         const n = caps.filter((c) => c.ticket === t).length
         out.push({ key: 'sg:t:all', label: `Todo lo de ${t}`, icon: Ticket, hint: n ? `${n} captura${n === 1 ? '' : 's'}` : 'capturas y comentario', run: () => openMain({ pluginId: 'captures', action: 'ticket', payload: t }) })
         for (const c of caps.filter((x) => x.ticket === t).slice(0, 2)) {
-          out.push({ key: `sg:i:${c.id}`, label: c.title || 'Captura', icon: Images, hint: 'clic pega', run: () => { void window.api.invoke('captures:copy', c.id).then(() => paste({ current: true }, `sg:i:${c.id}`)) } })
+          out.push({ key: `sg:i:${c.id}`, label: c.title || 'Captura', icon: Images, hint: 'clic copia', run: () => takeCapture(c.id, `sg:i:${c.id}`, 'copy') })
         }
         break
       }
       case 'chat':
         for (const c of caps.slice(0, 3)) {
-          out.push({ key: `sg:i:${c.id}`, label: c.title || 'Captura', icon: Images, hint: 'clic pega', run: () => { void window.api.invoke('captures:copy', c.id).then(() => paste({ current: true }, `sg:i:${c.id}`)) } })
+          out.push({ key: `sg:i:${c.id}`, label: c.title || 'Captura', icon: Images, hint: 'clic copia', run: () => takeCapture(c.id, `sg:i:${c.id}`, 'copy') })
         }
         break
     }
@@ -490,7 +563,7 @@ export function Dock(): JSX.Element {
   // Buscando: si la pestaña actual no tiene resultados y otra sí, saltar a esa.
   useEffect(() => {
     if (!words.length || items.length) return
-    const other = TABS.find((t) => lists[t.id].length)
+    const other = visible.find((t) => lists[t.id].length)
     if (other) setTab(other.id)
   }, [q])
 
@@ -503,19 +576,21 @@ export function Dock(): JSX.Element {
     } catch (e) { say(cleanErr(e)) }
   }
 
-  const activate = (item: Item | undefined, alt = false, altKey = false): void => {
+  /** Clic: copia. Doble clic, Enter o 1–9: pega en la app de adelante. */
+  const activate = (item: Item | undefined, alt = false, altKey = false, how: How = 'paste'): void => {
     if (!item) return
+    const put = (p: { text?: string; clipId?: string }): void => { void (how === 'copy' ? copy(p, item.key) : paste(p, item.key)) }
     switch (item.type) {
       case 'hit':
-        if (item.hit.kind === 'text') void paste({ clipId: item.hit.id }, item.key)
+        if (item.hit.kind === 'text') put({ clipId: item.hit.id })
         else if (altKey) copyOcr(item.hit.id, item.key)
-        else void window.api.invoke('captures:copy', item.hit.id).then(() => paste({ current: true }, item.key))
+        else takeCapture(item.hit.id, item.key, how)
         break
-      case 'clip': void paste({ clipId: item.clip.id }, item.key); break
-      case 'cap': void window.api.invoke('captures:copy', item.cap.id).then(() => paste({ current: true }, item.key)); break
+      case 'clip': put({ clipId: item.clip.id }); break
+      case 'cap': takeCapture(item.cap.id, item.key, how); break
       case 'snippet':
         if (item.vars) openMain({ pluginId: 'snippets', action: 'open', payload: item.snippet.id })
-        else void paste({ text: item.content }, item.key)
+        else put({ text: item.content })
         break
       case 'ticket': openMain({ pluginId: 'captures', action: 'ticket', payload: item.ticket }); break
       case 'cred': void (alt ? copyUser(item.cred, item.key) : copyPassword(item.cred, item.key)); break
@@ -557,7 +632,7 @@ export function Dock(): JSX.Element {
         if (e.key === 'Escape') { e.preventDefault(); if (q) setQ(''); else collapse(); return }
         if (e.key === 'Tab') {
           e.preventDefault()
-          setTab(TABS[e.shiftKey ? TABS.length - 2 : 0]!.id)
+          setTab(visible[e.shiftKey ? Math.max(0, visible.length - 2) : 0]!.id)
           return
         }
         if (!inBloc && plain && (e.key.length === 1 || e.key === 'Enter')) {
@@ -575,8 +650,8 @@ export function Dock(): JSX.Element {
       }
       if (e.key === 'Tab') {
         e.preventDefault()
-        const i = TABS.findIndex((t) => t.id === tab)
-        setTab(TABS[(i + (e.shiftKey ? TABS.length - 1 : 1)) % TABS.length]!.id)
+        const i = visible.findIndex((t) => t.id === tab)
+        setTab(visible[(i + (e.shiftKey ? visible.length - 1 : 1)) % visible.length]!.id)
         return
       }
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -590,6 +665,7 @@ export function Dock(): JSX.Element {
       if (e.key === 'Enter') { e.preventDefault(); activate(items[safeActive], e.shiftKey, e.altKey); return }
       if (!inInput && plain && /^[1-9]$/.test(e.key)) { e.preventDefault(); activate(items[Number(e.key) - 1]); return }
       const cur = items[safeActive]
+      if (cur && cur.type !== 'cred' && cur.type !== 'ticket' && e.ctrlKey && e.key.toLowerCase() === 'c' && !window.getSelection()?.toString()) { e.preventDefault(); activate(cur, false, false, 'copy'); return }
       if (cur?.type === 'clip' && e.ctrlKey && e.key.toLowerCase() === 'p') { e.preventDefault(); void togglePin(cur.clip); return }
       if (cur?.type === 'clip' && !inInput && e.key === 'Delete') { e.preventDefault(); void removeClip(cur.clip); return }
       // Escribir en cualquier lado busca.
@@ -610,10 +686,10 @@ export function Dock(): JSX.Element {
     : tab === 'keys'
     ? <><Kbd>Enter</Kbd> copia la contraseña · <Kbd>⇧ Enter</Kbd> el usuario</>
     : words.length && hits && (tab === 'clips' || tab === 'caps')
-    ? <><Kbd>Enter</Kbd> pega · <Kbd>Alt Enter</Kbd> texto de la captura · <Kbd>Tab</Kbd> pestaña</>
+    ? <>Clic copia · <Kbd>Enter</Kbd> pega · <Kbd>Alt Enter</Kbd> texto de la captura</>
     : tab === 'tickets'
       ? <><Kbd>↑↓</Kbd> elegir · <Kbd>Enter</Kbd> ver capturas · <Kbd>Tab</Kbd> pestaña</>
-      : <><Kbd>↑↓</Kbd> elegir · <Kbd>Enter</Kbd> pega · <Kbd>1–9</Kbd> directo · <Kbd>Tab</Kbd> pestaña</>
+      : <>Clic copia · doble clic o <Kbd>Enter</Kbd> pega · <Kbd>1–9</Kbd> pega directo</>
 
   return (
     <MotionConfig reducedMotion="user">
@@ -682,7 +758,7 @@ export function Dock(): JSX.Element {
 
               {/* Pestañas: íconos; la activa como tarjeta con su nombre (igual que la barra lateral de la app) */}
               <motion.div {...CONTENT_IN(0.12)} className="relative flex items-center gap-1 px-2.5 pt-2.5 pb-2 shrink-0" role="tablist">
-                {TABS.map((t) => {
+                {visible.map((t) => {
                   const n = lists[t.id].length
                   const on = tab === t.id
                   const Icon = TAB_ICON[t.id]
@@ -701,10 +777,26 @@ export function Dock(): JSX.Element {
                     </motion.button>
                   )
                 })}
+                <TabsConfig tabs={TABS.map((t) => ({ ...t, icon: TAB_ICON[t.id] }))} order={tabPrefs.order} hidden={tabPrefs.hidden} onChange={saveTabPrefs} />
               </motion.div>
 
               {/* Tarjeta de contenido (como el panel de la ventana principal) */}
               <motion.div {...CONTENT_IN(0.16)} className={`relative flex-1 min-h-0 flex flex-col mx-2 mb-2 rounded-[14px] overflow-hidden ${CARD_SURFACE}`}>
+              {!words.length && tab !== 'bloc' && (
+                <div className="shrink-0">
+                  {activeTicket && (
+                    <ActiveTicketBar ticket={activeTicket} onJira={() => openJira(activeTicket)}
+                      onOpen={() => openMain({ pluginId: 'captures', action: 'ticket', payload: activeTicket })} onClear={() => { setActiveTicket(''); say('Ya no hay ticket en curso') }} />
+                  )}
+                  {lastClip && (
+                    <LastCopiedCard clip={lastClip} activeTicket={activeTicket}
+                      onPaste={(text) => void copy({ text })} onOpen={openMain} onError={say}
+                      onPinTicket={(t) => { setActiveTicket(t); say(`Trabajando en ${t}: las capturas nuevas se asignan solas`, 3200) }}
+                      onDismiss={() => setDismissedClip(lastClip.id)} />
+                  )}
+                  {tab === 'clips' && <FrequentRow items={frequent} />}
+                </div>
+              )}
               {/* Para lo que estás usando (SSMS → SQL, Jira → el ticket…) y pagos pendientes */}
               <AnimatePresence initial={false}>
                 {!words.length && (suggestions.length > 0 || pending > 0) && (
@@ -777,15 +869,19 @@ export function Dock(): JSX.Element {
                           className={tab === 'caps' && !(words.length && hits) ? 'grid grid-cols-2 gap-2 px-1' : 'flex flex-col gap-px'}>
                           {items.map((item, i) => (
                             <motion.div key={item.key} variants={itemVariants} data-idx={i} onMouseEnter={() => hoverItem(i, item)}>
+                              {tab === 'clips' && item.type === 'clip' && groupOf(item.clip) !== (i > 0 && items[i - 1]!.type === 'clip' ? groupOf((items[i - 1] as { clip: ClipView }).clip) : null) && (
+                                <div className={`px-2 pb-1 text-[10.5px] font-medium uppercase tracking-[0.08em] text-on-surface-variant/70 ${i ? 'pt-2.5' : 'pt-0.5'}`}>{groupOf(item.clip)}</div>
+                              )}
                               {item.type === 'hit' ? (
-                                <HitRow hit={item.hit} index={i} active={i === safeActive} done={pastedKey === item.key}
-                                  onActivate={() => activate(item)} onCopyOcr={() => copyOcr(item.hit.id, item.key)} />
+                                <HitRow hit={item.hit} index={i} active={i === safeActive} done={pastedKey === item.key} doneLabel={DONE_LABEL[doneHow]}
+                                  onActivate={() => activate(item, false, false, 'copy')} onPaste={() => activate(item)} onCopyOcr={() => copyOcr(item.hit.id, item.key)} />
                               ) : item.type === 'cred' ? (
                                 <CredRow cred={item.cred} index={i} active={i === safeActive} done={pastedKey === item.key} locked={locked}
                                   onCopyPassword={() => activate(item)} onCopyUser={() => activate(item, true)} onOpen={() => openCredential(item.cred)} />
                               ) : (
-                                <ItemView item={item} index={i} active={i === safeActive} done={pastedKey === item.key}
-                                  onActivate={() => activate(item)}
+                                <ItemView item={item} index={i} active={i === safeActive} done={pastedKey === item.key} doneLabel={DONE_LABEL[doneHow]}
+                                  onActivate={() => activate(item, false, false, item.type === 'ticket' ? 'paste' : 'copy')}
+                                  onPaste={item.type === 'ticket' || (item.type === 'snippet' && item.vars) ? undefined : () => activate(item)}
                                   onPin={item.type === 'clip' ? () => void togglePin(item.clip) : undefined}
                                   onRemove={item.type === 'clip' ? () => void removeClip(item.clip) : undefined} />
                               )}
@@ -801,6 +897,7 @@ export function Dock(): JSX.Element {
                   {preview && (
                     <Preview key="preview" item={preview}
                       onPaste={(text) => (text === undefined ? activate(preview) : void paste({ text }, preview.key))}
+                      onCopy={(text) => (text === undefined ? activate(preview, false, false, 'copy') : void copy({ text }, preview.key))}
                       onOpen={openMain} onError={say}
                       onCopyOcr={preview.type === 'cap' ? () => copyOcr(preview.cap.id) : undefined}
                       onClose={() => setPreviewKey(null)} />
@@ -835,12 +932,36 @@ export function Dock(): JSX.Element {
 
 // ── Tarjetas ─────────────────────────────────────────────────────────────────
 
+type How = 'copy' | 'paste'
+const DONE_LABEL: Record<How, string> = { copy: 'Copiado', paste: 'Pegado' }
+
+/** Grupo del historial: fijados arriba, después por antigüedad. */
+function groupOf(c: ClipView): string {
+  if (c.pinned) return 'Fijados'
+  if (Date.now() - c.at < 15 * 60_000) return 'Recién'
+  return new Date(c.at).toDateString() === new Date().toDateString() ? 'Hoy' : 'Antes'
+}
+
+/** Al pasar el mouse: copiar (lo mismo que el clic) y pegar en la app de adelante. */
+function CopyPasteBtns({ onCopy, onPaste }: { onCopy: () => void; onPaste?: () => void }): JSX.Element {
+  return (
+    <>
+      <MiniBtn title="Copiar (clic)" onClick={onCopy}><Copy size={13} /></MiniBtn>
+      {onPaste && <MiniBtn title="Pegar en la app de adelante (doble clic)" onClick={onPaste}><ClipboardText size={13} /></MiniBtn>}
+    </>
+  )
+}
+
 interface ItemViewProps {
   item: Exclude<Item, { type: 'cred' } | { type: 'hit' }>
   index: number
   active: boolean
   done: boolean
+  doneLabel: string
+  /** Clic: copiar (o abrir, en tickets) */
   onActivate: () => void
+  /** Doble clic: pegar en la app de adelante */
+  onPaste?: () => void
   onPin?: () => void
   onRemove?: () => void
 }
@@ -850,14 +971,14 @@ function rowCls(active: boolean, done: boolean): string {
     done ? 'bg-primary/[0.08] border-primary/20' : active ? 'nav-active' : 'border-transparent hover:bg-on-surface/[0.03]'}`
 }
 
-function ItemView({ item, index, active, done, onActivate, onPin, onRemove }: ItemViewProps): JSX.Element {
+function ItemView({ item, index, active, done, doneLabel, onActivate, onPaste, onPin, onRemove }: ItemViewProps): JSX.Element {
   if (item.type === 'cap') {
     const c = item.cap
     return (
       <motion.button type="button" title={`${c.title}${c.ticket ? ` · ${c.ticket}` : ''}`} draggable
         whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }} transition={POP}
         onDragStart={(e) => { e.preventDefault(); window.api.send('captures:start-drag', [c.id]) }}
-        onClick={onActivate}
+        onClick={onActivate} onDoubleClick={onPaste}
         className={`group relative w-full text-left rounded-[12px] overflow-hidden bg-surface border transition-[border-color,box-shadow] ${active ? 'border-primary/50 shadow-sm' : 'border-hairline-strong hover:shadow-sm'}`}>
         <div className="aspect-16/10 bg-surface-container overflow-hidden">
           <img src={thumbUrl(c.file)} alt="" draggable={false} className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-[1.04]" />
@@ -867,7 +988,7 @@ function ItemView({ item, index, active, done, onActivate, onPin, onRemove }: It
           <div className="text-[11px] text-on-surface-variant truncate">{[c.ticket, c.app, relTime(c.createdAt)].filter(Boolean).join(' · ')}</div>
         </div>
         {index < 9 && <IndexBadge n={index + 1} className="absolute top-1.5 left-1.5 bg-surface/90" />}
-        <DoneOverlay show={done} />
+        <DoneOverlay show={done} label={doneLabel} />
       </motion.button>
     )
   }
@@ -914,10 +1035,11 @@ function ItemView({ item, index, active, done, onActivate, onPin, onRemove }: It
   const dragText = item.type === 'clip' ? (item.clip.sensitive ? null : item.clip.text) : item.type === 'snippet' && !item.vars ? item.content : null
 
   return (
-    <div role="button" tabIndex={-1} onClick={onActivate} className={rowCls(active, done)}
+    <div role="button" tabIndex={-1} onClick={onActivate} onDoubleClick={onPaste} className={rowCls(active, done)}
       draggable={dragText !== null}
       onDragStart={dragText !== null ? (e) => { e.dataTransfer.setData('text/plain', dragText); e.dataTransfer.effectAllowed = 'copy' } : undefined}
-      title={dragText !== null ? 'Clic pega · arrastrá para soltarlo en otra app' : undefined}>
+      title={item.type === 'ticket' ? 'Clic: ver sus capturas' : item.type === 'snippet' && item.vars ? 'Clic: completar las variables' : 'Clic copia · doble clic pega · arrastrá para soltarlo en otra app'}>
+      {item.type === 'clip' && !item.clip.sensitive && <span aria-hidden className={`absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-full opacity-70 ${KIND_STYLE[item.clip.kind].bar}`} />}
       <span className={`relative grid place-items-center w-8 h-8 rounded-[9px] shrink-0 self-start mt-px transition-colors duration-150 ${active && !done ? ACTIVE_TILE : iconCls}`}>
         <AnimatePresence initial={false} mode="wait">
           {done
@@ -931,22 +1053,23 @@ function ItemView({ item, index, active, done, onActivate, onPin, onRemove }: It
           {extra}
         </span>
         <span className="flex items-center gap-2 mt-0.5 text-[11px] leading-[14px] text-on-surface-variant">
-          <span className="truncate">{done ? 'Pegado' : meta}</span>
+          <span className={`truncate ${done ? 'text-primary font-medium' : ''}`}>{done ? doneLabel : meta}</span>
           {time && !done && <span className="ml-auto shrink-0 tabular-nums text-on-surface-variant/70">{time}</span>}
         </span>
       </span>
 
       {/* Derecha: número para el teclado; al pasar el mouse, acciones. */}
       <span className="shrink-0 flex items-center gap-0.5 min-w-[22px] justify-end">
-        {(onPin || onRemove) && (
+        {(onPin || onRemove || onPaste) && (
           <span className="hidden group-hover:flex items-center gap-0.5">
+            {item.type !== 'ticket' && !(item.type === 'snippet' && item.vars) && <CopyPasteBtns onCopy={onActivate} onPaste={onPaste} />}
             {onPin && item.type === 'clip' && !item.clip.sensitive && (
               <MiniBtn title={item.clip.pinned ? 'Soltar' : 'Fijar (Ctrl+P)'} onClick={onPin}>{item.clip.pinned ? <PinOff size={13} /> : <Pin size={13} />}</MiniBtn>
             )}
             {onRemove && <MiniBtn title="Quitar del historial (Supr)" onClick={onRemove}><Trash2 size={13} /></MiniBtn>}
           </span>
         )}
-        {index < 9 && <IndexBadge n={index + 1} className={onPin || onRemove ? 'group-hover:hidden' : ''} />}
+        {index < 9 && <IndexBadge n={index + 1} className={onPin || onRemove || onPaste ? 'group-hover:hidden' : ''} />}
       </span>
     </div>
   )
@@ -967,8 +1090,9 @@ function hitAsItem(h: ClipSearchItem, clips: ClipView[]): Item | null {
 }
 
 /** Resultado de la búsqueda unificada: tipo (o miniatura), el texto que coincidió resaltado y cuándo. */
-function HitRow({ hit, index, active, done, onActivate, onCopyOcr }: {
-  hit: ClipSearchItem; index: number; active: boolean; done: boolean; onActivate: () => void; onCopyOcr: () => void
+function HitRow({ hit, index, active, done, doneLabel, onActivate, onPaste, onCopyOcr }: {
+  hit: ClipSearchItem; index: number; active: boolean; done: boolean; doneLabel: string
+  onActivate: () => void; onPaste: () => void; onCopyOcr: () => void
 }): JSX.Element {
   const isCap = hit.kind === 'capture'
   const style = KIND_STYLE[hit.clipKind ?? 'text']
@@ -978,8 +1102,8 @@ function HitRow({ hit, index, active, done, onActivate, onCopyOcr }: {
     ? [hit.field === 'title' ? null : FIELD_LABEL[hit.field], hit.ticket, hit.title && hit.field !== 'title' ? hit.title : hit.app].filter(Boolean).join(' · ')
     : [KIND_LABEL[hit.clipKind ?? 'text'], hit.app].filter(Boolean).join(' · ')
   return (
-    <div role="button" tabIndex={-1} onClick={onActivate} className={rowCls(active, done)}
-      title={isCap ? 'Clic pega la imagen · Alt+Enter copia su texto' : 'Clic pega'}>
+    <div role="button" tabIndex={-1} onClick={onActivate} onDoubleClick={onPaste} className={rowCls(active, done)}
+      title={isCap ? 'Clic copia la imagen · doble clic la pega · Alt+Enter copia su texto' : 'Clic copia · doble clic pega'}>
       {isCap && hit.file ? (
         <span className="relative w-12 h-9 rounded-[8px] overflow-hidden shrink-0 self-start mt-px border border-hairline bg-surface-container">
           <img src={thumbUrl(hit.file)} alt="" draggable={false} className="w-full h-full object-cover object-top" />
@@ -1002,17 +1126,16 @@ function HitRow({ hit, index, active, done, onActivate, onCopyOcr }: {
           {hit.pinned && <Pin size={11} weight="fill" className="text-primary shrink-0" />}
         </span>
         <span className="flex items-center gap-2 mt-0.5 text-[11px] leading-[14px] text-on-surface-variant">
-          <span className="truncate">{done ? 'Listo' : meta}</span>
+          <span className={`truncate ${done ? 'text-primary font-medium' : ''}`}>{done ? doneLabel : meta}</span>
           {!done && <span className="ml-auto shrink-0 tabular-nums text-on-surface-variant/70">{relTime(hit.at)}</span>}
         </span>
       </span>
       <span className="shrink-0 flex items-center gap-0.5 min-w-[22px] justify-end">
-        {isCap && (
-          <span className="hidden group-hover:flex items-center gap-0.5">
-            <MiniBtn title="Copiar el texto de la imagen (Alt+Enter)" onClick={onCopyOcr}><ScanText size={13} /></MiniBtn>
-          </span>
-        )}
-        {index < 9 && <IndexBadge n={index + 1} className={isCap ? 'group-hover:hidden' : ''} />}
+        <span className="hidden group-hover:flex items-center gap-0.5">
+          <CopyPasteBtns onCopy={onActivate} onPaste={onPaste} />
+          {isCap && <MiniBtn title="Copiar el texto de la imagen (Alt+Enter)" onClick={onCopyOcr}><ScanText size={13} /></MiniBtn>}
+        </span>
+        {index < 9 && <IndexBadge n={index + 1} className="group-hover:hidden" />}
       </span>
     </div>
   )
@@ -1064,8 +1187,10 @@ function CredRow({ cred, index, active, done, locked, onCopyPassword, onCopyUser
 
 // ── Vista previa ─────────────────────────────────────────────────────────────
 
-function Preview({ item, onPaste, onOpen, onError, onClose, onCopyOcr }: {
+function Preview({ item, onPaste, onCopy, onOpen, onError, onClose, onCopyOcr }: {
   item: Item
+  /** Sin texto: copiar el ítem tal cual; con texto: copiar ese texto (transformado). */
+  onCopy: (text?: string) => void
   /** Captura: copiar el texto de adentro (OCR). */
   onCopyOcr?: () => void
   /** Sin texto: pegar el ítem tal cual; con texto: pegar ese texto (transformado). */
@@ -1101,7 +1226,8 @@ function Preview({ item, onPaste, onOpen, onError, onClose, onCopyOcr }: {
       break
   }
 
-  const pasteLabel = item.type === 'ticket' ? 'Ver capturas' : item.type === 'snippet' && item.vars ? 'Completar' : 'Pegar'
+  const direct = item.type === 'ticket' || (item.type === 'snippet' && item.vars)
+  const mainLabel = item.type === 'ticket' ? 'Ver capturas' : item.type === 'snippet' && item.vars ? 'Completar' : 'Copiar'
   const runAction = (run: () => Promise<void> | void): void => { Promise.resolve().then(run).catch((e: unknown) => onError(cleanErr(e))) }
   const chip = 'inline-flex items-center gap-1 h-7 px-2.5 rounded-[8px] border border-hairline-strong hover:bg-on-surface/[0.04] text-[11px] text-on-surface transition-colors'
 
@@ -1115,11 +1241,16 @@ function Preview({ item, onPaste, onOpen, onError, onClose, onCopyOcr }: {
       </button>
       <div className="pr-5">{body}</div>
       <div className="flex flex-wrap items-center gap-1">
-        <button type="button" onClick={() => onPaste()} className="inline-flex items-center gap-1 h-7 px-3 rounded-[8px] bg-primary text-on-primary text-[11px] font-semibold hover:brightness-110">
-          {item.type === 'ticket' ? <Images size={12} /> : <ClipboardText size={12} />} {pasteLabel}
+        <button type="button" onClick={() => (direct ? onPaste() : onCopy())} className="inline-flex items-center gap-1 h-7 px-3 rounded-[8px] bg-primary text-on-primary text-[11px] font-semibold hover:brightness-110">
+          {item.type === 'ticket' ? <Images size={12} /> : direct ? <ClipboardText size={12} /> : <Copy size={12} />} {mainLabel}
         </button>
+        {!direct && (
+          <button type="button" title="Pegar en la app de adelante" onClick={() => onPaste()} className={chip}>
+            <ClipboardText size={11} className="text-on-surface-variant" /> Pegar
+          </button>
+        )}
         {clip && transforms.map((t) => (
-          <button key={t.id} type="button" title={`Pegar: ${t.label}`} onClick={() => onPaste(t.apply(clip.text))} className={chip}>
+          <button key={t.id} type="button" title={`Copiar: ${t.label}`} onClick={() => onCopy(t.apply(clip.text))} className={chip}>
             <Wand2 size={11} className="text-primary" /> {t.label}
           </button>
         ))}
@@ -1162,13 +1293,15 @@ function MiniBtn({ title, onClick, children }: { title: string; onClick: () => v
   )
 }
 
-function DoneOverlay({ show }: { show: boolean }): JSX.Element {
+function DoneOverlay({ show, label }: { show: boolean; label: string }): JSX.Element {
   return (
     <AnimatePresence>
       {show && (
-        <motion.span className="absolute inset-0 grid place-items-center bg-primary/70 text-on-primary"
+        <motion.span className="absolute inset-0 grid place-items-center bg-primary/70 text-on-primary backdrop-blur-[2px]"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <motion.span initial={{ scale: 0.4 }} animate={{ scale: 1 }} transition={POP}><Check size={18} /></motion.span>
+          <motion.span initial={{ scale: 0.4 }} animate={{ scale: 1 }} transition={POP} className="flex flex-col items-center gap-0.5 text-[11px] font-semibold">
+            <Check size={18} />{label}
+          </motion.span>
         </motion.span>
       )}
     </AnimatePresence>

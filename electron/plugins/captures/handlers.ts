@@ -38,6 +38,8 @@ const MAX_PIXELS = 40_000_000
 const K = {
   auto: 'captures.auto', keep: 'captures.keep_days', maxMb: 'captures.max_mb',
   notify: 'captures.notify', exclude: 'captures.exclude_apps',
+  /** Ticket en curso (widget): las capturas nuevas se le asignan solas */
+  active: 'captures.active_ticket',
 } as const
 
 let dir = ''
@@ -85,6 +87,7 @@ function readSettings(): CaptureSettings {
     maxMb: Number(s.get(K.maxMb) ?? '0') || 0,
     notify: s.get(K.notify) === '1',
     excludeApps: (s.get(K.exclude) ?? '').split(',').map((x) => x.trim()).filter(Boolean),
+    activeTicket: s.get(K.active) ?? '',
   }
 }
 
@@ -186,7 +189,7 @@ function addImage(img: Electron.NativeImage, hash: string, extra: Partial<Captur
   const { width, height } = img.getSize()
   const entry: CaptureEntry = {
     id: randomBytes(8).toString('hex'), file, createdAt: now.getTime(), width, height, bytes: png.length,
-    title: buildTitle(null, now), ticket: '', tags: [], note: '', pinned: false, ocr: null, hash, ...extra,
+    title: buildTitle(null, now), ticket: readSettings().activeTicket, tags: [], note: '', pinned: false, ocr: null, hash, ...extra,
   }
   entries.unshift(entry)
   hashes.add(hash)
@@ -423,6 +426,20 @@ export const handlers: PluginHandlers = {
 
     registerHandler(ipcMain, 'captures:get', (_e, id: string) => find(id))
 
+    /** Ticket en curso (widget): sólo eso, sin tocar el resto de los ajustes. '' = ninguno. */
+    registerHandler(ipcMain, 'captures:active-ticket', (_e, ticket?: unknown): string => {
+      if (typeof ticket === 'string') {
+        const t = ticket.trim().toUpperCase()
+        settings.set(K.active, /^[A-Z][A-Z0-9_]*-\d+$/.test(t) ? t : '')
+      }
+      return readSettings().activeTicket
+    })
+    /** Sólo la URL base de Jira (para "Abrir en Jira" desde el widget, sin leer otros ajustes). */
+    registerHandler(ipcMain, 'tickets:jira-url', (): string | null => {
+      const v = settings.get('ticket-resolver.jira_url')
+      return v ? v.replace(/\/+$/, '') : null
+    })
+
     registerHandler(ipcMain, 'captures:settings', (_e, patch: Partial<CaptureSettings>) => {
       if (typeof patch?.auto === 'boolean') {
         settings.set(K.auto, patch.auto ? '1' : '0')
@@ -431,6 +448,10 @@ export const handlers: PluginHandlers = {
       if (typeof patch?.keepDays === 'number' && patch.keepDays >= 0) settings.set(K.keep, String(Math.round(patch.keepDays)))
       if (typeof patch?.maxMb === 'number' && patch.maxMb >= 0) settings.set(K.maxMb, String(Math.round(patch.maxMb)))
       if (typeof patch?.notify === 'boolean') settings.set(K.notify, patch.notify ? '1' : '0')
+      if (typeof patch?.activeTicket === 'string') {
+        const t = patch.activeTicket.trim().toUpperCase()
+        settings.set(K.active, /^[A-Z][A-Z0-9_]*-\d+$/.test(t) ? t : '')
+      }
       if (Array.isArray(patch?.excludeApps)) settings.set(K.exclude, patch.excludeApps.map((x) => String(x).trim()).filter(Boolean).slice(0, 50).join(','))
       enforceLimits()
       saveIndex()

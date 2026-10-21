@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { childrenSql, connectionProblem, createToAlter, execScript, formatType, quoteName, tableScript } from './sql-meta'
+import { childrenSql, connectionProblem, createToAlter, execScript, formatType, friendlyError, joinServer, locateSql, serverFromHostInput, missingObject, quoteName, splitServer, tableScript } from './sql-meta'
 
 describe('connectionProblem', () => {
   it('distingue contraseña de servidor y sólo mira errores al conectar', () => {
@@ -46,5 +46,45 @@ describe('scripts', () => {
   it('childrenSql sólo acepta ids enteros', () => {
     expect(() => childrenSql(1.5)).toThrow()
     expect(childrenSql(42)).toContain('c.object_id = 42')
+  })
+})
+
+describe('friendlyError', () => {
+  it('resume los errores típicos en una línea', () => {
+    expect(friendlyError('Tiempo de espera de la operación de espera agotado', 'server').title).toBe('El servidor no responde')
+    expect(friendlyError("Login failed for user 'sa'.", 'auth').title).toBe('Usuario o contraseña rechazados')
+    expect(friendlyError('El nombre de red especificado ya no está disponible', 'server').title).toBe('No se encuentra el servidor')
+    expect(friendlyError('raro', 'server').title).toBe('No se pudo conectar')
+  })
+})
+
+describe('splitServer / joinServer', () => {
+  it('separa y vuelve a unir host y puerto', () => {
+    expect(splitServer('13.38.6.166,44058')).toEqual({ host: '13.38.6.166', port: '44058' })
+    expect(splitServer('CROSSETTO\\MSSQLSERVER02')).toEqual({ host: 'CROSSETTO\\MSSQLSERVER02', port: '' })
+    expect(joinServer('10.0.0.5 ', ' 1433')).toBe('10.0.0.5,1433')
+    expect(joinServer('10.0.0.5', '')).toBe('10.0.0.5')
+    // Cambiar la IP deja el puerto como estaba.
+    const { port } = splitServer('13.38.6.166,44058')
+    expect(joinServer('35.180.191.168', port)).toBe('35.180.191.168,44058')
+  })
+  it('pegar "ip,puerto" en el campo Servidor reemplaza el puerto anterior', () => {
+    expect(serverFromHostInput('13.38.6.166,44058', '1433')).toBe('13.38.6.166,44058')
+    expect(serverFromHostInput('10.0.0.9', '44058')).toBe('10.0.0.9,44058')
+    expect(serverFromHostInput('10.0.0.9,', '44058')).toBe('10.0.0.9')
+  })
+})
+
+describe('missingObject / locateSql', () => {
+  it('reconoce "Invalid object name" en inglés y en español', () => {
+    expect(missingObject({ ok: false, number: 208, error: "Invalid object name 'GUI_USERS'." })).toBe('GUI_USERS')
+    expect(missingObject({ ok: false, number: 208, error: "El nombre de objeto 'dbo.X' no es válido." })).toBe('dbo.X')
+    expect(missingObject({ ok: false, number: 207, error: "Invalid column name 'A'." })).toBeNull()
+    expect(missingObject({ ok: true, error: undefined })).toBeNull()
+  })
+  it('busca en las bases con dbo por defecto y rechaza nombres raros', () => {
+    expect(locateSql('GUI_USERS')).toContain("N'.dbo.GUI_USERS'")
+    expect(locateSql('ops.T')).toContain("N'.ops.T'")
+    expect(() => locateSql("x'; DROP TABLE y--")).toThrow()
   })
 })

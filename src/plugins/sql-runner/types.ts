@@ -37,6 +37,10 @@ export interface QueryTab {
   updatedAt: number
   /** El usuario le puso nombre (no se recalcula del contenido) */
   named?: boolean
+  /** Últimos valores de los parámetros @x de esta pestaña */
+  params?: Record<string, string>
+  /** Mostrar lecturas y tiempos (SET STATISTICS IO, TIME) */
+  stats?: boolean
 }
 
 export interface QueryTabsState {
@@ -44,6 +48,17 @@ export interface QueryTabsState {
   activeId: string | null
   /** Pestañas cerradas: se pueden reabrir (Ctrl+Shift+T). Las últimas 30. */
   closed: QueryTab[]
+}
+
+/** Consulta guardada como favorita (plantilla que se repite). */
+export interface QueryFavorite {
+  id: string
+  title: string
+  sql: string
+  /** Conexión con la que se guardó (al abrirla se usa si sigue existiendo) */
+  profileId: string | null
+  database: string
+  createdAt: number
 }
 
 export interface QueryHistoryEntry {

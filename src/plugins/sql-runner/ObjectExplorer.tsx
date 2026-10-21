@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ListSkeleton, Skeleton } from '../../core/components/Skeleton'
 import {
-  AtSign, ChevronRight, CircleAlert, Copy, Eye, KeyRound, Pencil, Play, RefreshCw, ScrollText, Search,
+  Activity, AtSign, ChevronRight, Unplug, CircleAlert, Copy, Eye, KeyRound, Pencil, Play, RefreshCw, ScrollText, Search,
   Server, SquareFunction, Table, Link, TextCursorInput, X, Zap, FileCode2, Database,
 } from 'lucide-react'
 import { ContextMenu, type MenuItem } from '../../core/components/ContextMenu'
@@ -8,7 +9,7 @@ import type { IconComponent } from '../../core/types'
 import type { SqlProfile, SqlTestResult } from '../connections/sql'
 import type { QueryResult } from './types'
 import {
-  connectionProblem, createToAlter, execScript, fullName, OBJECT_GROUPS, parseChildren, parseObjects, selectTopScript, tableScript,
+  connectionProblem, createToAlter, friendlyError, execScript, fullName, OBJECT_GROUPS, parseChildren, parseObjects, selectTopScript, tableScript,
   type MetaKind, type SqlColumn, type SqlObject, type SqlObjectType, type SqlParam,
 } from './sql-meta'
 import type { FixRequest } from './ConnectionFixDialog'
@@ -60,6 +61,7 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null)
   const [testing, setTesting] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
+  const [showDetail, setShowDetail] = useState(false)
 
   const meta = useCallback((kind: MetaKind, objectId?: number): Promise<QueryResult> =>
     window.api.invoke<QueryResult>('sql:meta', { profileId: profile.id, database, kind, objectId }), [profile.id, database])
@@ -199,11 +201,19 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
               <dt className="text-on-surface-variant">Acceso</dt><dd className="text-on-surface">{profile.auth === 'windows' ? 'Windows' : <span className="font-mono">{profile.user}</span>}{profile.auth === 'sql' && !profile.hasPassword && <span className="text-warning"> · sin contraseña</span>}</dd>
               {t?.serverName && <><dt className="text-on-surface-variant">Instancia</dt><dd className="font-mono text-on-surface break-all">{t.serverName}</dd></>}
               {t?.version && <><dt className="text-on-surface-variant">Versión</dt><dd className="font-mono text-on-surface">SQL Server {t.version}</dd></>}
-              {t && <><dt className="text-on-surface-variant">Prueba</dt><dd className={t.ok ? 'text-success' : 'text-error'}>{t.ok ? `ok${t.ms != null ? ` · ${t.ms} ms` : ''}` : t.detail}</dd></>}
+              {t && (
+                <><dt className="text-on-surface-variant">Prueba</dt>
+                  <dd title={t.ok ? undefined : t.detail}>
+                    <span className={`inline-flex items-center gap-1.5 ${t.ok ? 'text-success' : 'text-error'}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${t.ok ? 'bg-success' : 'bg-error'}`} />
+                      {t.ok ? `Conecta${t.ms != null ? ` · ${t.ms} ms` : ''}` : friendlyError(t.detail, null).title === 'Algo falló' ? 'No conecta' : friendlyError(t.detail, null).title}
+                    </span>
+                  </dd></>
+              )}
             </dl>
             <div className="flex gap-1.5 mt-1">
               <button type="button" className="ui-btn ui-btn-outline ui-btn-sm flex-1" onClick={() => void testNow()} disabled={testing}>
-                <Server size={12} /> {testing ? 'Probando…' : 'Probar'}
+                <Activity size={12} className={testing ? 'animate-pulse' : ''} /> {testing ? 'Probando…' : 'Probar conexión'}
               </button>
               <button type="button" className="ui-btn ui-btn-outline ui-btn-sm flex-1" onClick={() => fix('edit')}><Pencil size={12} /> Editar</button>
             </div>
@@ -230,17 +240,32 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
 
       {/* Árbol */}
       <div className="flex-1 min-h-0 overflow-y-auto py-1 text-[12.5px]">
-        {error && (
-          <div className="mx-2 my-2 rounded-[9px] bg-error/8 px-3 py-2.5">
-            <p className="flex items-start gap-2 t-footnote text-on-surface"><CircleAlert size={13} className="text-error mt-px shrink-0" /><span className="min-w-0 break-words">{error.text}</span></p>
-            {error.problem && (
-              <button type="button" className="ui-btn ui-btn-outline ui-btn-sm mt-2 w-full" onClick={() => fix(error.problem!, error.text)}>
-                {error.problem === 'auth' ? <><KeyRound size={12} /> Poner la nueva contraseña</> : <><Server size={12} /> Corregir servidor o IP</>}
+        {error && (() => {
+          const fe = friendlyError(error.text, error.problem)
+          const Icon = error.problem === 'auth' ? KeyRound : error.problem ? Unplug : CircleAlert
+          return (
+            <div className="mx-3 my-3 rounded-[14px] ring-1 ring-error/20 bg-error/[0.05] px-4 pt-4 pb-3 flex flex-col items-center text-center">
+              <span className="grid place-items-center w-10 h-10 rounded-[12px] bg-error/12 text-error mb-2.5"><Icon size={18} /></span>
+              <p className="t-body font-semibold text-on-surface">{fe.title}</p>
+              <p className="t-caption text-on-surface-variant mt-0.5">{fe.hint}</p>
+              <div className="flex flex-col gap-1.5 w-full mt-3">
+                {error.problem && (
+                  <button type="button" className="ui-btn ui-btn-primary ui-btn-sm w-full" onClick={() => fix(error.problem!, error.text)}>
+                    {error.problem === 'auth' ? <><KeyRound size={12} /> Poner la nueva contraseña</> : <><Server size={12} /> Corregir la conexión</>}
+                  </button>
+                )}
+                <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm w-full" onClick={() => void load(true)} disabled={loading}>
+                  <RefreshCw size={12} className={loading ? 'animate-spin' : ''} /> Reintentar
+                </button>
+              </div>
+              <button type="button" onClick={() => setShowDetail((v) => !v)} className="mt-1.5 t-caption text-on-surface-variant/80 hover:text-on-surface underline-offset-2 hover:underline">
+                {showDetail ? 'Ocultar detalle' : 'Ver detalle'}
               </button>
-            )}
-          </div>
-        )}
-        {loading && !objects && <p className="px-4 py-3 t-footnote text-on-surface-variant">Leyendo objetos…</p>}
+              {showDetail && <p className="mt-1.5 w-full rounded-[8px] bg-on-surface/5 px-2.5 py-2 text-left font-mono text-[11px] leading-[16px] text-on-surface-variant break-words">{error.text}</p>}
+            </div>
+          )
+        })()}
+        {loading && !objects && <ListSkeleton rows={9} avatar={false} className="px-1!" />}
         {objects && groups.length === 0 && (
           <div className="px-4 py-6 text-center">
             <Database size={22} className="mx-auto text-on-surface-variant/50" />
@@ -253,17 +278,17 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
           return (
             <div key={g.id}>
               <button type="button" onClick={() => toggleGroup(g.id)} aria-expanded={open}
-                className="w-full flex items-center gap-1.5 h-[28px] px-2 text-left hover:bg-on-surface/4">
+                className="sticky top-0 z-10 w-full flex items-center gap-1.5 h-[28px] px-2 text-left bg-surface hover:bg-surface-container-low">
                 <ChevronRight size={12} className={`text-on-surface-variant transition-transform ${open ? 'rotate-90' : ''}`} />
                 {(() => { const GI = TYPE_ICON[g.types[0]!]; return <GI size={14} className={`shrink-0 ${TYPE_COLOR[g.types[0]!]}`} /> })()}
                 <span className="flex-1 font-semibold text-on-surface">{g.label}</span>
                 <span className="t-caption tabular-nums text-on-surface-variant px-1.5 rounded-[5px] bg-on-surface/5">{f ? `${g.shown.length}/${g.total}` : g.total.toLocaleString('es-AR')}</span>
               </button>
-              {open && g.shown.slice(0, PER_GROUP).map((o) => {
+              {open && g.shown.slice(0, PER_GROUP).map((o, idx) => {
                 const Icon = TYPE_ICON[o.type]
                 const c = children[o.id]
                 return (
-                  <div key={o.id}>
+                  <div key={o.id} className="stagger-in" style={{ '--i': idx } as React.CSSProperties}>
                     <div role="treeitem" aria-expanded={!!c} tabIndex={0}
                       onClick={() => toggleObject(o)} onDoubleClick={() => primary(o)} onContextMenu={(e) => objectMenu(e, o)}
                       onKeyDown={(e) => { if (e.key === 'Enter') primary(o); if (e.key === ' ') { e.preventDefault(); toggleObject(o) } }}
@@ -276,7 +301,7 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
                       </span>
                       {o.rows != null && <span className="t-caption tabular-nums text-on-surface-variant/70 shrink-0">{compact(o.rows)}</span>}
                     </div>
-                    {c === 'loading' && <p className="pl-12 h-[24px] t-caption text-on-surface-variant">Cargando…</p>}
+                    {c === 'loading' && <div className="pl-12 pr-4 py-1.5 flex flex-col gap-1.5" aria-busy="true">{[70, 55, 62].map((w) => <Skeleton key={w} className="h-2.5" style={{ width: `${w}%` }} />)}</div>}
                     {c && c !== 'loading' && 'error' in c && <p className="pl-12 pr-2 py-1 t-caption text-error">{c.error}</p>}
                     {c && c !== 'loading' && !('error' in c) && (
                       <>

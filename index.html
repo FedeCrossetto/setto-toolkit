@@ -54,13 +54,7 @@
     </style>
   </head>
   <body>
-    <script>
-      try {
-        var m = localStorage.getItem('app-theme-mode'), t = localStorage.getItem('app-theme')
-        var dark = m === 'system' ? matchMedia('(prefers-color-scheme: dark)').matches : (t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches)
-        document.documentElement.classList.toggle('dark', dark)
-      } catch (e) {}
-    </script>
+    <script src="./theme-boot.js"></script>
     <div id="splash" aria-hidden="true">
       <img src="./setto-logo-lg.png" alt="" draggable="false" />
       <div class="name">Setto</div>

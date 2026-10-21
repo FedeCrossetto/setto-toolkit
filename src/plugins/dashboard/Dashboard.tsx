@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowRight, CalendarDays, ClipboardText, Code2, Copy, CornerDownLeft, FileCode2, KeyRound, Lock, NotebookPen, Pin, Plus, Search, Sparkles,
-  Ticket, TrendingDown, TrendingUp, Wallet,
+  Ticket, Wallet,
 } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
 import { EmptyState } from '../../core/components/EmptyState'
@@ -10,14 +10,11 @@ import { SegmentedControl } from '../../core/components/SegmentedControl'
 import { useToast } from '../../core/components/Toast'
 import { OPEN_PALETTE_EVENT } from '../../core/components/CommandPalette'
 import { detectLanguage, languageIcon } from '../file-editor/hooks/useEditorTabs'
-import { getMonthSummaryState, type GastosMonthSummary, type GastosSummaryResult } from '../gastos/summary'
-import { fmtMoney, friendlyGastosError, mesLong } from '../gastos/format'
+import { getMonthSummaryState } from '../gastos/summary'
 import { GASTOS_CHANGED_EVENT } from '../gastos/direct-write'
 import { useQuickGasto } from '../gastos/useQuickGasto'
-import { useRecurrentesAuto } from '../gastos/recurrence-runner'
 import { VariablesModal } from '../snippets/VariablesModal'
 import { hasVariables, stripDataUrls } from '../snippets/template'
-import { DeltaPill } from '../../core/components/Form'
 import type { IconComponent } from '../../core/types'
 import type { Snippet } from '../snippets/types'
 import { KIND_LABEL } from '../../core/clip-actions'
@@ -25,6 +22,7 @@ import { findTicket, type ClipView } from '../../core/clip-utils'
 import type { CaptureQueryResult } from '../captures/types'
 import type { Credential, CopyResult } from '../credentials/types'
 import { usageHint } from '../credentials/usage'
+import { AjustesCard, ConexionesCard, ConsultasCard, GastosCard, HeroCard, useBentoData } from './Bento'
 
 // ── Contracts consumed (owned by other modules) ──────────────────────────────
 interface NoteMeta { id: string; title: string; preview: string; updatedAt: number; pinned: boolean }
@@ -54,11 +52,6 @@ function useLoad<T>(loader: () => Promise<T>, deps: unknown[]): [Loadable<T>, ()
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-function longDate(now = new Date()): string {
-  const s = now.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
 function relTime(ms: number): string {
   const mins = Math.max(0, Math.round((Date.now() - ms) / 60000))
   if (mins < 1) return 'ahora'
@@ -81,10 +74,10 @@ function Widget({ title, icon: Icon, action, children, className = '' }: {
   className?: string
 }): JSX.Element {
   return (
-    <section className={`ui-card flex flex-col min-h-[220px] ${className}`}>
-      <header className="flex items-center gap-2 pl-5 pr-3 h-12 mt-1 mb-0.5">
+    <section className={`bento spotlight flex flex-col min-h-[220px] ${className}`}>
+      <header className="flex items-center gap-2 pl-5 pr-3 h-12 mt-2 mb-0.5">
         <Icon size={15} className="text-on-surface-variant shrink-0" />
-        <h2 className="t-callout font-semibold text-on-surface flex-1 min-w-0 truncate">{title}</h2>
+        <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-on-surface flex-1 min-w-0 truncate">{title}</h2>
         {action}
       </header>
       <div className="flex-1 flex flex-col px-3 pb-3">{children}</div>
@@ -370,138 +363,6 @@ function SnippetsWidget({ snippets, onUsed, onRetry }: { snippets: Loadable<Snip
   )
 }
 
-function ExpensesWidget({ summary, onRetry }: { summary: Loadable<GastosSummaryResult>; onRetry: () => void }): JSX.Element {
-  const { dispatch } = useApp()
-  const quickAdd = (): void => dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'gastos', action: 'quick-add', payload: {} })
-  // Gastos recurrentes vencidos (Netflix, alquiler…): se cargan solos al abrir Inicio, con "Deshacer".
-  useRecurrentesAuto(summary.status === 'ready')
-  const r = summary.status === 'ready' ? summary.data : null
-  const s = r && (r.status === 'ok' || r.status === 'offline') ? r.summary : null
-  const retry = <button className="ui-btn ui-btn-outline ui-btn-sm" onClick={onRetry}>Reintentar</button>
-  const toConnections = (
-    <button className="ui-btn ui-btn-outline ui-btn-sm" onClick={() => dispatch({ type: 'OPEN_TAB', pluginId: 'connections' })}>Ir a Conexiones</button>
-  )
-
-  return (
-    <Widget
-      title={s ? `Gastos de ${(mesLong(s.mes).split(' ')[0] ?? '').toLowerCase()}` : 'Gastos del mes'}
-      icon={Wallet}
-      action={<button onClick={quickAdd} className="ui-btn ui-btn-ghost ui-btn-sm"><Plus size={12} /> Gasto</button>}
-    >
-      {summary.status === 'loading' && (
-        <div className="px-2 py-2 flex flex-col gap-3">
-          <Skeleton className="h-8 w-40" />
-          <Skeleton className="h-3 w-56" />
-          <Skeleton className="h-2 w-full mt-3" />
-        </div>
-      )}
-      {summary.status === 'error' && <LoadError icon={Wallet} what="el resumen de gastos" onRetry={onRetry} />}
-      {r?.status === 'not-configured' && (
-        <EmptyState compact icon={Wallet} title="Gastos no está conectado"
-          description="Configurá Supabase en Conexiones para ver el resumen del mes." action={toConnections} />
-      )}
-      {r?.status === 'error' && (
-        <EmptyState compact icon={Wallet} title="No se pudo cargar el resumen"
-          description={friendlyGastosError(r.error ?? '')} action={retry} />
-      )}
-      {r?.status === 'offline' && !s && (
-        <EmptyState compact icon={Wallet} title="Sin conexión con Supabase"
-          description="Todavía no hay una copia de tus gastos en este equipo." action={retry} />
-      )}
-      {r?.status === 'offline' && s && (
-        <div className="mx-2.5 mt-0.5 mb-1 flex items-center gap-2 t-footnote text-on-surface-variant">
-          <span className="flex-1 min-w-0 truncate">Sin conexión: mostrando la copia de este equipo.</span>
-          <button className="ui-btn ui-btn-ghost ui-btn-sm" onClick={onRetry}>Reintentar</button>
-        </div>
-      )}
-      {s && <ExpensesSummary s={s} onOpen={() => dispatch({ type: 'OPEN_TAB', pluginId: 'gastos' })} />}
-      {s && r && r.pendingCount > 0 && (
-        <p className="px-2.5 pb-1 t-caption text-on-surface-variant">
-          {r.pendingCount === 1 ? '1 cambio guardado en este equipo, sin subir todavía.' : `${r.pendingCount} cambios guardados en este equipo, sin subir todavía.`}
-        </p>
-      )}
-    </Widget>
-  )
-}
-
-function ExpensesSummary({ s, onOpen }: { s: GastosMonthSummary; onOpen: () => void }): JSX.Element {
-  const diff = s.previousTotal > 0 ? (s.total - s.previousTotal) / s.previousTotal : null
-  const budgetPct = s.presupuesto && s.presupuesto > 0 ? s.total / s.presupuesto : null
-  const over = budgetPct !== null && budgetPct > 1
-  return (
-    <button onClick={onOpen} className="text-left px-2.5 py-2 flex flex-col gap-4 rounded-lg hover:bg-on-surface/3 dark:hover:bg-on-surface/5 transition-colors">
-      <div className="flex flex-col gap-1.5">
-        <div className="t-title1 text-on-surface tabular-nums">{fmtMoney(s.total)}</div>
-        <div className="flex items-center gap-2 t-footnote text-on-surface-variant min-w-0">
-          {diff === null
-            ? 'Sin datos del mes anterior'
-            : <>
-                <DeltaPill tone={diff > 0 ? 'warning' : 'success'}>
-                  {diff > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-                  {diff > 0 ? '+' : ''}{Math.round(diff * 100)}%
-                </DeltaPill>
-                <span className="truncate">vs. mes anterior ({fmtMoney(s.previousTotal)})</span>
-              </>}
-        </div>
-      </div>
-
-      {budgetPct !== null && s.presupuesto !== null && (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between t-footnote text-on-surface-variant">
-            <span>Presupuesto {fmtMoney(s.presupuesto)}</span>
-            <span className={`tabular-nums font-medium ${over ? 'text-error' : 'text-on-surface'}`}>{Math.round(budgetPct * 100)}%</span>
-          </div>
-          <div className="h-1.5 rounded-full bg-on-surface/[0.07] overflow-hidden">
-            <div
-              className={`h-full rounded-full ${over ? 'bg-error' : budgetPct > 0.85 ? 'bg-warning' : 'bg-primary'}`}
-              style={{ width: `${Math.min(100, budgetPct * 100)}%`, transition: 'width 300ms var(--ease-mac)' }}
-            />
-          </div>
-        </div>
-      )}
-
-      {s.presupuestosEnRiesgo && s.presupuestosEnRiesgo.length > 0 && (
-        <ul className="flex flex-col gap-2" aria-label="Categorías cerca o pasadas de su presupuesto">
-          {s.presupuestosEnRiesgo.map((c) => (
-            <li key={c.categoria} className="flex flex-col gap-1">
-              <div className="flex items-center gap-2 t-footnote min-w-0">
-                <span className="flex-1 min-w-0 truncate text-on-surface">{c.categoria}</span>
-                <span className="text-on-surface-variant tabular-nums truncate">
-                  {c.estado === 'error' ? `pasado por ${fmtMoney(-c.restante)}` : `quedan ${fmtMoney(c.restante)}`}
-                </span>
-                <span className={`tabular-nums font-medium ${c.estado === 'error' ? 'text-error' : 'text-warning'}`}>{Math.round(c.pct * 100)}%</span>
-              </div>
-              <div className="h-1 rounded-full bg-on-surface/[0.07] overflow-hidden">
-                <div className={`h-full rounded-full ${c.estado === 'error' ? 'bg-error' : 'bg-warning'}`}
-                  style={{ width: `${Math.min(100, c.pct * 100)}%`, transition: 'width 300ms var(--ease-mac)' }} />
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="grid grid-cols-3 gap-2">
-        <Stat label="Fijos" value={fmtMoney(s.fijos)} />
-        <Stat label="Variables" value={fmtMoney(s.variables)} />
-        <Stat
-          label="Pendientes"
-          value={s.pendientesCount === 0 ? 'Ninguno' : `${s.pendientesCount} · ${fmtMoney(s.pendientes)}`}
-          tone={s.pendientesCount > 0 ? 'warning' : undefined}
-        />
-      </div>
-    </button>
-  )
-}
-
-function Stat({ label, value, tone }: { label: string; value: string; tone?: 'warning' }): JSX.Element {
-  return (
-    <div className="stat-cell px-3 py-2.5 min-w-0">
-      <div className="t-caption text-on-surface-variant">{label}</div>
-      <div className={`t-callout font-semibold tabular-nums truncate mt-0.5 ${tone === 'warning' ? 'text-warning' : 'text-on-surface'}`}>{value}</div>
-    </div>
-  )
-}
-
 function RecentFilesWidget({ recents, onRetry }: { recents: Loadable<RecentEntry[]>; onRetry: () => void }): JSX.Element {
   const { dispatch } = useApp()
   return (
@@ -683,7 +544,6 @@ export function Dashboard(): JSX.Element {
     window.addEventListener(GASTOS_CHANGED_EVENT, reloadSummary)
     return () => window.removeEventListener(GASTOS_CHANGED_EVENT, reloadSummary)
   }, [reloadSummary])
-  const retrySummary = useCallback(() => { void getMonthSummaryState(undefined, { force: true }).finally(reloadSummary) }, [reloadSummary])
   const [recents, reloadRecents] = useLoad(async () => (await invoke<RecentEntry[]>('editor:recent-get')) ?? [], [stamp])
   const [tickets, reloadTickets] = useLoad(loadTickets, [stamp])
   const [keys, reloadKeys] = useLoad(async () => {
@@ -697,33 +557,42 @@ export function Dashboard(): JSX.Element {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [state.disabledPlugins])
 
-  const widgets = [
-    isOn('gastos') && <ExpensesWidget key="gastos" summary={summary} onRetry={retrySummary} />,
+  const show = { gastos: isOn('gastos'), sql: isOn('sql-runner'), credentials: isOn('credentials'), tickets: isOn('tickets') || isOn('captures') }
+  const [bento, reloadBento] = useBentoData(stamp, { sql: show.sql, credentials: show.credentials })
+  const gastosResult = summary.status === 'ready' ? summary.data : null
+  const bentoData = { ...bento, gastos: gastosResult, ticketsAt: tickets.status === 'ready' ? tickets.data.map((t) => t.at) : [] }
+
+  const lower = [
     isOn('captures') && <TicketsWidget key="tickets" tickets={tickets} onRetry={reloadTickets} />,
     isOn('credentials') && <KeysWidget key="keys" keys={keys} onRetry={reloadKeys} />,
-    isOn('captures') && <ClipboardWidget key="clips" clips={clips} onRetry={reloadClips} />,
+    <AjustesCard key="ajustes" />,
+  ].filter(Boolean)
+  const widgets = [
     isOn('snippets') && <SnippetsWidget key="snippets" snippets={snippets} onUsed={reloadSnippets} onRetry={reloadSnippets} />,
     isOn('file-editor') && <RecentFilesWidget key="files" recents={recents} onRetry={reloadRecents} />,
+    isOn('captures') && <ClipboardWidget key="clips" clips={clips} onRetry={reloadClips} />,
     isOn('notes') && <NotesWidget key="notes" notes={notes} onRetry={reloadNotes} />,
   ].filter(Boolean)
+  // El bento se acomoda según los módulos activos.
+  const right = [show.gastos, show.sql].filter(Boolean).length
 
   return (
     <div className="min-h-full">
-      <div className="px-8 py-7 max-w-[1120px] mx-auto w-full flex flex-col gap-5">
-        <header className="flex flex-col gap-1 pt-1">
-          <h1 className="t-title2 text-on-surface">Hola{userName ? `, ${userName}` : ''}</h1>
-          <p className="t-callout text-on-surface-variant">{longDate(now)} · esto es lo que tenés a mano hoy.</p>
-        </header>
+      <div className="px-4 py-4 w-full flex flex-col gap-3">
+        <div className="grid grid-cols-12 gap-3">
+          <HeroCard name={userName} now={now} data={bentoData} show={show}
+            className={`col-span-12 ${right ? 'lg:col-span-5 lg:row-span-2' : ''}`} />
+          {show.gastos && <GastosCard result={gastosResult} className={`col-span-12 sm:col-span-6 ${show.sql ? 'lg:col-span-4' : 'lg:col-span-7'}`} />}
+          {show.sql && <ConexionesCard profiles={bento.profiles} onTested={reloadBento} className={`col-span-12 sm:col-span-6 ${show.gastos ? 'lg:col-span-3' : 'lg:col-span-7'}`} />}
+          {show.sql && <ConsultasCard history={bento.history} className="col-span-12 lg:col-span-7" />}
+        </div>
 
-      {(capture.note || capture.expense || capture.snippet) && (
-        <QuickCapture enabled={capture} onNoteCreated={reloadNotes} />
-      )}
+        {(capture.note || capture.expense || capture.snippet) && (
+          <QuickCapture enabled={capture} onNoteCreated={reloadNotes} />
+        )}
 
-      {widgets.length > 0 ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">{widgets}</div>
-      ) : (
-        <EmptyState icon={NotebookPen} title="Nada para mostrar" description="Activá Notas, Snippets o Gastos en Ajustes → Módulos." />
-      )}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch">{lower}</div>
+        {widgets.length > 0 && <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-4 gap-3 items-start">{widgets}</div>}
       </div>
     </div>
   )

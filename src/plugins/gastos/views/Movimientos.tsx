@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Download, Search, Trash2 } from 'lucide-react'
+import { CreditCard, Download, LayoutGrid, Search, Trash2 } from 'lucide-react'
 import { SegmentedControl } from '../../../core/components/SegmentedControl'
+import { Picker } from '../../../core/components/Picker'
+import { CATEGORY_COLORS } from '../components/Charts'
 import { buildMovimientos, type GastosData, type Movimiento } from '../analytics'
 import { fechaCorta, fmt, mesLong } from '../format'
 import { normalize } from '../../../core/search'
@@ -10,6 +12,57 @@ import { CATEGORIAS_VARIABLES, METODOS_VARIABLES, parseAmount } from '../quick-a
 import type { Gasto, PagoMensual } from '../types'
 
 type Rango = 'mes' | 'anio'
+
+/** Filtro con el selector propio (no el desplegable de Windows); '' = todos. */
+function FilterPicker({ value, onChange, all, items, icon: Icon, width = 240 }: {
+  value: string
+  onChange: (v: string) => void
+  all: string
+  items: { id: string; label: string; dot?: string }[]
+  icon?: typeof Search
+  width?: number
+}): JSX.Element {
+  const ALL = '\u0000all'
+  const current = items.find((i) => i.id === value)
+  return (
+    <Picker value={value || ALL} onPick={(id) => onChange(id === ALL ? '' : id)} width={width} placeholder="Buscar…"
+      className={`h-8! ${value ? 'border-primary/45! bg-primary/8!' : ''}`}
+      trigger={(
+        <>
+          {current?.dot ? <span className="w-2 h-2 rounded-full shrink-0" style={{ background: current.dot }} /> : Icon && <Icon size={13} className="text-on-surface-variant shrink-0" />}
+          <span className={`truncate t-footnote ${value ? 'text-on-surface font-medium' : 'text-on-surface-variant'}`}>{current?.label ?? all}</span>
+        </>
+      )}
+      items={[
+        { id: ALL, text: all, render: () => <span className="t-footnote text-on-surface-variant">{all}</span> },
+        ...items.map((i) => ({ id: i.id, text: i.label, render: () => (
+          <span className="flex items-center gap-2 t-footnote text-on-surface">
+            {i.dot && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: i.dot }} />}{i.label}
+          </span>
+        ) })),
+      ]} />
+  )
+}
+
+function CatChip({ name, color }: { name: string; color: string }): JSX.Element {
+  return (
+    <span className="inline-flex items-center gap-1.5 max-w-full">
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
+      <span className="truncate">{name}</span>
+    </span>
+  )
+}
+
+function MiniStat({ label, value, sub, accent, dot }: { label: string; value: string; sub?: string; accent?: boolean; dot?: string }): JSX.Element {
+  return (
+    <div className={`spotlight relative overflow-hidden rounded-[12px] px-3.5 py-2.5 ring-1 ${accent ? 'ring-primary/25 bg-primary/[0.07]' : 'ring-on-surface/[0.07] bg-on-surface/[0.025] dark:bg-black/30'}`}>
+      {accent && <span aria-hidden className="pointer-events-none absolute -right-6 -top-8 w-24 h-24 rounded-full bg-primary/20 blur-2xl" />}
+      <div className="t-caption text-on-surface-variant flex items-center gap-1.5">{dot && <span className="w-1.5 h-1.5 rounded-full" style={{ background: dot }} />}{label}</div>
+      <div className="text-[17px] leading-[24px] font-semibold tabular-nums text-on-surface truncate">{value}</div>
+      {sub && <div className="t-caption text-on-surface-variant/80 truncate">{sub}</div>}
+    </div>
+  )
+}
 type Field = 'monto' | 'categoria' | 'metodoPago' | 'fecha'
 
 function isTyping(el: Element | null): boolean {
@@ -166,6 +219,12 @@ export function Movimientos({ data, mes, onOpen, onDelete, onExport, onUpdateGas
   const totalArs = list.filter((m) => m.moneda === 'ARS').reduce((s, m) => s + m.monto, 0)
   const totalUsd = list.filter((m) => m.moneda === 'USD').reduce((s, m) => s + m.monto, 0)
   const label = rango === 'mes' ? mesLong(mes) : String(year)
+  const catColor = (c: string): string => CATEGORY_COLORS[Math.max(0, categorias.indexOf(c)) % 6]!
+  const topCat = useMemo(() => {
+    const by = new Map<string, number>()
+    for (const m of list) if (m.moneda === 'ARS') by.set(m.categoria, (by.get(m.categoria) ?? 0) + m.monto)
+    return [...by.entries()].sort((a, b) => b[1] - a[1])[0] ?? null
+  }, [list])
 
   function update(m: Movimiento, field: Field, raw: string): void {
     const now = new Date().toISOString()
@@ -191,19 +250,12 @@ export function Movimientos({ data, mes, onOpen, onDelete, onExport, onUpdateGas
           <input ref={searchRef} className="ui-input w-full h-8 pl-8" value={q} onChange={(e) => setQ(e.target.value)}
             placeholder="Buscar descripción, categoría, monto…  ( / )" aria-label="Buscar movimientos" />
         </div>
-        <select className="ui-input w-auto h-8 py-0 t-footnote" value={tipo} onChange={(e) => setTipo(e.target.value as typeof tipo)} aria-label="Tipo">
-          <option value="">Fijos y variables</option>
-          <option value="variable">Sólo variables</option>
-          <option value="fijo">Sólo fijos</option>
-        </select>
-        <select className="ui-input w-auto h-8 py-0 t-footnote" value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Categoría">
-          <option value="">Todas las categorías</option>
-          {categorias.map((c) => <option key={c}>{c}</option>)}
-        </select>
-        <select className="ui-input w-auto h-8 py-0 t-footnote" value={metodo} onChange={(e) => setMetodo(e.target.value)} aria-label="Método de pago">
-          <option value="">Todos los métodos</option>
-          {metodos.map((m) => <option key={m}>{m}</option>)}
-        </select>
+        <FilterPicker value={tipo} onChange={(v) => setTipo(v as typeof tipo)} all="Fijos y variables" width={200}
+          items={[{ id: 'variable', label: 'Sólo variables' }, { id: 'fijo', label: 'Sólo fijos' }]} />
+        <FilterPicker value={cat} onChange={setCat} all="Todas las categorías" icon={LayoutGrid}
+          items={categorias.map((c) => ({ id: c, label: c, dot: catColor(c) }))} />
+        <FilterPicker value={metodo} onChange={setMetodo} all="Todos los métodos" icon={CreditCard}
+          items={metodos.map((m) => ({ id: m, label: m }))} />
         <SegmentedControl<Rango> value={rango} onChange={setRango}
           options={[{ value: 'mes', label: 'Mes' }, { value: 'anio', label: String(year) }]} />
         <button type="button" className="ui-btn ui-btn-outline ui-btn-icon h-8 w-8" onClick={() => onExport(list, label)} disabled={!list.length}
@@ -212,7 +264,16 @@ export function Movimientos({ data, mes, onOpen, onDelete, onExport, onUpdateGas
         </button>
       </div>
 
-      <div className="ui-card">
+      {list.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+          <MiniStat label={`Total ${label.toLowerCase()}`} value={`$ ${fmt(totalArs)}`} sub={totalUsd > 0 ? `+ US$ ${fmt(totalUsd)}` : undefined} accent />
+          <MiniStat label="Movimientos" value={String(list.length)} sub={`${list.filter((m) => m.kind === 'fijo').length} fijos · ${list.filter((m) => m.kind === 'variable').length} variables`} />
+          <MiniStat label="Promedio" value={`$ ${fmt(Math.round(totalArs / Math.max(1, list.filter((m) => m.moneda === 'ARS').length)))}`} sub="por movimiento" />
+          {topCat && <MiniStat label="Categoría principal" value={topCat[0]} sub={`$ ${fmt(topCat[1])} · ${Math.round((topCat[1] / Math.max(totalArs, 1)) * 100)}%`} dot={catColor(topCat[0])} />}
+        </div>
+      )}
+
+      <div className="ui-card overflow-hidden">
         {list.length === 0 ? (
           <p className="t-footnote text-on-surface-variant px-4 py-10 text-center">
             {all.length ? 'Ningún movimiento coincide con los filtros.' : `Sin movimientos en ${label.toLowerCase()}. Usá el agregado rápido de arriba (o tocá N).`}
@@ -248,15 +309,15 @@ export function Movimientos({ data, mes, onOpen, onDelete, onExport, onUpdateGas
                     </td>
                     <td className="px-2 py-2 text-on-surface-variant">
                       {m.kind === 'variable'
-                        ? <EditableCell kind="select" label="categoría" options={catOptions} initial={m.categoria} display={m.categoria} onCommit={(v) => update(m, 'categoria', v)} />
-                        : m.categoria}
+                        ? <EditableCell kind="select" label="categoría" options={catOptions} initial={m.categoria} display={<CatChip name={m.categoria} color={catColor(m.categoria)} />} onCommit={(v) => update(m, 'categoria', v)} />
+                        : <CatChip name={m.categoria} color={catColor(m.categoria)} />}
                     </td>
                     <td className="px-2 py-2 text-on-surface-variant">
                       <EditableCell kind="select" label="método" options={['', ...metodoOptions]} initial={m.metodoPago} display={m.metodoPago || '—'} onCommit={(v) => update(m, 'metodoPago', v)} />
                     </td>
-                    <td className="px-4 py-2 text-right tabular-nums text-on-surface whitespace-nowrap">
+                    <td className="px-4 py-2 text-right tabular-nums font-semibold text-on-surface whitespace-nowrap">
                       <EditableCell kind="text" label="monto" initial={fmt(m.monto)} onCommit={(v) => update(m, 'monto', v)}
-                        display={<>{m.moneda === 'USD' ? 'US$' : '$'} {fmt(m.monto)}</>} />
+                        display={<><span className="font-normal text-on-surface-variant">{m.moneda === 'USD' ? 'US$' : '$'}</span> {fmt(m.monto)}</>} />
                     </td>
                     <td className="pr-2 text-right">
                       <button type="button" aria-label="Eliminar movimiento" title="Eliminar (Supr)"

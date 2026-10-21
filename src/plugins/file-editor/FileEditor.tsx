@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   AlertTriangle, ArrowUpRight, CheckCircle2, ChevronRight, ChevronsDownUp, ChevronsUpDown, Copy, Diff, Eye,
   FileInput, FilePlus, FileSearch, FileText, Filter, Folder, Import,
-  FolderOpen, FolderPlus, FolderSearch, Palette, PanelLeft, PanelLeftClose, Pencil,
+  FolderOpen, FolderPlus, GitBranch, FolderSearch, Palette, PanelLeft, PanelLeftClose, Pencil,
   Save, SlidersHorizontal, SquareTerminal, Trash2, WrapText, X,
 } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
@@ -75,6 +75,8 @@ const appendPath   = (dir: string, name: string): string => `${dir}${dir.include
 
 // ── Tree callbacks interface ──────────────────────────────────────────────────
 interface TreeCallbacks {
+  /** Archivo abierto ahora (se resalta en el árbol) */
+  activePath?:     string | null
   onOpen:          (path: string) => Promise<unknown>
   onContextMenu:   (e: React.MouseEvent, node: FileTreeNode, rootPath: string) => void
   renaming:        string | null
@@ -107,6 +109,8 @@ export function FileEditor(): JSX.Element {
 
   // ── Core state ────────────────────────────────────────────────────────────
   const [recents, setRecents]       = useState<RecentFile[]>([])
+  /** Rama de git del archivo activo (barra de estado) */
+  const [gitBranch, setGitBranch] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [folders, setFolders]       = useState<FileTreeNode[]>([])
@@ -833,7 +837,16 @@ export function FileEditor(): JSX.Element {
     }
   }
 
+  useEffect(() => {
+    const p = activeTab?.path
+    if (!p) { setGitBranch(null); return }
+    let alive = true
+    void window.api.invoke<string | null>('editor:git-branch', p).then((b) => { if (alive) setGitBranch(b) }).catch(() => { if (alive) setGitBranch(null) })
+    return () => { alive = false }
+  }, [activeTab?.path])
+
   const treeCb: TreeCallbacks = {
+    activePath: activeTab?.path ?? null,
     onOpen: openFile, onContextMenu: handleContextMenu, renaming, creating,
     onRenameCommit: handleRenameCommit, onCreateCommit: handleCreateCommit,
     onCancel: () => { setRenaming(null); setCreating(null) },
@@ -1553,7 +1566,7 @@ export function FileEditor(): JSX.Element {
                   )}
                 </div>
               ) : (
-                <EmptyState onOpen={openDialog} />
+                <EmptyState onOpen={openDialog} recents={recents} onOpenRecent={(p) => void openFile(p)} />
               )}
             </SplitLayout>
 
@@ -1605,8 +1618,16 @@ export function FileEditor(): JSX.Element {
 
           {/* Status bar */}
           {activeTab && !zenMode && (
-            <div className="flex items-center gap-3 px-3 h-6 hairline-t fe-chrome shrink-0 select-none t-caption text-on-surface-variant tabular-nums">
-              <span className="capitalize">{highlightLanguage}</span>
+            <div className="flex items-center gap-3 px-3 h-[26px] hairline-t bg-surface-container-low shrink-0 select-none t-caption text-on-surface-variant tabular-nums">
+              <span className="flex items-center gap-1.5 capitalize text-on-surface font-medium">
+                {(() => { const Icon = languageIcon(activeTab.language); return <Icon size={12} className="text-primary" /> })()}
+                {highlightLanguage}
+              </span>
+              {gitBranch && (
+                <span className="flex items-center gap-1" title={`Rama de git: ${gitBranch}`}>
+                  <GitBranch size={11} className="text-primary/80" /><span className="max-w-[180px] truncate">{gitBranch}</span>
+                </span>
+              )}
               <button onClick={() => editorRef.current?.openGotoLine()} title="Ir a línea (Ctrl+G)"
                 className="hover:text-on-surface transition-colors">
                 Lín {cursor.ln}, col {cursor.col}
@@ -1808,7 +1829,8 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
       <div onClick={() => node.isDir ? onToggle(node.path) : cb.onOpen(node.path)}
         onContextMenu={(e) => cb.onContextMenu(e, node, rootPath)}
         title={node.path}
-        className="relative flex items-center gap-1.5 h-[28px] mx-1.5 rounded-[9px] cursor-default hover:bg-on-surface/4 dark:hover:bg-white/5 group transition-colors"
+        className={`relative flex items-center gap-1.5 h-[28px] mx-1.5 rounded-[9px] cursor-default group transition-colors ${
+          !node.isDir && cb.activePath === node.path ? 'bg-primary/[0.1] ring-1 ring-primary/20' : 'hover:bg-on-surface/4 dark:hover:bg-white/5'}`}
         style={{ paddingLeft: `${2 + indent}px`, paddingRight: '6px' }}>
         {/* Indent guide lines — one vertical hairline per ancestor level */}
         {Array.from({ length: depth }).map((_, d) => (
@@ -1824,12 +1846,12 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
           : <span className="shrink-0" style={{ width: '13px' }} />
         }
         {node.isDir
-          ? (isOpen ? <FolderOpen size={14} className="text-on-surface-variant shrink-0" /> : <Folder size={14} className="text-on-surface-variant shrink-0" />)
+          ? (isOpen ? <FolderOpen size={14} className="text-primary/80 shrink-0" /> : <Folder size={14} className="text-on-surface-variant shrink-0" />)
           : (() => { const Icon = languageIcon(detectLanguage(node.name)); return <Icon size={13} className={FILE_ICON_CLS} /> })()
         }
         {cb.renaming === node.path
           ? <InlineInput defaultValue={node.name} onCommit={(n) => cb.onRenameCommit(node.path, n)} onCancel={cb.onCancel} />
-          : <span className="text-[13px] text-on-surface/85 group-hover:text-on-surface truncate flex-1">{node.name}</span>
+          : <span className={`text-[13px] truncate flex-1 ${!node.isDir && cb.activePath === node.path ? 'text-on-surface font-medium' : 'text-on-surface/85 group-hover:text-on-surface'}`}>{node.name}</span>
         }
         {node.isDir && !isOpen && (node.children?.length ?? 0) > 0 && (
           <Badge className="ml-auto group-hover:opacity-100 opacity-60">{node.children!.length}</Badge>
@@ -1962,7 +1984,7 @@ function FileListItem({
   )
 }
 
-function EmptyState({ onOpen }: { onOpen: () => void }): JSX.Element {
+function EmptyState({ onOpen, recents = [], onOpenRecent }: { onOpen: () => void; recents?: RecentFile[]; onOpenRecent?: (path: string) => void }): JSX.Element {
   return (
     <motion.div
       className="flex flex-col items-center justify-center h-full gap-5 text-center select-none px-6 bg-surface"
@@ -1980,6 +2002,26 @@ function EmptyState({ onOpen }: { onOpen: () => void }): JSX.Element {
       <button onClick={onOpen} className="ui-btn ui-btn-outline">
         <Import size={14} />Abrir archivo
       </button>
+
+      {recents.length > 0 && onOpenRecent && (
+        <div className="w-full max-w-[420px] text-left">
+          <p className="t-section uppercase tracking-[0.08em] px-1 mb-1.5">Recientes</p>
+          <div className="flex flex-col gap-px rounded-[12px] ring-1 ring-(--hairline) bg-on-surface/[0.015] p-1">
+            {recents.slice(0, 6).map((r) => {
+              const Icon = languageIcon(detectLanguage(r.name))
+              const dir = r.path.replace(/[\\/][^\\/]*$/, '')
+              return (
+                <button key={r.path} type="button" onClick={() => onOpenRecent(r.path)} title={r.path}
+                  className="stagger-in flex items-center gap-2.5 px-2.5 py-1.5 rounded-[9px] hover:bg-on-surface/5 transition-colors min-w-0">
+                  <Icon size={14} className="text-primary shrink-0" />
+                  <span className="t-footnote font-medium text-on-surface shrink-0">{r.name}</span>
+                  <span className="t-caption text-on-surface-variant truncate">{dir}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-x-6 gap-y-2 t-footnote text-on-surface-variant">
         {([

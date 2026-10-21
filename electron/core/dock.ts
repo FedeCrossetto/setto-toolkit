@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, screen, shell } from 'electron'
+import { app, BrowserWindow, clipboard, globalShortcut, screen, shell } from 'electron'
 import type { IpcMain, NativeImage } from 'electron'
 import path from 'path'
 import type { SettingsService } from './services/settings.service'
@@ -275,6 +275,11 @@ function create(icon: NativeImage | string): void {
   })
   dock.on('blur', () => { if (expanded && !pinned) setExpanded(false) })
   dock.on('closed', () => { dock = null; expanded = false })
+  // Si el proceso de la barra se cae, volver a cargarla en vez de dejarla en blanco.
+  dock.webContents.on('render-process-gone', (_e, d) => {
+    if (d.reason === 'clean-exit') return
+    setTimeout(() => { if (dock && !dock.isDestroyed()) load(dock) }, 500)
+  })
   // `ready-to-show` solo no alcanza: si la primera carga falla (en dev Vite tarda en
   // arrancar) no llega nunca y la barra quedaba invisible. Mostrar al terminar de
   // cargar y reintentar si falla.
@@ -427,12 +432,20 @@ export function registerDock(ipcMain: IpcMain, settings: SettingsService, icon: 
       text = clipText(payload.clipId)
       if (text === null) throw new Error('Ya no está en el historial')
     } else if (payload?.current !== true) throw new Error('Nada para pegar')
+    logger.debug('dock', 'pegar', { from: text !== null ? (payload?.clipId ? 'copiado' : 'texto') : 'actual', chars: text?.length ?? 0 })
     const hadFocus = !!dock?.isFocused()
     if (hadFocus) { pinned = false; setExpanded(false) }
     const delay = hadFocus ? 180 : 60
     if (text !== null) return { ok: true, pasted: await pasteKeepingClipboard(text, delay) }
     await new Promise((r) => setTimeout(r, delay))
     return { ok: true, pasted: await simulatePaste() }
+  })
+
+  /** Copiar texto (snippet, transformación) al portapapeles, sin pegar: el clic de la barra copia. */
+  ipcMain.handle('dock:copy-text', (_e, text: unknown) => {
+    if (typeof text !== 'string' || !text) throw new Error('Nada para copiar')
+    clipboard.writeText(text)
+    return { ok: true }
   })
 
   /** Captura rápida en la ventana principal (como Ctrl+Shift+Espacio). */

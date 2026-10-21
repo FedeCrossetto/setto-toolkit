@@ -1,7 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { CheckCircle2, CircleAlert, Info, TriangleAlert, X } from 'lucide-react'
-import { toastMotion } from '../motion'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -54,6 +53,13 @@ const ICON: Record<ToastType, typeof Info> = {
   info:    Info,
 }
 
+const ICON_BAR: Record<ToastType, string> = {
+  success: 'bg-success/60',
+  error:   'bg-error/60',
+  warning: 'bg-warning/60',
+  info:    'bg-primary/50',
+}
+
 const ICON_COLOR: Record<ToastType, string> = {
   success: 'text-success',
   error:   'text-error',
@@ -64,11 +70,12 @@ const ICON_COLOR: Record<ToastType, string> = {
 
 // ── Single toast item ─────────────────────────────────────────────────────────
 
-function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: string) => void }): JSX.Element {
+function ToastCard({ toast, onDismiss, held }: { toast: ToastItem; onDismiss: (id: string) => void; held: boolean }): JSX.Element {
   // Auto-dismiss (la salida la anima AnimatePresence en el contenedor).
-  // El tiempo se pausa mientras el puntero o el foco están sobre el toast,
-  // para que dé tiempo a leer o a apretar "Deshacer".
-  const [paused, setPaused] = useState(false)
+  // El tiempo se pausa mientras el puntero o el foco están sobre el toast (o la pila
+  // está abierta), para que dé tiempo a leer o a apretar "Deshacer".
+  const [own, setPaused] = useState(false)
+  const paused = own || held
   const remaining = useRef(toast.durationMs)
   useEffect(() => {
     if (paused) return
@@ -97,9 +104,12 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
       onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); handleDismiss() } }}
-      className="fl-dialog rounded-[12px]! flex items-center gap-2.5 pl-2.5 pr-1.5 py-1.5 t-body text-on-surface"
-      style={{ minWidth: 220, maxWidth: 440 }}
+      className="fl-dialog relative overflow-hidden rounded-[12px]! flex items-center gap-2.5 pl-2.5 pr-1.5 py-1.5 t-body text-on-surface"
+      style={{ minWidth: 260, maxWidth: 440 }}
     >
+      {/* Cuánto le queda: se frena junto con el cierre (hover, foco, pila abierta). */}
+      <span aria-hidden className={`toast-timer absolute left-0 bottom-0 h-[2px] ${ICON_BAR[toast.type]}`}
+        style={{ animationDuration: `${toast.durationMs}ms`, animationPlayState: paused ? 'paused' : 'running' }} />
       <span aria-hidden className="shrink-0 w-5 h-5 flex items-center justify-center">
         <Icon size={16} weight="regular" className={ICON_COLOR[toast.type]} />
       </span>
@@ -129,8 +139,14 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
 
 let idCounter = 0
 
+/** Pila: alto de un toast con su separación (abierta) y cuánto asoma cada anterior (cerrada). */
+const STACK_GAP = 50
+const STACK_PEEK = 9
+
 export function ToastProvider({ children }: { children: ReactNode }): JSX.Element {
   const [toasts, setToasts] = useState<ToastItem[]>([])
+  const [expanded, setExpanded] = useState(false)
+  useEffect(() => { if (!toasts.length) setExpanded(false) }, [toasts.length])
 
   const dismiss = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id))
@@ -165,16 +181,33 @@ export function ToastProvider({ children }: { children: ReactNode }): JSX.Elemen
     <ToastContext.Provider value={value}>
       {children}
 
-      {/* Toasts — arriba a la derecha */}
+      {/* Toasts — arriba a la derecha, apilados como Sonner: el más nuevo adelante y los
+          anteriores asomando detrás; al pasar el mouse se abren en lista. Deslizar a la
+          derecha cierra uno. */}
       <div
         role="region"
         aria-label="Avisos"
-        className="fixed top-14 right-4 z-9999 flex flex-col gap-2 items-end pointer-events-none"
+        onMouseEnter={() => setExpanded(true)}
+        onMouseLeave={() => setExpanded(false)}
+        className="fixed top-14 right-4 z-9999 w-[440px] max-w-[calc(100vw-32px)] pointer-events-none"
+        style={{ height: toasts.length ? (expanded ? toasts.length * STACK_GAP : STACK_GAP + (toasts.length - 1) * STACK_PEEK) : 0 }}
       >
         <AnimatePresence initial={false}>
-          {toasts.map((t) => (
-            <motion.div key={t.id} {...toastMotion} className="pointer-events-auto">
-              <ToastCard toast={t} onDismiss={dismiss} />
+          {[...toasts].reverse().map((t, i) => (
+            <motion.div key={t.id}
+              className="absolute top-0 right-0 pointer-events-auto origin-top"
+              style={{ zIndex: TOAST_MAX - i }}
+              initial={{ opacity: 0, y: -16, scale: 0.96 }}
+              animate={{
+                opacity: expanded || i < 3 ? 1 : 0,
+                y: expanded ? i * STACK_GAP : i * STACK_PEEK,
+                scale: expanded ? 1 : 1 - i * 0.05,
+                transition: { type: 'spring', stiffness: 420, damping: 34 },
+              }}
+              exit={{ opacity: 0, x: 40, transition: { duration: 0.16 } }}
+              drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={{ left: 0.05, right: 0.9 }}
+              onDragEnd={(_e, info) => { if (info.offset.x > 90 || info.velocity.x > 600) dismiss(t.id) }}>
+              <ToastCard toast={t} onDismiss={dismiss} held={expanded} />
             </motion.div>
           ))}
         </AnimatePresence>

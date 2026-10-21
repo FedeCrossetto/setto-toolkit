@@ -1,5 +1,5 @@
 import {
-  Braces, Clock, ExternalLink, FolderOpen, Images, KeyRound, NotebookPen, Code2, type LucideIcon,
+  Braces, Clock, Database, ExternalLink, FolderOpen, Images, KeyRound, NotebookPen, Code2, type LucideIcon,
 } from 'lucide-react'
 import type { ClipKind } from './clip-utils'
 import { findTicket } from './clip-utils'
@@ -20,6 +20,8 @@ export interface ClipAction {
 }
 
 async function jiraBase(): Promise<string | null> {
+  // Canal puntual (lo permite también el widget); si no existe, el ajuste general.
+  try { return await window.api.invoke<string | null>('tickets:jira-url') } catch { /* main viejo */ }
   try {
     const v = await window.api.invoke<string | null>('settings:get', 'ticket-resolver.jira_url')
     return v ? v.replace(/\/+$/, '') : null
@@ -56,7 +58,10 @@ export function actionsFor(kind: ClipKind, text: string): ClipAction[] {
       run: (_x, open) => open({ pluginId: 'notes', action: 'new', payload: { content: `${ticket ? `${ticket} — ` : ''}Error\n\n\`\`\`\n${t}\n\`\`\`\n` } }),
     }); break
     case 'code': out.push({ id: 'snippet', label: 'Guardar como snippet', icon: Code2, run: (_x, open) => open({ pluginId: 'snippets', action: 'new', payload: { content: t } }) }); break
-    case 'sql': out.push({ id: 'snippet', label: 'Guardar como snippet', icon: Code2, run: (_x, open) => open({ pluginId: 'snippets', action: 'new', payload: { content: t, language: 'sql' } }) }); break
+    case 'sql':
+      out.push({ id: 'sql-run', label: 'Abrir en Consultas', icon: Database, run: (_x, open) => open({ pluginId: 'sql-runner', action: 'open-sql', payload: { sql: t } }) })
+      out.push({ id: 'snippet', label: 'Guardar como snippet', icon: Code2, run: (_x, open) => open({ pluginId: 'snippets', action: 'new', payload: { content: t, language: 'sql' } }) })
+      break
   }
   return out
 }

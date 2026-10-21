@@ -357,6 +357,11 @@ export const handlers: PluginHandlers = {
 
     registerHandler(ipcMain, 'editor:git-diff', (_e, filePath: string) => computeGitDiff(filePath))
 
+    /** Rama de git del archivo (para la barra de estado); null si no está en un repo. */
+    registerHandler(ipcMain, 'editor:git-branch', async (_e, filePath: string): Promise<string | null> => {
+      try { return (await runGit(path.dirname(validatePath(filePath)), ['rev-parse', '--abbrev-ref', 'HEAD'])).trim() || null } catch { return null }
+    })
+
     registerHandler(ipcMain, 'editor:reveal', (_e, filePath: string) => {
       const safe = validatePath(filePath)
       shell.showItemInFolder(safe)

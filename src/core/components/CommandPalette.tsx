@@ -109,20 +109,21 @@ export function CommandPalette(): JSX.Element | null {
     const id = ++runId.current
     const q = query.trim()
     // Group order: with no query, actions first; while searching, modules first.
-    const ordered: { provider: SearchProvider; order: number; limit?: number }[] = [
-      { provider: recentProvider, order: -100, limit: 5 },
-      { provider: providers.actions, order: q ? 1 : 0, limit: q ? 5 : 8 },
-      { provider: providers.modules, order: q ? 0 : 1, limit: q ? 5 : 6 },
+    // `local`: se resuelven en memoria, sin debounce (si no, un Enter rápido abría lo de la búsqueda anterior).
+    const ordered: { provider: SearchProvider; order: number; limit?: number; local?: boolean }[] = [
+      { provider: recentProvider, order: -100, limit: 5, local: true },
+      { provider: providers.actions, order: q ? 1 : 0, limit: q ? 5 : 8, local: true },
+      { provider: providers.modules, order: q ? 0 : 1, limit: q ? 5 : 6, local: true },
       ...providers.external.map((provider, i) => ({ provider, order: provider.order ?? 10 + i })),
     ]
     const live = new Set(ordered.map((o) => o.provider.id))
     // Drop groups of providers that no longer apply (e.g. plugin disabled)
     setResults((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => live.has(k))))
 
-    const run = (): void => {
-      let pending = ordered.length
+    let pending = ordered.length
+    const run = (local: boolean): void => {
       setLoading(true)
-      for (const { provider, order, limit } of ordered) {
+      for (const { provider, order, limit } of ordered.filter((o) => !!o.local === local)) {
         Promise.resolve()
           .then(() => provider.search(q))
           .catch((err: unknown) => {
@@ -143,8 +144,9 @@ export function CommandPalette(): JSX.Element | null {
           })
       }
     }
-    // First paint on open is immediate; typing is debounced.
-    const t = setTimeout(run, q ? DEBOUNCE_MS : 0)
+    // Lo local, ya; lo externo (notas, snippets, gastos…), con debounce al escribir.
+    run(true)
+    const t = setTimeout(() => run(false), q ? DEBOUNCE_MS : 0)
     return () => clearTimeout(t)
   }, [open, query, providers])
 
@@ -250,9 +252,10 @@ export function CommandPalette(): JSX.Element | null {
             groups.map((g) => (
               <div key={g.id} className="pb-1">
                 <div className="fl-section px-2.5 pt-1.5">{g.label}</div>
-                {g.items.map((item) => (
+                {g.items.map((item, idx) => (
                   <PaletteRow
                     key={item.id}
+                    index={idx}
                     item={item}
                     selected={item.id === effectiveSelected}
                     onHover={() => setSelectedId(item.id)}
@@ -295,7 +298,9 @@ function Kbd({ children }: { children: React.ReactNode }): JSX.Element {
   )
 }
 
-function PaletteRow({ item, selected, onHover, onRun }: {
+function PaletteRow({ item, selected, onHover, onRun, index = 0 }: {
+  /** Posición en su grupo: los resultados entran en cascada */
+  index?: number
   item: SearchItem
   selected: boolean
   onHover: () => void
@@ -310,7 +315,8 @@ function PaletteRow({ item, selected, onHover, onRun }: {
       data-selected={selected}
       onMouseMove={onHover}
       onClick={(e) => onRun(e.shiftKey)}
-      className={`w-full flex items-center gap-3 px-2.5 h-10 rounded-[9px] border text-left text-on-surface transition-colors duration-75 ${
+      style={{ '--i': index } as React.CSSProperties}
+      className={`stagger-in w-full flex items-center gap-3 px-2.5 h-10 rounded-[9px] border text-left text-on-surface transition-colors duration-75 ${
         selected ? 'bg-on-surface/[0.045] dark:bg-white/[0.06] border-hairline' : 'border-transparent'
       }`}
     >

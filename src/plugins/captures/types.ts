@@ -57,6 +57,8 @@ export interface CaptureSettings {
   notify: boolean
   /** Apps cuyas capturas no se guardan (p. ej. juegos) */
   excludeApps: string[]
+  /** Ticket en curso (widget): las capturas nuevas se le asignan solas ('' = ninguno) */
+  activeTicket: string
 }
 
 export interface CaptureQueryResult {

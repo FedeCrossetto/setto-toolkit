@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { faviconUrl, initials, tintIndex } from '../data'
+import { credentialLogoUrl, initials, tintIndex } from '../data'
 
 /** Soft tints from the data colors (--c-chart-N): follow the active palette, distinct per item. */
 const TINTS = [
@@ -13,10 +13,16 @@ const TINTS = [
   'bg-chart-8/[0.14] text-chart-8',
 ]
 
-/** Site favicon when the URL is public; otherwise initials over a soft tinted circle. */
-export function Avatar({ name, url, size = 30 }: { name: string; url?: string; size?: number }): JSX.Element {
-  const src = faviconUrl(url)
+/**
+ * Logo del servicio: de la URL, o deducido del nombre (AWS, Jira…) o del correo; si no hay,
+ * iniciales sobre un círculo de color.
+ */
+export function Avatar({ name, url, user, size = 30 }: { name: string; url?: string; user?: string; size?: number }): JSX.Element {
+  const src = credentialLogoUrl({ nombre: name, url, usuario: user })
   const [failed, setFailed] = useState(false)
+  // Si cambia el logo (se editó el nombre o la URL), se vuelve a intentar.
+  const [lastSrc, setLastSrc] = useState(src)
+  if (src !== lastSrc) { setLastSrc(src); setFailed(false) }
   const box = { width: size, height: size }
   if (src && !failed) {
     return (

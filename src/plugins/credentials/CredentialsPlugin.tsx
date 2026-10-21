@@ -4,6 +4,7 @@ import {
   ArrowDownToLine, ArrowUpDown, Check, ChevronDown, CloudCheck, CloudOff, CloudUpload, Copy, Download, ExternalLink, FileUp, KeyRound,
   Lock, LockOpen, Monitor, MoreHorizontal, Pencil, Plus, RefreshCw, Search, ShieldAlert, ShieldCheck, Star, Trash2, TriangleAlert, User, X,
 } from 'lucide-react'
+import { Pop } from '../../core/components/Pop'
 import { EmptyState } from '../../core/components/EmptyState'
 import { listItemMotion, shouldAnimateList } from '../../core/motion'
 import { SegmentedControl } from '../../core/components/SegmentedControl'
@@ -860,7 +861,7 @@ function CredentialRow({
         active ? 'nav-active' : 'border border-transparent hover:bg-on-surface/4'
       }`}
     >
-      <Avatar name={c.nombre} url={c.url} size={34} />
+      <Avatar name={c.nombre} url={c.url} user={c.usuario} size={34} />
       <span className="flex-1 min-w-0">
         <span className="flex items-center gap-1 min-w-0">
           <span className={`t-body truncate ${active ? 'font-semibold text-on-surface' : 'font-medium text-on-surface'}`}>{c.nombre}</span>
@@ -889,7 +890,7 @@ function CredentialRow({
         {c.hasPassword && <QuickButton label="Copiar contraseña (Enter)" onClick={onCopyPassword}><KeyRound size={13} /></QuickButton>}
         {c.url && <QuickButton label="Abrir sitio" href={absoluteUrl(c.url)}><ExternalLink size={13} /></QuickButton>}
         <QuickButton label={favorite ? 'Quitar de favoritas' : 'Marcar como favorita'} onClick={onToggleFavorite}>
-          <Star size={13} weight={favorite ? 'fill' : 'regular'} className={favorite ? 'text-primary' : ''} />
+          <Pop active={favorite}><Star size={13} weight={favorite ? 'fill' : 'regular'} className={favorite ? 'text-primary' : ''} /></Pop>
         </QuickButton>
       </span>
     </div>
@@ -950,7 +951,7 @@ function QuickAccess({
                 title={c.hasPassword ? `Copiar la contraseña de ${c.nombre}` : `Ver ${c.nombre}`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <Avatar name={c.nombre} url={c.url} size={34} />
+                  <Avatar name={c.nombre} url={c.url} user={c.usuario} size={34} />
                   <div className="flex-1 min-w-0">
                     <p className="t-body font-semibold text-on-surface truncate">{c.nombre}</p>
                     <p className="t-footnote text-on-surface-variant truncate">{c.usuario || displayHost(c.url) || '—'}</p>

@@ -84,3 +84,18 @@ describe('rankCredentials by usage', () => {
     expect(rankCredentials(list, 'git', 6, now).map((r) => r.item.id)).toEqual(['b', 'a'])
   })
 })
+
+describe('logoDomain', () => {
+  it('URL primero; si no, marca por nombre, correo o nombre.com', async () => {
+    const { logoDomain } = await import('./data')
+    expect(logoDomain({ nombre: 'Lo que sea', url: 'https://jira.winsysgroup.com/x' })).toBe('jira.winsysgroup.com')
+    expect(logoDomain({ nombre: 'AWS IAM User' })).toBe('aws.amazon.com')
+    expect(logoDomain({ nombre: 'Atlassian', usuario: 'f.vazquez@winsysgroup.com' })).toBe('atlassian.com')
+    expect(logoDomain({ nombre: 'Bamboo (SecSign ID)' })).toBe('bamboohr.com')
+    expect(logoDomain({ nombre: 'Mi email', usuario: 'f.vazquez@winsysgroup.com' })).toBe('winsysgroup.com')
+    expect(logoDomain({ nombre: 'Banco Nación' })).toBe('bna.com.ar')
+    expect(logoDomain({ nombre: 'portal.cliente.com.ar' })).toBe('portal.cliente.com.ar')
+    expect(logoDomain({ nombre: 'Canva' })).toBe('canva.com')
+    expect(logoDomain({ nombre: 'DB' })).toBeNull()
+  })
+})

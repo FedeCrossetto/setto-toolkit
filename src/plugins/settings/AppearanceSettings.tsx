@@ -1,11 +1,14 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, Palette } from 'lucide-react'
 import { SegmentedControl } from '../../core/components/SegmentedControl'
+import { Toggle } from '../../core/components/Form'
 import {
   CHART_COUNT, DARK_STYLES, PALETTES, getPaletteTokens, previewAppearance, resolveAppearance, setAppearance, useAppearance,
   type Appearance, type DarkStyle, type SurfaceStyle,
 } from '../../core/hooks/useThemePalette'
 import { PRESET_LIST } from '../../core/themes/presets'
+import { useMotionPreference, type MotionLevel } from '../../core/motion-prefs'
+import { celebrate } from '../../core/fx'
 
 /**
  * Ajustes → Apariencia (debajo de Claro/Oscuro/Sistema): tema completo, color de
@@ -134,6 +137,9 @@ export function AppearanceSettings({ isDark }: { isDark: boolean }): JSX.Element
         </p>
       )}
 
+      <MotionRow />
+      <MicaRow />
+
       {/* Vista previa en vivo: usa los tokens aplicados, no datos aparte. */}
       <div className="ml-10 flex flex-wrap items-center gap-3 rounded-lg hairline px-3 py-2.5" aria-hidden>
         <span className="ui-btn ui-btn-primary ui-btn-sm pointer-events-none">Botón</span>
@@ -158,6 +164,50 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle: string }):
       <div className="flex-1 min-w-0">
         <div className="t-body font-medium text-on-surface">{title}</div>
         <div className="t-footnote text-on-surface-variant mt-0.5">{subtitle}</div>
+      </div>
+    </div>
+  )
+}
+
+/** Windows 11: fondo Mica en el marco de la ventana (electron/core/mica.ts). */
+function MicaRow(): JSX.Element | null {
+  const [st, setSt] = useState<{ supported: boolean; enabled: boolean; active: boolean } | null>(null)
+  useEffect(() => { window.api.invoke<{ supported: boolean; enabled: boolean; active: boolean }>('app:mica').then(setSt, () => setSt(null)) }, [])
+  if (!st?.supported) return null
+  const set = (on: boolean): void => {
+    void window.api.invoke<{ supported: boolean; enabled: boolean; active: boolean }>('app:set-mica', on).then((s) => {
+      setSt(s)
+      document.documentElement.classList.toggle('mica', s.active)
+    })
+  }
+  return (
+    <div className="pl-10 flex items-center gap-3">
+      <div className="flex-1 min-w-0">
+        <div className="t-footnote font-medium text-on-surface-variant">Fondo Mica (Windows 11)</div>
+        <div className="t-caption text-on-surface-variant/80">
+          La barra lateral y la superior toman el tono del escritorio, como el Explorador.
+          {st.enabled && !st.active && ' Ahora no se ve: va cuando el modo de Setto (claro u oscuro) coincide con el de Windows.'}
+        </div>
+      </div>
+      <Toggle checked={st.enabled} onChange={set} label="Fondo Mica" />
+    </div>
+  )
+}
+
+/** Animaciones: completas (con festejos y brillos), sutiles (sólo transiciones) o ninguna. */
+function MotionRow(): JSX.Element {
+  const [pref, eff, set] = useMotionPreference()
+  return (
+    <div className="pl-10 flex flex-col gap-1.5">
+      <span className="t-footnote font-medium text-on-surface-variant">Animaciones</span>
+      <div className="flex flex-wrap items-center gap-3">
+        <SegmentedControl<MotionLevel> value={pref} onChange={(v) => { set(v); if (v === 'full') setTimeout(() => celebrate(), 60) }}
+          options={[{ value: 'full', label: 'Completas' }, { value: 'subtle', label: 'Sutiles' }, { value: 'off', label: 'Ninguna' }]} />
+        <span className="t-caption text-on-surface-variant">
+          {eff === 'off' && pref !== 'off' ? 'Windows tiene las animaciones apagadas: la app las respeta.'
+            : pref === 'full' ? 'Transiciones, números que cuentan, brillos y algún festejo.'
+              : pref === 'subtle' ? 'Sólo transiciones cortas, sin festejos ni brillos.' : 'Nada se mueve.'}
+        </span>
       </div>
     </div>
   )

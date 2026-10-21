@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react'
+import { useEffect, useId, useState, type ReactNode } from 'react'
 
 /**
  * Piezas de tablero con brillo (estilo "dashboard oscuro"): la interfaz queda gris y
@@ -20,7 +20,7 @@ export function StatTile({ visual, label, value, delta, deltaTone = 'neutral', s
   const Tag = onClick ? 'button' : 'div'
   return (
     <Tag type={onClick ? 'button' : undefined} onClick={onClick} title={title}
-      className={`group relative flex flex-col min-w-0 rounded-[14px] p-4 pt-3 text-left bg-on-surface/[0.025] dark:bg-black/35 ring-1 ring-on-surface/[0.06] overflow-hidden ${onClick ? 'hover:ring-on-surface/12 transition-shadow cursor-pointer' : ''}`}>
+      className={`spotlight group relative flex flex-col min-w-0 rounded-[14px] p-4 pt-3 text-left bg-on-surface/[0.025] dark:bg-black/35 ring-1 ring-on-surface/[0.06] overflow-hidden ${onClick ? 'hover:ring-on-surface/12 transition-shadow cursor-pointer' : ''}`}>
       <div className="h-[86px] flex items-center justify-center">{visual}</div>
       <span className="t-footnote text-on-surface-variant mt-2">{label}</span>
       <span className="flex items-baseline gap-2 min-w-0">
@@ -61,10 +61,10 @@ export function SparkBars({ values, active, color, labels }: {
       </defs>
       {/* brillo debajo de todo */}
       <g filter={`url(#sbg-${id})`} opacity="0.55">
-        {bars.map((b) => <rect key={b.i} x={b.x} y={b.y} width={bw} height={b.h} rx={bw / 2} fill={color} opacity={b.i === active ? 1 : 0.35} />)}
+        {bars.map((b) => <rect key={b.i} className="grow-y" style={{ '--i': b.i } as React.CSSProperties} x={b.x} y={b.y} width={bw} height={b.h} rx={bw / 2} fill={color} opacity={b.i === active ? 1 : 0.35} />)}
       </g>
       {bars.map((b) => (
-        <rect key={b.i} x={b.x} y={b.y} width={bw} height={b.h} rx={bw / 2}
+        <rect key={b.i} className="grow-y" style={{ '--i': b.i } as React.CSSProperties} x={b.x} y={b.y} width={bw} height={b.h} rx={bw / 2}
           fill={b.v > 0 ? `url(#sb-${id})` : 'rgb(var(--c-on-surface) / 0.12)'} opacity={active === undefined || b.i === active ? 1 : 0.45}>
           {labels && <title>{labels[b.i]}</title>}
         </rect>
@@ -77,19 +77,22 @@ export function SparkBars({ values, active, color, labels }: {
 export function GlowRing({ pct, color, center }: { pct: number | null; color: string; center?: ReactNode }): JSX.Element {
   const id = useId().replace(/:/g, '')
   const R = 30, SW = 6, C = 2 * Math.PI * R
-  const p = pct === null ? 0 : Math.max(0, Math.min(1, pct))
+  // Se dibuja desde cero al aparecer (la transición de stroke-dasharray hace el resto).
+  const [shown, setShown] = useState(false)
+  useEffect(() => { const r = requestAnimationFrame(() => setShown(true)); return () => cancelAnimationFrame(r) }, [])
+  const p = !shown || pct === null ? 0 : Math.max(0, Math.min(1, pct))
   const arc = (
     <circle cx={40} cy={40} r={R} fill="none" stroke={color} strokeWidth={SW} strokeLinecap="round"
       strokeDasharray={`${Math.max(p * C, p > 0 ? 0.01 : 0)} ${C}`} transform="rotate(-90 40 40)"
-      style={{ transition: 'stroke-dasharray 500ms var(--ease-mac)' }} />
+      style={{ transition: 'stroke-dasharray 900ms var(--ease-mac)' }} />
   )
   return (
     <div className="relative w-[80px] h-[80px]">
       <svg viewBox="0 0 80 80" width={80} height={80} className="overflow-visible" aria-hidden>
         <defs><filter id={`rg-${id}`} x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5" /></filter></defs>
         <circle cx={40} cy={40} r={R} fill="none" stroke="rgb(var(--c-on-surface) / 0.08)" strokeWidth={SW} />
-        {p > 0 && <g filter={`url(#rg-${id})`} opacity="0.7">{arc}</g>}
-        {p > 0 && arc}
+        <g filter={`url(#rg-${id})`} opacity="0.7">{arc}</g>
+        {arc}
       </svg>
       <span className="absolute inset-0 grid place-items-center text-[15px] font-semibold tabular-nums text-on-surface">
         {center ?? (pct === null ? '—' : `${Math.round(pct * 100)}%`)}

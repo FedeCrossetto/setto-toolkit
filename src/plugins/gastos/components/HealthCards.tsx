@@ -89,7 +89,7 @@ export function MissingTablesCard({ health, onCheck, checking, pendingCount }: {
       </ol>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className="ui-btn ui-btn-primary" onClick={() => { void copy() }}>
-          {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copiado' : 'Copiar SQL'}
+          {copied ? <Check className="fx-pop" size={14} /> : <Copy size={14} />} {copied ? 'Copiado' : 'Copiar SQL'}
         </button>
         <a className="ui-btn ui-btn-outline" href={sqlEditor} target="_blank" rel="noreferrer">
           <ExternalLink size={14} /> Abrir SQL Editor

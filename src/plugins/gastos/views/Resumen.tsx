@@ -15,6 +15,7 @@ import type { PagoMensual, Servicio } from '../types'
 import { parseAmount } from '../quick-add-parser'
 import { montoSugerido } from '../recurring'
 import { budgetAlerts, budgetProgress, type CategoryBudgetRow } from '../budgets'
+import { celebrate } from '../../../core/fx'
 
 export function Resumen({ data, mes, presupuesto, budgets, onSelectMes, onEditPresupuesto, onPagar, onEditPago, onGenerarPendientes, onOpenMovimiento, onShowMovimientos }: {
   data: GastosData
@@ -57,7 +58,7 @@ export function Resumen({ data, mes, presupuesto, budgets, onSelectMes, onEditPr
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="ui-card px-5 pt-4 pb-5 flex flex-col gap-3.5 min-w-0">
+      <section className="ui-card spotlight px-5 pt-4 pb-5 flex flex-col gap-3.5 min-w-0">
         <CardHeader icon={Wallet} title={`Panorama de ${mesLong(mes).toLowerCase()}`}
           right={<button type="button" className="ui-btn ui-btn-outline ui-btn-sm" onClick={onEditPresupuesto}><PiggyBank size={13} /> Presupuesto</button>} />
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
@@ -87,7 +88,7 @@ export function Resumen({ data, mes, presupuesto, budgets, onSelectMes, onEditPr
       {budgetRows.length > 0 && <PresupuestosCard rows={budgetRows} onEdit={onEditPresupuesto} />}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-        <section className="ui-card relative overflow-hidden px-6 pt-5 pb-5 xl:col-span-2 flex flex-col gap-3 min-w-0">
+        <section className="ui-card spotlight relative overflow-hidden px-6 pt-5 pb-5 xl:col-span-2 flex flex-col gap-3 min-w-0">
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(55%_70%_at_75%_100%,rgb(var(--c-primary)/0.13),transparent_70%),radial-gradient(40%_60%_at_15%_100%,rgb(var(--c-chart-2)/0.08),transparent_70%)]" />
           <CardHeader icon={BarChart2} title={`Año ${year}`}
             right={<span className="t-footnote text-on-surface-variant tabular-nums">Total {fmtMoney(series.totals.reduce((a, b) => a + b, 0))}</span>} />
@@ -95,7 +96,7 @@ export function Resumen({ data, mes, presupuesto, budgets, onSelectMes, onEditPr
             previous={prevSeries.totals} prevLabel={String(year - 1)} selectedMes={mes} onSelectMes={onSelectMes} />
         </section>
 
-        <section className="ui-card px-6 pt-5 pb-5 flex flex-col justify-start self-stretch gap-3 min-w-0">
+        <section className="ui-card spotlight px-6 pt-5 pb-5 flex flex-col justify-start self-stretch gap-3 min-w-0">
           <CardHeader icon={LayoutGrid} title="Por categoría" />
           {cats.length
             ? <Donut slices={cats} total={s.total} />
@@ -107,7 +108,7 @@ export function Resumen({ data, mes, presupuesto, budgets, onSelectMes, onEditPr
         <PorPagar pendientes={pendientes} pagos={data.pagos} svc={svc} faltantes={faltantes}
           onPagar={onPagar} onEditPago={onEditPago} onGenerarPendientes={onGenerarPendientes} />
 
-        <section className="ui-card overflow-hidden min-w-0">
+        <section className="ui-card spotlight overflow-hidden min-w-0">
           <header className="flex items-center gap-2.5 px-5 py-3.5 hairline-b">
             <CardHeader icon={Receipt} title="Movimientos más grandes" />
             <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={onShowMovimientos}>Ver todos</button>
@@ -144,7 +145,7 @@ const BAR_TONE: Record<CategoryBudgetRow['estado'], string> = { ok: 'bg-primary'
 function PresupuestosCard({ rows, onEdit }: { rows: CategoryBudgetRow[]; onEdit: () => void }): JSX.Element {
   const alerts = budgetAlerts(rows, fmtMoney)
   return (
-    <section className="ui-card px-6 pt-5 pb-5 flex flex-col gap-3 min-w-0">
+    <section className="ui-card spotlight px-6 pt-5 pb-5 flex flex-col gap-3 min-w-0">
       <CardHeader icon={PiggyBank} title="Presupuestos"
         right={<button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={onEdit}>Editar</button>} />
       {alerts.length > 0 && (
@@ -217,6 +218,8 @@ function PorPagar({ pendientes, pagos, svc, faltantes, onPagar, onEditPago, onGe
     const items = list.map((pago) => ({ pago, monto: amountOf(pago) })).filter((x): x is { pago: PagoMensual; monto: number } => x.monto !== null)
     if (!items.length) return
     onPagar(items)
+    // Se pagó lo último que quedaba del mes: festejo.
+    if (items.length >= pendientes.length) setTimeout(() => celebrate(), 120)
     setSelected((prev) => { const n = new Set(prev); for (const x of items) n.delete(x.pago.id); return n })
   }
 
@@ -227,7 +230,7 @@ function PorPagar({ pendientes, pagos, svc, faltantes, onPagar, onEditPago, onGe
   const allOn = pendientes.length > 0 && sel.length === pendientes.length
 
   return (
-    <section className="ui-card overflow-hidden min-w-0">
+    <section className="ui-card spotlight overflow-hidden min-w-0">
       <header className="flex items-center gap-2.5 px-5 py-3.5 hairline-b">
         <CardHeader icon={CalendarClock} title="Por pagar" />
         {sel.length > 0 ? (

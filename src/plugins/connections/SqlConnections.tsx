@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { EnvChip } from '../sql-runner/env'
+import { joinServer, serverFromHostInput, splitServer } from '../sql-runner/sql-meta'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check, ChevronDown, CircleAlert, Copy, Pencil, Plus, Server, Trash2, Zap } from 'lucide-react'
 import { Sheet, useConfirm } from '../../core/components/Modal'
@@ -206,6 +207,7 @@ function ProfileSheet({ profile, onClose, onSaved }: { profile: SqlProfile | nul
   const valid = Object.keys(errors).length === 0
   const set = (patch: Partial<SqlProfileDraft>): void => { setD((x) => ({ ...x, ...patch })); setResult(null) }
   const input = 'ui-input w-full'
+  const { host, port } = splitServer(d.server)
 
   const runTest = async (): Promise<void> => {
     setTouched(true)
@@ -243,9 +245,14 @@ function ProfileSheet({ profile, onClose, onSaved }: { profile: SqlProfile | nul
             <input className={input} value={d.tag} onChange={(e) => set({ tag: e.target.value })} placeholder="Main, LPS…" />
           </Field>
         </div>
-        <Field label="Servidor" error={touched ? errors.server : undefined} hint="Como en SSMS: HOST\INSTANCIA o host,puerto">
-          <input className={`${input} font-mono`} value={d.server} onChange={(e) => set({ server: e.target.value })} placeholder="CROSSETTO\MSSQLSERVER02" spellCheck={false} />
-        </Field>
+        <div className="grid grid-cols-[1fr_96px] gap-3">
+          <Field label="Servidor" error={touched ? errors.server : undefined} hint="IP o HOST\INSTANCIA">
+            <input className={`${input} font-mono`} value={host} onChange={(e) => set({ server: serverFromHostInput(e.target.value, port) })} placeholder="CROSSETTO\MSSQLSERVER02" spellCheck={false} />
+          </Field>
+          <Field label="Puerto" hint="Opcional">
+            <input className={`${input} font-mono text-center`} value={port} onChange={(e) => set({ server: joinServer(host, e.target.value.replace(/\D/g, '')) })} placeholder="1433" inputMode="numeric" spellCheck={false} />
+          </Field>
+        </div>
         <Field label="Base de datos" hint="Opcional">
           <input className={`${input} font-mono`} value={d.database} onChange={(e) => set({ database: e.target.value })} placeholder="wgdb_000" spellCheck={false} />
         </Field>

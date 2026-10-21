@@ -209,3 +209,56 @@ export function relativeTime(ts: number | undefined, now = Date.now()): string {
   if (d < 7) return `hace ${d} días`
   return new Date(ts).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
 }
+
+/** Marcas conocidas por nombre (claves sin URL): palabra → dominio del logo. */
+const BRANDS: Record<string, string> = {
+  aws: 'aws.amazon.com', amazon: 'amazon.com', iam: 'aws.amazon.com',
+  atlassian: 'atlassian.com', jira: 'atlassian.com', confluence: 'atlassian.com', bitbucket: 'bitbucket.org', trello: 'trello.com',
+  github: 'github.com', gitlab: 'gitlab.com', azure: 'azure.microsoft.com', microsoft: 'microsoft.com', office: 'office.com',
+  outlook: 'outlook.com', teams: 'teams.microsoft.com', onedrive: 'onedrive.live.com', sharepoint: 'microsoft.com',
+  google: 'google.com', gmail: 'gmail.com', drive: 'drive.google.com', youtube: 'youtube.com',
+  slack: 'slack.com', zoom: 'zoom.us', discord: 'discord.com', whatsapp: 'whatsapp.com', telegram: 'telegram.org',
+  bamboo: 'bamboohr.com', bamboohr: 'bamboohr.com', okta: 'okta.com', secsign: 'secsign.com',
+  docker: 'docker.com', npm: 'npmjs.com', supabase: 'supabase.com', vercel: 'vercel.com', netlify: 'netlify.com',
+  figma: 'figma.com', notion: 'notion.so', postman: 'postman.com', openai: 'openai.com', chatgpt: 'openai.com', claude: 'claude.ai', anthropic: 'anthropic.com',
+  mercadopago: 'mercadopago.com.ar', mercadolibre: 'mercadolibre.com.ar', paypal: 'paypal.com', netflix: 'netflix.com', spotify: 'spotify.com',
+  linkedin: 'linkedin.com', facebook: 'facebook.com', instagram: 'instagram.com', twitter: 'x.com', apple: 'apple.com', icloud: 'icloud.com',
+  dropbox: 'dropbox.com', steam: 'steampowered.com', anydesk: 'anydesk.com', teamviewer: 'teamviewer.com', fortinet: 'fortinet.com', forticlient: 'fortinet.com',
+  galicia: 'bancogalicia.com', santander: 'santander.com.ar', bbva: 'bbva.com.ar', macro: 'macro.com.ar', nacion: 'bna.com.ar', brubank: 'brubank.com', uala: 'uala.com.ar',
+  afip: 'afip.gob.ar', arca: 'arca.gob.ar', anses: 'anses.gob.ar',
+}
+const MAIL_WORDS = /\b(mail|email|e-mail|correo|webmail|outlook|exchange)\b/i
+
+const plain = (s: string): string => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+/**
+ * Dominio del que sacar el logo de una clave: la URL si tiene; si no, una marca
+ * conocida en el nombre, el dominio del correo (claves de mail) o "nombre.com"
+ * (si ese logo no existe, el Avatar vuelve a las iniciales).
+ */
+export function logoDomain(c: { nombre: string; url?: string; usuario?: string }): string | null {
+  if (c.url) {
+    try {
+      const u = new URL(absoluteUrl(c.url))
+      if (u.protocol === 'https:' || u.protocol === 'http:') return u.hostname
+    } catch { /* sigue */ }
+  }
+  const name = plain(c.nombre)
+  const words = name.split(/[^a-z0-9.]+/).filter(Boolean)
+  for (const w of words) if (BRANDS[w]) return BRANDS[w]!
+  const joined = name.replace(/[^a-z0-9]/g, '')
+  if (BRANDS[joined]) return BRANDS[joined]!
+  const domainLike = words.find((w) => /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(w) && /\.[a-z]{2,}$/.test(w))
+  if (domainLike) return domainLike
+  const mailDomain = /@([a-z0-9.-]+\.[a-z]{2,})$/i.exec(c.usuario?.trim() ?? '')?.[1]?.toLowerCase()
+  if (mailDomain && MAIL_WORDS.test(name)) return mailDomain
+  const first = words[0]?.replace(/[^a-z0-9]/g, '') ?? ''
+  if (first.length >= 3 && !/^\d+$/.test(first)) return `${first}.com`
+  return null
+}
+
+/** Logo de una clave (favicon público) o null. */
+export function credentialLogoUrl(c: { nombre: string; url?: string; usuario?: string }): string | null {
+  const host = logoDomain(c)
+  return host ? faviconUrl(host) : null
+}
