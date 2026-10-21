@@ -3,6 +3,7 @@ import {
   ArrowDownToLine, Check, CloudCheck, CloudUpload, Copy, ExternalLink, Eye, EyeOff, Monitor, Pencil, ShieldAlert, Star, Trash2, TriangleAlert, Wand2,
 } from 'lucide-react'
 import { Field } from '../../../core/components/Form'
+import { CopyGlyph, Pop, useFlash } from '../../../core/components/Pop'
 import { Badge } from '../../../core/components/Badge'
 import { useToast } from '../../../core/components/Toast'
 import type { Credential, CredentialDraft, SecretResult } from '../types'
@@ -35,7 +36,7 @@ function RowCopy({ value, label, secret = false }: { value: string; label: strin
       title={label}
       aria-label={label}
     >
-      {done ? <Check size={14} className="text-success" /> : <Copy size={14} />}
+      {done ? <Check size={14} className="fx-pop text-success" /> : <Copy size={14} />}
     </button>
   )
 }
@@ -76,6 +77,8 @@ export function CredentialView({
 }): JSX.Element {
   const [revealed, setRevealed] = useState<string | null>(null)
   const [left, setLeft] = useState(0)
+  const [pwdCopied, flashPwd] = useFlash()
+  const [userCopied, flashUser] = useFlash()
 
   // Auto-hide after 20 s, with a visible countdown.
   useEffect(() => {
@@ -101,7 +104,7 @@ export function CredentialView({
   return (
     <article className="bg-surface hairline rounded-2xl overflow-hidden">
       <header className="flex items-start gap-4 px-6 pt-6 pb-4">
-        <Avatar name={c.nombre} url={c.url} size={52} />
+        <Avatar name={c.nombre} url={c.url} user={c.usuario} size={52} />
         <div className="flex-1 min-w-0 pt-0.5">
           <div className="flex items-center gap-2 min-w-0">
             <h1 className="t-title2 text-on-surface truncate">{c.nombre}</h1>
@@ -112,7 +115,7 @@ export function CredentialView({
               aria-label={favorite ? 'Quitar de favoritas' : 'Marcar como favorita'}
               aria-pressed={favorite}
             >
-              <Star size={16} weight={favorite ? 'fill' : 'regular'} />
+              <Pop active={favorite}><Star size={16} weight={favorite ? 'fill' : 'regular'} /></Pop>
             </button>
           </div>
           <div className="flex items-center gap-2 mt-1 min-w-0 flex-wrap">
@@ -152,11 +155,11 @@ export function CredentialView({
       </header>
 
       <div className="flex flex-wrap items-center gap-2 px-6 pb-6">
-        <button onClick={onCopyPassword} disabled={!c.hasPassword} className="ui-btn ui-btn-primary" title="Copiar contraseña (Enter)">
-          <Copy size={13} /> Copiar contraseña
+        <button onClick={() => { onCopyPassword(); flashPwd() }} disabled={!c.hasPassword} className="ui-btn ui-btn-primary" title="Copiar contraseña (Enter)">
+          <CopyGlyph copied={pwdCopied} size={13} className={pwdCopied ? 'text-current!' : ''} /> {pwdCopied ? 'Copiada' : 'Copiar contraseña'}
         </button>
-        <button onClick={onCopyUser} disabled={!c.usuario} className="ui-btn ui-btn-outline" title="Copiar usuario (Shift+Enter)">
-          <Copy size={13} /> Copiar usuario
+        <button onClick={() => { onCopyUser(); flashUser() }} disabled={!c.usuario} className="ui-btn ui-btn-outline" title="Copiar usuario (Shift+Enter)">
+          <CopyGlyph copied={userCopied} size={13} /> {userCopied ? 'Copiado' : 'Copiar usuario'}
         </button>
         {c.url && c.hasPassword && (
           <button onClick={onOpenAndCopy} className="ui-btn ui-btn-ghost">
@@ -350,7 +353,7 @@ export function CredentialEditor({
   return (
     <article className="bg-surface hairline rounded-2xl shadow-sm">
       <header className="flex items-center gap-4 px-6 pt-6 pb-4">
-        <Avatar name={nombre || '?'} url={url} size={56} />
+        <Avatar name={nombre || '?'} url={url} user={usuario} size={56} />
         <div className="flex-1 min-w-0">
           <h1 className="t-title2 text-on-surface truncate">{initial ? 'Editar credencial' : 'Nueva credencial'}</h1>
           <p className="t-footnote text-on-surface-variant mt-0.5">Ctrl+S guarda · Esc cancela</p>

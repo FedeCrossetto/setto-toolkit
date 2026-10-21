@@ -24,6 +24,8 @@ import { allPlugins, getPlugin } from './core/plugin-registry'
 import { useNotificationClicks } from './core/notify'
 import { useGastosReminders } from './plugins/gastos/useGastosReminders'
 import { useNoteReminders } from './plugins/notes/reminders'
+import { installSpotlight } from './core/fx'
+import { useMotionPreference } from './core/motion-prefs'
 
 // Novedades: trae el CHANGELOG, marked y DOMPurify (~130 KB) — no hacen falta para el primer pintado.
 const WhatsNew = lazy(() => import('./core/components/WhatsNew').then((m) => ({ default: m.WhatsNew })))
@@ -37,6 +39,7 @@ function AppShell(): JSX.Element {
   useNotificationClicks()   // clic en una notificación del sistema → abre el módulo
   useGastosReminders(!state.disabledPlugins.includes('gastos'))   // avisos de vencimientos
   useNoteReminders(!state.disabledPlugins.includes('notes'))      // recordatorios de notas
+  useEffect(() => installSpotlight(), [])   // luz que sigue al mouse en las tarjetas .spotlight
 
   // ── Modo foco (F11): sólo el contenido, sin barra lateral ni encabezado ──
   const [focusMode, setFocusMode] = useState(false)
@@ -110,7 +113,7 @@ function AppShell(): JSX.Element {
           logo) y el panel flotante, debajo, sólo lleva el contenido. */}
       <div className="flex-1 min-w-0 flex flex-col">
       {!focusMode && <TopBar />}
-      <main className={`flex-1 min-w-0 flex flex-col overflow-hidden bg-background relative ${focusMode ? '' : 'app-panel mb-2 mr-2'}`}>
+      <main style={{ viewTransitionName: 'module' }} className={`flex-1 min-w-0 flex flex-col overflow-hidden bg-background relative ${focusMode ? '' : 'app-panel mb-2 mr-2'}`}>
         {focusMode && <FocusBar onExit={() => setFocusMode(false)} />}
 
         {/* Un módulo visible a la vez; los usados hace poco quedan montados y
@@ -164,8 +167,10 @@ function AppShell(): JSX.Element {
 }
 
 export function App(): JSX.Element {
+  // Ajustes → Apariencia → Animaciones: "ninguna" apaga también las de framer-motion.
+  const [, motion] = useMotionPreference()
   return (
-    <MotionConfig reducedMotion="user">
+    <MotionConfig reducedMotion={motion === 'off' ? 'always' : 'user'}>
       <AppProvider>
         <ToastProvider>
           <ConfirmProvider>

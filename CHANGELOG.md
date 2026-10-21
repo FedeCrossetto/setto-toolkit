@@ -2,6 +2,58 @@
 
 Novedades de Setto por versión. Lo lee Ajustes → Acerca de → "Ver novedades".
 
+## 2.16.0 (sin publicar)
+
+### Consultas
+- Autocompletado de T-SQL con las tablas, vistas, columnas y procedimientos de la base elegida (también `esquema.tabla`).
+- Resultados: exportar a Excel (.xlsx con encabezado fijo y filtros) y "Copiar como INSERT" (de a 1000 filas).
+- Favoritas: la ★ guarda la consulta; aparecen en Historial y en Ctrl+K (que también busca en el historial y crea una consulta nueva).
+- Botón Ejecutar dividido: dice "Ejecutar selección" cuando hay algo seleccionado, menú con Ejecutar todo / selección / lote actual (Ctrl+Shift+Enter) y "Detener" con el tiempo mientras corre.
+- Tema de color propio (botón de paleta), independiente del Editor.
+- Conexiones desde Consultas: "Nueva conexión" en el selector, "Editar" con el formulario completo y errores de conexión resumidos ("El servidor no responde", "Usuario o contraseña rechazados") con el detalle a un clic.
+
+### Consultas: edición como DataGrip y formateo
+- Mucho más rápido: el ejecutor queda encendido y reutiliza las conexiones, y las filas se leen con código compilado (un SELECT de 100 filas pasó de ~2 s a ~0,2 s; el autocompletado, de 13 s a 1 s; probar una conexión, a 20 ms).
+- Al editar una celda: escribir NULL la deja en NULL; vaciar un número o una fecha también; en texto, vacío es texto vacío.
+- Editar resultados de una tabla: doble clic en la celda, + Fila, clic derecho para NULL o eliminar; ✓ Commit (Ctrl+Enter) aplica en una transacción y ✕ Rollback descarta. Funciona con `USE base` y con tablas sin clave primaria.
+- Selección de celdas: Ctrl+A, Shift+clic, arrastrar o Shift+flechas; Ctrl+C copia para Excel.
+- Formatear SQL (Ctrl+Shift+F) y tamaño propio de Consultas (interfaz y letra del editor), junto al tema.
+
+### Consultas: más herramientas
+- Ordenar por columna (clic en el encabezado; Ctrl+clic selecciona la columna).
+- Parámetros: escribí `@cuenta` y al ejecutar te pide el valor (números como número, NULL como NULL); se recuerdan por pestaña.
+- Copiar como tabla de Jira o Markdown (todo o la selección), además de Excel e INSERT.
+- Visor de valores: doble clic en un resultado no editable (o Shift+Enter / clic derecho) muestra el valor completo, con JSON y XML formateados.
+- Estadísticas: muestra lecturas lógicas y CPU por consulta, con las tablas que más leen.
+- Pestañas: renombrar con F2 o clic derecho (Duplicar, Guardar en favoritas, Cerrar las demás).
+- Sólo se editan tablas de usuario (no vistas ni tablas del sistema) y sin columnas calculadas.
+
+### Editor y Consultas: detalles visuales
+- Editor: la ruta muestra carpetas y unidad con su ícono (clic abre esa carpeta en el Explorador, Ctrl+clic copia la ruta), la barra de estado muestra el lenguaje con su ícono y la rama de git, el archivo abierto queda resaltado en el árbol y la pantalla vacía lista los recientes.
+- Consultas: filas alternadas, columnas que se agrandan arrastrando el borde (doble clic vuelve al ancho automático), ícono del tipo en cada encabezado, filas compactas o cómodas, la línea del error marcada en rojo en el editor, Mensajes como línea de tiempo (el detalle técnico de estadísticas plegado), ★ en las pestañas favoritas y encabezados fijos en el explorador de objetos.
+
+### Widget
+- Ticket en curso: "Trabajar en WIGOS-…" y las capturas nuevas se le asignan solas; abrir en Jira o ver sus capturas desde el widget.
+- Recién copiado: según el tipo (ticket, SQL, JSON, ruta, fecha…) sus acciones a un clic, como abrir el SQL en Consultas o pegarlo formateado.
+- Lo que más usás: tus claves, snippets y consultas favoritas más usadas, a un clic.
+- Elegí qué pestañas ver y en qué orden.
+
+### Claves
+- Logos también para claves sin URL: por marca conocida en el nombre (AWS, Atlassian, Bamboo, bancos…), por el dominio del correo o probando "nombre.com".
+
+### Animaciones
+- Cambio de módulo con fundido suave (View Transitions), barras que crecen, anillos que se dibujan y números que cuentan en Inicio y Gastos, resultados de Ctrl+K en cascada.
+- Detalles: la ★ rebota con chispas, copiar muestra ✓, las filas guardadas destellan en verde y las descartadas vuelven con un fundido, el botón brilla mientras ejecuta, los botones se hunden al apretarlos y las tarjetas tienen una luz que sigue al mouse.
+- Festejos chiquitos: al pagar lo último del mes en Gastos y en el primer commit del día en Consultas.
+- Ajustes → Apariencia → Animaciones: Completas, Sutiles (sin festejos ni brillos) o Ninguna. Si Windows tiene las animaciones apagadas, se respeta.
+
+### Inicio
+- Inicio nuevo en formato bento (tarjetas de distintos tamaños, fondo casi negro): bienvenida con chequeo de estado (conexiones, gastos, claves débiles o repetidas, tickets y consultas con error), Gastos y Conexiones con anillo y botón de acción ("Probar todas"), actividad de Consultas en un gráfico de área de 2 semanas y ajustes rápidos (modo oscuro, animaciones, barra lateral).
+
+### Gastos
+- Movimientos: filtros con selector propio, resumen (total, cantidad, promedio y categoría principal) y categorías con su color.
+- Tabla: totales del año con mini barras y montos teñidos según su peso (resalta los meses caros).
+
 ## 2.15.0 (sin publicar)
 
 ### Consultas (nuevo)

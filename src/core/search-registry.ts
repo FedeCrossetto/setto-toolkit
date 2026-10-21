@@ -11,6 +11,7 @@ import { capturesSearchProvider } from '../plugins/captures/search'
 import { ticketsSearchProvider } from '../plugins/tickets/search'
 import { commandsSearchProvider } from './search-commands'
 import { sqlConnectionsSearchProvider } from '../plugins/connections/search'
+import { sqlRunnerSearchProvider } from '../plugins/sql-runner/search'
 
 // Register search providers for Ctrl+K here (one per plugin, see src/core/search.ts).
 // Keep this list eager and light: providers must not import plugin UI components.
@@ -28,4 +29,5 @@ export const searchProviders: SearchProvider[] = [
   capturesSearchProvider,
   ticketsSearchProvider,
   sqlConnectionsSearchProvider,
+  sqlRunnerSearchProvider,
 ]

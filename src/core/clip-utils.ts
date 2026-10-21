@@ -1,3 +1,4 @@
+import { formatSql } from '../plugins/sql-runner/format-sql'
 /**
  * Portapapeles inteligente — funciones puras compartidas por main
  * (electron/core/clipboard-history.ts) y el renderer (selector flotante,
@@ -175,6 +176,7 @@ export interface ClipTransform {
 
 export const TRANSFORMS: ClipTransform[] = [
   { id: 'sql-in', label: 'Lista → IN (…) de SQL', for: ['list', 'guid'], apply: toSqlIn },
+  { id: 'sql-format', label: 'SQL formateado', for: ['sql'], apply: (t) => formatSql(t) },
   { id: 'jira-table', label: 'Tabla → Jira', for: ['table'], apply: toJiraTable },
   { id: 'md-table', label: 'Tabla → Markdown', for: ['table'], apply: toMarkdownTable },
   { id: 'json', label: 'JSON formateado', for: ['json'], apply: (t) => { try { return JSON.stringify(JSON.parse(t), null, 2) } catch { return t } } },

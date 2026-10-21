@@ -188,7 +188,7 @@ function ResultCard({ result, query = '' }: { result: SearchResult; query?: stri
             onClick={copySnippet}
             className="ui-btn ui-btn-ghost ui-btn-sm gap-1!"
           >
-            {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? <Check className="fx-pop" size={13} /> : <Copy size={13} />}
             {copied ? 'Copiado' : 'Copiar'}
           </button>
           <button

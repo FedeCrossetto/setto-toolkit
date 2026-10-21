@@ -17,6 +17,9 @@
     "src/plugins/connections/sql.ts",
     "src/plugins/sql-runner/sql-text.ts",
     "src/plugins/sql-runner/sql-meta.ts",
+    "src/plugins/sql-runner/format-sql.ts",
+    "src/plugins/sql-runner/edit-script.ts",
+    "src/plugins/sql-runner/export.ts",
     "src/plugins/sql-runner/types.ts",
     "src/core/icons/phosphor-weights.ts"
   ],

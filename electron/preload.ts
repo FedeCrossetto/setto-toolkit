@@ -15,7 +15,7 @@ const INVOKE_CHANNELS = new Set([
   'editor:read-file', 'editor:read-image', 'editor:write-file', 'editor:save-dialog',
   'editor:watch-start', 'editor:watch-stop', 'editor:reveal',
   'editor:create-file', 'editor:create-dir', 'editor:rename', 'editor:delete', 'editor:delete-permanent',
-  'editor:find-in-files', 'editor:recent-get', 'editor:exists', 'editor:recent-clear', 'editor:git-diff',
+  'editor:find-in-files', 'editor:recent-get', 'editor:exists', 'editor:recent-clear', 'editor:git-diff', 'editor:git-branch',
   'editor:replace-in-files', 'editor:history-list', 'editor:history-read', 'editor:history-restore',
   'app:version', 'app:pending-file', 'app:fetch-remote-image',
   'auth:google-user', 'auth:google-start', 'auth:google-logout',
@@ -68,10 +68,10 @@ const INVOKE_CHANNELS = new Set([
   'clipboard:ocr-image', 'clipboard:shortcuts', 'snippet-picker:paste-current', 'clipboard:search',
   'dock:state', 'dock:enabled', 'dock:set-enabled', 'dock:paste',
   'sync:status', 'sync:run', 'sync:set-enabled',
-  'sql:list', 'sql:save', 'sql:delete', 'sql:test', 'sql:copy', 'sql:query', 'sql:cancel', 'sql:tabs-get', 'sql:tabs-save', 'sql:history-get', 'sql:history-clear', 'sql:meta',
+  'sql:list', 'sql:save', 'sql:delete', 'sql:test', 'sql:copy', 'sql:query', 'sql:cancel', 'sql:tabs-get', 'sql:tabs-save', 'sql:history-get', 'sql:history-clear', 'sql:meta', 'sql:favs-get', 'sql:favs-save',
   'backup:info', 'backup:export', 'backup:pick', 'backup:inspect', 'backup:restore', 'backup:auto-pick-dir', 'backup:auto-set', 'backup:auto-run',
   'captures:query', 'captures:get', 'captures:settings', 'captures:update', 'captures:update-many', 'captures:delete',
-  'captures:copy', 'captures:reveal', 'captures:export', 'captures:save-annotated', 'captures:copy-ocr',
+  'captures:copy', 'captures:reveal', 'captures:export', 'captures:save-annotated', 'captures:copy-ocr', 'captures:active-ticket', 'tickets:jira-url',
 ])
 
 /** Channels the renderer may send (fire-and-forget → main) */
@@ -121,6 +121,7 @@ const DOCK_CHANNELS = new Set([
   'credentials:top', 'credentials:list', 'credentials:lock-status',
   'credentials:copy-password', 'credentials:copy-username', 'credentials:copy-secret',
   'snippets:load', 'snippets:mark-used',
+  'sql:favs-get', 'captures:active-ticket', 'tickets:jira-url',
   'notes:list', 'notes:read', 'notes:write',
   'gastos:summary', 'gastos:load', 'gastos:cache-get', 'gastos:cache-set', 'gastos:pending-get', 'gastos:pending-set',
   'gastos:save-gasto', 'gastos:delete-gasto', 'gastos:save-pago', 'gastos:delete-pago', 'gastos:save-pagos-bulk',

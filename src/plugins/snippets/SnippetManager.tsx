@@ -734,7 +734,7 @@ function SnippetDetail({
               </button>
             )}
             <button onClick={onCopy} className="ui-btn ui-btn-primary" disabled={!snippet.content.trim()}>
-              {copied ? <Check size={14} weight="bold" /> : <Copy size={14} />}
+              {copied ? <Check className="fx-pop" size={14} weight="bold" /> : <Copy size={14} />}
               {copied ? 'Copiado' : mixed ? 'Copiar texto' : 'Copiar'}
             </button>
           </div>

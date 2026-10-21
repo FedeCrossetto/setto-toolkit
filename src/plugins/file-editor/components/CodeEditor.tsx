@@ -11,7 +11,7 @@ import { json } from '@codemirror/lang-json'
 import { xml } from '@codemirror/lang-xml'
 import { html } from '@codemirror/lang-html'
 import { css } from '@codemirror/lang-css'
-import { sql } from '@codemirror/lang-sql'
+import { MSSQL, sql, type SQLNamespace } from '@codemirror/lang-sql'
 import { markdown } from '@codemirror/lang-markdown'
 import { yaml } from '@codemirror/lang-yaml'
 import { python } from '@codemirror/lang-python'
@@ -294,6 +294,20 @@ function getLanguageExt(lang: FileLanguage) {
   }
 }
 
+/** Marca una línea (error de Consultas). */
+function errorLineExt(line: number | null) {
+  if (!line) return []
+  return EditorView.decorations.compute(['doc'], (state) => {
+    if (line < 1 || line > state.doc.lines) return Decoration.none
+    return Decoration.set([Decoration.line({ class: 'cm-error-line' }).range(state.doc.line(line).from)])
+  })
+}
+
+/** SQL Server (T-SQL) con autocompletado de palabras clave y del esquema de la base. */
+function sqlServerExt(schema: SQLNamespace | undefined) {
+  return sql({ dialect: MSSQL, schema, defaultSchema: 'dbo', upperCaseKeywords: true })
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 interface CodeEditorProps {
   content: string
@@ -318,13 +332,17 @@ interface CodeEditorProps {
   logMode?: boolean
   /** Log mode filter (collapses non-matching lines). null = show everything */
   logView?: LogViewState | null
+  /** SQL Server: tablas, columnas y procedimientos para autocompletar (Consultas) */
+  sqlSchema?: SQLNamespace | null
+  /** Línea con error (Consultas): fondo y borde rojo */
+  errorLine?: number | null
 }
 
 export function CodeEditor({
   content, language, theme, readOnly = false, wordWrap = true,
   initialLine, fontSize = 14, fontFamily = 'JetBrains Mono', gitDiff = null, minimap = false,
   onChange, onCursorChange, onSelectionChange, onSaveShortcut, onNewFileShortcut, onRenameShortcut, editorRef,
-  logMode, logView = null,
+  logMode, logView = null, sqlSchema = null, errorLine = null,
 }: CodeEditorProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef      = useRef<EditorView | null>(null)
@@ -339,6 +357,11 @@ export function CodeEditor({
   // Theme + font live in a compartment: switching (or hover-previewing) a theme
   // reconfigures in place instead of remounting, so undo history and scroll survive.
   const themeCompartment = useRef(new Compartment())
+  // SQL con esquema (autocompletado de tablas/columnas): se reconfigura sin remontar.
+  const sqlCompartment = useRef(new Compartment())
+  const errorCompartment = useRef(new Compartment())
+  const sqlSchemaRef = useRef(sqlSchema)
+  sqlSchemaRef.current = sqlSchema
   const saveShortcutRef = useRef(onSaveShortcut)
   const newFileShortcutRef = useRef(onNewFileShortcut)
   const renameShortcutRef = useRef(onRenameShortcut)
@@ -397,7 +420,19 @@ export function CodeEditor({
       v.dispatch(v.state.replaceSelection(text))
       v.focus()
     }
-    if (editorRef) editorRef.current = { scrollToBottom, scrollToLine, setFilter, openGotoLine, getScrollDOM, gotoLogError, getSelection, focusLine, insertText }
+    const transform = (fn: (text: string) => string): void => {
+      const v = viewRef.current
+      if (!v) return
+      const { from, to } = v.state.selection.main
+      const all = from === to
+      const a = all ? 0 : from
+      const b = all ? v.state.doc.length : to
+      const next = fn(v.state.sliceDoc(a, b))
+      if (next === v.state.sliceDoc(a, b)) return
+      v.dispatch({ changes: { from: a, to: b, insert: next }, selection: all ? { anchor: Math.min(from, next.length) } : { anchor: a, head: a + next.length } })
+      v.focus()
+    }
+    if (editorRef) editorRef.current = { scrollToBottom, scrollToLine, setFilter, openGotoLine, getScrollDOM, gotoLogError, getSelection, focusLine, insertText, transform }
   }, [editorRef, scrollToBottom, scrollToLine, setFilter, openGotoLine, getScrollDOM, gotoLogError])
 
   // Build and mount editor
@@ -429,13 +464,14 @@ export function CodeEditor({
         { key: 'F2', run: () => { renameShortcutRef.current?.(); return true } },
       ]),   // must be before basicSetup to override defaults
       basicSetup,
-      getLanguageExt(language),
+      language === 'sql' && sqlSchemaRef.current !== null ? sqlCompartment.current.of(sqlServerExt(sqlSchemaRef.current)) : getLanguageExt(language),
       themeCompartment.current.of(buildTheme(theme, fontSize, fontFamily)),
       wordWrap ? EditorView.lineWrapping : [],
       logCompartment.current.of(logActiveRef.current ? logHighlight : []),
       logFilterField,
       SWATCH_LANGUAGES.has(language) ? colorSwatchPlugin : [],
       filterCompartment.current.of([]),
+      errorCompartment.current.of([]),
       gitCompartment.current.of(buildGitGutter(gitDiff)),
       minimap ? showMinimap.compute([], () => ({
         create: () => ({ dom: document.createElement('div') }),
@@ -460,6 +496,15 @@ export function CodeEditor({
     return () => { view.destroy(); viewRef.current = null }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language, readOnly, wordWrap, minimap])
+
+  useEffect(() => {
+    if (language !== 'sql' || sqlSchema === null) return
+    viewRef.current?.dispatch({ effects: sqlCompartment.current.reconfigure(sqlServerExt(sqlSchema)) })
+  }, [sqlSchema, language])
+
+  useEffect(() => {
+    viewRef.current?.dispatch({ effects: errorCompartment.current.reconfigure(errorLineExt(errorLine)) })
+  }, [errorLine])
 
   // Swap theme / font without remounting the editor
   useEffect(() => {

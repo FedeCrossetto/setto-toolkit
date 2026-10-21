@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { childrenSql, connectionProblem, createToAlter, execScript, formatType, quoteName, tableScript } from './sql-meta'
+import { childrenSql, connectionProblem, createToAlter, execScript, formatType, friendlyError, quoteName, tableScript } from './sql-meta'
 
 describe('connectionProblem', () => {
   it('distingue contraseña de servidor y sólo mira errores al conectar', () => {
@@ -46,5 +46,14 @@ describe('scripts', () => {
   it('childrenSql sólo acepta ids enteros', () => {
     expect(() => childrenSql(1.5)).toThrow()
     expect(childrenSql(42)).toContain('c.object_id = 42')
+  })
+})
+
+describe('friendlyError', () => {
+  it('resume los errores típicos en una línea', () => {
+    expect(friendlyError('Tiempo de espera de la operación de espera agotado', 'server').title).toBe('El servidor no responde')
+    expect(friendlyError("Login failed for user 'sa'.", 'auth').title).toBe('Usuario o contraseña rechazados')
+    expect(friendlyError('El nombre de red especificado ya no está disponible', 'server').title).toBe('No se encuentra el servidor')
+    expect(friendlyError('raro', 'server').title).toBe('No se pudo conectar')
   })
 })

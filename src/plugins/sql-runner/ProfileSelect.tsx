@@ -1,7 +1,7 @@
-import { Database, Server, Settings2 } from 'lucide-react'
+import { Database, Plus, Server, Settings2 } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
 import type { SqlProfile } from '../connections/sql'
-import { Picker } from './Picker'
+import { Picker } from '../../core/components/Picker'
 import { EnvChip, SqlServerIcon } from './env'
 
 /** Punto de estado según la última prueba de la conexión. */
@@ -11,11 +11,13 @@ export function StatusDot({ p, className = '' }: { p: SqlProfile; className?: st
 }
 
 /** Selector de conexión (perfiles de Conexiones → Bases de datos). */
-export function ProfileSelect({ profiles, value, onChange, label }: {
+export function ProfileSelect({ profiles, value, onChange, label, onNew }: {
   profiles: SqlProfile[]
   value: string | null
   onChange: (id: string) => void
   label?: string
+  /** Agregar una conexión sin salir de Consultas */
+  onNew?: () => void
 }): JSX.Element {
   const { dispatch } = useApp()
   const current = profiles.find((p) => p.id === value)
@@ -47,10 +49,19 @@ export function ProfileSelect({ profiles, value, onChange, label }: {
         ),
       }))}
       footer={(close) => (
-        <button type="button" onClick={() => { close(); dispatch({ type: 'OPEN_TAB', pluginId: 'connections' }) }}
-          className="w-full flex items-center gap-2 h-[30px] px-2 rounded-[8px] t-footnote text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface">
-          <Settings2 size={13} /> Administrar conexiones
-        </button>
+        <div className="flex items-center gap-1">
+          {onNew && (
+            <button type="button" onClick={() => { close(); onNew() }}
+              className="flex-1 flex items-center gap-2 h-[30px] px-2 rounded-[8px] t-footnote font-medium text-primary hover:bg-primary/10">
+              <Plus size={13} /> Nueva conexión
+            </button>
+          )}
+          <button type="button" onClick={() => { close(); dispatch({ type: 'OPEN_TAB', pluginId: 'connections' }) }}
+            className={`${onNew ? '' : 'flex-1 '}flex items-center gap-2 h-[30px] px-2 rounded-[8px] t-footnote text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface`}
+            title="Abrir Conexiones → Bases de datos">
+            <Settings2 size={13} /> Administrar
+          </button>
+        </div>
       )} />
   )
 }

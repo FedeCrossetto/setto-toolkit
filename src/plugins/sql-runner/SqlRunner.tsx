@@ -1,26 +1,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  CircleAlert, Clock, Columns2, History, PanelLeft, Play, Plus, RotateCcw, Server, ShieldCheck, ShieldAlert, Square, X,
+  CheckCircle2, CircleAlert, Clock, Columns2, Copy, Gauge, History, Info, Pencil, Star, Trash2, PanelLeft, Plus, RotateCcw, Server, ShieldCheck, ShieldAlert, X,
 } from 'lucide-react'
-import { useApp, useModuleSubtitle } from '../../core/AppContext'
+import { useApp, useModuleSubtitle, usePluginIntent } from '../../core/AppContext'
 import { useModulePrimaryAction } from '../../core/module-actions'
 import { Sheet, useConfirm } from '../../core/components/Modal'
 import { EmptyState } from '../../core/components/EmptyState'
 import { useToast } from '../../core/components/Toast'
 import { CodeEditor } from '../file-editor/components/CodeEditor'
 import { useEditorPrefs } from '../file-editor/hooks/useEditorPrefs'
-import { resolveEditorTheme } from '../file-editor/themes/registry'
+import { migrateColorScheme, resolveEditorTheme, type EditorColorScheme } from '../file-editor/themes/registry'
+import { ViewControls } from './ViewControls'
+import { ContextMenu, type MenuItem } from '../../core/components/ContextMenu'
 import { presetCodeThemes, useAppearance } from '../../core/hooks/useThemePalette'
 import type { EditorHandle } from '../file-editor/types'
 import type { SqlProfile } from '../connections/sql'
-import { findRisks, tabTitle } from './sql-text'
-import type { QueryHistoryEntry, QueryResult, QueryTab, QueryTabsState } from './types'
-import { ResultGrid } from './ResultGrid'
+import { findRisks, splitBatches, tabTitle } from './sql-text'
+import { RunButton, type RunMode } from './RunButton'
+import { formatSql } from './format-sql'
+import { applyParams, findParams, parseStats, withStatistics } from './sql-tools'
+import { ParamsDialog, type ParamsRequest } from './ParamsDialog'
+import { Pop } from '../../core/components/Pop'
+import { celebrate } from '../../core/fx'
+import { editBlocker, usedDatabase, type EditTarget } from './edit-script'
+import { friendlyError } from './sql-meta'
+import type { QueryFavorite, QueryHistoryEntry, QueryResult, QueryTab, QueryTabsState } from './types'
+import { ResultGrid, type GridEditing } from './ResultGrid'
 import { CompareView } from './CompareView'
 import { DatabaseSelect, ProfileSelect } from './ProfileSelect'
 import { ConnectionFixDialog, type FixRequest } from './ConnectionFixDialog'
 import { ObjectExplorer, type OpenScript } from './ObjectExplorer'
-import { connectionProblem } from './sql-meta'
+import { buildSqlSchema, connectionProblem, type SqlSchemaTree } from './sql-meta'
 import { envTone, SqlServerIcon, TONE } from './env'
 
 /**
@@ -33,8 +43,20 @@ import { envTone, SqlServerIcon, TONE } from './env'
 const SAVE_DELAY_MS = 400
 const RATIO_KEY = 'sql-runner:editor-ratio'
 const EXPLORER_KEY = 'sql-runner:explorer'
+/** Tema de color propio de Consultas (independiente del Editor). */
+const SCHEME_KEY = 'sql-runner:color-scheme'
+const ZOOM_KEY = 'sql-runner:zoom'
+const FONT_KEY = 'sql-runner:font-size'
 
-interface RunState { runId: string; running: boolean; startedAt: number; result: QueryResult | null; view: number | 'messages' }
+interface RunState {
+  runId: string; running: boolean; startedAt: number; result: QueryResult | null; view: number | 'messages'
+  /** Lo que se ejecutó (para volver a correrlo después de aplicar cambios de la grilla) */
+  text?: string; lineOffset?: number
+  /** Edición de resultados: tabla y clave primaria, o por qué no se puede */
+  edit?: { target: EditTarget | null; blocker: string | null }
+  /** Filas recién guardadas con Commit (destellan al refrescar) */
+  flash?: { keys: string[]; until: number }
+}
 
 const newTab = (n: number, profileId: string | null): QueryTab => ({
   id: crypto.randomUUID(), title: `Consulta ${n}`, sql: '', profileId, database: '', readOnly: true, updatedAt: Date.now(),
@@ -58,6 +80,16 @@ export function SqlRunner(): JSX.Element {
   const [historyOpen, setHistoryOpen] = useState(false)
   /** Pestaña que se está renombrando (doble clic). */
   const [renaming, setRenaming] = useState<string | null>(null)
+  /** Error ya visto (se editó después): deja de marcar la línea. tabId → runId */
+  const [errSeen, setErrSeen] = useState<Record<string, string>>({})
+  /** Pedido de valores para los @parámetros (antes de ejecutar) */
+  const [paramReq, setParamReq] = useState<ParamsRequest | null>(null)
+  const askParams = (names: string[], values: Record<string, string>): Promise<Record<string, string> | null> =>
+    new Promise((resolve) => setParamReq({ names, values, resolve: (v) => { setParamReq(null); resolve(v) } }))
+  /** Esc al renombrar: no guardar lo escrito (el blur del campo llega igual) */
+  const renameCancel = useRef(false)
+  /** Menú de clic derecho de una pestaña */
+  const [tabMenu, setTabMenu] = useState<{ x: number; y: number; id: string } | null>(null)
   const [now, setNow] = useState(Date.now())
   const [ratio, setRatio] = useState(() => { try { return Number(localStorage.getItem(RATIO_KEY)) || 0.45 } catch { return 0.45 } })
   const editorRef = useRef<EditorHandle | null>(null)
@@ -67,16 +99,40 @@ export function SqlRunner(): JSX.Element {
   const [fix, setFix] = useState<FixRequest | null>(null)
   const [explorerOpen, setExplorerOpen] = useState(() => { try { return localStorage.getItem(EXPLORER_KEY) !== '0' } catch { return true } })
   const [databases, setDatabases] = useState<string[]>([])
+  /** Tablas, columnas y procedimientos de la base actual para autocompletar */
+  const [schema, setSchema] = useState<SqlSchemaTree>({})
+  const [favs, setFavs] = useState<QueryFavorite[]>([])
+  /** Hay texto seleccionado en el editor (el botón dice "Ejecutar selección") */
+  const [hasSel, setHasSel] = useState(false)
+  const syncSel = (): void => setHasSel(!!editorRef.current?.getSelection?.().text.trim())
   /** Pestaña recién abierta desde el explorador que hay que ejecutar ("Seleccionar 100 filas") */
   const pendingRun = useRef<string | null>(null)
+  /** Filas del último Commit, para que destellen en el resultado refrescado */
+  const commitFlash = useRef<string[] | null>(null)
 
   // ── Editor: mismo tema y fuente que el Editor de archivos ──
   const { prefs } = useEditorPrefs()
   const appDark = state.theme === 'dark'
   const appearance = useAppearance()
-  const presetEditor = prefs.colorScheme === 'setto' ? presetCodeThemes(appearance, appDark)?.editor ?? null : null
-  const theme = useMemo(() => resolveEditorTheme(presetEditor ?? prefs.colorScheme, prefs.editorTheme, appDark),
-    [presetEditor, prefs.colorScheme, prefs.editorTheme, appDark, appearance])
+  // Tema propio: la primera vez arranca con el del Editor; después cada módulo tiene el suyo.
+  const [ownScheme, setOwnScheme] = useState<EditorColorScheme | null>(() => {
+    try { const v = localStorage.getItem(SCHEME_KEY); return v ? migrateColorScheme(v) : null } catch { return null }
+  })
+  const [previewScheme, setPreviewScheme] = useState<EditorColorScheme | null>(null)
+  // Tamaño propio de Consultas: zoom del módulo y letra del editor.
+  const [zoom, setZoomState] = useState(() => { try { return Number(localStorage.getItem(ZOOM_KEY)) || 1 } catch { return 1 } })
+  const [ownFont, setOwnFont] = useState<number | null>(() => { try { return Number(localStorage.getItem(FONT_KEY)) || null } catch { return null } })
+  const fontSize = ownFont ?? prefs.fontSize
+  const setZoom = (z: number): void => { setZoomState(z); try { localStorage.setItem(ZOOM_KEY, String(z)) } catch { /* nada */ } }
+  const setFont = (n: number): void => { setOwnFont(n); try { localStorage.setItem(FONT_KEY, String(n)) } catch { /* nada */ } }
+  const scheme = previewScheme ?? ownScheme ?? prefs.colorScheme
+  const presetEditor = scheme === 'setto' ? presetCodeThemes(appearance, appDark)?.editor ?? null : null
+  const theme = useMemo(() => resolveEditorTheme(presetEditor ?? scheme, prefs.editorTheme, appDark),
+    [presetEditor, scheme, prefs.editorTheme, appDark, appearance])
+  const pickScheme = (id: EditorColorScheme): void => {
+    setOwnScheme(id); setPreviewScheme(null)
+    try { localStorage.setItem(SCHEME_KEY, id) } catch { /* nada */ }
+  }
 
   // ── Carga ──
   const loadProfiles = useCallback(async () => {
@@ -136,12 +192,32 @@ export function SqlRunner(): JSX.Element {
   })
 
   // ── Ejecutar ──
-  const execute = async (): Promise<void> => {
+  const execute = async (mode: RunMode = 'auto', override?: { text: string; lineOffset: number }): Promise<void> => {
     if (!tab || !profile || run?.running) return
-    const sel = editorRef.current?.getSelection?.()
-    const text = sel?.text.trim() ? sel.text : tab.sql
-    const lineOffset = sel?.text.trim() ? sel.fromLine - 1 : 0
+    const sel = override ? null : editorRef.current?.getSelection?.()
+    const hasSel = !!sel?.text.trim()
+    let text = tab.sql
+    let lineOffset = 0
+    if ((mode === 'auto' || mode === 'selection') && hasSel) { text = sel!.text; lineOffset = sel!.fromLine - 1 }
+    else if (mode === 'batch') {
+      // El lote (separado por GO) donde está el cursor.
+      const line = sel?.fromLine ?? 1
+      const b = [...splitBatches(tab.sql)].reverse().find((x) => x.startLine <= line)
+      if (b) { text = b.sql; lineOffset = b.startLine - 1 }
+    }
+    if (override) { text = override.text; lineOffset = override.lineOffset }
     if (!text.trim()) return
+    // @parámetros sin declarar: se piden los valores y se declaran en la misma primera línea.
+    if (!override) {
+      const names = findParams(text)
+      if (names.length) {
+        const vals = await askParams(names, tab.params ?? {})
+        if (!vals) return
+        patchTab(tab.id, { params: { ...(tab.params ?? {}), ...vals } })
+        text = applyParams(text, vals)
+      }
+      if (tab.stats) text = withStatistics(text)
+    }
     if (!tab.readOnly) {
       const risks = findRisks(text)
       if (risks.length) {
@@ -154,6 +230,8 @@ export function SqlRunner(): JSX.Element {
       }
     }
     const runId = crypto.randomUUID()
+    const editPrep = prepareEdit(text)
+    editPrep.catch(() => undefined)
     setRuns((r) => ({ ...r, [tab.id]: { runId, running: true, startedAt: Date.now(), result: null, view: 0 } }))
     let result: QueryResult
     try {
@@ -164,20 +242,80 @@ export function SqlRunner(): JSX.Element {
     if (typeof result.line === 'number') result.line += lineOffset
     const problem = connectionProblem(result)
     if (problem) setFix({ profileId: profile.id, reason: problem, error: result.error, retry: () => void executeRef.current() })
-    setRuns((r) => ({ ...r, [tab.id]: { runId, running: false, startedAt: r[tab.id]?.startedAt ?? Date.now(), result, view: result.sets.length ? 0 : 'messages' } }))
+    setRuns((r) => ({ ...r, [tab.id]: { runId, running: false, startedAt: r[tab.id]?.startedAt ?? Date.now(), result, view: result.sets.length ? 0 : 'messages', text, lineOffset, ...(commitFlash.current && result.ok ? { flash: { keys: commitFlash.current, until: Date.now() + 4000 } } : {}) } }))
+    commitFlash.current = null
+    if (result.ok && result.sets.length) void finishEdit(tab.id, runId, text, result, editPrep)
     if (!tab.named) { const t = tabTitle(tab.sql, tab.title); if (t !== tab.title) patchTab(tab.id, { title: t }) }
   }
   const cancel = (): void => { if (run?.running) void window.api.invoke('sql:cancel', run.runId) }
 
+  // ── Edición de resultados (como DataGrip) ──
+  /** Busca la clave primaria de la tabla del FROM y decide si el resultado se puede editar. */
+  /** Mientras corre la consulta: tabla del FROM, su base (USE) y su clave primaria. */
+  type EditPrep = { tableName: string | undefined; database: string; pk: string[] | null; tableColumns?: string[] }
+  const prepareEdit = async (text: string): Promise<EditPrep> => {
+    const tableName = guessTable(text)
+    // Si la consulta empieza con USE, la tabla está en esa base (no en la de la pestaña).
+    const database = usedDatabase(text) ?? tab!.database
+    let pk: string[] | null = null
+    let tableColumns: string[] | undefined
+    const pre = editBlocker(text, 1, ['__'], ['__x']) // chequeos que no necesitan el resultado ni el catálogo
+    if (tableName && (!pre || pre.startsWith('Incluí'))) {
+      try {
+        const r = await window.api.invoke<QueryResult>('sql:meta', { profileId: profile!.id, database, kind: 'pk', table: tableName })
+        // Sólo tablas de usuario (no vistas ni sys.*); también sus columnas, para descartar las calculadas.
+        if (r.ok && r.sets[1]?.rows[0]?.[0] === '1') { pk = (r.sets[0]?.rows ?? []).map((x) => x[0] ?? ''); tableColumns = (r.sets[2]?.rows ?? []).map((x) => x[0] ?? '') }
+      } catch { /* sin edición */ }
+    }
+    return { tableName, database, pk, tableColumns }
+  }
+  /** Con el resultado en mano: ¿se puede editar? */
+  const finishEdit = async (tabId: string, runId: string, text: string, result: QueryResult, prep: Promise<EditPrep>): Promise<void> => {
+    const set = result.sets[0]!
+    const { tableName, database, pk, tableColumns } = await prep
+    const blocker = !tableName ? 'No se reconoce la tabla del FROM.' : pk === null ? 'Sólo se editan tablas (no vistas ni tablas del sistema).' : editBlocker(text, result.sets.length, set.columns, pk, tableColumns)
+    const target: EditTarget | null = !blocker && pk ? { table: tableName!, columns: set.columns, types: set.types, pk, keyMode: pk.length ? 'pk' : 'all', database } : null
+    setRuns((r) => (r[tabId]?.runId === runId ? { ...r, [tabId]: { ...r[tabId]!, edit: { target, blocker } } } : r))
+  }
+  const applyGridEdits = async (script: string, count: number, keys: string[]): Promise<boolean> => {
+    if (!tab || !profile) return false
+    const db = run?.edit?.target?.database || tab.database
+    const where = `${profile.name}${db || profile.database ? ` · ${db || profile.database}` : ''}`
+    let r: QueryResult
+    try {
+      r = await window.api.invoke<QueryResult>('sql:query', { runId: crypto.randomUUID(), profileId: profile.id, database: db, sql: script, readOnly: false })
+    } catch (e) { r = { ok: false, error: cleanErr(e), sets: [], messages: [], ms: 0 } }
+    if (!r.ok) {
+      const p = connectionProblem(r)
+      toast.show(p ? friendlyError(r.error, p).title : `No se aplicó: ${(r.error ?? '').split(/\r?\n/)[0]}`, 'error', 6000)
+      return false
+    }
+    toast.show(`Commit: ${count} ${count === 1 ? 'cambio aplicado' : 'cambios aplicados'} en ${where}`, 'success')
+    // Primer commit del día: festejo chiquito.
+    try {
+      const today = new Date().toDateString()
+      if (localStorage.getItem('sql-runner:last-commit-day') !== today) { localStorage.setItem('sql-runner:last-commit-day', today); celebrate() }
+    } catch { /* nada */ }
+    commitFlash.current = keys
+    if (run?.text) void executeRef.current('all', { text: run.text, lineOffset: run.lineOffset ?? 0 })
+    return true
+  }
+
   // F5 ejecuta con el módulo a la vista aunque el foco esté en otro lado (p. ej. la barra lateral).
   const executeRef = useRef(execute)
+  const activeTabIdRef = useRef<string | null>(null)
+  activeTabIdRef.current = tab?.id ?? null
   executeRef.current = execute
   useEffect(() => {
     if (!active || mode !== 'query') return
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key !== 'F5' || e.defaultPrevented) return
-      e.preventDefault()
-      void executeRef.current()
+      if (e.defaultPrevented) return
+      if (e.key === 'F5') { e.preventDefault(); void executeRef.current(); return }
+      // F2 renombra la pestaña activa (si no se está escribiendo en otro campo o en la grilla).
+      const el = e.target as HTMLElement | null
+      if (e.key === 'F2' && !el?.closest?.('input, textarea, table, [data-grid-pending]') && activeTabIdRef.current) {
+        e.preventDefault(); setRenaming(activeTabIdRef.current)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -206,10 +344,61 @@ export function SqlRunner(): JSX.Element {
     return () => { alive = false }
   }, [profileId])
 
-  const onFixed = (p: SqlProfile, retry?: () => void): void => {
+  const schemaDb = tab ? tab.database.trim() || profile?.database || '' : ''
+  useEffect(() => {
+    setSchema({})
+    if (!profileId) return
+    let alive = true
+    void window.api.invoke<QueryResult>('sql:meta', { profileId, database: schemaDb, kind: 'completion' })
+      .then((r) => { if (alive && r.ok) setSchema(buildSqlSchema(r.sets[0]?.rows ?? [])) })
+      .catch(() => undefined)
+    return () => { alive = false }
+  }, [profileId, schemaDb])
+
+  // ── Favoritas ──
+  useEffect(() => { void window.api.invoke<QueryFavorite[]>('sql:favs-get').then(setFavs).catch(() => undefined) }, [])
+  const saveFavs = (list: QueryFavorite[]): void => { setFavs(list); void window.api.invoke('sql:favs-save', list).catch(() => toast.show('No se pudo guardar', 'error')) }
+  const isFavTab = (t: QueryTab | null | undefined): boolean => !!t && !!t.sql.trim() && favs.some((f) => f.sql.trim() === t.sql.trim())
+  const isFav = isFavTab(tab)
+  const toggleFav = (t: QueryTab | null | undefined = tab): void => {
+    if (!t || !t.sql.trim()) return
+    if (isFavTab(t)) { saveFavs(favs.filter((f) => f.sql.trim() !== t.sql.trim())); toast.show('Quitada de favoritas', 'info'); return }
+    saveFavs([{ id: crypto.randomUUID(), title: t.title, sql: t.sql, profileId: t.profileId, database: t.database, createdAt: Date.now() }, ...favs])
+    toast.show(`"${t.title}" guardada en favoritas`, 'success')
+  }
+  /** Cierra todas menos `keep` (o sólo las que están a su derecha); las que tienen texto se pueden reabrir. */
+  const closeOthers = (keep: string, onlyRight = false): void => update((s) => {
+    const idx = s.tabs.findIndex((x) => x.id === keep)
+    const gone = s.tabs.filter((x, i) => x.id !== keep && (!onlyRight || i > idx))
+    const closed = [...gone.filter((x) => x.sql.trim()), ...s.closed].slice(0, 30)
+    return { tabs: s.tabs.filter((x) => !gone.includes(x)), activeId: keep, closed }
+  })
+
+  // Ctrl+K → abrir una favorita o una consulta del historial.
+  type OpenPayload = { title?: string; sql: string; profileId?: string | null; database?: string }
+  const pendingOpen = useRef<OpenPayload | null>(null)
+  const openPayload = (p: OpenPayload): void => {
+    setMode('query')
+    const known = !!p.profileId && profiles?.some((x) => x.id === p.profileId)
+    addTab({ sql: p.sql, database: known ? p.database ?? '' : '', ...(p.title ? { title: p.title, named: true } : {}), ...(known ? { profileId: p.profileId! } : {}) })
+  }
+  usePluginIntent('sql-runner', (i) => {
+    if (i.action !== 'open-sql') return
+    // Recién abierto el módulo todavía no cargó pestañas ni conexiones: se abre apenas estén.
+    if (!tabsState || profiles === null) pendingOpen.current = i.payload as OpenPayload
+    else openPayload(i.payload as OpenPayload)
+  })
+  useEffect(() => {
+    if (pendingOpen.current && tabsState && profiles !== null) { const p = pendingOpen.current; pendingOpen.current = null; openPayload(p) }
+  }) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onFixed = (p: SqlProfile, req: FixRequest): void => {
     setFix(null)
-    toast.show(`${p.name}: conexión actualizada`, 'success')
-    void loadProfiles().then(() => retry?.())
+    toast.show(req.reason === 'new' ? `${p.name}: conexión agregada` : `${p.name}: conexión actualizada`, 'success')
+    void loadProfiles().then(() => {
+      if (req.reason === 'new' && tab) patchTab(tab.id, { profileId: p.id, database: '' })
+      req.retry?.()
+    })
   }
 
   // Reloj mientras corre.
@@ -224,9 +413,18 @@ export function SqlRunner(): JSX.Element {
   useModuleSubtitle('sql-runner', mode === 'compare' ? 'Comparar entre conexiones' : profile ? `${profile.name}${tab?.database || profile.database ? ` · ${tab?.database || profile.database}` : ''}` : null)
 
   // ── Teclado ──
+  /** Formatear el SQL: la selección o todo (se deshace con Ctrl+Z). */
+  const formatEditor = (): void => {
+    try { editorRef.current?.transform?.((t) => formatSql(t)) } catch { toast.show('No se pudo formatear', 'error') }
+  }
+
   const onKeyDownCapture = (e: React.KeyboardEvent): void => {
     if (mode !== 'query') return
     const ctrl = e.ctrlKey || e.metaKey
+    if (ctrl && e.shiftKey && e.key === 'Enter') { e.preventDefault(); void execute('batch'); return }
+    // Ctrl+Enter dentro de la grilla con cambios = Commit (lo maneja la grilla).
+    if (ctrl && e.key === 'Enter' && (e.target as HTMLElement).closest?.('[data-grid-pending]')) return
+    if (ctrl && e.shiftKey && e.key.toLowerCase() === 'f') { e.preventDefault(); formatEditor(); return }
     if (e.key === 'F5' || (ctrl && e.key === 'Enter')) { e.preventDefault(); void execute(); return }
     if (e.key === 'Escape' && run?.running) { e.preventDefault(); cancel(); return }
     if (ctrl && e.shiftKey && e.key.toLowerCase() === 't') { e.preventDefault(); reopen(); return }
@@ -263,7 +461,7 @@ export function SqlRunner(): JSX.Element {
   const elapsed = run?.running ? now - run.startedAt : result?.ms ?? 0
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-background" onKeyDownCapture={onKeyDownCapture}>
+    <div className="flex flex-col h-full min-h-0 bg-background" onKeyDownCapture={onKeyDownCapture} style={zoom !== 1 ? { zoom } : undefined}>
       {/* Pestañas + modo */}
       <div className="flex items-center gap-1 px-2 h-[42px] hairline-b bg-surface shrink-0">
         {mode === 'query' ? (
@@ -275,7 +473,8 @@ export function SqlRunner(): JSX.Element {
                 <div key={t.id} role="tab" aria-selected={on} onClick={() => update((s) => ({ ...s, activeId: t.id }))}
                   onAuxClick={(e) => { if (e.button === 1) closeTab(t.id) }}
                   onDoubleClick={() => setRenaming(t.id)}
-                  title={`${t.title}\nDoble clic: renombrar · Clic medio: cerrar`}
+                  onContextMenu={(e) => { e.preventDefault(); update((s) => ({ ...s, activeId: t.id })); setTabMenu({ x: e.clientX, y: e.clientY, id: t.id }) }}
+                  title={`${t.title}\nDoble clic o F2: renombrar · Clic derecho: más · Clic medio: cerrar`}
                   className={`group shrink-0 flex items-center gap-1.5 h-[30px] pl-3 pr-1.5 rounded-[9px] text-[12.5px] cursor-pointer transition-colors max-w-[220px] ${
                     on ? 'nav-active text-on-surface font-medium' : 'border border-transparent text-on-surface-variant hover:text-on-surface hover:bg-on-surface/5'}`}>
                   {r?.running && <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shrink-0" />}
@@ -286,15 +485,16 @@ export function SqlRunner(): JSX.Element {
                     return !TONE[tone].dot ? null : <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${TONE[tone].dot}`} title={tp?.tag} />
                   })()}
                   {renaming === t.id ? (
-                    <input autoFocus defaultValue={t.title} onClick={(e) => e.stopPropagation()}
-                      onBlur={(e) => { const v = e.target.value.trim(); if (v) patchTab(t.id, { title: v, named: true }); setRenaming(null) }}
+                    <input autoFocus defaultValue={t.title} onClick={(e) => e.stopPropagation()} onFocus={(e) => { renameCancel.current = false; e.currentTarget.select() }}
+                      onBlur={(e) => { const v = e.target.value.trim(); if (v && !renameCancel.current && v !== t.title) patchTab(t.id, { title: v, named: true }); setRenaming(null) }}
                       onKeyDown={(e) => {
                         e.stopPropagation()
                         if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                        if (e.key === 'Escape') setRenaming(null)
+                        if (e.key === 'Escape') { renameCancel.current = true; setRenaming(null) }
                       }}
                       className="w-[130px] bg-transparent outline-hidden text-[12.5px] text-on-surface border-b border-primary/50" />
                   ) : <span className="truncate">{t.title}</span>}
+                  {renaming !== t.id && isFavTab(t) && <Star size={10} weight="fill" className="text-warning shrink-0" aria-label="En favoritas" />}
                   <button type="button" aria-label="Cerrar" title="Cerrar (Ctrl+W) — se puede reabrir"
                     onClick={(e) => { e.stopPropagation(); closeTab(t.id) }}
                     className={`grid place-items-center w-5 h-5 rounded-[5px] hover:bg-on-surface/10 ${on ? '' : 'opacity-0 group-hover:opacity-100'}`}>
@@ -311,7 +511,16 @@ export function SqlRunner(): JSX.Element {
             <RotateCcw size={12} /> Reabrir
           </button>
         )}
-        <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm shrink-0" onClick={() => setHistoryOpen(true)} title="Historial y pestañas cerradas">
+        {mode === 'query' && (
+          <button type="button" className={`ui-btn ui-btn-ghost ui-btn-icon shrink-0 ${isFav ? 'text-warning' : ''}`} onClick={() => toggleFav()} disabled={!tab?.sql.trim()}
+            title={isFav ? 'Quitar de favoritas' : 'Guardar esta consulta en favoritas (aparece en Historial y en Ctrl+K)'} aria-pressed={isFav}>
+            <Pop active={isFav}><Star size={14} weight={isFav ? 'fill' : 'regular'} /></Pop>
+          </button>
+        )}
+        <ViewControls zoom={zoom} onZoom={setZoom} fontSize={fontSize} defaultFont={prefs.fontSize} onFontSize={setFont}
+          scheme={ownScheme ?? prefs.colorScheme} editorTheme={prefs.editorTheme} appDark={appDark}
+          onPreviewScheme={setPreviewScheme} onPickScheme={pickScheme} onFormat={mode === 'query' ? formatEditor : undefined} />
+        <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm shrink-0" onClick={() => setHistoryOpen(true)} title="Favoritas, historial y pestañas cerradas">
           <History size={13} /> Historial
         </button>
         <div className="flex items-center p-[3px] rounded-[9px] bg-on-surface/5 shrink-0">
@@ -339,7 +548,11 @@ export function SqlRunner(): JSX.Element {
             {TONE[envTone(profile?.tag)].bar && <span aria-hidden className={`pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-linear-to-r ${TONE[envTone(profile?.tag)].bar} via-transparent to-transparent`} />}
             <button type="button" onClick={toggleExplorer} aria-pressed={explorerOpen} title={explorerOpen ? 'Ocultar el explorador de objetos' : 'Mostrar el explorador de objetos'}
               className={`ui-btn ui-btn-ghost ui-btn-icon ${explorerOpen ? 'text-primary' : ''}`}><PanelLeft size={15} /></button>
-            <ProfileSelect profiles={profiles} value={profile?.id ?? null} onChange={(id) => { if (id !== profile?.id) patchTab(tab.id, { profileId: id, database: '' }) }} />
+            <RunButton running={!!run?.running} elapsed={fmtMs(elapsed)} hasSelection={hasSel}
+              disabled={!profile || !tab.sql.trim()} onRun={(m) => void execute(m)} onCancel={cancel} />
+            <span className="w-px h-5 bg-(--hairline-strong) mx-0.5" aria-hidden />
+            <ProfileSelect profiles={profiles} value={profile?.id ?? null} onChange={(id) => { if (id !== profile?.id) patchTab(tab.id, { profileId: id, database: '' }) }}
+              onNew={() => setFix({ reason: 'new' })} />
             <DatabaseSelect value={tab.database} fallback={profile?.database ?? ''} databases={databases} onChange={(db) => patchTab(tab.id, { database: db })} />
             <button type="button" onClick={() => patchTab(tab.id, { readOnly: !tab.readOnly })}
               title={tab.readOnly ? 'Modo lectura: lo que cambies se deshace al final (rollback). Clic para apagarlo.' : 'Modo lectura apagado: los cambios se aplican. Clic para encenderlo.'}
@@ -348,28 +561,30 @@ export function SqlRunner(): JSX.Element {
               {tab.readOnly ? <ShieldCheck size={13} /> : <ShieldAlert size={13} />}
               {tab.readOnly ? 'Solo lectura' : 'Escritura'}
             </button>
+            <button type="button" onClick={() => patchTab(tab.id, { stats: !tab.stats })} aria-pressed={!!tab.stats}
+              title={tab.stats ? 'Estadísticas activas: lecturas y tiempos de cada consulta (SET STATISTICS IO, TIME). Clic para apagarlas.' : 'Mostrar lecturas y tiempos de cada consulta (para ver por qué tarda)'}
+              className={`flex items-center gap-1.5 h-[30px] px-2.5 rounded-[8px] border text-[12px] font-medium transition-colors ${
+                tab.stats ? 'border-primary/40 text-primary bg-primary/10' : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-on-surface/5'}`}>
+              <Gauge size={13} /> Estadísticas
+            </button>
             <span className="flex-1" />
-            {(run?.running || result) && (
-              <span className="flex items-center gap-1.5 t-footnote text-on-surface-variant tabular-nums">
+            {!run?.running && result && (
+              <span className="flex items-center gap-1.5 t-footnote text-on-surface-variant tabular-nums" title="Duración de la última ejecución">
                 <Clock size={12} /> {fmtMs(elapsed)}
               </span>
-            )}
-            {run?.running ? (
-              <button type="button" className="ui-btn ui-btn-outline" onClick={cancel} title="Cancelar (Esc)"><Square size={12} /> Cancelar</button>
-            ) : (
-              <button type="button" className="ui-btn ui-btn-run" onClick={() => void execute()} disabled={!profile || !tab.sql.trim()} title="Ejecutar (F5 o Ctrl+Enter) — si hay texto seleccionado, sólo eso">
-                <Play size={13} /> Ejecutar
-              </button>
             )}
           </div>
 
           <div ref={bodyRef} className="flex-1 min-h-0 flex flex-col">
             {/* Editor */}
-            <div className="min-h-0 overflow-hidden" style={{ flexBasis: `${ratio * 100}%`, flexShrink: 0 }}>
-              <CodeEditor key={tab.id} content={tab.sql} language="sql" theme={theme}
-                fontSize={prefs.fontSize} fontFamily={prefs.fontFamily} wordWrap={false}
+            <div className="min-h-0 overflow-hidden" style={{ flexBasis: `${ratio * 100}%`, flexShrink: 0 }}
+              onMouseUp={syncSel} onKeyUp={syncSel}>
+              <CodeEditor key={tab.id} content={tab.sql} language="sql" theme={theme} sqlSchema={schema}
+                fontSize={fontSize} fontFamily={prefs.fontFamily} wordWrap={false}
                 editorRef={editorRef}
-                onChange={(v) => patchTab(tab.id, { sql: v })} />
+                onRenameShortcut={() => setRenaming(tab.id)}
+                errorLine={run && !run.running && run.result && !run.result.ok && typeof run.result.line === 'number' && errSeen[tab.id] !== run.runId ? run.result.line : null}
+                onChange={(v) => { patchTab(tab.id, { sql: v }); if (run?.result && !run.result.ok && errSeen[tab.id] !== run.runId) setErrSeen((m) => ({ ...m, [tab.id]: run.runId })) }} />
             </div>
             {/* Divisor */}
             <div role="separator" aria-orientation="horizontal" onPointerDown={startDrag}
@@ -380,17 +595,41 @@ export function SqlRunner(): JSX.Element {
             <div className="flex-1 min-h-0 flex flex-col bg-surface">
               <Results run={run} onGotoLine={(l) => editorRef.current?.focusLine?.(l)}
                 onView={(v) => setRuns((r) => (r[tab.id] ? { ...r, [tab.id]: { ...r[tab.id]!, view: v } } : r))}
-                name={tab.title} />
+                name={tab.title} table={guessTable(run?.text ?? tab.sql)}
+                editing={run?.result?.ok && run.result.sets.length ? {
+                  ...(run.edit ?? { target: null, blocker: null, pending: true }),
+                  where: `${profile?.name ?? ''}${(run.edit?.target?.database || tab.database || profile?.database) ? ` · ${run.edit?.target?.database || tab.database || profile?.database}` : ''}`,
+                  onApply: applyGridEdits,
+                  onOpenScript: (sql) => addTab({ sql, title: `Cambios · ${run.edit?.target?.table ?? ''}`, named: true, readOnly: false }),
+                } : undefined} />
             </div>
           </div>
           <StatusBar profile={profile} database={tab.database.trim() || profile?.database || ''} readOnly={tab.readOnly} run={run} elapsed={elapsed} />
+          <ParamsDialog request={paramReq} />
           </div>
         </div>
       )}
 
+      {tabMenu && (() => {
+        const t = tabsState.tabs.find((x) => x.id === tabMenu.id)
+        if (!t) return null
+        const idx = tabsState.tabs.indexOf(t)
+        const items: MenuItem[] = [
+          { label: 'Renombrar', icon: Pencil, shortcut: 'F2', action: () => setRenaming(t.id) },
+          { label: 'Duplicar', icon: Copy, action: () => addTab({ sql: t.sql, title: `${t.title} (copia)`, named: true, profileId: t.profileId, database: t.database, readOnly: t.readOnly }) },
+          { label: isFavTab(t) ? 'Quitar de favoritas' : 'Guardar en favoritas', icon: Star, action: () => toggleFav(t), disabled: !t.sql.trim() },
+          { label: 'Cerrar', icon: X, shortcut: 'Ctrl+W', action: () => closeTab(t.id), divider: true },
+          { label: 'Cerrar las demás', action: () => closeOthers(t.id), disabled: tabsState.tabs.length < 2 },
+          { label: 'Cerrar las de la derecha', action: () => closeOthers(t.id, true), disabled: idx >= tabsState.tabs.length - 1 },
+        ]
+        return <ContextMenu x={tabMenu.x} y={tabMenu.y} items={items} onClose={() => setTabMenu(null)} />
+      })()}
+
       <ConnectionFixDialog request={fix} profiles={profiles} onClose={() => setFix(null)} onSaved={onFixed} />
 
       <HistorySheet open={historyOpen} onClose={() => setHistoryOpen(false)} closed={tabsState.closed}
+        favs={favs} onRemoveFav={(id) => saveFavs(favs.filter((f) => f.id !== id))}
+        onOpenFav={(f) => { const known = profiles.some((p) => p.id === f.profileId); addTab({ sql: f.sql, title: f.title, named: true, database: known ? f.database : '', ...(known ? { profileId: f.profileId } : {}) }); setMode('query'); setHistoryOpen(false) }}
         onReopen={(id) => { reopen(id); setMode('query'); setHistoryOpen(false) }}
         onOpen={(h) => { addTab({ sql: h.sql, profileId: h.profileId, database: h.database === profiles.find((p) => p.id === h.profileId)?.database ? '' : h.database }); setMode('query'); setHistoryOpen(false) }}
         onCleared={() => toast.show('Historial borrado', 'info')} />
@@ -398,11 +637,18 @@ export function SqlRunner(): JSX.Element {
   )
 }
 
-function Results({ run, onGotoLine, onView, name }: {
+/** Primera tabla del FROM, para "Copiar como INSERT". */
+function guessTable(sql: string): string | undefined {
+  return /\bfrom\s+((?:\[[^\]]+\]|[\w#]+)(?:\.(?:\[[^\]]+\]|\w+))*)/i.exec(sql)?.[1]
+}
+
+function Results({ run, onGotoLine, onView, name, table, editing }: {
   run: RunState | undefined
   onGotoLine: (line: number) => void
   onView: (v: number | 'messages') => void
   name: string
+  table?: string
+  editing?: GridEditing
 }): JSX.Element {
   if (!run) {
     return (
@@ -456,15 +702,72 @@ function Results({ run, onGotoLine, onView, name }: {
         </div>
       )}
       <div className="flex-1 min-h-0">
-        {set ? <ResultGrid key={view} set={set} name={name} /> : (
+        {set ? <ResultGrid key={view} set={set} name={name} table={table} editing={view === 0 ? editing : undefined} flash={view === 0 ? run.flash : undefined} /> : (
           <div className="h-full overflow-auto px-3 py-2 font-mono text-[12px] leading-[19px] text-on-surface">
+            {(() => {
+              const st = parseStats(r.messages)
+              if (!st) return null
+              const max = Math.max(1, ...st.tables.map((t) => t.logical))
+              return (
+                <div className="font-sans mb-3 rounded-[10px] ring-1 ring-primary/20 bg-primary/[0.05] p-3">
+                  <p className="t-footnote font-semibold text-on-surface">
+                    {st.logicalReads.toLocaleString('es-AR')} lecturas lógicas · {st.physicalReads.toLocaleString('es-AR')} físicas · CPU {fmtMs(st.cpuMs)} · total {fmtMs(st.elapsedMs)}
+                  </p>
+                  <ul className="mt-2 flex flex-col gap-1">
+                    {st.tables.slice(0, 8).map((t) => (
+                      <li key={t.table} className="flex items-center gap-2 t-caption">
+                        <span className="w-[180px] truncate font-mono text-on-surface">{t.table}</span>
+                        <span className="flex-1 h-1.5 rounded-full bg-on-surface/8 overflow-hidden"><span className="block h-full rounded-full bg-primary" style={{ width: `${(t.logical / max) * 100}%` }} /></span>
+                        <span className="w-[90px] text-right tabular-nums text-on-surface-variant">{t.logical.toLocaleString('es-AR')}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
+            })()}
             {r.messages.length === 0 && r.ok && <p className="text-on-surface-variant">Listo, sin mensajes.</p>}
-            {r.messages.map((m, i) => <p key={i} className="whitespace-pre-wrap">{m}</p>)}
+            <MessageTimeline messages={r.messages} />
             {r.ok && <p className="text-on-surface-variant mt-1">Terminó en {fmtMs(r.ms)}.</p>}
           </div>
         )}
       </div>
     </>
+  )
+}
+
+/**
+ * Mensajes como línea de tiempo: filas afectadas, PRINT y avisos con su ícono; el
+ * detalle técnico de las estadísticas (ya resumido arriba) queda plegado.
+ */
+const STATS_LINE = /^(\s*SQL Server (Execution Times|parse and compile time)|\s*Tiempos de ejecución|\s*Tiempo de análisis|(Table|Tabla) ')/i
+function MessageTimeline({ messages }: { messages: string[] }): JSX.Element {
+  const [showTech, setShowTech] = useState(false)
+  const tech = messages.filter((m) => STATS_LINE.test(m))
+  const rest = messages.filter((m) => !STATS_LINE.test(m))
+  return (
+    <div className="font-sans flex flex-col">
+      {rest.map((m, i) => {
+        const rows = /^\((\d+) filas afectadas\)$/.exec(m.trim())
+        const ro = /^Modo lectura/.test(m)
+        const Icon = rows ? CheckCircle2 : ro ? ShieldCheck : Info
+        const tone = rows ? 'text-success' : ro ? 'text-primary' : 'text-on-surface-variant'
+        return (
+          <div key={i} className="relative flex items-start gap-2.5 pl-1 py-1">
+            {i < rest.length - 1 && <span aria-hidden className="absolute left-[11px] top-6 bottom-0 w-px bg-(--hairline-strong)" />}
+            <Icon size={15} className={`shrink-0 mt-px ${tone}`} />
+            <p className={`t-footnote whitespace-pre-wrap ${rows ? 'text-on-surface' : 'font-mono text-[12px] text-on-surface'}`}>
+              {rows ? `${Number(rows[1]).toLocaleString('es-AR')} ${rows[1] === '1' ? 'fila afectada' : 'filas afectadas'}` : m}
+            </p>
+          </div>
+        )
+      })}
+      {tech.length > 0 && (
+        <button type="button" onClick={() => setShowTech((v) => !v)} className="self-start mt-1 ml-1 t-caption text-on-surface-variant hover:text-on-surface hover:underline underline-offset-2">
+          {showTech ? 'Ocultar' : 'Ver'} detalle técnico de estadísticas ({tech.length})
+        </button>
+      )}
+      {showTech && tech.map((m, i) => <p key={`t${i}`} className="font-mono text-[11.5px] leading-[17px] text-on-surface-variant whitespace-pre-wrap mt-1 ml-1">{m}</p>)}
+    </div>
   )
 }
 
@@ -491,6 +794,11 @@ function StatusBar({ profile, database, readOnly, run, elapsed }: {
       <span className={readOnly ? 'text-success' : 'text-warning'}>{readOnly ? 'Solo lectura' : 'Escritura'}</span>
       <span className="flex-1" />
       {run?.running && <span className="flex items-center gap-1.5 text-primary"><span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" /> Ejecutando · {fmtMs(elapsed)}</span>}
+      {!run?.running && r && (() => { const st = parseStats(r.messages); return st && (
+        <span className="text-primary" title={st.tables.slice(0, 5).map((t) => `${t.table}: ${t.logical.toLocaleString('es-AR')} lecturas`).join('\n')}>
+          {st.logicalReads.toLocaleString('es-AR')} lecturas lógicas · CPU {fmtMs(st.cpuMs)}
+        </span>
+      ) })()}
       {!run?.running && r && (
         <>
           <span className={`flex items-center gap-1.5 ${r.ok ? 'text-success' : 'text-error'}`}><span className={`w-1.5 h-1.5 rounded-full ${r.ok ? 'bg-success' : 'bg-error'}`} />{r.ok ? 'Correcta' : r.cancelled ? 'Cancelada' : 'Con error'}</span>
@@ -502,9 +810,12 @@ function StatusBar({ profile, database, readOnly, run, elapsed }: {
   )
 }
 
-function HistorySheet({ open, onClose, closed, onReopen, onOpen, onCleared }: {
+function HistorySheet({ open, onClose, closed, onReopen, onOpen, onCleared, favs, onOpenFav, onRemoveFav }: {
   open: boolean
   onClose: () => void
+  favs: QueryFavorite[]
+  onOpenFav: (f: QueryFavorite) => void
+  onRemoveFav: (id: string) => void
   closed: QueryTab[]
   onReopen: (id: string) => void
   onOpen: (h: QueryHistoryEntry) => void
@@ -521,8 +832,27 @@ function HistorySheet({ open, onClose, closed, onReopen, onOpen, onCleared }: {
   const when = (ts: number): string => new Date(ts).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
   return (
-    <Sheet open={open} onClose={onClose} title="Historial" subtitle="Todo lo que ejecutaste y las pestañas que cerraste" width={520}>
+    <Sheet open={open} onClose={onClose} title="Historial" subtitle="Favoritas, todo lo que ejecutaste y las pestañas que cerraste" width={520}>
       <div className="flex flex-col gap-4">
+        <section className="flex flex-col gap-1">
+          <h3 className="t-section uppercase tracking-[0.08em] px-1 flex items-center gap-1.5"><Star size={11} weight="fill" className="text-warning" /> Favoritas</h3>
+          {favs.length === 0 && <p className="t-footnote text-on-surface-variant px-1 py-2">Tocá la ★ de una pestaña para guardar la consulta acá y en Ctrl+K.</p>}
+          {favs.map((f) => (
+            <div key={f.id} className="group flex items-center gap-1 rounded-[9px] hover:bg-on-surface/5 transition-colors">
+              <button type="button" onClick={() => onOpenFav(f)} className="flex-1 min-w-0 flex items-center gap-2.5 px-2.5 py-2 text-left">
+                <Star size={13} weight="fill" className="text-warning shrink-0" />
+                <span className="flex-1 min-w-0">
+                  <span className="block t-body font-medium text-on-surface truncate">{f.title}</span>
+                  <span className="block t-caption font-mono text-on-surface-variant truncate">{f.sql.replace(/\s+/g, ' ').slice(0, 120)}</span>
+                </span>
+              </button>
+              <button type="button" onClick={() => onRemoveFav(f.id)} aria-label={`Quitar ${f.title} de favoritas`}
+                className="mr-1.5 grid place-items-center w-7 h-7 rounded-[7px] text-on-surface-variant opacity-0 group-hover:opacity-100 hover:bg-on-surface/8 hover:text-error">
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
+        </section>
         {closed.length > 0 && (
           <section className="flex flex-col gap-1">
             <h3 className="t-section uppercase tracking-[0.08em] px-1">Pestañas cerradas</h3>

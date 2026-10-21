@@ -1,4 +1,5 @@
-import { createContext, useContext, useReducer, useEffect, useRef, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useReducer, useEffect, useRef, type ReactNode } from 'react'
+import { withViewTransition } from './fx'
 import type { AppState, AppAction, Tab, Theme, PluginIntent } from './types'
 import { allPlugins, getPlugin } from './plugin-registry'
 import { touchMounted } from './navigation'
@@ -280,7 +281,16 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null)
 
 export function AppProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [state, dispatch] = useReducer(rootReducer, initialState)
+  const [state, rawDispatch] = useReducer(rootReducer, initialState)
+  const stateRef = useRef(state)
+  stateRef.current = state
+  // Cambiar de módulo pasa por View Transitions (fundido corto del panel); el resto, directo.
+  const dispatch = useCallback((action: AppAction) => {
+    const prev = stateRef.current
+    const next = rootReducer(prev, action)
+    if (next.activeTabId !== prev.activeTabId) withViewTransition(() => rawDispatch(action))
+    else rawDispatch(action)
+  }, [])
 
   useEffect(() => {
     const html = document.documentElement

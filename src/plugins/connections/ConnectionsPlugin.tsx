@@ -964,7 +964,7 @@ function SupabaseSheet({ meta, onStatus }: SheetProps): JSX.Element {
   const step = (n: number, title: string, body: React.ReactNode, done?: boolean): JSX.Element => (
     <section className="flex gap-3">
       <span className={`shrink-0 w-6 h-6 rounded-full t-caption font-semibold flex items-center justify-center ${done ? 'bg-success/10 text-success' : 'hairline text-on-surface-variant'}`}>
-        {done ? <Check size={12} /> : n}
+        {done ? <Check className="fx-pop" size={12} /> : n}
       </span>
       <div className="flex-1 min-w-0 flex flex-col gap-3 pt-0.5">
         <p className="t-body font-medium text-on-surface">{title}</p>
@@ -1066,7 +1066,7 @@ function SupabaseSheet({ meta, onStatus }: SheetProps): JSX.Element {
             <div className="relative">
               <pre className="ui-input font-mono t-caption max-h-56 overflow-auto whitespace-pre pr-12 py-2.5">{health.missingSql}</pre>
               <button className="ui-btn ui-btn-ghost ui-btn-sm absolute top-1.5 right-1.5" onClick={() => void copySql()} aria-label="Copiar SQL">
-                {copied ? <><Check size={12} className="text-success" />Copiado</> : <><Copy size={12} />Copiar</>}
+                {copied ? <><Check size={12} className="fx-pop text-success" />Copiado</> : <><Copy size={12} />Copiar</>}
               </button>
             </div>
           ) : (

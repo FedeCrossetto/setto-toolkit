@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, MotionConfig, motion, useAnimationControls, type Variants } from 'framer-motion'
 import {
-  ArrowLeftRight, ArrowUpRight, AtSign, Braces, Check, ChevronDown, ChevronUp, Clock, ClipboardText, Code2, Columns2, ExternalLink,
+  ArrowLeftRight, ArrowUpRight, AtSign, Braces, Check, ChevronDown, ChevronUp, Clock, ClipboardText, Code2, Columns2, Database, ExternalLink,
   Fingerprint, FolderOpen, Grid3x3, Images, KeyRound, Link, ListOrdered, Lock, LockOpen, NotebookPen, Pin, PinOff, Plus, ScanText, Search,
   Ticket, Toolbox, Trash2, TriangleAlert, Type, User, Wallet, Wand2, X,
 } from 'lucide-react'
@@ -19,6 +19,8 @@ import type { Credential, CredentialsListResult } from '../plugins/credentials/t
 import { getMonthSummary } from '../plugins/gastos/summary'
 import { classifyContext, isSqlSnippet } from './context'
 import { Bloc, type BlocHandle } from './Bloc'
+import { ActiveTicketBar, FrequentRow, LastCopiedCard, TabsConfig, type FrequentItem } from './DockTop'
+import type { QueryFavorite } from '../plugins/sql-runner/types'
 
 /**
  * Barra flotante al borde (ventana `#dock`, ver electron/core/dock.ts).
@@ -240,6 +242,34 @@ export function Dock(): JSX.Element {
   /** Pagos del mes sin marcar (Gastos), para el aviso de arriba. */
   const [pending, setPending] = useState(0)
   const [small, setSmall] = useState(() => window.innerWidth < SMALL_WINDOW)
+  /** Consultas favoritas (para "Lo que más usás") */
+  const [favs, setFavs] = useState<QueryFavorite[]>([])
+  /** Ticket en curso: las capturas nuevas se le asignan solas (main) */
+  const [activeTicket, setActiveTicketState] = useState(() => { try { return localStorage.getItem('dock:active-ticket') ?? '' } catch { return '' } })
+  /** "Recién copiado" que el usuario ocultó */
+  const [dismissedClip, setDismissedClip] = useState<string | null>(null)
+  /** Pestañas visibles y su orden */
+  const [tabPrefs, setTabPrefs] = useState<{ order: TabId[]; hidden: TabId[] }>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem('dock:tabs') ?? 'null') as { order?: TabId[]; hidden?: TabId[] } | null
+      const known = TABS.map((t) => t.id)
+      const order = [...(v?.order ?? []).filter((id) => known.includes(id)), ...known.filter((id) => !(v?.order ?? []).includes(id))]
+      return { order, hidden: (v?.hidden ?? []).filter((id) => known.includes(id)) }
+    } catch { return { order: TABS.map((t) => t.id), hidden: [] } }
+  })
+  const visible = useMemo(() => {
+    const v = tabPrefs.order.filter((id) => !tabPrefs.hidden.includes(id)).map((id) => TABS.find((t) => t.id === id)!).filter(Boolean)
+    return v.length ? v : TABS
+  }, [tabPrefs])
+  const saveTabPrefs = (order: TabId[], hidden: TabId[]): void => {
+    setTabPrefs({ order, hidden })
+    try { localStorage.setItem('dock:tabs', JSON.stringify({ order, hidden })) } catch { /* nada */ }
+  }
+  const setActiveTicket = (t: string): void => {
+    setActiveTicketState(t)
+    try { localStorage.setItem('dock:active-ticket', t) } catch { /* nada */ }
+    void window.api.invoke('captures:active-ticket', t).catch(() => undefined)
+  }
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -310,6 +340,7 @@ export function Dock(): JSX.Element {
         setCapTickets(r.facets.tickets.slice(0, 12))
       }, () => setCaps([])),
       window.api.invoke<{ snippets: Snippet[] }>('snippets:load').then((r) => setSnippets(r.snippets), () => setSnippets([])),
+      window.api.invoke<QueryFavorite[]>('sql:favs-get').then(setFavs, () => setFavs([])),
       loadPending(),
     ])
   }, [loadCreds, loadPending])
@@ -351,6 +382,8 @@ export function Dock(): JSX.Element {
     return () => clearInterval(t)
   }, [st.expanded, load])
 
+  useEffect(() => { if (!visible.some((t) => t.id === tab)) showTab(visible[0]!.id) }, [visible]) // eslint-disable-line react-hooks/exhaustive-deps
+
   /** Pestaña pedida desde afuera (sin animación de dirección). */
   function showTab(next: TabId): void {
     setTabState(next)
@@ -360,8 +393,8 @@ export function Dock(): JSX.Element {
   }
 
   const setTab = (next: TabId): void => {
-    const from = TABS.findIndex((t) => t.id === tab)
-    const to = TABS.findIndex((t) => t.id === next)
+    const from = visible.findIndex((t) => t.id === tab)
+    const to = visible.findIndex((t) => t.id === next)
     setTabDir(to >= from ? 1 : -1)
     setTabState(next)
     setActive(0)
@@ -439,6 +472,27 @@ export function Dock(): JSX.Element {
     return { clips: clipItems, caps: capItems, snippets: snipItems, tickets: ticketItems, keys: credItems, bloc: [] } satisfies Record<TabId, Item[]>
   }, [clips, caps, capTickets, snippets, topCreds, allCreds, q, hits, scope])
 
+  // ── Arriba del widget: último copiado y lo que más usás ───────────────────
+  const lastClip = useMemo(() => {
+    const c = clips.find((x) => !x.sensitive)
+    return c && c.id !== dismissedClip && Date.now() - c.at < 20 * 60_000 ? c : null
+  }, [clips, dismissedClip])
+  const frequent = useMemo((): FrequentItem[] => {
+    const out: FrequentItem[] = []
+    for (const c of topCreds.slice(0, 3)) out.push({ key: `k:${c.id}`, icon: KeyRound, label: c.nombre, sub: c.hasPassword ? 'Copiar contraseña' : 'Copiar usuario', run: () => activate({ type: 'cred', key: `k:${c.id}`, cred: c }) })
+    const topSnips = [...snippets].filter((x) => (x.useCount ?? 0) > 0).sort((a, b) => (b.useCount ?? 0) - (a.useCount ?? 0)).slice(0, 2)
+    for (const sn of topSnips) {
+      const content = stripDataUrls(sn.content)
+      out.push({ key: `s:${sn.id}`, icon: Code2, label: sn.title, sub: hasVariables(content) ? 'Completar' : 'Pegar', run: () => activate({ type: 'snippet', key: `s:${sn.id}`, snippet: sn, content, vars: hasVariables(content) }) })
+    }
+    for (const f of favs.slice(0, 6 - out.length)) out.push({ key: `q:${f.id}`, icon: Database, label: f.title, sub: 'Abrir en Consultas', run: () => openMain({ pluginId: 'sql-runner', action: 'open-sql', payload: { title: f.title, sql: f.sql, profileId: f.profileId, database: f.database } }) })
+    return out.slice(0, 6)
+  }, [topCreds, snippets, favs]) // eslint-disable-line react-hooks/exhaustive-deps
+  const openJira = (t: string): void => {
+    const a = actionsFor('ticket', t).find((x) => x.id === 'jira')
+    if (a) Promise.resolve().then(() => a.run(t, openMain)).catch((e: unknown) => say(cleanErr(e)))
+  }
+
   // ── Sugerencias según la app de adelante ─────────────────────────────────
   const ctx = useMemo(() => classifyContext(st.context?.app, st.context?.title), [st.context])
   const suggestions = useMemo((): Suggestion[] => {
@@ -490,7 +544,7 @@ export function Dock(): JSX.Element {
   // Buscando: si la pestaña actual no tiene resultados y otra sí, saltar a esa.
   useEffect(() => {
     if (!words.length || items.length) return
-    const other = TABS.find((t) => lists[t.id].length)
+    const other = visible.find((t) => lists[t.id].length)
     if (other) setTab(other.id)
   }, [q])
 
@@ -557,7 +611,7 @@ export function Dock(): JSX.Element {
         if (e.key === 'Escape') { e.preventDefault(); if (q) setQ(''); else collapse(); return }
         if (e.key === 'Tab') {
           e.preventDefault()
-          setTab(TABS[e.shiftKey ? TABS.length - 2 : 0]!.id)
+          setTab(visible[e.shiftKey ? Math.max(0, visible.length - 2) : 0]!.id)
           return
         }
         if (!inBloc && plain && (e.key.length === 1 || e.key === 'Enter')) {
@@ -575,8 +629,8 @@ export function Dock(): JSX.Element {
       }
       if (e.key === 'Tab') {
         e.preventDefault()
-        const i = TABS.findIndex((t) => t.id === tab)
-        setTab(TABS[(i + (e.shiftKey ? TABS.length - 1 : 1)) % TABS.length]!.id)
+        const i = visible.findIndex((t) => t.id === tab)
+        setTab(visible[(i + (e.shiftKey ? visible.length - 1 : 1)) % visible.length]!.id)
         return
       }
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -682,7 +736,7 @@ export function Dock(): JSX.Element {
 
               {/* Pestañas: íconos; la activa como tarjeta con su nombre (igual que la barra lateral de la app) */}
               <motion.div {...CONTENT_IN(0.12)} className="relative flex items-center gap-1 px-2.5 pt-2.5 pb-2 shrink-0" role="tablist">
-                {TABS.map((t) => {
+                {visible.map((t) => {
                   const n = lists[t.id].length
                   const on = tab === t.id
                   const Icon = TAB_ICON[t.id]
@@ -701,10 +755,26 @@ export function Dock(): JSX.Element {
                     </motion.button>
                   )
                 })}
+                <TabsConfig tabs={TABS.map((t) => ({ ...t, icon: TAB_ICON[t.id] }))} order={tabPrefs.order} hidden={tabPrefs.hidden} onChange={saveTabPrefs} />
               </motion.div>
 
               {/* Tarjeta de contenido (como el panel de la ventana principal) */}
               <motion.div {...CONTENT_IN(0.16)} className={`relative flex-1 min-h-0 flex flex-col mx-2 mb-2 rounded-[14px] overflow-hidden ${CARD_SURFACE}`}>
+              {!words.length && tab !== 'bloc' && (
+                <div className="shrink-0">
+                  {activeTicket && (
+                    <ActiveTicketBar ticket={activeTicket} onJira={() => openJira(activeTicket)}
+                      onOpen={() => openMain({ pluginId: 'captures', action: 'ticket', payload: activeTicket })} onClear={() => { setActiveTicket(''); say('Ya no hay ticket en curso') }} />
+                  )}
+                  {lastClip && (
+                    <LastCopiedCard clip={lastClip} activeTicket={activeTicket}
+                      onPaste={(text) => void paste({ text })} onOpen={openMain} onError={say}
+                      onPinTicket={(t) => { setActiveTicket(t); say(`Trabajando en ${t}: las capturas nuevas se asignan solas`, 3200) }}
+                      onDismiss={() => setDismissedClip(lastClip.id)} />
+                  )}
+                  {tab === 'clips' && <FrequentRow items={frequent} />}
+                </div>
+              )}
               {/* Para lo que estás usando (SSMS → SQL, Jira → el ticket…) y pagos pendientes */}
               <AnimatePresence initial={false}>
                 {!words.length && (suggestions.length > 0 || pending > 0) && (

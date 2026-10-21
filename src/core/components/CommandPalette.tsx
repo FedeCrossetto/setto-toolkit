@@ -250,9 +250,10 @@ export function CommandPalette(): JSX.Element | null {
             groups.map((g) => (
               <div key={g.id} className="pb-1">
                 <div className="fl-section px-2.5 pt-1.5">{g.label}</div>
-                {g.items.map((item) => (
+                {g.items.map((item, idx) => (
                   <PaletteRow
                     key={item.id}
+                    index={idx}
                     item={item}
                     selected={item.id === effectiveSelected}
                     onHover={() => setSelectedId(item.id)}
@@ -295,7 +296,9 @@ function Kbd({ children }: { children: React.ReactNode }): JSX.Element {
   )
 }
 
-function PaletteRow({ item, selected, onHover, onRun }: {
+function PaletteRow({ item, selected, onHover, onRun, index = 0 }: {
+  /** Posición en su grupo: los resultados entran en cascada */
+  index?: number
   item: SearchItem
   selected: boolean
   onHover: () => void
@@ -310,7 +313,8 @@ function PaletteRow({ item, selected, onHover, onRun }: {
       data-selected={selected}
       onMouseMove={onHover}
       onClick={(e) => onRun(e.shiftKey)}
-      className={`w-full flex items-center gap-3 px-2.5 h-10 rounded-[9px] border text-left text-on-surface transition-colors duration-75 ${
+      style={{ '--i': index } as React.CSSProperties}
+      className={`stagger-in w-full flex items-center gap-3 px-2.5 h-10 rounded-[9px] border text-left text-on-surface transition-colors duration-75 ${
         selected ? 'bg-on-surface/[0.045] dark:bg-white/[0.06] border-hairline' : 'border-transparent'
       }`}
     >

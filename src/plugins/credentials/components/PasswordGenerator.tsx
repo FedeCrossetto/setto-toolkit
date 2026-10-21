@@ -71,7 +71,7 @@ export function PasswordGenerator({ onUse, onClose }: { onUse: (pwd: string) => 
           <RefreshCw size={14} />
         </button>
         <button type="button" onClick={() => void copy()} className="ui-btn ui-btn-ghost ui-btn-icon rounded-lg" title="Copiar" aria-label="Copiar contraseña generada">
-          {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
+          {copied ? <Check size={14} className="fx-pop text-success" /> : <Copy size={14} />}
         </button>
       </div>
       <StrengthMeter score={strength.score} />

@@ -77,6 +77,8 @@ export interface EditorHandle {
   focusLine?: (line: number) => void
   /** Reemplazar la selección (o insertar en el cursor) y enfocar */
   insertText?: (text: string) => void
+  /** Aplica `fn` a la selección (o a todo el texto si no hay) en un solo paso deshacible */
+  transform?: (fn: (text: string) => string) => void
 }
 
 /** A single find-in-files match */

@@ -3,6 +3,7 @@ import { Check, Copy, Plus } from 'lucide-react'
 import { monthsOfYear } from '../analytics'
 import { fmt, mesShort } from '../format'
 import { ServiceIcon } from '../components/ServiceIcon'
+import { SparkBars } from '../components/Glow'
 import type { PagoMensual, Servicio } from '../types'
 
 /** Grilla servicios × meses del año. Clic en un monto lo edita; en una celda vacía, carga ese pago. */
@@ -23,6 +24,17 @@ export function Tabla({ servicios, pagos, year, onEditPago, onAddPago }: {
     months.map((mes) => [mes, activos.reduce((sum, s) => sum + (idx.get(`${s.id}::${mes}`)?.monto ?? 0), 0)]),
   )
   const totalAnual = Object.values(totalesMes).reduce((a, b) => a + b, 0)
+  // Mapa de calor: cada monto se tiñe según lo que pesa dentro del máximo de su servicio.
+  // Escala de cada servicio entre su mes más barato y el más caro: resalta los picos.
+  const rango = new Map(activos.map((s) => {
+    const v = months.map((m) => idx.get(`${s.id}::${m}`)?.monto ?? 0).filter((x) => x > 0)
+    return [s.id, v.length ? [Math.min(...v), Math.max(...v)] as const : [0, 0] as const]
+  }))
+  const heat = (svc: string, monto: number): string => {
+    const [lo, hi] = rango.get(svc) ?? [0, 0]
+    const t = hi > lo ? (monto - lo) / (hi - lo) : 0.3
+    return `rgb(var(--c-primary) / ${(0.03 + 0.3 * t * t).toFixed(3)})`
+  }
   const [copied, setCopied] = useState(false)
 
   function buildMd(): string {
@@ -54,10 +66,23 @@ export function Tabla({ servicios, pagos, year, onEditPago, onAddPago }: {
 
   return (
     <div className="flex flex-col gap-2 min-w-0">
+      <div className="ui-card flex items-center gap-5 px-5 py-3">
+        <div className="min-w-0">
+          <div className="t-caption text-on-surface-variant">Servicios {year}</div>
+          <div className="text-[22px] leading-[28px] font-semibold tabular-nums text-on-surface">$ {fmt(totalAnual)}</div>
+          <div className="t-caption text-on-surface-variant/80">{activos.length} servicios activos</div>
+        </div>
+        <div className="flex-1 min-w-0 flex justify-end">
+          <div className="w-full max-w-[420px]">
+            <SparkBars values={months.map((m) => totalesMes[m] ?? 0)} color="rgb(var(--c-primary))" labels={months.map(mesShort)}
+              active={months.map((m) => (totalesMes[m] ?? 0) > 0).lastIndexOf(true)} />
+          </div>
+        </div>
+      </div>
       <div className="flex items-center justify-between gap-3">
         <p className="t-footnote text-on-surface-variant">Clic en un monto para editarlo; en una celda vacía para cargar ese pago.</p>
         <button type="button" onClick={copyMd} className="ui-btn ui-btn-ghost ui-btn-sm">
-          {copied ? <Check size={12} /> : <Copy size={12} />}
+          {copied ? <Check className="fx-pop" size={12} /> : <Copy size={12} />}
           {copied ? 'Copiado' : 'Copiar como Markdown'}
         </button>
       </div>
@@ -96,7 +121,8 @@ export function Tabla({ servicios, pagos, year, onEditPago, onAddPago }: {
                             {p ? (
                               <button type="button" onClick={() => onEditPago(p)}
                                 title={[p.pagado ? 'Pagado' : 'Pendiente', p.fecha, p.metodoPago, p.notas].filter(Boolean).join(' · ')}
-                                className={`w-full text-right px-1.5 py-1 rounded-md tabular-nums hover:bg-on-surface/6 ${p.pagado ? 'text-on-surface' : 'text-warning'}`}>
+                                style={p.pagado ? { background: heat(svc.id, p.monto) } : undefined}
+                                className={`w-full text-right px-1.5 py-1 rounded-[6px] tabular-nums transition-[filter] hover:brightness-125 ${p.pagado ? 'text-on-surface' : 'text-warning bg-warning/12 ring-1 ring-warning/25'}`}>
                                 {fmt(p.monto)}
                               </button>
                             ) : (

@@ -5,7 +5,7 @@
  */
 import type { QueryResult } from './types'
 
-export type MetaKind = 'databases' | 'objects' | 'children' | 'definition'
+export type MetaKind = 'databases' | 'objects' | 'children' | 'definition' | 'completion' | 'pk'
 
 /** Tipos de sys.objects que muestra el explorador. */
 export type SqlObjectType = 'U' | 'V' | 'P' | 'FN' | 'IF' | 'TF' | 'TR' | 'SN'
@@ -156,4 +156,52 @@ export function connectionProblem(r: Pick<QueryResult, 'ok' | 'phase' | 'number'
   if (/login failed|password|contraseña|error de inicio de sesi/i.test(r.error ?? '')) return 'auth'
   if (r.number === 4060) return null // conecta, pero no puede abrir la base
   return 'server'
+}
+
+export interface FriendlyError { title: string; hint: string }
+
+/** Un error de SQL Server / SqlClient en una línea que se entiende (el detalle queda aparte). */
+export function friendlyError(raw: string | undefined, problem: 'auth' | 'server' | null): FriendlyError {
+  const e = raw ?? ''
+  if (problem === 'auth' || /login failed|inicio de sesi[oó]n/i.test(e)) return { title: 'Usuario o contraseña rechazados', hint: 'La contraseña puede haber vencido o cambiado.' }
+  if (/timeout|timed out|tiempo de espera/i.test(e)) return { title: 'El servidor no responde', hint: 'Revisá la VPN, la IP o el puerto.' }
+  if (/network-related|not found|no se (encuentra|encontr)|ya no est[aá] disponible|could not open a connection|instance|instancia/i.test(e)) {
+    return { title: 'No se encuentra el servidor', hint: 'Puede haber cambiado la IP, el nombre o la instancia.' }
+  }
+  if (/cannot open database|no se puede abrir la base/i.test(e)) return { title: 'No se puede abrir la base', hint: 'Revisá el nombre de la base o tus permisos.' }
+  if (problem === 'server') return { title: 'No se pudo conectar', hint: 'Revisá el servidor y la VPN.' }
+  const first = e.split(/\r?\n/)[0]!.trim()
+  return { title: 'Algo falló', hint: first.length > 110 ? `${first.slice(0, 110)}…` : first }
+}
+
+/** Todo lo que necesita el autocompletado: objetos y columnas de tablas, vistas y funciones de tabla. */
+export const COMPLETION_SQL = `SELECT s.name AS sch, o.name, RTRIM(o.type) AS type, c.name AS col
+FROM sys.objects o
+JOIN sys.schemas s ON s.schema_id = o.schema_id
+LEFT JOIN sys.columns c ON c.object_id = o.object_id AND o.type IN ('U','V','IF','TF')
+WHERE o.is_ms_shipped = 0 AND o.type IN ('U','V','P','FN','IF','TF','SN')
+ORDER BY s.name, o.name, c.column_id`
+
+export interface CompletionLabel { label: string; type: string; detail?: string }
+/** Formato de @codemirror/lang-sql: { esquema: { objeto: columnas } } + objetos de dbo sueltos. */
+export type SqlSchemaTree = Record<string, { self: CompletionLabel; children: Record<string, { self: CompletionLabel; children: CompletionLabel[] }> } | { self: CompletionLabel; children: CompletionLabel[] }>
+
+const KIND: Record<string, { type: string; detail: string }> = {
+  U: { type: 'type', detail: 'tabla' }, V: { type: 'type', detail: 'vista' }, P: { type: 'function', detail: 'procedimiento' },
+  FN: { type: 'function', detail: 'función' }, IF: { type: 'function', detail: 'función de tabla' }, TF: { type: 'function', detail: 'función de tabla' }, SN: { type: 'type', detail: 'sinónimo' },
+}
+
+/** Arma el árbol de autocompletado a partir de COMPLETION_SQL. Los objetos de `dbo` también van sin esquema. */
+export function buildSqlSchema(rows: (string | null)[][]): SqlSchemaTree {
+  const tree: Record<string, { self: CompletionLabel; children: Record<string, { self: CompletionLabel; children: CompletionLabel[] }> }> = {}
+  for (const [sch, name, type, col] of rows) {
+    if (!sch || !name || !type) continue
+    const k = KIND[type] ?? { type: 'type', detail: '' }
+    const ns = (tree[sch] ??= { self: { label: sch, type: 'namespace', detail: 'esquema' }, children: {} })
+    const obj = (ns.children[name] ??= { self: { label: name, type: k.type, detail: k.detail }, children: [] })
+    if (col) obj.children.push({ label: col, type: 'property', detail: name })
+  }
+  const out: SqlSchemaTree = { ...tree }
+  for (const [name, obj] of Object.entries(tree.dbo?.children ?? {})) if (!(name in out)) out[name] = obj
+  return out
 }
