@@ -34,6 +34,13 @@ const pluginIndex = (id: string): number => allPlugins.findIndex((p) => p.id ===
 
 function AppShell(): JSX.Element {
   const { state, dispatch } = useApp()
+  // Windows 11: fondo Mica en el marco (electron/core/mica.ts). Windows sigue el claro/oscuro de la app.
+  // Va sólo si el claro/oscuro de la app coincide con el de Windows: se vuelve a preguntar al cambiar el tema.
+  useEffect(() => {
+    try { window.api.send('app:theme', state.theme === 'dark') } catch { /* main viejo */ }
+    window.api.invoke<{ active: boolean }>('app:mica')
+      .then((s) => document.documentElement.classList.toggle('mica', s.active === true), () => undefined)
+  }, [state.theme])
   useAppFont()        // applies persisted font prefs to DOM on mount
   useUiScale()         // applies persisted window zoom (Settings → Escala de la interfaz)
   useNotificationClicks()   // clic en una notificación del sistema → abre el módulo
@@ -95,7 +102,7 @@ function AppShell(): JSX.Element {
   }, [dispatch])
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-sidebar text-on-surface font-sans">
+    <div className="shell-frame flex flex-col h-screen w-screen overflow-hidden bg-sidebar text-on-surface font-sans">
       <div className="flex flex-1 min-h-0">
       {!focusMode && <Sidebar />}
       <CommandPalette />

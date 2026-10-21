@@ -7,15 +7,17 @@ export interface AppFontPrefs {
 }
 
 const STORAGE_KEY = 'app:font-prefs'
-const DEFAULTS: AppFontPrefs = { fontFamily: 'Inter', fontSize: 'small' }
+const DEFAULTS: AppFontPrefs = { fontFamily: 'Windows', fontSize: 'small' }
 /**
  * v5: una sola fuente de UI (Inter, como Notion/Linear) y tamaño Compacto.
  * La monoespaciada queda sólo para código; ya no se ofrece como fuente de la app.
  */
 const DESIGN_KEY = 'app:design-v5-font'
+const DESIGN_V6_KEY = 'app:design-v6-font'
 
 /** Fuentes de interfaz permitidas (la monoespaciada es sólo para código). */
 export const APP_FONT_FAMILIES = [
+  { label: 'Windows', stack: "'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', 'Inter Variable', Inter, system-ui, sans-serif" },
   { label: 'Inter',   stack: "'Inter Variable', Inter, 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif" },
   { label: 'Sistema', stack: "-apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif" },
 ] as const
@@ -53,7 +55,12 @@ function readPrefs(): AppFontPrefs {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     const parsed = raw ? { ...DEFAULTS, ...JSON.parse(raw) } as AppFontPrefs : DEFAULTS
-    if (!APP_FONT_FAMILIES.some((f) => f.label === parsed.fontFamily)) parsed.fontFamily = 'Inter'
+    // v6: Segoe UI Variable (la de Windows 11) pasa a ser la de siempre; sólo cambia a quien seguía con Inter.
+    if (!localStorage.getItem(DESIGN_V6_KEY)) {
+      localStorage.setItem(DESIGN_V6_KEY, '1')
+      if (parsed.fontFamily === 'Inter') parsed.fontFamily = 'Windows'
+    }
+    if (!APP_FONT_FAMILIES.some((f) => f.label === parsed.fontFamily)) parsed.fontFamily = DEFAULTS.fontFamily
     return parsed
   } catch {
     return DEFAULTS

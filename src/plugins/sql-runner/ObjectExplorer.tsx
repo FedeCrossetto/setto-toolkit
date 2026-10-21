@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ListSkeleton, Skeleton } from '../../core/components/Skeleton'
 import {
   Activity, AtSign, ChevronRight, Unplug, CircleAlert, Copy, Eye, KeyRound, Pencil, Play, RefreshCw, ScrollText, Search,
   Server, SquareFunction, Table, Link, TextCursorInput, X, Zap, FileCode2, Database,
@@ -264,7 +265,7 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
             </div>
           )
         })()}
-        {loading && !objects && <p className="px-4 py-3 t-footnote text-on-surface-variant">Leyendo objetos…</p>}
+        {loading && !objects && <ListSkeleton rows={9} avatar={false} className="px-1!" />}
         {objects && groups.length === 0 && (
           <div className="px-4 py-6 text-center">
             <Database size={22} className="mx-auto text-on-surface-variant/50" />
@@ -300,7 +301,7 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
                       </span>
                       {o.rows != null && <span className="t-caption tabular-nums text-on-surface-variant/70 shrink-0">{compact(o.rows)}</span>}
                     </div>
-                    {c === 'loading' && <p className="pl-12 h-[24px] t-caption text-on-surface-variant">Cargando…</p>}
+                    {c === 'loading' && <div className="pl-12 pr-4 py-1.5 flex flex-col gap-1.5" aria-busy="true">{[70, 55, 62].map((w) => <Skeleton key={w} className="h-2.5" style={{ width: `${w}%` }} />)}</div>}
                     {c && c !== 'loading' && 'error' in c && <p className="pl-12 pr-2 py-1 t-caption text-error">{c.error}</p>}
                     {c && c !== 'loading' && !('error' in c) && (
                       <>

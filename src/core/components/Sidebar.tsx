@@ -58,8 +58,8 @@ function SidebarItem({
         <PluginIcon
           icon={plugin.icon}
           size={collapsed ? 18 : 16}
-          weight={active ? 'regular' : 'light'}
-          className={active ? 'text-on-surface' : 'text-on-surface-variant group-hover:text-on-surface'}
+          weight={active ? 'fill' : 'regular'}
+          className={active ? 'text-primary' : 'text-on-surface-variant group-hover:text-on-surface'}
         />
         {dirty && (
           <span title="Cambios sin guardar" className="absolute -top-0.5 -right-1 w-1.5 h-1.5 rounded-full bg-warning" />

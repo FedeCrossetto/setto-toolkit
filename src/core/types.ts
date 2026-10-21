@@ -3,7 +3,7 @@ import type { ComponentType, CSSProperties, LazyExoticComponent, ReactNode } fro
 /** Shape shared by lucide-react icons and our hand-rolled SVG icon components.
  *  A plain function signature (not ComponentType<...>) sidesteps a structural
  *  mismatch on lucide-react's `propTypes` static field under strict checks. */
-export type IconComponent = (props: { size?: number; className?: string; style?: CSSProperties; color?: string }) => ReactNode
+export type IconComponent = (props: { size?: number; className?: string; style?: CSSProperties; color?: string; weight?: 'light' | 'regular' | 'bold' | 'fill' }) => ReactNode
 
 export interface PluginManifest {
   id: string

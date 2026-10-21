@@ -4,6 +4,29 @@ Novedades de Setto por versión. Lo lee Ajustes → Acerca de → "Ver novedades
 
 ## 2.16.0 (sin publicar)
 
+### Diseño
+- Íconos nuevos: Fluent UI System Icons, los de Windows 11 y Office (el módulo activo de la barra lateral se ve relleno, en el color de acento). Los íconos de lenguajes del Editor siguen como estaban.
+- Fondo Mica de Windows 11: la barra lateral y la superior toman el tono del escritorio, como el Explorador. Se activa cuando el modo de Setto (claro u oscuro) coincide con el de Windows; se apaga en Ajustes → Apariencia.
+- Letra Segoe UI Variable (la de Windows 11) por defecto; Inter sigue disponible en Ajustes → Texto. El código usa JetBrains Mono y, si falta, Cascadia.
+- Avisos apilados: el más nuevo adelante y los anteriores asomando detrás; se abren al pasar el mouse, se cierran deslizándolos a la derecha y muestran cuánto les queda.
+- Esqueletos de carga con la forma del contenido en lugar de "Cargando…" (resultados y explorador de Consultas, Gastos, historial del Editor).
+- Estados vacíos con ilustración en el color de acento.
+
+### Correcciones
+- Ctrl+K: al escribir rápido y apretar Enter (o hacer clic) se abría un resultado de la búsqueda anterior. Los módulos, acciones y recientes ahora responden al instante; sólo lo externo espera.
+- Inicio: el tema oscuro se aplica antes de pintar también en la app instalada (el script estaba bloqueado por la política de seguridad y dejaba un error en el registro).
+- Terminal: las pestañas del mismo shell mantienen su número (cmd 1, cmd 2) al reordenarlas.
+- Consultas: en la vista apilada cada resultado toma el alto de sus filas y se puede agrandar arrastrando el borde de abajo (doble clic: alto automático).
+- Conexiones: pegar "ip,puerto" en el campo Servidor reparte la IP y el puerto en sus campos.
+- Widget: el clic ahora **copia** (como Ctrl+C) y el doble clic, Enter o 1–9 pegan en la app de adelante. Al pasar el mouse: botones Copiar y Pegar; la vista previa tiene "Copiar" como principal y las transformaciones (MAYÚSCULAS, sin espacios…) se copian. El historial se agrupa en Fijados / Recién / Hoy / Antes, con una barrita del color del tipo, y la confirmación dice "Copiado" o "Pegado". Ctrl+C copia el elegido.
+- Consultas: con varias consultas, los resultados se ven todos juntos, uno debajo del otro como en SSMS (pestaña "Todos"); "Ver solo este" o las pestañas Resultado N muestran uno solo, y se recuerda la preferencia.
+- Consultas: si una tabla "no existe" porque la consulta corrió en otra base (conexión sin base elegida → master), se avisa en qué base está y se ofrece "Ejecutar en wgdb_000" con un clic.
+- Conexiones: el puerto tiene su propio campo; cambiar la IP ya no obliga a reescribir ",puerto".
+- Terminal: renombrar pestañas con doble clic, F2 o clic derecho (antes la terminal se quedaba con el foco y lo escrito iba a la consola) y reordenarlas arrastrando o desde el menú.
+- Snippets: con scroll horizontal el código ya no pasa por encima de los números de línea; las imágenes pegadas se ven (en el editor, como miniaturas en vez de sólo `![img:…]`; en la vista, con Copiar imagen y Ver grande); las variables `{{…}}` se resaltan y se listan ("Pide: usuario, perfil"), y el editor explica cómo escribirlas y tiene un botón "Variable".
+- Widget y selector de snippets: pegar cerraba Setto instalado. El Ctrl+V se simulaba lanzando wscript con un .js y el antivirus de la empresa (CrowdStrike) mataba Setto.exe con ese patrón (código 0xE0000027). Ahora la tecla la manda el ayudante que ya está corriendo (con PowerShell de respaldo).
+- Widget: si el proceso de la barra se cae, se recarga sola; los cierres de ventanas quedan en el registro.
+
 ### Consultas
 - Autocompletado de T-SQL con las tablas, vistas, columnas y procedimientos de la base elegida (también `esquema.tabla`).
 - Resultados: exportar a Excel (.xlsx con encabezado fijo y filtros) y "Copiar como INSERT" (de a 1000 filas).

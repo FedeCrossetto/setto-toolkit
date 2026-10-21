@@ -87,7 +87,8 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
 `
 
 /**
- * Ayudante liviano sólo para `fg` (la barra lo consulta cada 2 s): un .exe de
+ * Ayudante liviano para `fg` (la barra lo consulta cada 2 s) y `paste` (Ctrl+V
+ * simulado al pegar desde la barra o el selector): un .exe de
  * consola chiquito compilado con el csc.exe de .NET Framework que trae Windows.
  * PowerShell ocupa ~80 MB de RAM; esto ~10 MB. Si no se puede compilar (sin
  * .NET 4, antivirus), `fg` vuelve a usar PowerShell.
@@ -103,6 +104,12 @@ static class SettoFgHelper {
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
   [DllImport("user32.dll")] static extern IntPtr GetShellWindow();
   [DllImport("user32.dll")] static extern IntPtr GetDesktopWindow();
+  [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+  // Ctrl+V a la ventana de adelante (KEYEVENTF_KEYUP = 2).
+  static void Paste() {
+    keybd_event(0x11, 0, 0, UIntPtr.Zero); keybd_event(0x56, 0, 0, UIntPtr.Zero);
+    keybd_event(0x56, 0, 2, UIntPtr.Zero); keybd_event(0x11, 0, 2, UIntPtr.Zero);
+  }
   static string Esc(string s) {
     var b = new StringBuilder();
     foreach (char c in s) {
@@ -136,8 +143,11 @@ static class SettoFgHelper {
       var m = Regex.Match(line, "\"id\"\\s*:\\s*(\\d+)");
       string id = m.Success ? m.Groups[1].Value : "0";
       try {
-        if (!line.Contains("\"fg\"")) throw new Exception("cmd?");
-        Console.Out.WriteLine("{\"id\":" + id + ",\"ok\":true,\"result\":" + Fg() + "}");
+        string result;
+        if (line.Contains("\"paste\"")) { Paste(); result = "true"; }
+        else if (line.Contains("\"fg\"")) result = Fg();
+        else throw new Exception("cmd?");
+        Console.Out.WriteLine("{\"id\":" + id + ",\"ok\":true,\"result\":" + result + "}");
       } catch (Exception e) {
         Console.Out.WriteLine("{\"id\":" + id + ",\"ok\":false,\"error\":\"" + Esc(e.Message) + "\"}");
       }
@@ -294,6 +304,19 @@ export async function foregroundWindow(): Promise<{ app: string; title: string; 
     }
   }
   return psWorker.call<Fg>('fg', {}, 5000)
+}
+
+/**
+ * Ctrl+V en la ventana de adelante con el ayudante que ya está corriendo. Antes se
+ * lanzaba wscript con un .js que mandaba la tecla: el antivirus de la empresa
+ * (CrowdStrike) mataba Setto.exe al instante (código 0xE0000027) con ese patrón.
+ */
+export async function sendPasteKeys(): Promise<boolean> {
+  if (process.platform !== 'win32' || fgFallback) return false
+  try { return (await fgWorker.call<boolean>('paste', {}, 3000)) === true } catch (err) {
+    logger.warn('fg-helper', `paste: ${err instanceof Error ? err.message : String(err)}`)
+    return false
+  }
 }
 
 export async function ocrImage(filePath: string): Promise<string | null> {

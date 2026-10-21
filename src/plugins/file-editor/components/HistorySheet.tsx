@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Diff, History, Loader2, RotateCcw } from 'lucide-react'
+import { ListSkeleton, Skeleton } from '../../../core/components/Skeleton'
+import { Diff, History, RotateCcw } from 'lucide-react'
 import { Sheet } from '../../../core/components/Modal'
 import type { HistoryEntry, OpenFile } from '../types'
 
@@ -94,7 +95,7 @@ export function HistorySheet({ open, tab, onClose, onRestore, onCompare }: Histo
       {!path ? (
         <p className="t-body text-on-surface-variant">Guardá el archivo para empezar a tener historial.</p>
       ) : entries === null ? (
-        <div className="flex items-center gap-2 t-footnote text-on-surface-variant"><Loader2 size={14} className="animate-spin" />Cargando versiones…</div>
+        <ListSkeleton rows={6} />
       ) : entries.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-10 text-center">
           <History size={28} className="text-on-surface-variant" />
@@ -132,7 +133,7 @@ export function HistorySheet({ open, tab, onClose, onRestore, onCompare }: Histo
           <div className="flex-1 min-w-0 flex flex-col rounded-lg hairline overflow-hidden">
             {error && <p className="px-3 py-2 t-footnote text-error hairline-b">{error}</p>}
             {preview === null ? (
-              <div className="flex items-center gap-2 p-3 t-footnote text-on-surface-variant"><Loader2 size={14} className="animate-spin" />Cargando…</div>
+              <div className="p-3 flex flex-col gap-2" aria-busy="true">{[86, 72, 90, 64, 78, 58].map((w) => <Skeleton key={w} className="h-3" style={{ width: `${w}%` }} />)}</div>
             ) : (
               <pre className="flex-1 overflow-auto p-3 t-caption font-mono text-on-surface bg-on-surface/2 whitespace-pre" aria-label="Vista previa (solo lectura)">{preview}</pre>
             )}

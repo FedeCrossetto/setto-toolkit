@@ -32,7 +32,7 @@ export function ActiveTicketBar({ ticket, onOpen, onJira, onClear }: { ticket: s
 export function LastCopiedCard({ clip, activeTicket, onPaste, onOpen, onError, onPinTicket, onDismiss }: {
   clip: ClipView
   activeTicket: string
-  /** Pegar este texto (transformado) en la app de antes */
+  /** Copiar este texto (transformado) al portapapeles */
   onPaste: (text: string) => void
   onOpen: (a: OpenAction) => void
   onError: (m: string) => void
@@ -64,7 +64,7 @@ export function LastCopiedCard({ clip, activeTicket, onPaste, onOpen, onError, o
           </button>
         ))}
         {transforms.map((t) => (
-          <button key={t.id} type="button" title={`Pegar: ${t.label}`} className={chip} onClick={() => onPaste(t.apply(clip.text))}>
+          <button key={t.id} type="button" title={`Copiar: ${t.label}`} className={chip} onClick={() => onPaste(t.apply(clip.text))}>
             <Wand2 size={11} className="text-primary shrink-0" /><span className="truncate">{t.label}</span>
           </button>
         ))}

@@ -55,6 +55,9 @@
     var(--app-font-family), Inter Variable, Inter, Segoe UI Variable Text,
     Segoe UI, system-ui, sans-serif;
 
+  /* Código: JetBrains Mono (incluida); si falta, Cascadia (Windows Terminal) y Consolas. */
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', 'Cascadia Code', 'Cascadia Mono', Consolas, monospace;
+
   /* Clases de radio → tokens de forma de la app (--r-*, en "Forma"). Mismo mapeo que en v3:
      los nombres de la app no pueden ser --radius-* porque son los del tema de Tailwind. */
   --radius-xs: var(--r-xs);
@@ -712,7 +715,7 @@ select option {
   border: 1px solid rgb(var(--c-outline-variant) / 0.25);
   border-radius: 4px;
   padding: 0.1em 0.35em;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: var(--font-mono);
   font-size: 0.9em;
 }
 .md-preview pre {
@@ -1048,3 +1051,20 @@ html.motion-subtle .spotlight::before, html.motion-off .spotlight::before { disp
 
 /* Consultas: línea con error en el editor */
 .cm-error-line { background-color: rgb(var(--c-error) / 0.13) !important; box-shadow: inset 3px 0 0 rgb(var(--c-error)); }
+
+/* Windows 11 — fondo Mica (html.mica, ver electron/core/mica.ts): el marco (barra lateral
+   y superior) deja ver el material; el panel de contenido sigue sólido. */
+html.mica, html.mica body { background: transparent !important; }
+html.mica .shell-frame { background-color: rgb(var(--c-sidebar) / 0.5); }
+html.dark.mica .shell-frame { background-color: rgb(var(--c-sidebar) / 0.42); }
+html.mica .shell-frame .bg-sidebar { background-color: transparent; }
+
+/* Toasts: barrita del tiempo que le queda (Toast.tsx) */
+@keyframes toast-timer { from { width: 100%; } to { width: 0%; } }
+.toast-timer { animation: toast-timer linear forwards; }
+html.motion-off .toast-timer { animation: none; display: none; }
+
+/* Estado vacío: la ilustración flota apenas (EmptyState.tsx) */
+@keyframes empty-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.empty-float { animation: empty-float 4.5s ease-in-out infinite; }
+html.motion-off .empty-float, html.motion-subtle .empty-float { animation: none; }

@@ -24,6 +24,7 @@
     "logo:set": "node scripts/set-logo.mjs"
   },
   "dependencies": {
+    "@fluentui/react-icons": "^2.0.344",
     "bufferutil": "^4.1.0",
     "chokidar": "^4.0.3",
     "electron-updater": "^6.3.0",

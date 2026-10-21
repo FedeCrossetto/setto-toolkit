@@ -3,7 +3,7 @@ import { Eye, EyeOff, KeyRound, Plug, SlidersHorizontal, Unplug } from 'lucide-r
 import { Modal } from '../../core/components/Modal'
 import { Field, Toggle } from '../../core/components/Form'
 import { SegmentedControl } from '../../core/components/SegmentedControl'
-import { friendlyError } from './sql-meta'
+import { friendlyError, joinServer, serverFromHostInput, splitServer } from './sql-meta'
 import { validateDraft, type SqlAuth, type SqlProfile, type SqlProfileDraft, type SqlTestResult } from '../connections/sql'
 
 /**
@@ -85,6 +85,7 @@ export function ConnectionFixDialog({ request, profiles, onClose, onSaved }: {
     : 'Se guarda cifrada en esta PC, junto a las de Conexiones → Bases de datos.'
   const err = (k: keyof typeof errors): string | undefined => (touched ? errors[k] : undefined)
   const input = 'ui-input w-full h-[34px] font-mono text-[12.5px]'
+  const { host, port } = splitServer(d.server)
   const ring = (on: boolean): string => (on ? 'ring-2 ring-primary/30' : '')
 
   const passwordField = (
@@ -142,11 +143,15 @@ export function ConnectionFixDialog({ request, profiles, onClose, onSaved }: {
           </div>
         )}
         <div className={full ? 'grid grid-cols-[1fr_160px] gap-3' : ''}>
-          <Field label={reason === 'server' && !expanded ? 'Servidor nuevo (IP o nombre)' : 'Servidor'} hint={err('server') ?? (full ? undefined : 'Con instancia o puerto si hace falta: 10.0.0.5\\SQL2019 o 10.0.0.5,1433')}>
-            <div className="relative">
-              <Plug size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-              <input value={d.server} onChange={(e) => set({ server: e.target.value })} spellCheck={false} autoFocus={reason === 'server'}
-                placeholder="10.0.0.5\SQL2019" className={`${input} pl-8 ${ring(reason === 'server')}`} />
+          <Field label={reason === 'server' && !expanded ? 'Servidor nuevo (IP o nombre)' : 'Servidor'} hint={err('server') ?? (full ? undefined : 'Con instancia si hace falta: 10.0.0.5\\SQL2019. El puerto va aparte.')}>
+            <div className="flex gap-2">
+              <div className="relative flex-1 min-w-0">
+                <Plug size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                <input value={host} onChange={(e) => set({ server: serverFromHostInput(e.target.value, port) })} spellCheck={false} autoFocus={reason === 'server'}
+                  placeholder="10.0.0.5" className={`${input} pl-8 ${ring(reason === 'server')}`} />
+              </div>
+              <input value={port} onChange={(e) => set({ server: joinServer(host, e.target.value.replace(/\D/g, '')) })} inputMode="numeric" spellCheck={false}
+                placeholder="Puerto" aria-label="Puerto" title="Puerto (vacío: el de siempre, 1433)" className={`${input} w-[84px]! text-center`} />
             </div>
           </Field>
           {full && (

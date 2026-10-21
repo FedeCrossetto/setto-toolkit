@@ -18,6 +18,8 @@ type SidePanel = 'history' | 'settings' | null
 interface SessionEntry {
   sessionId: string
   shellLabel: string
+  /** Número fijo entre las sesiones del mismo shell (no cambia al reordenar) */
+  seq: number
   shellCmd: string
   container: HTMLDivElement
   xterm: XTerminal
@@ -88,6 +90,9 @@ function usageTone(pct: number): { text: string; bg: string } {
   return { text: 'text-success!', bg: 'bg-success' }
 }
 
+/** Se está escribiendo el nombre de una pestaña: la terminal no debe robarle el foco. */
+const renamingNow = (): boolean => document.activeElement?.getAttribute('aria-label') === 'Nombre de la sesión'
+
 export function Terminal(): JSX.Element {
   const { state, dispatch } = useApp()
   // Tema completo de la app (Nord, Catppuccin…): con "Sistema" la terminal usa su pareja.
@@ -105,6 +110,10 @@ export function Terminal(): JSX.Element {
   const [customNames, setCustomNames]   = useState<Record<string, string>>({})
   const [editingId, setEditingId]       = useState<string | null>(null)
   const [editValue, setEditValue]       = useState('')
+  /** Pestaña que se está arrastrando y dónde caería (reordenar) */
+  const [dragId, setDragId]             = useState<string | null>(null)
+  const [dropAt, setDropAt]             = useState<{ id: string; after: boolean } | null>(null)
+  const [tabMenu, setTabMenu]           = useState<{ id: string; x: number; y: number } | null>(null)
   const [shellPickerOpen, setShellPickerOpen] = useState(false)
   const [pickerPos, setPickerPos]             = useState<{ top: number; left: number } | null>(null)
   const [claudeUsagePct, setClaudeUsagePct]   = useState<number | null>(null)
@@ -169,23 +178,46 @@ export function Terminal(): JSX.Element {
     setSidePanel(null)
     setTimeout(() => {
       const s = sessionsRef.current.get(id)
-      if (s) { try { s.fitAddon.fit() } catch { /* ignore */ } s.xterm.focus() }
+      if (s) { try { s.fitAddon.fit() } catch { /* ignore */ } if (!renamingNow()) s.xterm.focus() }
     }, 30)
   }, [])
 
-  // ── Tab click: switch if inactive, rename if already active ───────────────
-  const handleTabClick = useCallback((id: string, baseLabel: string) => {
+  // ── Tab click: cambia de sesión. Renombrar: doble clic, F2 o clic derecho ──
+  const handleTabClick = useCallback((id: string) => {
     if (editingId) return
-    setActiveId((cur) => {
-      if (cur === id) {
-        // Already active → start rename
-        startRename(id, baseLabel)
-        return cur
-      }
-      switchTab(id)
-      return id
+    if (id !== activeId || sidePanel) switchTab(id)
+  }, [editingId, activeId, sidePanel, switchTab])
+
+  /** Mover la pestaña `id` antes/después de `target` (arrastrar y soltar). */
+  const moveTab = useCallback((id: string, target: string, after: boolean) => {
+    if (id === target) return
+    setSessionIds((prev) => {
+      const rest = prev.filter((x) => x !== id)
+      const i = rest.indexOf(target)
+      if (i < 0) return prev
+      rest.splice(after ? i + 1 : i, 0, id)
+      return rest
     })
-  }, [editingId, startRename, switchTab])
+  }, [])
+
+  // F2 renombra la sesión activa (aunque el foco esté en la terminal).
+  useEffect(() => {
+    if (state.activeTabId !== 'terminal') return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'F2' || !activeId || editingId) return
+      e.preventDefault(); e.stopPropagation()
+      startRename(activeId, sessionsRef.current.get(activeId)?.shellLabel ?? 'shell')
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [state.activeTabId, activeId, editingId, startRename])
+
+  useEffect(() => {
+    if (!tabMenu) return
+    const close = (): void => setTabMenu(null)
+    const id = setTimeout(() => { document.addEventListener('mousedown', close); window.addEventListener('blur', close) }, 0)
+    return () => { clearTimeout(id); document.removeEventListener('mousedown', close); window.removeEventListener('blur', close) }
+  }, [tabMenu])
 
   // ── Close a tab ────────────────────────────────────────────────────────────
   const closeTab = useCallback(async (id: string) => {
@@ -301,8 +333,12 @@ export function Terminal(): JSX.Element {
     const ro = new ResizeObserver(() => { try { fitAddon.fit() } catch { /* ignore */ } })
     ro.observe(container)
 
+    // El número más chico libre entre las sesiones vivas del mismo shell.
+    const taken = new Set([...sessionsRef.current.values()].filter((x) => x.shellLabel === shellLabel).map((x) => x.seq))
+    let seq = 1
+    while (taken.has(seq)) seq++
     sessionsRef.current.set(sessionId, {
-      sessionId, shellLabel, shellCmd, container, xterm, fitAddon, exited: false,
+      sessionId, shellLabel, seq, shellCmd, container, xterm, fitAddon, exited: false,
       cleanup: () => { offData(); offExit(); inputDispose.dispose(); resizeDispose.dispose(); ro.disconnect() },
     })
 
@@ -457,7 +493,7 @@ export function Terminal(): JSX.Element {
     if (!sidePanel && activeId) {
       setTimeout(() => {
         const s = sessionsRef.current.get(activeId)
-        if (s) { try { s.fitAddon.fit() } catch { /* ignore */ } s.xterm.focus() }
+        if (s) { try { s.fitAddon.fit() } catch { /* ignore */ } if (!renamingNow()) s.xterm.focus() }
       }, 50)
     }
   }, [sidePanel, activeId])
@@ -466,17 +502,17 @@ export function Terminal(): JSX.Element {
 
   // ── Deduplicate tab labels ─────────────────────────────────────────────────
   const tabLabels: Record<string, string> = (() => {
+    // Con varias del mismo shell, cada una muestra su número fijo (reordenar no las renumera).
     const total: Record<string, number> = {}
-    const used:  Record<string, number> = {}
     for (const id of sessionIds) {
       const lbl = sessionsRef.current.get(id)?.shellLabel ?? 'shell'
       total[lbl] = (total[lbl] ?? 0) + 1
     }
     const out: Record<string, string> = {}
     for (const id of sessionIds) {
-      const lbl = sessionsRef.current.get(id)?.shellLabel ?? 'shell'
-      used[lbl] = (used[lbl] ?? 0) + 1
-      out[id]   = (total[lbl] ?? 0) > 1 ? `${lbl} ${used[lbl]}` : lbl
+      const s = sessionsRef.current.get(id)
+      const lbl = s?.shellLabel ?? 'shell'
+      out[id] = (total[lbl] ?? 0) > 1 ? `${lbl} ${s?.seq ?? 1}` : lbl
     }
     return out
   })()
@@ -505,9 +541,22 @@ export function Terminal(): JSX.Element {
             return (
               <div
                 key={id}
-                onClick={() => handleTabClick(id, baseLabel)}
-                title={isActive && !isEditing ? 'Clic para renombrar' : undefined}
-                className={`group flex items-center gap-1.5 h-[30px] pl-2.5 pr-1.5 shrink-0 select-none rounded-[9px] border t-footnote transition-colors ${
+                draggable={!isEditing}
+                onDragStart={(e) => { setDragId(id); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/x-setto-term', id) }}
+                onDragOver={(e) => {
+                  if (!dragId || dragId === id) return
+                  e.preventDefault()
+                  const r = e.currentTarget.getBoundingClientRect()
+                  const after = e.clientX > r.left + r.width / 2
+                  if (dropAt?.id !== id || dropAt.after !== after) setDropAt({ id, after })
+                }}
+                onDrop={(e) => { e.preventDefault(); if (dragId && dropAt) moveTab(dragId, dropAt.id, dropAt.after); setDragId(null); setDropAt(null) }}
+                onDragEnd={() => { setDragId(null); setDropAt(null) }}
+                onClick={() => handleTabClick(id)}
+                onDoubleClick={() => startRename(id, baseLabel)}
+                onContextMenu={(e) => { e.preventDefault(); setTabMenu({ id, x: e.clientX, y: e.clientY }) }}
+                title={isEditing ? undefined : 'Doble clic o F2: renombrar · Arrastrá para reordenar'}
+                className={`group relative flex items-center gap-1.5 h-[30px] pl-2.5 pr-1.5 shrink-0 select-none rounded-[9px] border t-footnote transition-colors ${dragId === id ? 'opacity-40' : ''} ${
                   isActive ? 'nav-active font-medium' : 'border-transparent hover:bg-on-surface/4'
                 } ${
                   isExited ? 'text-on-surface-variant/50' : isActive ? 'text-on-surface' : 'text-on-surface-variant'
@@ -518,6 +567,9 @@ export function Terminal(): JSX.Element {
                   minWidth: 96,
                 }}
               >
+                {dropAt?.id === id && (
+                  <span aria-hidden className={`absolute top-1 bottom-1 w-[2px] rounded-full bg-primary ${dropAt.after ? '-right-[3px]' : '-left-[3px]'}`} />
+                )}
                 <SquareTerminal size={12} className="shrink-0 opacity-60" />
 
                 {isEditing ? (
@@ -527,6 +579,7 @@ export function Terminal(): JSX.Element {
                     onChange={(e) => setEditValue(e.target.value)}
                     onKeyDown={handleRenameKey}
                     onBlur={commitRename}
+                    onFocus={(e) => e.currentTarget.select()}
                     onClick={(e) => e.stopPropagation()}
                     aria-label="Nombre de la sesión"
                     className="bg-surface text-on-surface outline-hidden t-footnote min-w-0 flex-1 rounded px-1 shadow-[0_0_0_2px_rgb(var(--c-primary)/0.5)]"
@@ -555,6 +608,23 @@ export function Terminal(): JSX.Element {
           })}
 
         </div>{/* end scrollable tabs */}
+
+        {tabMenu && (() => {
+          const i = sessionIds.indexOf(tabMenu.id)
+          const item = 'w-full flex items-center gap-2 h-[30px] px-2.5 rounded-[7px] text-left t-footnote text-on-surface hover:bg-on-surface/6 disabled:opacity-40 disabled:pointer-events-none'
+          const run = (fn: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); setTabMenu(null); fn() }
+          return (
+            <div role="menu" onMouseDown={(e) => e.stopPropagation()} className="ui-menu fixed z-50 w-[200px] p-1!" style={{ top: tabMenu.y, left: tabMenu.x }}>
+              <button type="button" role="menuitem" className={item} onClick={run(() => startRename(tabMenu.id, tabLabels[tabMenu.id] ?? 'shell'))}>
+                Renombrar <kbd className="kbd-chip ml-auto">F2</kbd>
+              </button>
+              <button type="button" role="menuitem" className={item} disabled={i <= 0} onClick={run(() => moveTab(tabMenu.id, sessionIds[i - 1]!, false))}>Mover a la izquierda</button>
+              <button type="button" role="menuitem" className={item} disabled={i < 0 || i >= sessionIds.length - 1} onClick={run(() => moveTab(tabMenu.id, sessionIds[i + 1]!, true))}>Mover a la derecha</button>
+              <div className="h-px my-1 bg-(--hairline)" />
+              <button type="button" role="menuitem" className={item} onClick={run(() => void closeTab(tabMenu.id))}>Cerrar sesión</button>
+            </div>
+          )
+        })()}
 
         {/* New session button — OUTSIDE overflow container */}
         <button

@@ -24,6 +24,7 @@ import { registerBackup } from './core/backup-service'
 import { registerCaptureScheme } from './plugins/captures/handlers'
 import { installIpcGuard } from './core/ipc-guard'
 import { registerRemoteImage } from './core/remote-image'
+import { applySavedTheme, micaActive, micaWindowOptions, registerMica } from './core/mica'
 
 // E2E tests pass --user-data-dir so each run gets an isolated profile.
 // Must run before app.ready — after that the path is locked in.
@@ -227,6 +228,7 @@ function createWindow(): void {
     titleBarStyle: 'hidden',
     // Neutro claro: evita filtrado azulado en bordes con tema light; el contenido oscuro cubre en dark.
     backgroundColor: '#F4F4F5', // igual al fondo de la pantalla de apertura (index.html)
+    ...micaWindowOptions(micaActive(settingsRef)),   // Windows 11: fondo Mica (core/mica.ts)
     show: false,
     autoHideMenuBar: true,
     icon: getWindowIcon(),
@@ -353,6 +355,15 @@ if (process.platform === 'win32') {
 
 // Si el servicio de red de Chromium se cae mientras la ventana todavía está cargando,
 // la carga queda colgada para siempre (sin did-fail-load). Recargar cuando se reinicia.
+// Cualquier ventana (principal, barra, selector) cuyo proceso se cae o se cuelga: dejar
+// rastro en app.log (en producción no hay consola) para poder diagnosticarlo.
+app.on('render-process-gone', (_e, wc, details) => {
+  logger.error('main', 'render process gone', { url: wc.getURL().replace(/^.*#/, '#'), reason: details.reason, exitCode: details.exitCode })
+})
+app.on('web-contents-created', (_e, wc) => {
+  wc.on('unresponsive', () => logger.warn('main', 'ventana sin responder', { url: wc.getURL().replace(/^.*#/, '#') }))
+})
+
 app.on('child-process-gone', (_e, details) => {
   if (details.type !== 'Utility' || !/network/i.test(details.serviceName ?? details.name ?? '')) return
   logger.warn('main', 'network service gone', { reason: details.reason })
@@ -417,6 +428,8 @@ app.whenReady().then(() => {
 
   // Register all plugin IPC handlers
   loadPlugins(ipcMain, services)
+  registerMica(ipcMain, settings, liveWindow)
+  applySavedTheme(settings)
 
   // ── One-time IPC handlers (must not be inside createWindow — it can be called again on macOS) ──
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ListSkeleton } from '../../core/components/Skeleton'
 import { FileUp, ListPlus, PiggyBank, Plus, RefreshCw, Repeat } from 'lucide-react'
 import { useToast } from '../../core/components/Toast'
 import { useConfirm } from '../../core/components/Modal'
@@ -388,7 +389,7 @@ export function GastosPlugin(): JSX.Element {
         {setupNeeded ? (
           <SetupEmpty checking={checking} onCheck={() => { void verificar() }} />
         ) : store.loading && !hasData ? (
-          <p className="t-footnote text-on-surface-variant py-16 text-center">Cargando gastos…</p>
+          <ListSkeleton rows={7} className="ui-card" />
         ) : blocking ? (
           <div className="ui-card px-6 py-10 flex flex-col items-center gap-3 text-center">
             <p className="t-headline text-on-surface">No se pudieron cargar los gastos</p>

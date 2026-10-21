@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { GridSkeleton } from '../../core/components/Skeleton'
 import {
-  CheckCircle2, CircleAlert, Clock, Columns2, Copy, Gauge, History, Info, Pencil, Star, Trash2, PanelLeft, Plus, RotateCcw, Server, ShieldCheck, ShieldAlert, X,
+  CheckCircle2, CircleAlert, Clock, Columns2, Copy, Gauge, History, Info, Layers, Pencil, Star, Trash2, PanelLeft, Plus, RotateCcw, Server, ShieldCheck, ShieldAlert, X,
 } from 'lucide-react'
 import { useApp, useModuleSubtitle, usePluginIntent } from '../../core/AppContext'
 import { useModulePrimaryAction } from '../../core/module-actions'
@@ -24,13 +25,13 @@ import { Pop } from '../../core/components/Pop'
 import { celebrate } from '../../core/fx'
 import { editBlocker, usedDatabase, type EditTarget } from './edit-script'
 import { friendlyError } from './sql-meta'
-import type { QueryFavorite, QueryHistoryEntry, QueryResult, QueryTab, QueryTabsState } from './types'
+import type { QueryFavorite, QueryHistoryEntry, QueryResult, QuerySet, QueryTab, QueryTabsState } from './types'
 import { ResultGrid, type GridEditing } from './ResultGrid'
 import { CompareView } from './CompareView'
 import { DatabaseSelect, ProfileSelect } from './ProfileSelect'
 import { ConnectionFixDialog, type FixRequest } from './ConnectionFixDialog'
 import { ObjectExplorer, type OpenScript } from './ObjectExplorer'
-import { buildSqlSchema, connectionProblem, type SqlSchemaTree } from './sql-meta'
+import { buildSqlSchema, connectionProblem, missingObject, type SqlSchemaTree } from './sql-meta'
 import { envTone, SqlServerIcon, TONE } from './env'
 
 /**
@@ -49,14 +50,23 @@ const ZOOM_KEY = 'sql-runner:zoom'
 const FONT_KEY = 'sql-runner:font-size'
 
 interface RunState {
-  runId: string; running: boolean; startedAt: number; result: QueryResult | null; view: number | 'messages'
+  runId: string; running: boolean; startedAt: number; result: QueryResult | null; view: ResultView
   /** Lo que se ejecutó (para volver a correrlo después de aplicar cambios de la grilla) */
   text?: string; lineOffset?: number
   /** Edición de resultados: tabla y clave primaria, o por qué no se puede */
   edit?: { target: EditTarget | null; blocker: string | null }
   /** Filas recién guardadas con Commit (destellan al refrescar) */
   flash?: { keys: string[]; until: number }
+  /** "Invalid object name": en qué base corrió y en cuáles existe el objeto */
+  locate?: { object: string; current: string; found: string[] }
 }
+
+/** Qué se ve abajo: un resultado, todos apilados (como SSMS) o los mensajes. */
+type ResultView = number | 'all' | 'messages'
+const LAYOUT_KEY = 'sql-runner:results-layout'
+/** Con varios resultados: apilados (por defecto) o en pestañas. Se recuerda. */
+const prefersStack = (): boolean => { try { return localStorage.getItem(LAYOUT_KEY) !== 'tabs' } catch { return true } }
+const firstView = (sets: number): ResultView => (!sets ? 'messages' : sets > 1 && prefersStack() ? 'all' : 0)
 
 const newTab = (n: number, profileId: string | null): QueryTab => ({
   id: crypto.randomUUID(), title: `Consulta ${n}`, sql: '', profileId, database: '', readOnly: true, updatedAt: Date.now(),
@@ -242,12 +252,32 @@ export function SqlRunner(): JSX.Element {
     if (typeof result.line === 'number') result.line += lineOffset
     const problem = connectionProblem(result)
     if (problem) setFix({ profileId: profile.id, reason: problem, error: result.error, retry: () => void executeRef.current() })
-    setRuns((r) => ({ ...r, [tab.id]: { runId, running: false, startedAt: r[tab.id]?.startedAt ?? Date.now(), result, view: result.sets.length ? 0 : 'messages', text, lineOffset, ...(commitFlash.current && result.ok ? { flash: { keys: commitFlash.current, until: Date.now() + 4000 } } : {}) } }))
+    setRuns((r) => ({ ...r, [tab.id]: { runId, running: false, startedAt: r[tab.id]?.startedAt ?? Date.now(), result, view: firstView(result.sets.length), text, lineOffset, ...(commitFlash.current && result.ok ? { flash: { keys: commitFlash.current, until: Date.now() + 4000 } } : {}) } }))
     commitFlash.current = null
     if (result.ok && result.sets.length) void finishEdit(tab.id, runId, text, result, editPrep)
+    const missing = missingObject(result)
+    if (missing && !usedDatabase(text)) void locateObject(tab.id, runId, missing)
     if (!tab.named) { const t = tabTitle(tab.sql, tab.title); if (t !== tab.title) patchTab(tab.id, { title: t }) }
   }
   const cancel = (): void => { if (run?.running) void window.api.invoke('sql:cancel', run.runId) }
+
+  /** La tabla no existe en la base donde corrió: buscar en qué bases está (suele ser que no había base elegida). */
+  const locateObject = async (tabId: string, runId: string, object: string): Promise<void> => {
+    try {
+      const r = await window.api.invoke<QueryResult>('sql:meta', { profileId: profile!.id, database: tab!.database, kind: 'locate', table: object })
+      if (!r.ok) return
+      const current = String(r.sets[0]?.rows[0]?.[0] ?? '')
+      const found = (r.sets[1]?.rows ?? []).map((x) => String(x[0])).filter((d) => d !== current)
+      setRuns((m) => (m[tabId]?.runId === runId ? { ...m, [tabId]: { ...m[tabId]!, locate: { object, current, found } } } : m))
+    } catch { /* sin datos: queda el error tal cual */ }
+  }
+  /** Elegir la base en la pestaña y volver a correr lo mismo. */
+  const runInDatabase = (db: string): void => {
+    if (!tab || !run?.text) return
+    patchTab(tab.id, { database: db })
+    const again = { text: run.text, lineOffset: run.lineOffset ?? 0 }
+    setTimeout(() => void executeRef.current('all', again), 0)
+  }
 
   // ── Edición de resultados (como DataGrip) ──
   /** Busca la clave primaria de la tabla del FROM y decide si el resultado se puede editar. */
@@ -593,7 +623,7 @@ export function SqlRunner(): JSX.Element {
             </div>
             {/* Resultados */}
             <div className="flex-1 min-h-0 flex flex-col bg-surface">
-              <Results run={run} onGotoLine={(l) => editorRef.current?.focusLine?.(l)}
+              <Results run={run} onGotoLine={(l) => editorRef.current?.focusLine?.(l)} onUseDatabase={runInDatabase}
                 onView={(v) => setRuns((r) => (r[tab.id] ? { ...r, [tab.id]: { ...r[tab.id]!, view: v } } : r))}
                 name={tab.title} table={guessTable(run?.text ?? tab.sql)}
                 editing={run?.result?.ok && run.result.sets.length ? {
@@ -642,10 +672,36 @@ function guessTable(sql: string): string | undefined {
   return /\bfrom\s+((?:\[[^\]]+\]|[\w#]+)(?:\.(?:\[[^\]]+\]|\w+))*)/i.exec(sql)?.[1]
 }
 
-function Results({ run, onGotoLine, onView, name, table, editing }: {
+/**
+ * Un resultado en la vista apilada: alto según sus filas (barra + encabezado + ~20 px
+ * por fila, hasta un tope) y una manija abajo para agrandarlo o achicarlo.
+ */
+function StackedGrid({ set, name }: { set: QuerySet; name: string }): JSX.Element {
+  const auto = Math.max(96, Math.min(420, 72 + 20 * set.rows.length))
+  const [height, setHeight] = useState<number | null>(null)
+  const startDrag = (e: React.PointerEvent): void => {
+    e.preventDefault()
+    const y0 = e.clientY
+    const h0 = height ?? auto
+    const move = (ev: PointerEvent): void => setHeight(Math.max(96, Math.min(1600, Math.round(h0 + ev.clientY - y0))))
+    const up = (): void => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up) }
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up)
+  }
+  return (
+    <div className="relative" style={{ height: height ?? auto }}>
+      <ResultGrid set={set} name={name} />
+      <div role="separator" aria-orientation="horizontal" title="Arrastrá para cambiar el alto · doble clic: alto automático"
+        onPointerDown={startDrag} onDoubleClick={() => setHeight(null)}
+        className="absolute inset-x-0 -bottom-[3px] h-[6px] z-20 cursor-row-resize hover:bg-primary/40 transition-colors" />
+    </div>
+  )
+}
+
+function Results({ run, onGotoLine, onUseDatabase, onView, name, table, editing }: {
   run: RunState | undefined
   onGotoLine: (line: number) => void
-  onView: (v: number | 'messages') => void
+  onUseDatabase: (db: string) => void
+  onView: (v: ResultView) => void
   name: string
   table?: string
   editing?: GridEditing
@@ -670,7 +726,7 @@ function Results({ run, onGotoLine, onView, name, table, editing }: {
     )
   }
   if (run.running) {
-    return <div className="flex-1 grid place-items-center t-body text-on-surface-variant"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-primary animate-pulse" /> Ejecutando…</span></div>
+    return <GridSkeleton />
   }
   const r = run.result!
   const view = run.view
@@ -678,8 +734,15 @@ function Results({ run, onGotoLine, onView, name, table, editing }: {
   return (
     <>
       <div className="flex items-center gap-1 px-2 h-[36px] hairline-b shrink-0 overflow-x-auto scrollbar-hide">
+        {r.sets.length > 1 && (
+          <button type="button" onClick={() => { onView('all'); try { localStorage.setItem(LAYOUT_KEY, 'stack') } catch { /* nada */ } }}
+            title="Todos los resultados, uno debajo del otro (como SSMS)"
+            className={`shrink-0 h-[26px] px-2.5 rounded-[7px] text-[12px] transition-colors flex items-center gap-1.5 ${view === 'all' ? 'nav-active text-on-surface font-medium' : 'border border-transparent text-on-surface-variant hover:text-on-surface'}`}>
+            <Layers size={12} /> Todos <span className="tabular-nums opacity-70">{r.sets.length}</span>
+          </button>
+        )}
         {r.sets.map((s, i) => (
-          <button key={i} type="button" onClick={() => onView(i)}
+          <button key={i} type="button" onClick={() => { onView(i); if (r.sets.length > 1) try { localStorage.setItem(LAYOUT_KEY, 'tabs') } catch { /* nada */ } }}
             className={`shrink-0 h-[26px] px-2.5 rounded-[7px] text-[12px] transition-colors ${view === i ? 'nav-active text-on-surface font-medium' : 'border border-transparent text-on-surface-variant hover:text-on-surface'}`}>
             {r.sets.length > 1 ? `Resultado ${i + 1}` : 'Resultado'} <span className="tabular-nums opacity-70">{s.total.toLocaleString('es-AR')}</span>
           </button>
@@ -701,8 +764,34 @@ function Results({ run, onGotoLine, onView, name, table, editing }: {
           )}
         </div>
       )}
+      {!r.ok && run.locate && (
+        <div className="flex items-center flex-wrap gap-x-2 gap-y-1.5 px-3 py-2 bg-primary/[0.06] hairline-b shrink-0 t-footnote text-on-surface">
+          <Info size={14} className="text-primary shrink-0" />
+          <span>
+            Corrió en <b className="font-semibold">{run.locate.current || 'la base por defecto'}</b>
+            {run.locate.found.length ? <>, pero <span className="font-mono">{run.locate.object}</span> está en:</> : <> y <span className="font-mono">{run.locate.object}</span> no está en ninguna base a la que tengas acceso.</>}
+          </span>
+          {run.locate.found.slice(0, 4).map((d) => (
+            <button key={d} type="button" onClick={() => onUseDatabase(d)} className="ui-btn ui-btn-primary ui-btn-sm">Ejecutar en {d}</button>
+          ))}
+        </div>
+      )}
       <div className="flex-1 min-h-0">
-        {set ? <ResultGrid key={view} set={set} name={name} table={table} editing={view === 0 ? editing : undefined} flash={view === 0 ? run.flash : undefined} /> : (
+        {view === 'all' ? (
+          <div className="h-full overflow-y-auto">
+            {r.sets.map((s, i) => (
+              <section key={i} className="hairline-b">
+                <div className="sticky top-0 z-20 flex items-center gap-2 px-3 h-[28px] bg-surface-container-low hairline-b t-caption text-on-surface-variant">
+                  <span className="font-semibold text-on-surface">Resultado {i + 1}</span>
+                  <span className="tabular-nums">{s.total.toLocaleString('es-AR')} {s.total === 1 ? 'fila' : 'filas'} · {s.columns.length} {s.columns.length === 1 ? 'columna' : 'columnas'}</span>
+                  <span className="flex-1" />
+                  <button type="button" onClick={() => onView(i)} className="hover:text-on-surface hover:underline underline-offset-2">Ver solo este</button>
+                </div>
+                <StackedGrid set={s} name={`${name} (${i + 1})`} />
+              </section>
+            ))}
+          </div>
+        ) : set ? <ResultGrid key={view} set={set} name={name} table={table} editing={view === 0 ? editing : undefined} flash={view === 0 ? run.flash : undefined} /> : (
           <div className="h-full overflow-auto px-3 py-2 font-mono text-[12px] leading-[19px] text-on-surface">
             {(() => {
               const st = parseStats(r.messages)

@@ -61,7 +61,7 @@ const INVOKE_CHANNELS = new Set([
   'notes:list', 'notes:read', 'notes:write', 'notes:delete', 'notes:set-pinned',
   'notes:today', 'notes:get-dir', 'notes:choose-dir', 'notes:reveal',
   'tickets:list', 'tickets:get', 'tickets:pin', 'tickets:add', 'tickets:forget', 'tickets:set-title', 'tickets:export',
-  'app:notify',
+  'app:notify', 'app:mica', 'app:set-mica',
   'snippet-picker:shortcut', 'snippet-picker:paste',
   'clipboard:history', 'clipboard:clear', 'clipboard:remove', 'clipboard:copy', 'clipboard:set-enabled',
   'clipboard:pin', 'clipboard:open-path', 'clipboard:queue-set', 'clipboard:queue-state', 'clipboard:queue-advance', 'clipboard:queue-clear',
@@ -76,6 +76,7 @@ const INVOKE_CHANNELS = new Set([
 
 /** Channels the renderer may send (fire-and-forget → main) */
 const SEND_CHANNELS = new Set([
+  'app:theme',
   'window:minimize', 'window:maximize', 'window:close',
   'app:renderer-error', 'app:dirty',
   'page:find', 'page:find-stop',
@@ -112,7 +113,7 @@ const ON_CHANNELS = new Set([
 /** Barra flotante (`#dock`, src/dock/**, incl. resumen y alta rápida de Gastos y el Bloc de notas). */
 const DOCK_CHANNELS = new Set([
   'app:open-in-main', 'app:renderer-error', 'app:version',
-  'dock:state', 'dock:paste', 'dock:bump', 'dock:drag',
+  'dock:state', 'dock:paste', 'dock:copy-text', 'dock:bump', 'dock:drag',
   'dock:expand', 'dock:collapse', 'dock:pin', 'dock:want-focus', 'dock:quick-capture', 'dock:move', 'dock:move-end',
   'dock:move-reset', 'dock:set-side',
   'clipboard:history', 'clipboard:copy', 'clipboard:remove', 'clipboard:pin', 'clipboard:open-path', 'clipboard:ocr-image',

@@ -7,7 +7,7 @@ import { logger } from '../../core/logger'
 import { runQuery, shutdownWorkers, warmUp } from './query-runner'
 import { splitBatches } from '../../../src/plugins/sql-runner/sql-text'
 import { pkSql } from '../../../src/plugins/sql-runner/edit-script'
-import { childrenSql, COMPLETION_SQL, DATABASES_SQL, definitionSql, OBJECTS_SQL, type MetaKind } from '../../../src/plugins/sql-runner/sql-meta'
+import { childrenSql, COMPLETION_SQL, DATABASES_SQL, definitionSql, locateSql, OBJECTS_SQL, type MetaKind } from '../../../src/plugins/sql-runner/sql-meta'
 import type { QueryFavorite, QueryHistoryEntry, QueryResult, QueryTabsState } from '../../../src/plugins/sql-runner/types'
 import {
   buildConnectionString, buildSqlcmd, validateDraft,
@@ -179,6 +179,7 @@ export const handlers: PluginHandlers = {
             : req.kind === 'definition' ? definitionSql(Number(req.objectId))
               : req.kind === 'completion' ? COMPLETION_SQL
                 : req.kind === 'pk' ? pkSql(String(req.table ?? ''))
+                  : req.kind === 'locate' ? locateSql(String(req.table ?? ''))
               : null
       if (!sql) throw new Error('Consulta de catálogo desconocida')
       const database = req.kind === 'databases' ? (prof.database || 'master') : ((req.database ?? '').trim() || prof.database)

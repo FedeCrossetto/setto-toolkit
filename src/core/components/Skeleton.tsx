@@ -28,6 +28,26 @@ export function ListSkeleton({ rows = 5, avatar = true, className = '' }: { rows
   )
 }
 
+/** Grilla de resultados mientras corre una consulta: encabezado y filas con columnas de anchos variados. */
+export function GridSkeleton({ rows = 8, cols = 5, label = 'Ejecutando…' }: { rows?: number; cols?: number; label?: string }): JSX.Element {
+  const widths = [110, 160, 90, 140, 120, 100, 150]
+  return (
+    <div className="flex-1 min-h-0 overflow-hidden px-3 py-3" aria-busy="true" aria-label={label}>
+      <div className="flex items-center gap-2 mb-3 t-footnote text-on-surface-variant">
+        <span className="w-2 h-2 rounded-full bg-primary animate-pulse" /> {label}
+      </div>
+      <div className="flex gap-3 pb-2 hairline-b">
+        {Array.from({ length: cols }, (_, c) => <Skeleton key={c} className="h-3.5" style={{ width: widths[c % widths.length] }} />)}
+      </div>
+      {Array.from({ length: rows }, (_, r) => (
+        <div key={r} className="flex gap-3 py-2 hairline-b" style={{ opacity: 1 - r * (0.7 / rows) }}>
+          {Array.from({ length: cols }, (_, c) => <Skeleton key={c} className="h-3" style={{ width: widths[(c + r) % widths.length]! - 20 }} />)}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /** Detalle mientras carga: título, subtítulo y un bloque grande. */
 export function DetailSkeleton(): JSX.Element {
   return (
