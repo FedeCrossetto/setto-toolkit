@@ -56,7 +56,7 @@ export function DetailSkeleton(): JSX.Element {
         <Skeleton className="h-5 w-56" />
         <Skeleton className="h-3 w-36" />
       </div>
-      <Skeleton className="h-48 w-full rounded-[14px]" />
+      <Skeleton className="h-48 w-full rounded-(--r-lg)" />
       <div className="flex flex-col gap-2">
         {[80, 64, 72].map((w, i) => <Skeleton key={i} className="h-3" style={{ width: `${w}%` }} />)}
       </div>

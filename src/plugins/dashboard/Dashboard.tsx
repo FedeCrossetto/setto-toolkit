@@ -592,7 +592,8 @@ export function Dashboard(): JSX.Element {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch">{lower}</div>
-        {widgets.length > 0 && <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-4 gap-3 items-start">{widgets}</div>}
+        {/* Los widgets que haya se reparten todo el ancho (sin huecos al final de la fila). */}
+        {widgets.length > 0 && <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-3 items-stretch">{widgets}</div>}
       </div>
     </div>
   )

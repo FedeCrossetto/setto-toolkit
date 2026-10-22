@@ -503,12 +503,12 @@ export function CredentialsPlugin(): JSX.Element {
     { value: 'risk' as const, label: 'En riesgo', ...(riskCount ? { count: riskCount } : {}) },
   ]
 
-  const emptyText = items.length === 0
-    ? 'Todavía no guardaste credenciales.'
-    : search ? 'Sin resultados.'
-    : filter === 'fav' ? 'Marcá credenciales con la estrella para verlas acá.'
-    : filter === 'risk' ? 'Ninguna contraseña débil ni repetida.'
-    : 'Sin resultados.'
+  const empty = items.length === 0
+    ? { icon: KeyRound, title: 'Todavía no hay claves', text: 'Agregá una con el botón +.' }
+    : search ? { icon: Search, title: 'Sin resultados', text: 'Probá con otra búsqueda.' }
+    : filter === 'fav' ? { icon: Star, title: 'Sin favoritas', text: 'Marcá claves con la estrella para verlas acá.' }
+    : filter === 'risk' ? { icon: ShieldCheck, title: 'Todo en orden', text: 'Ninguna contraseña débil ni repetida.' }
+    : { icon: Search, title: 'Sin resultados', text: 'Probá con otro filtro.' }
 
 
   // Barra superior: "Nueva clave" y cuántas hay.
@@ -518,10 +518,10 @@ export function CredentialsPlugin(): JSX.Element {
   return (
     <div ref={rootRef} className="flex h-full overflow-hidden bg-background">
       {/* ── List ────────────────────────────────────────────────────────── */}
-      <aside className="w-[340px] shrink-0 flex flex-col bg-surface hairline-r overflow-hidden">
-        <div className="px-[14px] pt-[16px] pb-[10px] shrink-0 flex flex-col gap-[10px]">
-          <div className="flex items-center gap-2 pl-1 min-h-[30px]">
-            <h2 className="t-title3 text-on-surface">Claves</h2>
+      <aside className="pane-list shrink-0 flex flex-col hairline-r overflow-hidden">
+        <div className="px-3 pt-4 pb-2 shrink-0 flex flex-col gap-3">
+          <div className="flex items-center gap-2 pl-1.5 min-h-6">
+            <h2 className="t-headline text-on-surface">Claves</h2>
             <span className="t-caption font-medium tabular-nums text-on-surface-variant/70">{items.length}</span>
             {lock?.pinEnabled && (
               <button
@@ -655,7 +655,7 @@ export function CredentialsPlugin(): JSX.Element {
           ) : loading && !data ? (
             <ListSkeleton rows={6} />
           ) : groups.length === 0 ? (
-            <p className="t-footnote text-on-surface-variant px-3 py-6 text-center">{emptyText}</p>
+            <EmptyState compact icon={empty.icon} title={empty.title} description={empty.text} />
           ) : (
             groups.map((g) => (
               <div key={g.key}>
@@ -730,7 +730,7 @@ export function CredentialsPlugin(): JSX.Element {
       {/* ── Detail ──────────────────────────────────────────────────────── */}
       <main className="flex-1 min-w-0 overflow-y-auto">
         {editing ? (
-          <div className="max-w-[720px] mx-auto px-6 py-6">
+          <div className="pane-detail">
             <CredentialEditor
               key={editing}
               initial={editing === 'new' ? null : items.find((c) => c.id === editing) ?? null}
@@ -742,7 +742,8 @@ export function CredentialsPlugin(): JSX.Element {
             />
           </div>
         ) : selected ? (
-          <div className="max-w-[720px] mx-auto px-6 py-6">
+          // Pantallas anchas: la ficha y, al costado, actividad y claves relacionadas.
+          <div className="pane-detail grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px] items-start">
             <CredentialView
               key={selected.id}
               c={selected}
@@ -761,6 +762,7 @@ export function CredentialsPlugin(): JSX.Element {
               onOpenSync={() => setSyncOpen(true)}
               onResolveConflict={(choice) => void resolveConflict(selected, choice)}
             />
+            <CredentialAside c={selected} usage={usageOf(selected)} items={items} onPick={setSelectedId} />
           </div>
         ) : items.length ? (
           <QuickAccess
@@ -899,6 +901,50 @@ function CredentialRow({
 
 // ── Home: quick access ───────────────────────────────────────────────────────
 
+/** Al costado de la ficha: cuánto se usa y las claves del mismo sitio o categoría (un clic para ir). */
+function CredentialAside({ c, usage, items, onPick }: {
+  c: Credential
+  usage: Usage
+  items: Credential[]
+  onPick: (id: string) => void
+}): JSX.Element {
+  const host = displayHost(c.url)
+  const related = items
+    .filter((x) => x.id !== c.id && ((host && displayHost(x.url) === host) || (c.categoria && x.categoria === c.categoria)))
+    .slice(0, 6)
+  const when = relativeTime(usage.lastUsedAt)
+  return (
+    <aside className="flex flex-col gap-4">
+      <section className="ui-card p-4 flex flex-col gap-3">
+        <h3 className="t-section">Actividad</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <div className="t-title3 text-on-surface tabular-nums">{usage.useCount}</div>
+            <div className="t-caption text-on-surface-variant">{usage.useCount === 1 ? 'vez copiada' : 'veces copiada'}</div>
+          </div>
+          <div>
+            <div className="t-body font-semibold text-on-surface">{when || '—'}</div>
+            <div className="t-caption text-on-surface-variant">último uso</div>
+          </div>
+        </div>
+      </section>
+      <section className="ui-card p-2 flex flex-col">
+        <h3 className="t-section px-2 pt-2 pb-1.5">{host ? `También en ${host}` : c.categoria ? `Más de ${c.categoria}` : 'Relacionadas'}</h3>
+        {related.length ? related.map((x) => (
+          <button key={x.id} type="button" onClick={() => onPick(x.id)}
+            className="flex items-center gap-2.5 px-2 py-1.5 rounded-[8px] text-left hover:bg-on-surface/5 transition-colors min-w-0">
+            <Avatar name={x.nombre} url={x.url} user={x.usuario} size={26} />
+            <span className="flex-1 min-w-0">
+              <span className="block t-footnote font-medium text-on-surface truncate">{x.nombre}</span>
+              <span className="block t-caption text-on-surface-variant truncate">{x.usuario || displayHost(x.url) || '—'}</span>
+            </span>
+          </button>
+        )) : <p className="t-caption text-on-surface-variant px-2 pb-2">Ninguna otra del mismo sitio o categoría.</p>}
+      </section>
+    </aside>
+  )
+}
+
 function Kbd({ children }: { children: React.ReactNode }): JSX.Element {
   return <kbd className="kbd-chip">{children}</kbd>
 }
@@ -921,7 +967,7 @@ function QuickAccess({
   }
   const locked = !!lock?.pinEnabled && !lock.unlocked
   return (
-    <div className="max-w-[760px] mx-auto px-8 py-8" style={{ animation: 'fadeIn 0.2s ease both' }}>
+    <div className="pane-detail" style={{ animation: 'fadeIn 0.2s ease both' }}>
       <div className="flex items-end justify-between gap-4 mb-4">
         <div>
           <h1 className="t-title2 text-on-surface">Acceso rápido</h1>

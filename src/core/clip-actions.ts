@@ -1,5 +1,6 @@
 import {
-  Braces, Clock, Database, ExternalLink, FolderOpen, Images, KeyRound, NotebookPen, Code2, type LucideIcon,
+  AtSign, Braces, Clock, Columns2, Database, ExternalLink, Fingerprint, FolderOpen, Grid3x3, Images, KeyRound, Link, ListOrdered,
+  NotebookPen, Code2, Ticket, TriangleAlert, Type, type LucideIcon,
 } from 'lucide-react'
 import type { ClipKind } from './clip-utils'
 import { findTicket } from './clip-utils'
@@ -69,4 +70,10 @@ export function actionsFor(kind: ClipKind, text: string): ClipAction[] {
 export const KIND_LABEL: Record<ClipKind, string> = {
   ticket: 'Ticket', url: 'Link', path: 'Ruta', json: 'JSON', jwt: 'JWT', stacktrace: 'Error', guid: 'GUID',
   timestamp: 'Timestamp', sql: 'SQL', email: 'Email', table: 'Tabla', list: 'Lista', code: 'Código', text: 'Texto',
+}
+
+/** Ícono de cada tipo de copiado (mismo criterio en el widget y en Portapapeles). */
+export const KIND_ICON: Record<ClipKind, LucideIcon> = {
+  ticket: Ticket, url: Link, path: FolderOpen, json: Braces, jwt: KeyRound, stacktrace: TriangleAlert, guid: Fingerprint,
+  timestamp: Clock, sql: Grid3x3, email: AtSign, table: Columns2, list: ListOrdered, code: Code2, text: Type,
 }

@@ -230,7 +230,7 @@ export function Annotator({ entry, onClose, onSave }: {
 
   return createPortal(
     <motion.div {...backdropMotion} className="fixed inset-0 z-700 bg-black/60 backdrop-blur-[2px] flex flex-col p-4 gap-3">
-      <motion.div {...dialogMotion} className="fl-dialog rounded-[12px]! flex items-center gap-1.5 px-2 py-1.5 self-center">
+      <motion.div {...dialogMotion} className="fl-dialog flex items-center gap-1.5 px-2 py-1.5 self-center">
         {TOOLS.map((t) => {
           const Icon = t.icon
           return (

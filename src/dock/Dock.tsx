@@ -769,7 +769,7 @@ export function Dock(): JSX.Element {
                       className={`relative h-8 flex items-center justify-center gap-1.5 rounded-[9px] transition-colors duration-150 ${
                         on ? 'px-2.5 text-on-surface' : 'w-8 text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.05]'}`}>
                       {on && <motion.span layoutId="dock-tab" className="nav-active absolute inset-0 rounded-[9px]" transition={{ duration: 0.28, ease: EASE_OUT }} />}
-                      <Icon size={15} className={`relative z-10 shrink-0 ${on ? 'text-primary' : ''}`} />
+                      <Icon size={15} weight={on ? 'fill' : 'regular'} className={`relative z-10 shrink-0 ${on ? 'text-primary' : ''}`} />
                       {on && <motion.span layout="position" className="relative z-10 text-[12px] font-medium whitespace-nowrap">{t.label}</motion.span>}
                       {!on && n > 0 && words.length > 0 && (
                         <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-primary text-on-primary text-[9px] font-semibold grid place-items-center">{n}</span>

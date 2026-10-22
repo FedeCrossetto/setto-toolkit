@@ -129,9 +129,9 @@ export function SnippetEditor({
   }
 
   return (
-    <div className="h-full overflow-y-auto px-6 py-6">
-      <div className="max-w-3xl mx-auto bg-surface hairline rounded-xl">
-      <div className="pl-6 pr-4 h-14 hairline-b flex items-center gap-2 sticky top-0 z-10 bg-surface rounded-t-xl">
+    <div className="h-full overflow-y-auto">
+      <div className="w-full">
+      <div className="pl-6 pr-4 h-14 hairline-b flex items-center gap-2 sticky top-0 z-10 bg-background">
         <h2 className="t-headline text-on-surface flex-1 truncate">{isNew ? 'Nuevo snippet' : 'Editar snippet'}</h2>
         <button onClick={onCancel} className="ui-btn ui-btn-outline">Cancelar</button>
         <button onClick={onSave} disabled={!canSave} className="ui-btn ui-btn-primary" title="Guardar (Ctrl+S)">Guardar</button>

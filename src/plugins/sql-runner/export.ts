@@ -97,34 +97,64 @@ function colName(i: number): string {
   return s
 }
 
+export interface XlsxSheet { name: string; columns: string[]; rows: (string | null)[][]; types?: string[] }
+
 /** Libro de Excel con una hoja: encabezado en negrita, fijo y con filtros; números como números. */
 export function buildXlsx(columns: string[], rows: (string | null)[][], types: string[] = [], sheetName = 'Resultado'): Uint8Array<ArrayBuffer> {
-  const sheet = sheetName.replace(/[[\]:*?/\\]/g, ' ').slice(0, 31) || 'Resultado'
-  const last = `${colName(Math.max(columns.length - 1, 0))}${rows.length + 1}`
-  const widths = columns.map((c, j) => Math.min(60, Math.max(8, c.length + 2, ...rows.slice(0, 200).map((r) => (r[j]?.length ?? 4) + 1))))
-  const cell = (v: string | null, r: number, c: number, header: boolean): string => {
-    const ref = `${colName(c)}${r}`
-    if (v === null) return ''
-    if (!header && isNumericType(types[c]) && /^-?\d+(\.\d+)?(E[+-]?\d+)?$/i.test(v)) return `<c r="${ref}"><v>${v}</v></c>`
-    return `<c r="${ref}" t="inlineStr"${header ? ' s="1"' : ''}><is><t xml:space="preserve">${xml(v)}</t></is></c>`
+  return buildXlsxBook([{ name: sheetName, columns, rows, types }])
+}
+
+/** Libro con varias hojas (p. ej. todos los resultados de una consulta, uno por hoja). */
+export function buildXlsxBook(sheets: XlsxSheet[]): Uint8Array<ArrayBuffer> {
+  // Nombres de hoja: sin caracteres prohibidos, hasta 31 y sin repetir.
+  const used = new Set<string>()
+  const names = sheets.map((sh, k) => {
+    const base = sh.name.replace(/[[\]:*?/\\]/g, ' ').slice(0, 28).trim() || `Resultado ${k + 1}`
+    let n = base
+    for (let i = 2; used.has(n.toLowerCase()); i++) n = `${base} (${i})`
+    used.add(n.toLowerCase())
+    return n
+  })
+  const sheetXml = (sh: XlsxSheet): string => {
+    const { columns, rows } = sh
+    const types = sh.types ?? []
+    const last = `${colName(Math.max(columns.length - 1, 0))}${rows.length + 1}`
+    const widths = columns.map((c, j) => Math.min(60, Math.max(8, c.length + 2, ...rows.slice(0, 200).map((r) => (r[j]?.length ?? 4) + 1))))
+    const cell = (v: string | null, r: number, c: number, header: boolean): string => {
+      const ref = `${colName(c)}${r}`
+      if (v === null) return ''
+      if (!header && isNumericType(types[c]) && /^-?\d+(\.\d+)?(E[+-]?\d+)?$/i.test(v)) return `<c r="${ref}"><v>${v}</v></c>`
+      return `<c r="${ref}" t="inlineStr"${header ? ' s="1"' : ''}><is><t xml:space="preserve">${xml(v)}</t></is></c>`
+    }
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+      + '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+      + (widths.length ? `<cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols>` : '')
+      + '<sheetData>'
+      + `<row r="1">${columns.map((c, j) => cell(c || `Columna${j + 1}`, 1, j, true)).join('')}</row>`
+      + rows.map((r, i) => `<row r="${i + 2}">${r.map((v, j) => cell(v, i + 2, j, false)).join('')}</row>`).join('')
+      + '</sheetData>'
+      + (columns.length ? `<autoFilter ref="A1:${last}"/>` : '')
+      + '</worksheet>'
   }
-  const sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-    + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-    + '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
-    + `<cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols>`
-    + '<sheetData>'
-    + `<row r="1">${columns.map((c, j) => cell(c || `Columna${j + 1}`, 1, j, true)).join('')}</row>`
-    + rows.map((r, i) => `<row r="${i + 2}">${r.map((v, j) => cell(v, i + 2, j, false)).join('')}</row>`).join('')
-    + '</sheetData>'
-    + (columns.length ? `<autoFilter ref="A1:${last}"/>` : '')
-    + '</worksheet>'
+  const n = sheets.length
+  const range = (k: number): number[] => Array.from({ length: k }, (_, i) => i)
+  const filters = sheets.map((sh, i) => (sh.columns.length
+    ? `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${xml(names[i]!).replace(/'/g, "''")}'!$A$1:$${colName(sh.columns.length - 1)}$${sh.rows.length + 1}</definedName>`
+    : '')).join('')
   const files = [
-    { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
+    { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+      + range(n).map((i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')
+      + '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
     { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
-    { name: 'xl/workbook.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${xml(sheet)}" sheetId="1" r:id="rId1"/></sheets>${columns.length ? `<definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">'${xml(sheet).replace(/'/g, "''")}'!$A$1:$${colName(columns.length - 1)}$${rows.length + 1}</definedName></definedNames>` : ''}</workbook>` },
-    { name: 'xl/_rels/workbook.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
+    { name: 'xl/workbook.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'
+      + range(n).map((i) => `<sheet name="${xml(names[i]!)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')
+      + `</sheets>${filters ? `<definedNames>${filters}</definedNames>` : ''}</workbook>` },
+    { name: 'xl/_rels/workbook.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      + range(n).map((i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')
+      + `<Relationship Id="rId${n + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>` },
     { name: 'xl/styles.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEDEDF0"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs></styleSheet>' },
-    { name: 'xl/worksheets/sheet1.xml', data: sheetXml },
+    ...sheets.map((sh, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheetXml(sh) })),
   ]
   return zipStore(files.map((f) => ({ name: f.name, data: enc.encode(f.data) })))
 }

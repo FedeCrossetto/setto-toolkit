@@ -20,7 +20,7 @@ export function StatTile({ visual, label, value, delta, deltaTone = 'neutral', s
   const Tag = onClick ? 'button' : 'div'
   return (
     <Tag type={onClick ? 'button' : undefined} onClick={onClick} title={title}
-      className={`spotlight group relative flex flex-col min-w-0 rounded-[14px] p-4 pt-3 text-left bg-on-surface/[0.025] dark:bg-black/35 ring-1 ring-on-surface/[0.06] overflow-hidden ${onClick ? 'hover:ring-on-surface/12 transition-shadow cursor-pointer' : ''}`}>
+      className={`spotlight group relative flex flex-col min-w-0 rounded-(--r-lg) p-4 pt-3 text-left bg-on-surface/[0.025] dark:bg-black/35 ring-1 ring-on-surface/[0.06] overflow-hidden ${onClick ? 'hover:ring-on-surface/12 transition-shadow cursor-pointer' : ''}`}>
       <div className="h-[86px] flex items-center justify-center">{visual}</div>
       <span className="t-footnote text-on-surface-variant mt-2">{label}</span>
       <span className="flex items-baseline gap-2 min-w-0">
@@ -86,6 +86,14 @@ export function GlowRing({ pct, color, center }: { pct: number | null; color: st
       strokeDasharray={`${Math.max(p * C, p > 0 ? 0.01 : 0)} ${C}`} transform="rotate(-90 40 40)"
       style={{ transition: 'stroke-dasharray 900ms var(--ease-mac)' }} />
   )
+  // Sin dato: sólo el contorno punteado (la tarjeta ya dice "Sin definir", "sin cargar"…).
+  if (pct === null && center === undefined) {
+    return (
+      <svg viewBox="0 0 80 80" width={80} height={80} aria-hidden>
+        <circle cx={40} cy={40} r={R} fill="none" stroke="rgb(var(--c-on-surface) / 0.14)" strokeWidth={1.5} strokeDasharray="3 5" strokeLinecap="round" />
+      </svg>
+    )
+  }
   return (
     <div className="relative w-[80px] h-[80px]">
       <svg viewBox="0 0 80 80" width={80} height={80} className="overflow-visible" aria-hidden>

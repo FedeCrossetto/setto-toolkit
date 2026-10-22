@@ -452,7 +452,7 @@ export function SnippetManager(): JSX.Element {
   return (
     <div ref={rootRef} className="flex h-full overflow-hidden bg-background">
       {/* ── Sidebar ─────────────────────────────────────────────────────── */}
-      <aside className="w-56 shrink-0 flex flex-col fl-pane hairline-r overflow-hidden">
+      <aside className="pane-nav shrink-0 flex flex-col hairline-r overflow-hidden">
         <div className="px-3 pt-4 pb-2 shrink-0 space-y-3">
           <div className="flex items-center gap-2 pl-1.5">
             <h2 className="t-headline text-on-surface">Snippets</h2>
@@ -564,8 +564,8 @@ export function SnippetManager(): JSX.Element {
       </aside>
 
       {/* ── List ────────────────────────────────────────────────────────── */}
-      <section className="w-72 shrink-0 flex flex-col hairline-r overflow-hidden">
-        <div className="h-14 pl-4 pr-3 flex items-center gap-2 hairline-b shrink-0">
+      <section className="pane-list shrink-0 flex flex-col hairline-r overflow-hidden">
+        <div className="pl-4 pr-3 pt-4 pb-3 flex items-center gap-2 hairline-b shrink-0">
           <div className="flex-1 min-w-0">
             <div className="t-headline text-on-surface truncate">{sourceTitle}</div>
             <div className="t-caption text-on-surface-variant/80 mt-0.5">
@@ -707,8 +707,8 @@ function SnippetDetail({
   const withVars = hasVariables(snippet.content)
 
   return (
-    <div className="h-full overflow-y-auto px-6 py-6 flex flex-col">
-      <article className="w-full max-w-[920px] mx-auto flex-1 min-h-[420px] flex flex-col bg-surface hairline rounded-xl overflow-hidden">
+    <div className="h-full overflow-y-auto flex flex-col">
+      <article className="w-full flex-1 min-h-[420px] flex flex-col">
         <header className="pl-6 pr-4 pt-5 pb-4 flex items-start gap-3 hairline-b shrink-0">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 min-w-0">

@@ -13,7 +13,8 @@ const DEFAULTS: AppFontPrefs = { fontFamily: 'Windows', fontSize: 'small' }
  * La monoespaciada queda sólo para código; ya no se ofrece como fuente de la app.
  */
 const DESIGN_KEY = 'app:design-v5-font'
-const DESIGN_V6_KEY = 'app:design-v6-font'
+// v7 (antes v6): la v6 marcaba la migración sin guardarla y dejaba a la gente en Inter; se repite.
+const DESIGN_V6_KEY = 'app:design-v7-font'
 
 /** Fuentes de interfaz permitidas (la monoespaciada es sólo para código). */
 export const APP_FONT_FAMILIES = [
@@ -56,9 +57,14 @@ function readPrefs(): AppFontPrefs {
     const raw = localStorage.getItem(STORAGE_KEY)
     const parsed = raw ? { ...DEFAULTS, ...JSON.parse(raw) } as AppFontPrefs : DEFAULTS
     // v6: Segoe UI Variable (la de Windows 11) pasa a ser la de siempre; sólo cambia a quien seguía con Inter.
+    // Se guarda ya: readPrefs se llama varias veces (arranque, App, Ajustes) y la marca v6
+    // haría que las siguientes lecturas vuelvan a ver "Inter".
     if (!localStorage.getItem(DESIGN_V6_KEY)) {
       localStorage.setItem(DESIGN_V6_KEY, '1')
-      if (parsed.fontFamily === 'Inter') parsed.fontFamily = 'Windows'
+      if (parsed.fontFamily === 'Inter') {
+        parsed.fontFamily = 'Windows'
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
+      }
     }
     if (!APP_FONT_FAMILIES.some((f) => f.label === parsed.fontFamily)) parsed.fontFamily = DEFAULTS.fontFamily
     return parsed

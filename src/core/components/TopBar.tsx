@@ -36,7 +36,7 @@ export function TopBar(): JSX.Element {
             {subtitle && (
               <>
                 <span aria-hidden className="text-on-surface-variant/40 text-[13px] shrink-0">/</span>
-                <span className="text-[13px] text-on-surface-variant truncate min-w-0" title={subtitle}>{subtitle}</span>
+                <span className="text-[13px] text-on-surface/70 truncate min-w-0" title={subtitle}>{subtitle}</span>
               </>
             )}
           </>
@@ -47,11 +47,13 @@ export function TopBar(): JSX.Element {
         key={primary?.label ?? 'nuevo'}
         onClick={() => (primary ? primary.run() : window.dispatchEvent(new CustomEvent('setto:quick-capture')))}
         title={primary ? primary.title ?? primary.label : 'Captura rápida (Ctrl+Shift+Espacio)'}
-        className="no-drag ui-btn ui-btn-outline ui-btn-sm h-(--control-h) px-3 shrink-0"
+        aria-label={primary?.label ?? 'Captura rápida'}
+        // Sin acción propia del módulo, la captura rápida queda como un "+" discreto.
+        className={`no-drag ui-btn ui-btn-sm h-(--control-h) shrink-0 ${primary ? 'ui-btn-outline px-3' : 'ui-btn-ghost ui-btn-icon w-(--control-h)!'}`}
         style={{ animation: 'fadeIn 0.18s ease both' }}
       >
-        <Plus size={13} />
-        {primary?.label ?? 'Nuevo'}
+        <Plus size={primary ? 13 : 15} />
+        {primary?.label}
       </button>
 
       <WindowControls />

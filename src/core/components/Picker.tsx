@@ -81,7 +81,7 @@ export function Picker({ value, items, onPick, trigger, title, placeholder = 'Bu
       {open && createPortal(
         <motion.div initial={{ opacity: 0, y: -4, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.14, ease: [0.2, 0.8, 0.2, 1] }}
           role="listbox" onKeyDown={onKey}
-          className="fixed z-700 fl-dialog rounded-[12px]! overflow-hidden flex flex-col max-h-[min(420px,70vh)]"
+          className="fixed z-700 fl-dialog overflow-hidden flex flex-col max-h-[min(420px,70vh)]"
           style={{ left: pos.left, top: pos.top, width, transformOrigin: 'top left' }}>
           <div className="relative p-1.5 hairline-b">
             <Search size={13} className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />

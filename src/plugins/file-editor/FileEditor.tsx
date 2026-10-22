@@ -2006,7 +2006,7 @@ function EmptyState({ onOpen, recents = [], onOpenRecent }: { onOpen: () => void
       {recents.length > 0 && onOpenRecent && (
         <div className="w-full max-w-[420px] text-left">
           <p className="t-section uppercase tracking-[0.08em] px-1 mb-1.5">Recientes</p>
-          <div className="flex flex-col gap-px rounded-[12px] ring-1 ring-(--hairline) bg-on-surface/[0.015] p-1">
+          <div className="flex flex-col gap-px rounded-(--r-lg) ring-1 ring-(--hairline) bg-on-surface/[0.015] p-1">
             {recents.slice(0, 6).map((r) => {
               const Icon = languageIcon(detectLanguage(r.name))
               const dir = r.path.replace(/[\\/][^\\/]*$/, '')

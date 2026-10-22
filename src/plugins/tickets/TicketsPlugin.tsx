@@ -92,7 +92,7 @@ export function TicketsPlugin(): JSX.Element {
 
   return (
     <div className="flex h-full min-h-0">
-      <aside className="w-64 shrink-0 flex flex-col fl-pane hairline-r overflow-hidden">
+      <aside className="pane-list shrink-0 flex flex-col hairline-r overflow-hidden">
         <div className="px-3 pt-4 pb-2 shrink-0 space-y-3">
           <div className="flex items-center gap-2 pl-1.5">
             <h2 className="t-headline text-on-surface">Tickets</h2>
@@ -142,9 +142,9 @@ export function TicketsPlugin(): JSX.Element {
             </button>
           ))}
           {loaded && !shown.length && (
-            <p className="t-footnote text-on-surface-variant px-2 py-3">
-              {query ? 'Ningún ticket coincide.' : 'Cuando copies, captures o anotes una clave como WIGOS-132764 aparece acá.'}
-            </p>
+            <EmptyState compact icon={query ? Search : Ticket}
+              title={query ? 'Sin resultados' : 'Todavía no hay tickets'}
+              description={query ? 'Ningún ticket coincide.' : 'Cuando copies, captures o anotes una clave como WIGOS-132764 aparece acá.'} />
           )}
         </nav>
       </aside>
@@ -237,7 +237,7 @@ function TicketPage({ ticketKey, rev, onChanged, onForget }: { ticketKey: string
   const copyKey = (): void => { void navigator.clipboard.writeText(d.key).then(() => toast.show(`${d.key} copiado`, 'success')) }
 
   return (
-    <div className="px-6 py-5 max-w-5xl mx-auto w-full flex flex-col gap-5">
+    <div className="page">
       <header className="flex flex-col gap-3">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="icon-tile w-8 h-8"><Ticket size={16} /></span>

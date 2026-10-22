@@ -443,7 +443,7 @@ export function ApiLab(): JSX.Element {
     <div className="flex h-full overflow-hidden">
 
       {/* ── Left panel: collections / environments ───────────────────────── */}
-      <aside className="w-72 shrink-0 hairline-r flex flex-col fl-pane overflow-hidden">
+      <aside className="pane-list shrink-0 hairline-r flex flex-col overflow-hidden">
 
         {/* Tab toggle */}
         <div className="flex items-center justify-center h-[42px] hairline-b shrink-0 px-2">

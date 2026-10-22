@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ListSkeleton, Skeleton } from '../../core/components/Skeleton'
+import { Skeleton } from '../../core/components/Skeleton'
 import {
   Activity, AtSign, ChevronRight, Unplug, CircleAlert, Copy, Eye, KeyRound, Pencil, Play, RefreshCw, ScrollText, Search,
   Server, SquareFunction, Table, Link, TextCursorInput, X, Zap, FileCode2, Database,
@@ -178,7 +178,7 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
       {/* Conexión */}
       <div className="px-3 pt-3 pb-2.5 hairline-b">
         <button type="button" onClick={() => setInfoOpen((v) => !v)} aria-expanded={infoOpen}
-          className="w-full flex items-center gap-2.5 p-2 -m-1 rounded-[12px] text-left hover:bg-on-surface/4 transition-colors">
+          className="w-full flex items-center gap-2.5 p-2 -m-1 rounded-(--r-md) text-left hover:bg-on-surface/4 transition-colors">
           <span className="relative grid place-items-center w-10 h-10 rounded-[11px] bg-linear-to-b from-on-surface/8 to-on-surface/3 ring-1 ring-on-surface/10 shrink-0">
             <SqlServerIcon size={24} />
             <span className={`absolute -right-0.5 -bottom-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-surface ${!t ? 'bg-on-surface/30' : t.ok ? 'bg-success' : 'bg-error'}`}
@@ -244,7 +244,7 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
           const fe = friendlyError(error.text, error.problem)
           const Icon = error.problem === 'auth' ? KeyRound : error.problem ? Unplug : CircleAlert
           return (
-            <div className="mx-3 my-3 rounded-[14px] ring-1 ring-error/20 bg-error/[0.05] px-4 pt-4 pb-3 flex flex-col items-center text-center">
+            <div className="mx-3 my-3 rounded-(--r-lg) ring-1 ring-error/20 bg-error/[0.05] px-4 pt-4 pb-3 flex flex-col items-center text-center">
               <span className="grid place-items-center w-10 h-10 rounded-[12px] bg-error/12 text-error mb-2.5"><Icon size={18} /></span>
               <p className="t-body font-semibold text-on-surface">{fe.title}</p>
               <p className="t-caption text-on-surface-variant mt-0.5">{fe.hint}</p>
@@ -265,7 +265,16 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
             </div>
           )
         })()}
-        {loading && !objects && <ListSkeleton rows={9} avatar={false} className="px-1!" />}
+        {loading && !objects && (
+          <div className="px-3 py-2 flex flex-col gap-2.5" aria-busy="true" aria-label="Leyendo objetos…">
+            {[62, 48, 70, 55, 40, 66, 52, 44, 58].map((w, i) => (
+              <div key={i} className="flex items-center gap-2" style={{ paddingLeft: i % 4 === 0 ? 0 : 14, opacity: 1 - i * 0.07 }}>
+                <Skeleton className="w-3.5 h-3.5 rounded-[4px] shrink-0" />
+                <Skeleton className="h-2.5" style={{ width: `${w}%` }} />
+              </div>
+            ))}
+          </div>
+        )}
         {objects && groups.length === 0 && (
           <div className="px-4 py-6 text-center">
             <Database size={22} className="mx-auto text-on-surface-variant/50" />

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { buildXlsxBook } from './export'
 import { GridSkeleton } from '../../core/components/Skeleton'
 import {
-  CheckCircle2, CircleAlert, Clock, Columns2, Copy, Gauge, History, Info, Layers, Pencil, Star, Trash2, PanelLeft, Plus, RotateCcw, Server, ShieldCheck, ShieldAlert, X,
+  CheckCircle2, CircleAlert, Clock, Columns2, Copy, FileSpreadsheet, Gauge, History, Info, Layers, Pencil, Star, Trash2, PanelLeft, Plus, RotateCcw, Server, ShieldCheck, ShieldAlert, X,
 } from 'lucide-react'
 import { useApp, useModuleSubtitle, usePluginIntent } from '../../core/AppContext'
 import { useModulePrimaryAction } from '../../core/module-actions'
@@ -586,16 +587,17 @@ export function SqlRunner(): JSX.Element {
             <DatabaseSelect value={tab.database} fallback={profile?.database ?? ''} databases={databases} onChange={(db) => patchTab(tab.id, { database: db })} />
             <button type="button" onClick={() => patchTab(tab.id, { readOnly: !tab.readOnly })}
               title={tab.readOnly ? 'Modo lectura: lo que cambies se deshace al final (rollback). Clic para apagarlo.' : 'Modo lectura apagado: los cambios se aplican. Clic para encenderlo.'}
-              className={`flex items-center gap-1.5 h-[30px] px-3 rounded-[8px] border text-[12px] font-medium transition-colors ${
-                tab.readOnly ? 'border-success/35 text-success bg-success/8' : 'border-warning/45 text-warning bg-warning/10'}`}>
-              {tab.readOnly ? <ShieldCheck size={13} /> : <ShieldAlert size={13} />}
+              // Lo normal (solo lectura) va discreto; la escritura, que es lo riesgoso, sí se marca.
+              className={`flex items-center gap-1.5 h-[30px] px-2.5 rounded-[8px] border text-[12px] font-medium transition-colors ${
+                tab.readOnly ? 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-on-surface/5' : 'border-warning/45 text-warning bg-warning/10'}`}>
+              {tab.readOnly ? <ShieldCheck size={13} className="text-success" /> : <ShieldAlert size={13} weight="fill" />}
               {tab.readOnly ? 'Solo lectura' : 'Escritura'}
             </button>
             <button type="button" onClick={() => patchTab(tab.id, { stats: !tab.stats })} aria-pressed={!!tab.stats}
               title={tab.stats ? 'Estadísticas activas: lecturas y tiempos de cada consulta (SET STATISTICS IO, TIME). Clic para apagarlas.' : 'Mostrar lecturas y tiempos de cada consulta (para ver por qué tarda)'}
               className={`flex items-center gap-1.5 h-[30px] px-2.5 rounded-[8px] border text-[12px] font-medium transition-colors ${
-                tab.stats ? 'border-primary/40 text-primary bg-primary/10' : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-on-surface/5'}`}>
-              <Gauge size={13} /> Estadísticas
+                tab.stats ? 'border-transparent text-on-surface bg-on-surface/[0.07]' : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-on-surface/5'}`}>
+              <Gauge size={13} weight={tab.stats ? 'fill' : 'regular'} className={tab.stats ? 'text-primary' : ''} /> Estadísticas
             </button>
             <span className="flex-1" />
             {!run?.running && result && (
@@ -779,6 +781,20 @@ function Results({ run, onGotoLine, onUseDatabase, onView, name, table, editing 
       <div className="flex-1 min-h-0">
         {view === 'all' ? (
           <div className="h-full overflow-y-auto">
+            <div className="flex items-center justify-end gap-2 px-3 h-[34px] hairline-b">
+              <button type="button" className="ui-btn ui-btn-outline ui-btn-sm" title="Un archivo de Excel con una hoja por resultado"
+                onClick={() => {
+                  const blob = new Blob([buildXlsxBook(r.sets.map((s, i) => ({ name: `Resultado ${i + 1}`, columns: s.columns, rows: s.rows, types: s.types })))],
+                    { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+                  const a = document.createElement('a')
+                  a.href = URL.createObjectURL(blob)
+                  a.download = `${name.replace(/[^\w.-]+/g, '_') || 'resultados'}.xlsx`
+                  a.click()
+                  setTimeout(() => URL.revokeObjectURL(a.href), 2000)
+                }}>
+                <FileSpreadsheet size={13} /> Exportar todo a Excel
+              </button>
+            </div>
             {r.sets.map((s, i) => (
               <section key={i} className="hairline-b">
                 <div className="sticky top-0 z-20 flex items-center gap-2 px-3 h-[28px] bg-surface-container-low hairline-b t-caption text-on-surface-variant">
@@ -975,7 +991,7 @@ function HistorySheet({ open, onClose, closed, onReopen, onOpen, onCleared, favs
               className="flex items-start gap-2.5 px-2.5 py-2 rounded-[9px] text-left hover:bg-on-surface/5 transition-colors">
               <span className={`mt-[6px] w-1.5 h-1.5 rounded-full shrink-0 ${h.ok ? 'bg-success' : 'bg-error'}`} />
               <span className="flex-1 min-w-0">
-                <span className="block font-mono text-[12px] leading-[17px] text-on-surface line-clamp-2 break-all">{h.sql.trim()}</span>
+                <span className="font-mono text-[12px] leading-[17px] text-on-surface line-clamp-2 break-all">{h.sql.trim()}</span>
                 <span className="block t-caption text-on-surface-variant truncate mt-0.5">
                   {h.profileName}{h.database ? ` · ${h.database}` : ''} · {h.ok ? `${h.rows.toLocaleString('es-AR')} filas` : 'error'} · {fmtMs(h.ms)}{h.readOnly ? '' : ' · escritura'}
                 </span>

@@ -135,7 +135,7 @@ function ImageCard({ src, n, onZoom }: { src: string; n: number; onZoom: () => v
   const [copied, setCopied] = useState(false)
   const copy = (): void => { void copyImage(src).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1400) }, () => undefined) }
   return (
-    <figure className="group relative w-fit max-w-full mx-auto rounded-[12px] overflow-hidden ring-1 ring-(--hairline-strong) bg-on-surface/[0.03]">
+    <figure className="group relative w-fit max-w-full mx-auto rounded-(--r-lg) overflow-hidden ring-1 ring-(--hairline-strong) bg-on-surface/[0.03]">
       <img src={src} alt={`Imagen ${n}`} onClick={onZoom} className="block max-w-full object-contain cursor-zoom-in" style={{ maxHeight: 420 }} />
       <figcaption className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button type="button" onClick={copy} title="Copiar imagen" className="ui-btn ui-btn-sm bg-surface/90! backdrop-blur ring-1 ring-(--hairline-strong)">

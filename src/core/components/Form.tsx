@@ -75,7 +75,7 @@ export function SettingsGroup({
   className?: string
 }): JSX.Element {
   return (
-    <section id={id} className={`flex flex-col gap-2 scroll-mt-6 ${className}`}>
+    <section id={id} data-settings-group className={`flex flex-col gap-2 scroll-mt-6 ${className}`}>
       {(title || description) && (
         <header className="px-1">
           {title && <h3 className="t-callout font-semibold text-on-surface">{title}</h3>}
@@ -103,7 +103,7 @@ export function SettingsRow({
   children?: ReactNode
 }): JSX.Element {
   return (
-    <div className="flex items-center gap-3 px-5 py-3 min-h-[56px]">
+    <div data-settings-row className="flex items-center gap-3 px-5 py-3 min-h-[56px]">
       {Icon && (
         <span
           className={`w-7 h-7 shrink-0 ${iconColor ? 'rounded-lg flex items-center justify-center text-white' : 'icon-tile'}`}
@@ -205,10 +205,12 @@ export function PageHeader({
   className?: string
 }): JSX.Element {
   return (
-    <div className={`flex flex-wrap items-end gap-x-4 gap-y-3 ${className}`}>
+    // El nombre del módulo ya está en la barra superior: acá queda sólo para lectores de
+    // pantalla y la fila muestra el subtítulo (contexto) y las acciones.
+    <div className={`flex flex-wrap items-center gap-x-4 gap-y-3 min-h-8 ${className}`}>
       <div className="flex-1 min-w-[200px]">
-        <h1 className="t-title2 text-on-surface">{title}</h1>
-        {subtitle && <p className="t-callout text-on-surface-variant mt-1">{subtitle}</p>}
+        <h1 className="sr-only">{title}</h1>
+        {subtitle && <p className="t-callout text-on-surface-variant">{subtitle}</p>}
       </div>
       {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
     </div>

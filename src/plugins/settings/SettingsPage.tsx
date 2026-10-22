@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react'
 import {
   Bot, Check, Download, Eye, EyeOff, FileText, Info, Lock, Monitor, Moon,
-  LayoutGrid, Palette, Plug, RefreshCw, ShieldCheck, Sun, TriangleAlert, Type, Upload, ZoomIn,
+  LayoutGrid, Palette, Plug, RefreshCw, Search, ShieldCheck, Sun, TriangleAlert, Type, Upload, X, ZoomIn,
 } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
 import { allPlugins } from '../../core/plugin-registry'
@@ -11,6 +11,7 @@ import { useUiScale, UI_SCALE_MIN, UI_SCALE_MAX, UI_SCALE_STEP } from '../../cor
 import { AppearanceSettings } from './AppearanceSettings'
 import { useThemeMode, type ThemeMode } from '../../core/themeMode'
 import { SettingsGroup, SettingsRow, Toggle } from '../../core/components/Form'
+import { filterSettings } from './settings-search'
 import { SegmentedControl } from '../../core/components/SegmentedControl'
 import { useToast } from '../../core/components/Toast'
 import { DesktopSettings } from './DesktopSettings'
@@ -112,6 +113,12 @@ export function SettingsPage(): JSX.Element {
     'repo-search.gitlab.client_id': '',
   })
   const [dirty, setDirty] = useState(false)
+  const [settingsQuery, setSettingsQuery] = useState('')
+  const [settingsHits, setSettingsHits] = useState(0)
+  const contentRef = useRef<HTMLDivElement>(null)
+  /** Lo último cargado o guardado: "Descartar" vuelve a esto. */
+  const savedRef = useRef<SettingsState | null>(null)
+  useEffect(() => { if (contentRef.current) setSettingsHits(filterSettings(contentRef.current, settingsQuery)) }, [settingsQuery])
   const [showOpenAIKey, setShowOpenAIKey] = useState(false)
   const [showAnthropicKey, setShowAnthropicKey] = useState(false)
   const [openAIKeyConfigured, setOpenAIKeyConfigured] = useState(false)
@@ -143,6 +150,7 @@ export function SettingsPage(): JSX.Element {
             updated[k] = v
           }
         })
+        savedRef.current = updated
         return updated
       })
     }
@@ -168,6 +176,7 @@ export function SettingsPage(): JSX.Element {
       )
       if (settings['ai.openai_key'].trim()) setOpenAIKeyConfigured(true)
       if (settings['ai.anthropic_key'].trim()) setAnthropicKeyConfigured(true)
+      savedRef.current = settings
       setDirty(false)
       toast.show('Ajustes guardados', 'success')
     } catch (e) {
@@ -247,9 +256,9 @@ export function SettingsPage(): JSX.Element {
     })
 
   return (
-    <div className="px-8 py-7 max-w-[1000px] mx-auto w-full flex gap-10">
+    <div className="page flex-row! gap-10!">
       {/* ── Índice de secciones ────────────────────────────────────────────── */}
-      <nav aria-label="Secciones de ajustes" className="hidden lg:flex flex-col gap-0.5 w-44 shrink-0 sticky top-7 self-start pt-[76px]">
+      <nav aria-label="Secciones de ajustes" className="hidden lg:flex flex-col gap-0.5 w-48 shrink-0 sticky top-5 self-start">
         {SECTIONS.map(({ id, label, icon: Icon }) => {
           const on = activeSection === id
           return (
@@ -269,10 +278,19 @@ export function SettingsPage(): JSX.Element {
         })}
       </nav>
 
-      <div className="flex-1 min-w-0 max-w-[760px] flex flex-col gap-8">
-      <div>
-        <h1 className="t-title2 text-on-surface">Ajustes</h1>
-        <p className="t-callout text-on-surface-variant mt-1">Apariencia, módulos, servicios y datos.</p>
+      {/* Filas de ajustes: a todo el ancho que queda (el título ya está en la barra superior). */}
+      <div ref={contentRef} className="flex-1 min-w-0 flex flex-col gap-8">
+      <h1 className="sr-only">Ajustes</h1>
+      {/* Buscar en los ajustes: filtra filas y grupos (sin distinguir tildes). */}
+      <div className="sticky top-0 z-10 -mt-1 pt-1 pb-2 bg-background flex items-center gap-3">
+        <div className="fl-search flex-1 max-w-[520px]">
+          <Search size={14} className="text-on-surface-variant/70 shrink-0" />
+          <input value={settingsQuery} onChange={(e) => setSettingsQuery(e.target.value)} placeholder="Buscar en ajustes: fuente, mica, respaldo…"
+            aria-label="Buscar en ajustes" className="flex-1 min-w-0 bg-transparent t-body text-on-surface outline-hidden"
+            onKeyDown={(e) => { if (e.key === 'Escape') setSettingsQuery('') }} />
+          {settingsQuery && <button type="button" onClick={() => setSettingsQuery('')} aria-label="Limpiar búsqueda" className="text-on-surface-variant hover:text-on-surface"><X size={13} /></button>}
+        </div>
+        {settingsQuery && <span className="t-footnote text-on-surface-variant">{settingsHits === 0 ? 'Nada coincide' : `${settingsHits} ${settingsHits === 1 ? 'resultado' : 'resultados'}`}</span>}
       </div>
 
       {!encryptionAvailable && (
@@ -503,15 +521,17 @@ export function SettingsPage(): JSX.Element {
         </SettingsRow>
       </SettingsGroup>
 
-      <div className={`-mt-3 flex items-center justify-end gap-3 ${dirty ? 'sticky bottom-5 z-10 ui-card shadow-md pl-4 pr-2 py-2' : ''}`}>
-        {dirty && (
+      {/* Sólo con cambios: barra fija abajo para guardarlos o descartarlos. */}
+      {dirty && (
+        <div className="sticky bottom-5 z-10 ui-card shadow-md flex items-center gap-3 pl-4 pr-2 py-2" style={{ animation: 'fadeIn 0.18s ease both' }}>
           <span className="flex-1 flex items-center gap-2 t-footnote text-on-surface-variant">
             <span className="w-1.5 h-1.5 rounded-full bg-warning" aria-hidden />
             Tenés cambios sin guardar
           </span>
-        )}
-        <button onClick={() => void handleSave()} className="ui-btn ui-btn-primary">Guardar cambios</button>
-      </div>
+          <button type="button" className="ui-btn ui-btn-ghost" onClick={() => { if (savedRef.current) setSettings(savedRef.current); setDirty(false) }}>Descartar</button>
+          <button type="button" onClick={() => void handleSave()} className="ui-btn ui-btn-primary">Guardar cambios</button>
+        </div>
+      )}
 
       <BackupSettings />
 

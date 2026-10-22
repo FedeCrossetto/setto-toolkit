@@ -375,7 +375,7 @@ export function settoSurfaces(isDark: boolean, darkStyle: DarkStyle): SurfaceTok
   if (!isDark) {
     return {
       background: '250 250 251', surface: '255 255 255', surfaceLow: '250 250 250', surfaceContainer: '243 243 244',
-      surfaceHigh: '235 235 237', surfaceHighest: '225 225 228', onSurface: '28 28 30', onSurfaceVariant: '112 112 118',
+      surfaceHigh: '235 235 237', surfaceHighest: '225 225 228', onSurface: '28 28 30', onSurfaceVariant: '100 100 107',
       outlineVariant: '232 232 234', outline: '161 161 168', error: '229 72 77', warning: '230 140 20', success: '22 163 120',
       sidebar: '244 245 247', topbar: '35 35 39',
     }
@@ -385,7 +385,7 @@ export function settoSurfaces(isDark: boolean, darkStyle: DarkStyle): SurfaceTok
     // Negro puro (OLED): el lienzo es #000 y las tarjetas apenas se separan.
     return {
       background: '0 0 0', surface: '15 15 17', surfaceLow: '19 19 21', surfaceContainer: '25 25 28',
-      surfaceHigh: '34 34 38', surfaceHighest: '46 46 51', onSurface: '240 240 241', onSurfaceVariant: '150 150 156',
+      surfaceHigh: '34 34 38', surfaceHighest: '46 46 51', onSurface: '240 240 241', onSurfaceVariant: '165 165 171',
       outlineVariant: '38 38 42', outline: '96 96 102', ...status, sidebar: '0 0 0', topbar: '0 0 0',
     }
   }
@@ -399,7 +399,7 @@ export function settoSurfaces(isDark: boolean, darkStyle: DarkStyle): SurfaceTok
   }
   return {
     background: '26 26 29', surface: '32 32 35', surfaceLow: '37 37 40', surfaceContainer: '42 42 46',
-    surfaceHigh: '52 52 56', surfaceHighest: '64 64 69', onSurface: '240 240 241', onSurfaceVariant: '155 155 161',
+    surfaceHigh: '52 52 56', surfaceHighest: '64 64 69', onSurface: '240 240 241', onSurfaceVariant: '168 168 174',
     outlineVariant: '54 54 58', outline: '100 100 106', ...status, sidebar: '20 20 23', topbar: '17 17 19',
   }
 }

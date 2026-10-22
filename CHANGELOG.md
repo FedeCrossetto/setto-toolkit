@@ -5,6 +5,16 @@ Novedades de Setto por versión. Lo lee Ajustes → Acerca de → "Ver novedades
 ## 2.16.0 (sin publicar)
 
 ### Diseño
+- Ajustes: "Guardar cambios" ya no queda suelto en la página; aparece sólo cuando hay cambios, como barra fija abajo con "Descartar" y "Guardar".
+- Consultas: barra más tranquila; "Solo lectura" (lo normal) se ve discreto y sólo "Escritura" se marca en naranja; "Estadísticas" activo es un fondo suave con el ícono en color.
+- Claves: en pantallas anchas, al costado de la ficha, la actividad (veces copiada, último uso) y las claves del mismo sitio o categoría, a un clic.
+- Gastos: sin la doble línea debajo de las pestañas; los anillos sin dato son un contorno punteado tenue en lugar de "—".
+- Portapapeles: cada fila muestra el ícono de su tipo (link, código, ticket, ruta, SQL…), igual que el widget.
+- Radios unificados: tarjetas, avisos y menús con la misma curva; barra superior con el subtítulo más legible; cambio de módulo con un deslizamiento más corto (y sólo fundido en Animaciones: sutiles).
+- Todas las pantallas usan el ancho completo con el mismo margen: Gastos, Conexiones, Tickets, Ajustes y el detalle de Claves, Notas, Snippets y Utilidades ya no se centran en una columna angosta.
+- Menos ruido: el nombre del módulo ya no se repite como título grande dentro de la página (está en la barra superior), se quitó el "Nuevo gasto" duplicado, el detalle de Snippets ya no es una tarjeta dentro del panel, y el "+ Nuevo" genérico de la barra superior es un "+" discreto cuando el módulo no tiene una acción propia.
+- Módulos con lista + detalle: las columnas tienen dos anchos fijos (navegación y lista), el mismo fondo que el panel separado por una línea fina, y los encabezados alineados a la misma altura.
+- Inicio: los widgets de abajo se reparten todo el ancho, sin hueco al final de la fila.
 - Íconos nuevos: Fluent UI System Icons, los de Windows 11 y Office (el módulo activo de la barra lateral se ve relleno, en el color de acento). Los íconos de lenguajes del Editor siguen como estaban.
 - Fondo Mica de Windows 11: la barra lateral y la superior toman el tono del escritorio, como el Explorador. Se activa cuando el modo de Setto (claro u oscuro) coincide con el de Windows; se apaga en Ajustes → Apariencia.
 - Letra Segoe UI Variable (la de Windows 11) por defecto; Inter sigue disponible en Ajustes → Texto. El código usa JetBrains Mono y, si falta, Cascadia.
@@ -13,6 +23,13 @@ Novedades de Setto por versión. Lo lee Ajustes → Acerca de → "Ver novedades
 - Estados vacíos con ilustración en el color de acento.
 
 ### Correcciones
+- Letra: la migración a Segoe UI Variable no se guardaba y Ajustes seguía mostrando Inter; ahora se aplica de verdad (también a quien ya había instalado la versión anterior).
+- Portapapeles: los textos largos se recortaban mal y uno solo podía ocupar toda la pantalla; ahora se ven en 3 líneas como el resto.
+- Consultas: "Exportar todo a Excel" en la vista Todos (un archivo con una hoja por resultado). Mientras se lee el explorador se ve un esqueleto con forma de árbol.
+- Ajustes: buscador arriba (fuente, mica, respaldo…), sin distinguir tildes.
+- Claves, Notas y Tickets: las listas vacías o sin resultados se ven igual que en el resto de la app.
+- Texto secundario (subtítulos, fechas) con un poco más de contraste, en claro y en oscuro.
+- Widget: el ícono de la pestaña activa se ve relleno, como en la barra lateral.
 - Ctrl+K: al escribir rápido y apretar Enter (o hacer clic) se abría un resultado de la búsqueda anterior. Los módulos, acciones y recientes ahora responden al instante; sólo lo externo espera.
 - Inicio: el tema oscuro se aplica antes de pintar también en la app instalada (el script estaba bloqueado por la política de seguridad y dejaba un error en el registro).
 - Terminal: las pestañas del mismo shell mantienen su número (cmd 1, cmd 2) al reordenarlas.

@@ -104,7 +104,7 @@ function ToastCard({ toast, onDismiss, held }: { toast: ToastItem; onDismiss: (i
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
       onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); handleDismiss() } }}
-      className="fl-dialog relative overflow-hidden rounded-[12px]! flex items-center gap-2.5 pl-2.5 pr-1.5 py-1.5 t-body text-on-surface"
+      className="fl-dialog relative overflow-hidden flex items-center gap-2.5 pl-2.5 pr-1.5 py-1.5 t-body text-on-surface"
       style={{ minWidth: 260, maxWidth: 440 }}
     >
       {/* Cuánto le queda: se frena junto con el cierre (hover, foco, pila abierta). */}

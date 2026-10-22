@@ -460,7 +460,7 @@ export function NotesPlugin(): JSX.Element {
   return (
     <div ref={rootRef} className="flex h-full w-full overflow-hidden bg-background">
       {/* ── List pane ── */}
-      <aside className="w-72 shrink-0 flex flex-col bg-surface hairline-r">
+      <aside className="pane-list shrink-0 flex flex-col hairline-r">
         <div className="px-3 pt-4 pb-2 space-y-3">
           <div className="flex items-center gap-2 pl-1.5">
             <h2 className="t-headline text-on-surface">Notas</h2>
@@ -527,9 +527,9 @@ export function NotesPlugin(): JSX.Element {
 
         <motion.div layoutScroll ref={listRef} className="flex-1 overflow-y-auto px-2 pb-2" role="listbox" aria-label="Notas">
           {loaded && filtered.length === 0 && (
-            <p className="t-footnote text-on-surface-variant text-center px-4 py-8">
-              {query ? `No hay notas que coincidan con «${query}».` : tagFilter ? `No hay notas con #${tagFilter}.` : 'Todavía no hay notas.'}
-            </p>
+            <EmptyState compact icon={query || tagFilter ? Search : NotebookPen}
+              title={query || tagFilter ? 'Sin resultados' : 'Todavía no hay notas'}
+              description={query ? `Ninguna nota coincide con «${query}».` : tagFilter ? `No hay notas con #${tagFilter}.` : 'Creá una con Ctrl+N.'} />
           )}
           {pinned.length > 0 && (
             <>
@@ -587,7 +587,7 @@ export function NotesPlugin(): JSX.Element {
       {/* ── Editor pane ── */}
       <section className="flex-1 min-w-0 flex flex-col overflow-y-auto">
         {selected ? (
-          <div className="w-full max-w-[780px] mx-auto px-6 py-6 flex-1 flex flex-col">
+          <div className="pane-detail flex-1 flex flex-col">
           <article className="flex-1 flex flex-col bg-surface hairline rounded-2xl shadow-sm">
             <header className="sticky top-0 z-10 flex items-center gap-2 pl-6 pr-3 h-12 shrink-0 hairline-b bg-surface rounded-t-2xl">
               {selected.pinned && (

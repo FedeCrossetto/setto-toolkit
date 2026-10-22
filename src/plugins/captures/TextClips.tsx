@@ -9,7 +9,7 @@ import { useUndo } from '../../core/hooks/useUndo'
 import { useSoftDelete } from '../../core/soft-delete'
 import { EmptyState } from '../../core/components/EmptyState'
 import { CLIP_CATEGORIES, clipCategory, guessLanguage, transformsFor, type ClipCategory, type ClipView } from '../../core/clip-utils'
-import { actionsFor, KIND_LABEL } from '../../core/clip-actions'
+import { actionsFor, KIND_ICON, KIND_LABEL } from '../../core/clip-actions'
 import { clipAge, clipboardApi } from '../utilities/clipboard'
 import { CodeViewer } from '../snippets/SnippetViewer'
 import type { SnippetLanguage } from '../snippets/types'
@@ -202,8 +202,13 @@ export function TextClips({ header }: { header: React.ReactNode }): JSX.Element 
                       className={`mt-0.5 w-5 h-5 shrink-0 rounded-md text-[11px] font-semibold flex items-center justify-center ${order >= 0 ? 'bg-primary text-on-primary' : 'hairline text-transparent group-hover:text-on-surface-variant'}`}>
                       {order >= 0 ? order + 1 : '+'}
                     </button>
+                    {/* Tipo de un vistazo (link, código, ticket, ruta…) */}
+                    {(() => {
+                      const KindIcon = e.sensitive ? Lock : KIND_ICON[e.kind]
+                      return <span aria-hidden className="mt-px grid place-items-center w-7 h-7 rounded-(--r-sm) bg-on-surface/[0.05] text-on-surface-variant shrink-0"><KindIcon size={14} /></span>
+                    })()}
                     <span className="flex-1 min-w-0">
-                      <span className={`block text-[12.5px] leading-5 text-on-surface whitespace-pre-wrap break-all line-clamp-3 ${e.sensitive ? 'tracking-wider' : cat === 'code' || cat === 'links' ? 'font-mono' : ''}`}>
+                      <span className={`text-[12.5px] leading-5 text-on-surface whitespace-pre-wrap break-all line-clamp-3 ${e.sensitive ? 'tracking-wider' : cat === 'code' || cat === 'links' ? 'font-mono' : ''}`}>
                         {e.sensitive ? e.masked : ranked?.get(e.id)
                           ? splitHighlights(ranked.get(e.id)!.snippet, ranked.get(e.id)!.ranges).map((p, i) => (p.hit
                             ? <mark key={i} className="bg-primary/15 text-on-surface rounded-[3px] px-px">{p.text}</mark>

@@ -62,9 +62,9 @@ export function UtilitiesPlugin(): JSX.Element {
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-background">
-      <aside className="w-60 shrink-0 flex flex-col bg-sidebar/40 hairline-r">
-        <div className="px-4 pt-4 pb-3">
-          <h1 className="t-callout font-semibold text-on-surface">Utilidades</h1>
+      <aside className="pane-nav shrink-0 flex flex-col hairline-r">
+        <div className="px-3 pt-4 pb-3 pl-[18px]">
+          <h1 className="t-headline text-on-surface">Utilidades</h1>
           <p className="t-caption text-on-surface-variant mt-0.5">También desde Ctrl+K: pegá un JWT, JSON o timestamp.</p>
         </div>
         <nav className="flex-1 overflow-y-auto px-2 pb-2 flex flex-col gap-0.5" aria-label="Herramientas">
@@ -94,7 +94,7 @@ export function UtilitiesPlugin(): JSX.Element {
       </aside>
 
       <main className="flex-1 min-w-0 overflow-y-auto">
-        <div className="max-w-[860px] mx-auto px-8 py-7 flex flex-col gap-5">
+        <div className="pane-detail flex flex-col gap-5">
           <div>
             <h2 className="t-title2 text-on-surface">{current.name}</h2>
             <p className="t-callout text-on-surface-variant mt-1">{current.hint}</p>

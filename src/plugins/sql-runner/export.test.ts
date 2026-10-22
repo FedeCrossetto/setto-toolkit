@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildXlsx, crc32, toInsertSql } from './export'
+import { buildXlsx, buildXlsxBook, crc32, toInsertSql } from './export'
 import { buildSqlSchema } from './sql-meta'
 
 describe('toInsertSql', () => {
@@ -28,6 +28,19 @@ describe('buildXlsx', () => {
     expect(text).toContain('<c r="A2"><v>1</v></c>')
     expect(text).toContain('Ana &amp; &lt;Bo&gt;')
     expect(text).toContain('<autoFilter ref="A1:B3"/>')
+  })
+  it('libro con varias hojas: una por resultado, nombres sin repetir', () => {
+    const z = buildXlsxBook([
+      { name: 'Resultado 1', columns: ['a'], rows: [['1']] },
+      { name: 'Resultado 1', columns: ['b', 'c'], rows: [['x', 'y']] },
+    ])
+    const dv = new DataView(z.buffer)
+    expect(dv.getUint16(z.length - 12, true)).toBe(7)
+    const text = new TextDecoder().decode(z)
+    expect(text).toContain('xl/worksheets/sheet2.xml')
+    expect(text).toContain('<sheet name="Resultado 1" sheetId="1"')
+    expect(text).toContain('<sheet name="Resultado 1 (2)" sheetId="2"')
+    expect(text).toContain('localSheetId="1"')
   })
 })
 

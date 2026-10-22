@@ -118,7 +118,7 @@ export function ConnectionFixDialog({ request, profiles, onClose, onSaved }: {
       )}>
       <form className="flex flex-col gap-3.5" onSubmit={(e) => { e.preventDefault(); void save(false) }}>
         {fe && (
-          <div className="flex items-start gap-3 rounded-[12px] ring-1 ring-error/20 bg-error/[0.05] p-3">
+          <div className="flex items-start gap-3 rounded-(--r-lg) ring-1 ring-error/20 bg-error/[0.05] p-3">
             <span className="grid place-items-center w-9 h-9 rounded-[10px] bg-error/12 text-error shrink-0">{reason === 'auth' ? <KeyRound size={16} /> : <Unplug size={16} />}</span>
             <div className="flex-1 min-w-0">
               <p className="t-body font-semibold text-on-surface">{fe.title}</p>

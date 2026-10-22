@@ -1213,7 +1213,7 @@ export function ConnectionsPlugin(): JSX.Element {
   const anyChecking = summary.checking > 0
 
   return (
-    <div className="px-8 py-7 max-w-5xl mx-auto w-full flex flex-col gap-7">
+    <div className="page">
       <PageHeader
         title="Conexiones"
         subtitle={summary.text}

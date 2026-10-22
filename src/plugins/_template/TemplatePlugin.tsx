@@ -20,7 +20,7 @@ import { PageHeader } from '../../core/components/Form'
 
 export function TemplatePlugin(): JSX.Element {
   return (
-    <div className="px-6 py-5 max-w-5xl mx-auto w-full flex flex-col gap-5">
+    <div className="page">
       <PageHeader
         title="Mi módulo"
         subtitle="Descripción breve de lo que hace el módulo."

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ListSkeleton } from '../../core/components/Skeleton'
-import { FileUp, ListPlus, PiggyBank, Plus, RefreshCw, Repeat } from 'lucide-react'
+import { FileUp, ListPlus, PiggyBank, RefreshCw, Repeat } from 'lucide-react'
 import { useToast } from '../../core/components/Toast'
 import { useConfirm } from '../../core/components/Modal'
 import { PageHeader } from '../../core/components/Form'
@@ -339,7 +339,7 @@ export function GastosPlugin(): JSX.Element {
 
   return (
     <div className="h-full overflow-y-auto bg-background text-on-surface">
-      <div className="px-8 py-7 max-w-6xl mx-auto flex flex-col gap-5">
+      <div className="page">
         <PageHeader
           title="Gastos"
           subtitle="Fijos, variables y presupuesto del mes"
@@ -355,14 +355,11 @@ export function GastosPlugin(): JSX.Element {
                 { label: 'Nuevo gasto recurrente…', icon: <Repeat size={14} />, onSelect: () => setSheet({ type: 'regla' }) },
                 { label: 'Recargar desde Supabase', icon: <RefreshCw size={14} />, onSelect: () => { void check(); void store.reload() } },
               ]} />
-              <button type="button" className="ui-btn ui-btn-primary" onClick={() => setSheet({ type: 'gasto' })}>
-                <Plus size={14} /> Nuevo gasto
-              </button>
             </>
           }
         />
 
-        <div className="flex items-center gap-3 hairline-b pb-3 -mt-1">
+        <div className="flex items-center gap-3 -mt-1">
           <SegmentedControl<View> options={VIEWS} value={view} onChange={setView} />
         </div>
 

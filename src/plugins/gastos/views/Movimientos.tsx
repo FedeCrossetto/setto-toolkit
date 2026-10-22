@@ -55,7 +55,7 @@ function CatChip({ name, color }: { name: string; color: string }): JSX.Element 
 
 function MiniStat({ label, value, sub, accent, dot }: { label: string; value: string; sub?: string; accent?: boolean; dot?: string }): JSX.Element {
   return (
-    <div className={`spotlight relative overflow-hidden rounded-[12px] px-3.5 py-2.5 ring-1 ${accent ? 'ring-primary/25 bg-primary/[0.07]' : 'ring-on-surface/[0.07] bg-on-surface/[0.025] dark:bg-black/30'}`}>
+    <div className={`spotlight relative overflow-hidden rounded-(--r-lg) px-3.5 py-2.5 ring-1 ${accent ? 'ring-primary/25 bg-primary/[0.07]' : 'ring-on-surface/[0.07] bg-on-surface/[0.025] dark:bg-black/30'}`}>
       {accent && <span aria-hidden className="pointer-events-none absolute -right-6 -top-8 w-24 h-24 rounded-full bg-primary/20 blur-2xl" />}
       <div className="t-caption text-on-surface-variant flex items-center gap-1.5">{dot && <span className="w-1.5 h-1.5 rounded-full" style={{ background: dot }} />}{label}</div>
       <div className="text-[17px] leading-[24px] font-semibold tabular-nums text-on-surface truncate">{value}</div>

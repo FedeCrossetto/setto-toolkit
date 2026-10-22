@@ -966,9 +966,15 @@ html.motion-subtle .spotlight::before, html.motion-off .spotlight::before { disp
 /* Cambio de módulo (View Transitions): sólo el panel del módulo, la barra lateral no se mueve. */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 ::view-transition-old(module) { animation: vt-out 120ms var(--ease-mac) both; }
-::view-transition-new(module) { animation: vt-in 260ms var(--ease-mac) both; }
+::view-transition-new(module) { animation: vt-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 @keyframes vt-out { to { opacity: 0; transform: translateY(-3px); } }
-@keyframes vt-in { from { opacity: 0; transform: translateY(10px) scale(0.996); } }
+@keyframes vt-in { from { opacity: 0; transform: translateY(6px); } }
+/* Animaciones sutiles: sólo el fundido; ninguna: cambio directo. */
+html.motion-subtle::view-transition-new(module) { animation: vt-fade 160ms ease both; }
+html.motion-subtle::view-transition-old(module) { animation: vt-fade-out 100ms ease both; }
+html.motion-off::view-transition-old(module), html.motion-off::view-transition-new(module) { animation: none; }
+@keyframes vt-fade { from { opacity: 0; } }
+@keyframes vt-fade-out { to { opacity: 0; } }
 
 /* Botones que se hunden al apretarlos */
 .ui-btn:active:not(:disabled), .ui-btn-run:active:not(:disabled), .press:active { scale: 0.97; }
@@ -1068,3 +1074,12 @@ html.motion-off .toast-timer { animation: none; display: none; }
 @keyframes empty-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 .empty-float { animation: empty-float 4.5s ease-in-out infinite; }
 html.motion-off .empty-float, html.motion-subtle .empty-float { animation: none; }
+
+/* Esqueleto común de pantallas: todas a ancho completo, mismo margen y ritmo.
+   .page        → módulos tipo página (Gastos, Conexiones, Tickets, Ajustes…)
+   .pane-detail → el detalle de los módulos lista + detalle (Snippets, Notas, Claves…) */
+.page { width: 100%; padding: 20px 24px 28px; display: flex; flex-direction: column; gap: 20px; }
+.pane-detail { width: 100%; padding: 20px 24px; }
+/* Columnas de los módulos lista + detalle: dos anchos y sin fondo propio (sólo la línea). */
+.pane-nav  { width: 220px; }
+.pane-list { width: 300px; }
