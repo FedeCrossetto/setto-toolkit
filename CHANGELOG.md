@@ -5,6 +5,8 @@ Novedades de Setto por versión. Lo lee Ajustes → Acerca de → "Ver novedades
 ## 2.16.0 (sin publicar)
 
 ### Diseño
+- Widget en modo mínimo (nuevo, por defecto): un buscador (copiado y claves a la vez), tus claves más usadas como accesos con su logo (clic copia la contraseña, el ícono el usuario) y el historial de copiado en filas de una línea (clic copia, doble clic o Enter pega). Sin pestañas ni tarjetas arriba. El widget completo queda a un clic con el botón de cuadrícula del encabezado y se recuerda la elección.
+- Editor: la barra lateral se moderniza. Íconos de archivo nítidos (Fluent, sin letras chiquitas adentro) con un color sutil por tipo (SQL, JS/TS, Markdown, config, log…); las carpetas con el mismo tamaño de letra que los archivos y la cantidad como etiqueta; agrupado por carpeta, los archivos cuelgan con sangría y una línea fina.
 - Ajustes: "Guardar cambios" ya no queda suelto en la página; aparece sólo cuando hay cambios, como barra fija abajo con "Descartar" y "Guardar".
 - Consultas: barra más tranquila; "Solo lectura" (lo normal) se ve discreto y sólo "Escritura" se marca en naranja; "Estadísticas" activo es un fondo suave con el ícono en color.
 - Claves: en pantallas anchas, al costado de la ficha, la actividad (veces copiada, último uso) y las claves del mismo sitio o categoría, a un clic.

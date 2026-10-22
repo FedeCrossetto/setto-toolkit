@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, MotionConfig, motion, useAnimationControls, type Variants } from 'framer-motion'
 import {
   ArrowLeftRight, ArrowUpRight, AtSign, Braces, Check, ChevronDown, ChevronUp, Clock, ClipboardText, Code2, Copy, Columns2, Database, ExternalLink,
-  Fingerprint, FolderOpen, Grid3x3, Images, KeyRound, Link, ListOrdered, Lock, LockOpen, NotebookPen, Pin, PinOff, Plus, ScanText, Search,
+  Fingerprint, FolderOpen, Grid3x3, Images, KeyRound, LayoutGrid, Link, ListOrdered, Lock, LockOpen, NotebookPen, Pin, PinOff, Plus, ScanText, Search,
   Ticket, Toolbox, Trash2, TriangleAlert, Type, User, Wallet, Wand2, X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -19,6 +19,7 @@ import type { Credential, CredentialsListResult } from '../plugins/credentials/t
 import { getMonthSummary } from '../plugins/gastos/summary'
 import { classifyContext, isSqlSnippet } from './context'
 import { Bloc, type BlocHandle } from './Bloc'
+import { DockMinimal } from './DockMinimal'
 import { ActiveTicketBar, FrequentRow, LastCopiedCard, TabsConfig, type FrequentItem } from './DockTop'
 import type { QueryFavorite } from '../plugins/sql-runner/types'
 
@@ -236,6 +237,9 @@ export function Dock(): JSX.Element {
   const [previewKey, setPreviewKey] = useState<string | null>(null)
   const [flash, setFlash] = useState<{ text: string; undo?: () => void } | null>(null)
   const [pastedKey, setPastedKey] = useState<string | null>(null)
+  /** Modo mínimo (copiado + claves) o completo (pestañas, capturas, snippets…). Se recuerda. */
+  const [minimal, setMinimal] = useState(() => { try { return localStorage.getItem('dock:mode') !== 'full' } catch { return true } })
+  const toggleMinimal = (): void => setMinimal((v) => { try { localStorage.setItem('dock:mode', v ? 'full' : 'minimal') } catch { /* nada */ } return !v })
   /** Lo último que se hizo con el ítem marcado: copiar (clic) o pegar (doble clic / Enter) */
   const [doneHow, setDoneHow] = useState<How>('copy')
   const [unseen, setUnseen] = useState(0)
@@ -623,6 +627,7 @@ export function Dock(): JSX.Element {
   // ── Teclado (cuando se abrió con el atajo, la barra tiene el foco) ─────────
   useEffect(() => {
     if (!st.expanded) return
+    if (minimal) return
     const onKey = (e: KeyboardEvent): void => {
       const inInput = document.activeElement === inputRef.current
       const plain = !e.ctrlKey && !e.altKey && !e.metaKey
@@ -738,10 +743,26 @@ export function Dock(): JSX.Element {
                 <IconBtn title={st.pinned ? 'Soltar (se esconde sola)' : 'Fijar abierta'} active={st.pinned} onClick={() => window.api.send('dock:pin', !st.pinned)}>
                   {st.pinned ? <PinOff size={14} weight="fill" /> : <Pin size={14} />}
                 </IconBtn>
+                <IconBtn title={minimal ? 'Widget completo (pestañas, capturas, snippets…)' : 'Widget mínimo (copiado y claves)'} active={!minimal} onClick={toggleMinimal}>
+                  <LayoutGrid size={14} />
+                </IconBtn>
                 <IconBtn title="Abrir Setto" onClick={() => openMain({ pluginId: 'dashboard' })}><ArrowUpRight size={14} /></IconBtn>
                 <IconBtn title="Cerrar (Esc)" onClick={collapse}><X size={14} /></IconBtn>
               </motion.div>
 
+              {minimal ? (
+                <motion.div {...CONTENT_IN(0.09)} className="relative flex-1 min-h-0 flex flex-col">
+                  <DockMinimal
+                    clips={clips} topCreds={topCreds} allCreds={allCreds} locked={locked}
+                    doneKey={pastedKey} doneLabel={DONE_LABEL[doneHow]} flash={flash?.text ?? null}
+                    onCopyClip={(id, key) => void copy({ clipId: id }, key)}
+                    onPasteClip={(id, key) => void paste({ clipId: id }, key)}
+                    onCopyPassword={(c, key) => void copyPassword(c, key)}
+                    onCopyUser={(c, key) => void copyUser(c, key)}
+                    onOpenCredential={(c) => openCredential(c)}
+                    onClose={collapse} />
+                </motion.div>
+              ) : (<>
               {/* Buscador */}
               <motion.div {...CONTENT_IN(0.09)} className="relative px-3.5 shrink-0">
                 <Search size={14} className="absolute left-[26px] top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
@@ -922,6 +943,7 @@ export function Dock(): JSX.Element {
                 </AnimatePresence>
               </div>
               </motion.div>
+              </>)}
             </div>
           </motion.div>
         )}

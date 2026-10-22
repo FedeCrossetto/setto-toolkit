@@ -54,11 +54,35 @@ export function refineLanguageFromContent(lang: FileLanguage, content: string): 
   return lang
 }
 
+/** Color sutil por lenguaje (para distinguir archivos de un vistazo). */
+const LANG_TINT: Partial<Record<FileLanguage, string>> = {
+  typescript: '#4F8FDB', javascript: '#D4B23A', html: '#E07A4F', css: '#5B8FD8', sql: '#D9993B', markdown: '#5AA9C9',
+  python: '#5C8FC6', cpp: '#6E8FC9', csharp: '#8B6FD1', rust: '#C9774F', ini: '#8E939C', yaml: '#8E939C',
+  log: '#5FA97A', json: '#C9A33B', xml: '#C9774F', shell: '#5FA97A', go: '#4FB3C9', java: '#C97B4F',
+}
+
+/** Ícono tintado: el color del lenguaje, salvo que la fila ya lo pinte (archivo activo → text-primary). */
+const tintCache = new Map<string, IconComponent>()
+function tinted(Icon: IconComponent, lang: FileLanguage): IconComponent {
+  const color = LANG_TINT[lang]
+  if (!color) return Icon
+  const key = `${lang}`
+  const hit = tintCache.get(key)
+  if (hit) return hit
+  const T: IconComponent = (p) => <Icon {...p} style={/\btext-primary\b/.test(p.className ?? '') ? p.style : { color, ...p.style }} />
+  tintCache.set(key, T)
+  return T
+}
+
 /**
- * Ícono por lenguaje: una sola familia (Phosphor, mismo trazo que el resto de la app) y
- * sin color propio — toma el color del texto, así sigue al tema y al archivo activo.
+ * Ícono por lenguaje: documento de Fluent con el símbolo del tipo (JS, CSS, base de datos,
+ * Markdown, configuración…) y un color sutil por lenguaje; el archivo activo va en el acento.
  */
 export function languageIcon(lang: FileLanguage): IconComponent {
+  return tinted(baseLanguageIcon(lang), lang)
+}
+
+function baseLanguageIcon(lang: FileLanguage): IconComponent {
   switch (lang) {
     case 'typescript': return FileTsIcon
     case 'javascript': return FileJsIcon

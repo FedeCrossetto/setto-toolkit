@@ -1127,16 +1127,18 @@ export function FileEditor(): JSX.Element {
                 {group.label && (
                   <button type="button" onClick={() => openView.toggleCollapsed(group.key)} title={group.title}
                     aria-expanded={!isCollapsed}
-                    className={`group/fold flex items-center gap-1.5 w-full text-left rounded-md px-1.5 ${isCollapsed ? 'py-1' : 'pt-2 pb-0.5'} t-caption font-medium select-none transition-colors hover:bg-on-surface/4 ${
-                      isCollapsed && hasActive ? 'text-on-surface' : 'text-on-surface-variant/80 hover:text-on-surface'}`}>
-                    <ChevronRight size={10} className={`shrink-0 transition-transform duration-150 ${isCollapsed ? '' : 'rotate-90'}`} />
-                    {group.key === 'pinned' ? <Pin size={11} className="shrink-0" /> : isCollapsed ? <Folder size={11} className="shrink-0" /> : <FolderOpen size={11} className="shrink-0" />}
+                    // Carpeta a la par de los archivos: mismo tamaño de letra, ícono de 15 px y la cantidad como etiqueta.
+                    className={`group/fold flex items-center gap-2 w-full h-7 text-left rounded-(--r-sm) px-1.5 ${isCollapsed ? '' : 'mt-1'} text-[12.5px] font-medium select-none transition-colors hover:bg-on-surface/4 ${
+                      isCollapsed && hasActive ? 'text-on-surface' : 'text-on-surface-variant hover:text-on-surface'}`}>
+                    <ChevronRight size={12} className={`shrink-0 opacity-60 transition-transform duration-150 ${isCollapsed ? '' : 'rotate-90'}`} />
+                    {group.key === 'pinned' ? <Pin size={15} className="shrink-0 text-on-surface-variant" /> : isCollapsed ? <Folder size={15} className="shrink-0 text-on-surface-variant" /> : <FolderOpen size={15} className="shrink-0 text-on-surface-variant" />}
                     <span className="truncate flex-1">{group.label}</span>
                     {dirtyCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" title={`${dirtyCount} sin guardar`} />}
-                    {isCollapsed && <span className="tabular-nums font-normal text-on-surface-variant/60 shrink-0">{group.items.length}</span>}
+                    {isCollapsed && <span className="min-w-[18px] h-[16px] px-1 rounded-[5px] bg-on-surface/[0.06] text-[10.5px] leading-[16px] text-center tabular-nums font-medium text-on-surface-variant shrink-0">{group.items.length}</span>}
                   </button>
                 )}
-                {!isCollapsed && group.items.map((tab) => (
+                {/* Los archivos de cada carpeta, con sangría y una línea fina: se lee la jerarquía. */}
+                {!isCollapsed && (<div className={group.label ? 'ml-[13px] pl-1.5 border-l border-(--hairline) flex flex-col gap-px' : 'contents'}>{group.items.map((tab) => (
                 <div
                   key={tab.id}
                   onDragOver={(e) => {
@@ -1175,7 +1177,7 @@ export function FileEditor(): JSX.Element {
                     onDragEnd={() => { dragTabRef.current = null; setDragOverTab(null) }}
                   />
                 </div>
-                ))}
+                ))}</div>)}
               </div>
               )
               })
@@ -1846,8 +1848,8 @@ function TreeNode({ node, depth, expanded, onToggle, rootPath, cb }: {
           : <span className="shrink-0" style={{ width: '13px' }} />
         }
         {node.isDir
-          ? (isOpen ? <FolderOpen size={14} className="text-primary/80 shrink-0" /> : <Folder size={14} className="text-on-surface-variant shrink-0" />)
-          : (() => { const Icon = languageIcon(detectLanguage(node.name)); return <Icon size={13} className={FILE_ICON_CLS} /> })()
+          ? (isOpen ? <FolderOpen size={15} className="text-primary/80 shrink-0" /> : <Folder size={15} className="text-on-surface-variant shrink-0" />)
+          : (() => { const Icon = languageIcon(detectLanguage(node.name)); return <Icon size={15} className={FILE_ICON_CLS} /> })()
         }
         {cb.renaming === node.path
           ? <InlineInput defaultValue={node.name} onCommit={(n) => cb.onRenameCommit(node.path, n)} onCancel={cb.onCancel} />
@@ -1954,7 +1956,7 @@ function FileListItem({
           ? 'bg-primary/[0.08]! border-primary/30! text-on-surface'
           : isActive ? 'nav-active' : ''
       }`}>
-      {(() => { const Icon = languageIcon(tab.language); return <Icon size={14} className={`shrink-0 transition-colors ${isActive ? 'text-primary' : 'text-on-surface-variant/80 group-hover:text-on-surface-variant'}`} /> })()}
+      {(() => { const Icon = languageIcon(tab.language); return <Icon size={16} className={`shrink-0 transition-colors ${isActive ? 'text-primary' : ''}`} /> })()}
       {renaming ? (
         <InlineInput defaultValue={tab.name} onCommit={onRenameCommit} onCancel={onRenameCancel} />
       ) : (

@@ -33,7 +33,7 @@ test.describe('Plataforma', () => {
       expect(denied).toMatch(/not allowed in the dock window/)
 
       await dock.evaluate(() => { window.api.send('dock:pin', true); window.api.send('dock:expand') })
-      await dock.getByTitle(/^Claves \(/).click({ timeout: 10_000 })
+      // Modo mínimo (por defecto): las claves más usadas están a la vista, sin pestañas.
       await expect(dock.getByText('Servidor E2E')).toBeVisible({ timeout: 10_000 })
     } finally {
       await app.close()
