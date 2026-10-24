@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Fuse from 'fuse.js'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  BookMarked, Check, ChevronDown, Clock, Copy, CopyPlus, Download, Flame, Folder, FolderPlus, LayoutGrid,
-  Pencil, Pin, Plus, Search, SquareTerminal, Trash2, Upload, X,
+  BookMarked, Check, ChevronDown, Clock, Copy, CopyPlus, Database, Download, FilePen, Flame, Folder, FolderPlus, LayoutGrid,
+  Pencil, Pin, Play, Plus, Search, SquareTerminal, Trash2, Upload, X,
 } from 'lucide-react'
 import type { Snippet, SnippetCollection, SnippetLanguage, SnippetsMeta } from './types'
 import { useApp, useModuleSubtitle, usePluginIntent } from '../../core/AppContext'
@@ -294,8 +294,13 @@ export function SnippetManager(): JSX.Element {
   }
 
   const perform = async (s: Snippet, mode: VariablesMode, text: string): Promise<void> => {
-    if (mode === 'run') {
-      dispatch({ type: 'RUN_IN_TERMINAL', content: text })
+    if (mode === 'run' || mode === 'paste') {
+      dispatch({ type: 'RUN_IN_TERMINAL', content: text, submit: mode === 'run' })
+    } else if (mode === 'sql') {
+      dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'sql-runner', action: 'open-sql', payload: { title: s.title, sql: text } })
+    } else if (mode === 'editor') {
+      const ext: Partial<Record<string, string>> = { javascript: 'js', typescript: 'ts', json: 'json', html: 'html', css: 'css', markdown: 'md', yaml: 'yml', python: 'py', xml: 'xml', csharp: 'cs', java: 'java', rust: 'rs' }
+      dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'file-editor', action: 'open-text', payload: { name: `${s.title.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'snippet'}.${ext[s.language] ?? 'txt'}`, content: text } })
     } else {
       try {
         await navigator.clipboard.writeText(text)
@@ -651,6 +656,7 @@ export function SnippetManager(): JSX.Element {
             collectionName={collections.find((c) => c.id === selected.collectionId)?.name}
             onCopy={() => applySnippet(selected, 'copy')}
             onRun={() => applySnippet(selected, 'run')}
+            onSend={(mode) => applySnippet(selected, mode)}
             onEdit={() => startEdit(selected)}
             onDuplicate={() => void duplicateSnippet(selected)}
             onDelete={() => void deleteSnippet(selected)}
@@ -688,7 +694,7 @@ export function SnippetManager(): JSX.Element {
 
 function SnippetDetail({
   snippet, dark, copied, collectionName,
-  onCopy, onRun, onEdit, onDuplicate, onDelete, onTogglePin, onTag,
+  onCopy, onRun, onSend, onEdit, onDuplicate, onDelete, onTogglePin, onTag,
 }: {
   snippet: Snippet
   dark: boolean
@@ -696,6 +702,8 @@ function SnippetDetail({
   collectionName?: string
   onCopy: () => void
   onRun: () => void
+  /** Mandarlo a otro módulo: pegar en la terminal, abrir en Consultas o en el Editor */
+  onSend: (mode: 'paste' | 'sql' | 'editor') => void
   onEdit: () => void
   onDuplicate: () => void
   onDelete: () => void
@@ -728,9 +736,25 @@ function SnippetDetail({
             <button onClick={onDuplicate} className="ui-btn ui-btn-ghost ui-btn-icon rounded-lg" title="Duplicar" aria-label="Duplicar"><CopyPlus size={16} /></button>
             <button onClick={onDelete} className="ui-btn ui-btn-ghost ui-btn-icon rounded-lg hover:text-error" title="Eliminar" aria-label="Eliminar"><Trash2 size={16} /></button>
             <span className="w-px h-5 bg-(--hairline-strong) mx-1.5" aria-hidden />
+            {/* A su módulo: SQL → Consultas, comandos → Terminal, el resto → Editor */}
             {canRun && (
-              <button onClick={onRun} className="ui-btn ui-btn-outline mr-1.5" title="Ejecutar en la terminal">
-                <SquareTerminal size={14} /> Ejecutar
+              <>
+                <button onClick={() => onSend('paste')} className="ui-btn ui-btn-ghost mr-0.5" title="Escribirlo en la terminal sin ejecutar (para revisarlo antes)">
+                  <SquareTerminal size={14} /> Pegar en la terminal
+                </button>
+                <button onClick={onRun} className="ui-btn ui-btn-outline mr-1.5" title="Ejecutar en la terminal">
+                  <Play size={13} /> Ejecutar
+                </button>
+              </>
+            )}
+            {snippet.language === 'sql' && !!snippet.content.trim() && (
+              <button onClick={() => onSend('sql')} className="ui-btn ui-btn-outline mr-1.5" title="Abrir en una pestaña nueva de Consultas">
+                <Database size={14} /> Abrir en Consultas
+              </button>
+            )}
+            {!canRun && snippet.language !== 'sql' && !!snippet.content.trim() && (
+              <button onClick={() => onSend('editor')} className="ui-btn ui-btn-outline mr-1.5" title="Abrir como archivo nuevo en el Editor">
+                <FilePen size={14} /> Abrir en el Editor
               </button>
             )}
             <button onClick={onCopy} className="ui-btn ui-btn-primary" disabled={!snippet.content.trim()}>

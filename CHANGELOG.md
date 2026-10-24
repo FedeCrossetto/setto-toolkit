@@ -2,6 +2,24 @@
 
 Novedades de Setto por versión. Lo lee Ajustes → Acerca de → "Ver novedades".
 
+## 2.17.0 (sin publicar)
+
+### Nuevo
+- Consultas: cuando un script termina bien (ALTER, CREATE, INSERT, paquetes…) se ve "Comandos ejecutados correctamente" con la hora, la duración y las filas afectadas, como en SSMS; si estabas en Solo lectura avisa que se deshizo.
+- Widget: al copiar un video (Recortes → Ctrl+C) aparece "Video copiado" arriba, con Pegar y Ver, y la pestañita avisa.
+- Videos: el reproductor ya permite adelantar y saltar.
+- Videos copiados: si el video estaba en la carpeta temporal de Recortes (Ctrl+C sin guardarlo), Setto lo guarda en Videos\Setto y el widget avisa "Video guardado".
+- Videos: columnas Nombre, Fecha y Tamaño, ordenables; se refresca sola cuando entra un video nuevo.
+- Videos: renombrar desde el título del detalle.
+- Videos → Marcas: editor para dibujar sobre el video (lápiz, resaltador, flecha, rectángulo, tapar datos y texto, con colores y grosores), cada marca visible en el tramo que elijas; se exporta como un video nuevo "(editado)".
+- Videos → Para Claude: Claude no lee videos pero sí imágenes, así que Setto saca los cuadros donde cambia la pantalla (con su minuto). "Copiar resumen" deja una sola imagen en grilla para pegar en el chat con Ctrl+V; "Abrir carpeta" tiene cada cuadro y una nota contexto.md para arrastrar. Se guardan en Videos\Setto\Para Claude.
+- Widget: el número de avisos de la pestañita ya no queda cortado contra el borde de la pantalla.
+- Utilidades → Ambientes: guardás tus ambientes (IP,puerto, espejo y DBId) y con un clic cambiás los .cfg (DBPrincipal, DBMirror, DBId) y los argumentos de inicio de Visual Studio (/dbprincipal, /dbmirror, /dbid, también _second). Busca los archivos en la carpeta del workspace, muestra qué cambia en cada uno antes de escribir y guarda una copia. Desde Ctrl+K: "Cambiar a QA".
+- Portapapeles → Videos: las grabaciones de Recortes (y la Game Bar) con su tamaño; avisa cuáles son pesadas (más de 200 MB) o sin uso (más de 30 días) y cuánto se libera, y se mandan a la Papelera de a una o varias. Reproductor y recorte de inicio y fin: se guarda como video nuevo al lado del original, sin perder calidad (incluye ffmpeg).
+- Snippets: cada uno a su módulo. SQL → "Abrir en Consultas"; comandos → "Pegar en la terminal" (sin ejecutar, para revisarlo) además de "Ejecutar"; el resto → "Abrir en el Editor".
+- Terminal: clic derecho como en Windows Terminal (con texto seleccionado copia; si no, pega).
+- Consultas: si SQL Server niega un permiso (p. ej. INSERT), se explica con qué usuario se conecta y se ofrece "Cambiar usuario" y "Pasar a Escritura".
+
 ## 2.16.0 (sin publicar)
 
 ### Diseño

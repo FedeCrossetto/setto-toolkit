@@ -237,6 +237,12 @@ export function Dock(): JSX.Element {
   const [previewKey, setPreviewKey] = useState<string | null>(null)
   const [flash, setFlash] = useState<{ text: string; undo?: () => void } | null>(null)
   const [pastedKey, setPastedKey] = useState<string | null>(null)
+  /** Último video copiado como archivo (Recortes → Ctrl+C) */
+  const [copiedVideo, setCopiedVideo] = useState<{ path: string; name: string; saved?: boolean; at: number } | null>(null)
+  useEffect(() => window.api.on('dock:video', (p) => {
+    const v = p as { path: string; name: string; saved?: boolean }
+    setCopiedVideo({ ...v, at: Date.now() })
+  }), [])
   /** Modo mínimo (copiado + claves) o completo (pestañas, capturas, snippets…). Se recuerda. */
   const [minimal, setMinimal] = useState(() => { try { return localStorage.getItem('dock:mode') !== 'full' } catch { return true } })
   const toggleMinimal = (): void => setMinimal((v) => { try { localStorage.setItem('dock:mode', v ? 'full' : 'minimal') } catch { /* nada */ } return !v })
@@ -760,6 +766,10 @@ export function Dock(): JSX.Element {
                     onCopyPassword={(c, key) => void copyPassword(c, key)}
                     onCopyUser={(c, key) => void copyUser(c, key)}
                     onOpenCredential={(c) => openCredential(c)}
+                    video={copiedVideo && Date.now() - copiedVideo.at < 30 * 60_000 ? copiedVideo : null}
+                    onPasteVideo={() => void paste({ current: true }, 'video')}
+                    onOpenVideos={() => openMain({ pluginId: 'captures', action: 'videos' })}
+                    onDismissVideo={() => setCopiedVideo(null)}
                     onClose={collapse} />
                 </motion.div>
               ) : (<>
@@ -1522,7 +1532,8 @@ function Handle({ side, shortcut, unseen, bumpKey, kind }: { side: Side; shortcu
           <AnimatePresence>
             {unseen > 0 && (
               <motion.span key="badge"
-                className={`absolute -top-2 ${left ? '-left-2' : '-right-2'} min-w-[16px] h-[16px] px-1 rounded-full ${badge} text-on-primary text-[10px] font-bold leading-none grid place-items-center ring-2 ring-surface`}
+                // Del lado de adentro: del lado del borde de la pantalla quedaba cortado.
+                className={`absolute -top-2 ${left ? '-right-2' : '-left-2'} min-w-[16px] h-[16px] px-1 rounded-full ${badge} text-on-primary text-[10px] font-bold leading-none grid place-items-center ring-2 ring-surface`}
                 initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={POP}>
                 <motion.span key={unseen} initial={{ y: 5, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>{unseen}</motion.span>
               </motion.span>

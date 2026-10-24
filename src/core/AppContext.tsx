@@ -205,7 +205,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
       const openTabs = existing
         ? state.openTabs
         : [...state.openTabs, { tabId: 'terminal', pluginId: 'terminal' }]
-      return { ...state, openTabs, activeTabId: tabId, terminalCommand: { content: action.content, stamp: Date.now() } }
+      return { ...state, openTabs, activeTabId: tabId, terminalCommand: { content: action.content, stamp: Date.now(), submit: action.submit } }
     }
     case 'CLEAR_TERMINAL_TARGET':
       return { ...state, terminalTarget: undefined, terminalCommand: undefined }

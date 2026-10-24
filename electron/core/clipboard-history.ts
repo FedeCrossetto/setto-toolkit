@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'crypto'
 import fs from 'fs'
 import path from 'path'
 import { detectKind, isSensitive, maskSecret, type ClipKind } from '../../src/core/clip-utils'
-import { foregroundWindow } from './win-helper'
+import { clipboardFiles, foregroundWindow } from './win-helper'
 import { normalizeSource } from '../plugins/captures/captures-utils'
 import { logger } from './logger'
 import {
@@ -59,6 +59,52 @@ const addedListeners = new Set<(kind: ClipKind) => void>()
 export function onClipAdded(cb: (kind: ClipKind) => void): () => void {
   addedListeners.add(cb)
   return () => { addedListeners.delete(cb) }
+}
+
+/** Video copiado como archivo (Recortes: grabar y Ctrl+C copia el .mp4, no un texto). */
+export interface CopiedFile { path: string; name: string }
+const fileListeners = new Set<(f: CopiedFile) => void>()
+export function onVideoCopied(cb: (f: CopiedFile) => void): () => void {
+  fileListeners.add(cb)
+  return () => { fileListeners.delete(cb) }
+}
+let lastFile = ''
+/** Número de secuencia del portapapeles de Windows visto la última vez (-1: todavía no). */
+let lastSeq = -1
+let filesBusy = false
+const VIDEO_EXT = /\.(mp4|mkv|webm|mov)$/i
+
+function emitVideo(file: string): void {
+  const f = { path: file, name: path.basename(file) }
+  for (const cb of fileListeners) { try { cb(f) } catch { /* nada */ } }
+}
+
+/**
+ * ¿Copiaron un video como archivo? Electron solo dice que hay archivos ("text/uri-list") y en
+ * Windows no los puede leer, así que la ruta la lee el ayudante nativo, y solo cuando cambió
+ * el portapapeles. Lo que ya estaba copiado al arrancar no cuenta.
+ */
+function checkCopiedFile(): void {
+  if (process.platform !== 'win32') return
+  let formats: string[]
+  try { formats = clipboard.availableFormats() } catch { return }
+  if (!formats.some((f) => /uri-list|FileName/i.test(f))) { lastFile = ''; return }
+  // Algunas versiones (y los tests) sí exponen "FileNameW".
+  let direct = ''
+  try { direct = clipboard.readBuffer('FileNameW').toString('utf16le').split('\0')[0]?.trim() ?? '' } catch { /* nada */ }
+  if (direct) {
+    if (direct !== lastFile) { lastFile = direct; if (VIDEO_EXT.test(direct)) emitVideo(direct) }
+    return
+  }
+  if (filesBusy) return
+  filesBusy = true
+  void clipboardFiles(lastSeq).then((r) => {
+    if (!r) return
+    const primed = lastSeq !== -1
+    lastSeq = r.seq
+    const video = r.files?.find((f) => VIDEO_EXT.test(f))
+    if (primed && video) { lastFile = video; emitVideo(video) }
+  }).finally(() => { filesBusy = false })
 }
 
 const digest = (text: string): string => createHash('sha256').update(text).digest('hex')
@@ -179,6 +225,8 @@ function add(text: string): void {
 }
 
 function poll(): void {
+  // Un video copiado como archivo: avisar a la barra (no es texto, no entra al historial).
+  checkCopiedFile()
   let text: string
   try { text = clipboard.readText() } catch { return }
   if (text === last) return

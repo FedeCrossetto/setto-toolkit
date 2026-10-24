@@ -1,4 +1,4 @@
-import { Asterisk, Binary, Braces, Clock, Fingerprint, Hash, KeyRound, Link } from 'lucide-react'
+import { Asterisk, Binary, Braces, Clock, Fingerprint, Hash, KeyRound, Link, Server } from 'lucide-react'
 import { scoreMatch } from '../../core/palette-logic'
 import type { SearchContext, SearchItem, SearchProvider } from '../../core/search'
 import type { IconComponent } from '../../core/types'
@@ -115,6 +115,7 @@ export function detect(query: string, now = Date.now()): SearchItem[] {
 }
 
 const TOOL_ITEMS: { tool: ToolId; title: string; keywords: string; icon: IconComponent }[] = [
+  { tool: 'envs',   title: 'Ambientes (IP y base)',   keywords: 'ambiente entorno ip servidor base cfg dbprincipal argumentos', icon: Server },
   { tool: 'json',   title: 'Formatear JSON',          keywords: 'json pretty validar minificar', icon: Braces },
   { tool: 'base64', title: 'Base64',                  keywords: 'base64 codificar decodificar encode decode', icon: Binary },
   { tool: 'url',    title: 'URL encode / decode',     keywords: 'url encode decode escapar percent', icon: Link },
@@ -131,18 +132,33 @@ export const utilitiesSearchProvider: SearchProvider = {
   pluginId: 'utilities',
   // Lo detectado en el texto pegado va antes que cualquier otro grupo.
   order: -1,
-  search(query) {
+  async search(query) {
     if (!query) return []
     const detected = detect(query)
     if (detected.length) return detected
     // Textos largos no son nombres de herramientas: no ensuciar los resultados.
     if (query.length > 40) return []
-    return TOOL_ITEMS
+    return [...await envItems(query), ...TOOL_ITEMS
       .map((t): SearchItem | null => {
         const score = scoreMatch(query, t.title, t.keywords)
         if (score < 0) return null
         return { id: `utilities:tool:${t.tool}`, title: t.title, icon: t.icon, hint: 'Utilidades', score, run: (ctx) => open(ctx, t.tool) }
       })
-      .filter((i): i is SearchItem => i !== null)
+      .filter((i): i is SearchItem => i !== null)]
   },
+}
+
+/** "qa", "ambiente stg"…: cambiar de ambiente directo (abre la vista previa antes de escribir). */
+let envCache: { at: number; envs: { id: string; name: string; principal: string; dbId: string }[] } | null = null
+async function envItems(query: string): Promise<SearchItem[]> {
+  if (!envCache || Date.now() - envCache.at > 10_000) {
+    try { envCache = { at: Date.now(), envs: (await window.api.invoke<{ envs: { id: string; name: string; principal: string; dbId: string }[] }>('envs:get')).envs } } catch { return [] }
+  }
+  return envCache.envs
+    .map((e): SearchItem | null => {
+      const score = scoreMatch(query, `Cambiar a ${e.name}`, `ambiente entorno ${e.name} ${e.principal}`)
+      if (score < 0) return null
+      return { id: `utilities:env:${e.id}`, title: `Cambiar a ${e.name}`, subtitle: `${e.principal}${e.dbId ? ` · base ${e.dbId}` : ''}`, icon: Server, hint: 'Ambiente', score: score + 5, run: (ctx) => open(ctx, 'envs', e.id) }
+    })
+    .filter((i): i is SearchItem => i !== null)
 }

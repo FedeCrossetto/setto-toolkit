@@ -69,7 +69,7 @@ export interface AppState {
   /** Set by OPEN_TERMINAL_HERE — consumed and cleared by Terminal */
   terminalTarget?: { cwd: string }
   /** Set by RUN_IN_TERMINAL — consumed and cleared by Terminal */
-  terminalCommand?: { content: string; stamp: number }
+  terminalCommand?: { content: string; stamp: number; /** false: se escribe sin Enter, para revisarlo antes */ submit?: boolean }
   /** Incremented by INTERRUPT_TERMINAL — Terminal sends Ctrl+C to active session */
   terminalInterrupt?: number
   /** Plugins that have unsaved changes, keyed by pluginId */
@@ -108,7 +108,7 @@ export type AppAction =
   /** Cross-plugin: open terminal tab in a specific working directory */
   | { type: 'OPEN_TERMINAL_HERE'; cwd: string }
   /** Cross-plugin: send a command string to the active terminal session */
-  | { type: 'RUN_IN_TERMINAL'; content: string }
+  | { type: 'RUN_IN_TERMINAL'; content: string; submit?: boolean }
   /** Clear terminal targets after Terminal has consumed them */
   | { type: 'CLEAR_TERMINAL_TARGET' }
   /** Cross-plugin: send a raw control sequence to the active terminal (no \r appended) */

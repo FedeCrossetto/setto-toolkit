@@ -73,3 +73,15 @@ export interface CaptureQueryResult {
 export const captureUrl = (file: string): string => `setto-capture://img/${encodeURIComponent(file)}`
 /** Miniatura JPEG (~480 px); si todavía no existe, main devuelve la imagen original. */
 export const thumbUrl = (file: string): string => `setto-capture://thumb/${encodeURIComponent(file)}`
+
+/** Un video grabado con Recortes o la Game Bar (electron/plugins/captures/videos.ts). */
+export interface VideoItem {
+  path: string
+  name: string
+  /** Subcarpeta de Videos: "Grabaciones de pantalla", "Screen Recordings"… */
+  folder: string
+  size: number
+  modifiedAt: number
+  /** Última vez que se abrió desde Setto (epoch ms) */
+  openedAt?: number
+}

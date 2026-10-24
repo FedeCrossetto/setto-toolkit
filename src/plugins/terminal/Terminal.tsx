@@ -127,6 +127,8 @@ export function Terminal(): JSX.Element {
   const prefsRef           = useRef(prefs)
   const createSessionRef   = useRef<(shell?: string, cwd?: string) => Promise<void>>(async () => {})
   const pendingCommandRef  = useRef<string | null>(null)
+  /** El comando pendiente se manda con Enter (ejecutar) o sin (pegar para revisar). */
+  const pendingSubmitRef   = useRef(true)
   prefsRef.current         = prefs
 
   useEffect(() => {
@@ -313,6 +315,19 @@ export function Terminal(): JSX.Element {
       return true
     })
 
+    // Clic derecho como en Windows Terminal: con texto seleccionado lo copia; sin selección, pega.
+    const onContextMenu = (e: MouseEvent): void => {
+      e.preventDefault()
+      if (xterm.hasSelection()) {
+        navigator.clipboard.writeText(xterm.getSelection()).catch(() => {})
+        xterm.clearSelection()
+      } else {
+        navigator.clipboard.readText().then((t) => { if (t) xterm.paste(t) }).catch(() => {})
+      }
+      xterm.focus()
+    }
+    container.addEventListener('contextmenu', onContextMenu)
+
     const inputDispose  = xterm.onData((data) => window.api.send('terminal:input', { sessionId, data }))
     const resizeDispose = xterm.onResize(({ cols, rows }) => window.api.send('terminal:resize', { sessionId, cols, rows }))
 
@@ -339,7 +354,7 @@ export function Terminal(): JSX.Element {
     while (taken.has(seq)) seq++
     sessionsRef.current.set(sessionId, {
       sessionId, shellLabel, seq, shellCmd, container, xterm, fitAddon, exited: false,
-      cleanup: () => { offData(); offExit(); inputDispose.dispose(); resizeDispose.dispose(); ro.disconnect() },
+      cleanup: () => { offData(); offExit(); inputDispose.dispose(); resizeDispose.dispose(); ro.disconnect(); container.removeEventListener('contextmenu', onContextMenu) },
     })
 
     setSessionIds((prev) => [...prev, sessionId])
@@ -349,9 +364,11 @@ export function Terminal(): JSX.Element {
       // If a command was queued (from RUN_IN_TERMINAL), send it once the shell is ready
       if (pendingCommandRef.current) {
         const data = pendingCommandRef.current
+        const submit = pendingSubmitRef.current
         pendingCommandRef.current = null
+        pendingSubmitRef.current = true
         setTimeout(() => {
-          window.api.send('terminal:input', { sessionId, data: data + '\r' })
+          window.api.send('terminal:input', { sessionId, data: submit ? data + '\r' : data })
         }, 600)
       }
     }, 0)
@@ -420,14 +437,16 @@ export function Terminal(): JSX.Element {
   // ── Consume RUN_IN_TERMINAL (from Snippet Manager) ────────────────────────
   useEffect(() => {
     if (!state.terminalCommand) return
-    const { content } = state.terminalCommand
+    const { content, submit = true } = state.terminalCommand
     dispatch({ type: 'CLEAR_TERMINAL_TARGET' })
     // If there's a live active session, write directly; otherwise create one then send
     const active = activeId ? sessionsRef.current.get(activeId) : null
     if (active && !active.exited) {
-      window.api.send('terminal:input', { sessionId: activeId, data: content + '\r' })
+      window.api.send('terminal:input', { sessionId: activeId, data: submit ? content + '\r' : content })
+      setTimeout(() => active.xterm.focus(), 50)
     } else {
       pendingCommandRef.current = content
+      pendingSubmitRef.current = submit
       void createSession()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -18,6 +18,7 @@ import { handlers as credentialsHandlers } from '../plugins/credentials/handlers
 import { handlers as capturesHandlers } from '../plugins/captures/handlers'
 import { handlers as sqlConnectionsHandlers } from '../plugins/sql-connections/handlers'
 import { handlers as ticketsHandlers } from '../plugins/tickets/handlers'
+import { handlers as envsHandlers } from '../plugins/envs/handlers'
 
 const allHandlers: PluginHandlers[] = [
   repoSearchHandlers,
@@ -35,6 +36,7 @@ const allHandlers: PluginHandlers[] = [
   capturesHandlers,
   sqlConnectionsHandlers,
   ticketsHandlers,
+  envsHandlers,
 ]
 
 export function loadPlugins(ipcMain: IpcMain, services: CoreServices): void {

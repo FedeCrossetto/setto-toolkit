@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { VideosView } from './VideosView'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Camera, Copy, Download, FolderOpen, Monitor, Pencil, Pin, PinOff, Search, Settings, Ticket, Trash2, X,
@@ -51,7 +52,7 @@ const readSort = (): CaptureSort => {
   return 'new'
 }
 
-type Tab = 'images' | 'text'
+type Tab = 'images' | 'text' | 'videos'
 const TAB_KEY = 'captures:tab'
 
 /**
@@ -60,7 +61,7 @@ const TAB_KEY = 'captures:tab'
  */
 export function CapturesPlugin(): JSX.Element {
   const [tab, setTabState] = useState<Tab>(() => {
-    try { return localStorage.getItem(TAB_KEY) === 'text' ? 'text' : 'images' } catch { return 'images' }
+    try { const t = localStorage.getItem(TAB_KEY); return t === 'text' || t === 'videos' ? t : 'images' } catch { return 'images' }
   })
   const [pending, setPending] = useState<PluginIntent | null>(null)
   /** El usuario (o un intent) ya eligió pestaña: no cambiarla sola. */
@@ -77,16 +78,17 @@ export function CapturesPlugin(): JSX.Element {
   }, [])
   usePluginIntent('captures', (intent) => {
     if (intent.action === 'text') { setTab('text'); return }
+    if (intent.action === 'videos') { setTab('videos'); return }
     setTab('images')
     setPending(intent)
   })
   const tabs = (
     <div className="flex items-center gap-3">
       <h1 className="t-title3 text-on-surface">Portapapeles</h1>
-      <SegmentedControl<Tab> value={tab} onChange={setTab} options={[{ value: 'images', label: 'Imágenes' }, { value: 'text', label: 'Texto' }]} />
+      <SegmentedControl<Tab> value={tab} onChange={setTab} options={[{ value: 'images', label: 'Imágenes' }, { value: 'text', label: 'Texto' }, { value: 'videos', label: 'Videos' }]} />
     </div>
   )
-  return tab === 'text' ? <TextClips header={tabs} /> : <ImagesView header={tabs} pending={pending} />
+  return tab === 'text' ? <TextClips header={tabs} /> : tab === 'videos' ? <VideosView header={tabs} /> : <ImagesView header={tabs} pending={pending} />
 }
 
 function ImagesView({ header, pending }: { header: React.ReactNode; pending: PluginIntent | null }): JSX.Element {

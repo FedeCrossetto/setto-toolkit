@@ -10,7 +10,7 @@ import { logger } from './logger'
  * terminal, escritura/borrado de archivos, ajustes, revelar/exportar claves y
  * respaldos sólo se aceptan desde `mainWindow.webContents`.
  */
-const MAIN_ONLY_PREFIXES = ['terminal:', 'backup:', 'credentials:e2e-']
+const MAIN_ONLY_PREFIXES = ['terminal:', 'backup:', 'credentials:e2e-', 'envs:', 'videos:']
 
 const MAIN_ONLY_EXACT = new Set([
   'editor:write-file', 'editor:delete', 'editor:delete-permanent', 'editor:rename',

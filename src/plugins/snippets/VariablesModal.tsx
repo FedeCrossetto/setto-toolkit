@@ -21,7 +21,8 @@ export function saveRemembered(id: string, values: Record<string, string>): void
   try { localStorage.setItem(STORAGE_PREFIX + id, JSON.stringify(values)) } catch { /* sin storage */ }
 }
 
-export type VariablesMode = 'copy' | 'run'
+/** copy · run (terminal, con Enter) · paste (terminal, sin Enter) · sql (Consultas) · editor (archivo nuevo) */
+export type VariablesMode = 'copy' | 'run' | 'paste' | 'sql' | 'editor'
 
 /** Fill-in form for `{{variables}}` before copying or running a snippet. */
 export function VariablesModal({
@@ -64,8 +65,8 @@ export function VariablesModal({
         <>
           <button className="ui-btn ui-btn-outline" onClick={onClose}>Cancelar</button>
           <button className="ui-btn ui-btn-primary" onClick={submit}>
-            {mode === 'run' ? <SquareTerminal size={14} /> : <Copy size={14} />}
-            {mode === 'run' ? 'Ejecutar' : 'Copiar'}
+            {mode === 'run' || mode === 'paste' ? <SquareTerminal size={14} /> : <Copy size={14} />}
+            {{ copy: 'Copiar', run: 'Ejecutar', paste: 'Pegar en la terminal', sql: 'Abrir en Consultas', editor: 'Abrir en el Editor' }[mode]}
           </button>
         </>
       }

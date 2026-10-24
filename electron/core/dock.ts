@@ -4,7 +4,8 @@ import path from 'path'
 import type { SettingsService } from './services/settings.service'
 import { foregroundWindow } from './win-helper'
 import { pasteKeepingClipboard, simulatePaste } from './snippet-picker'
-import { clipText, onClipAdded } from './clipboard-history'
+import { clipText, onClipAdded, onVideoCopied } from './clipboard-history'
+import { saveCopiedVideo } from '../plugins/captures/videos'
 import { showWindow } from './notifications'
 import { logger } from './logger'
 
@@ -457,6 +458,14 @@ export function registerDock(ipcMain: IpcMain, settings: SettingsService, icon: 
   })
 
   // Lo nuevo que se copia hace "saltar" la pestaña (el renderer muestra el globito).
+  // Video copiado (Recortes → Ctrl+C): la barra lo muestra arriba para abrirlo o pegarlo.
+  // Si estaba en una carpeta temporal (Recortes sin guardar) se guarda en Videos\Setto antes de avisar.
+  onVideoCopied((f) => {
+    void saveCopiedVideo(f.path).then((r) => {
+      if (dock && !dock.isDestroyed()) dock.webContents.send('dock:video', r ?? { ...f, saved: false })
+    })
+    if (dock && !dock.isDestroyed() && !expanded && !hiddenForFullscreen) dock.webContents.send('dock:bump', { kind: 'video' })
+  })
   onClipAdded((kind) => {
     if (dock && !dock.isDestroyed() && !expanded && !hiddenForFullscreen) dock.webContents.send('dock:bump', { kind })
   })

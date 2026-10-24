@@ -423,6 +423,12 @@ export function FileEditor(): JSX.Element {
   useEffect(() => () => publishOpenFiles(null), [])
 
   usePluginIntent('file-editor', (intent) => {
+    if (intent.action === 'open-text') {
+      const p = intent.payload as { name?: string; content?: string } | undefined
+      const name = p?.name || 'Sin título.txt'
+      openBuffer(name, p?.content ?? '', detectLanguage(name))
+      return
+    }
     if (intent.action !== 'activate-tab') return
     const p = intent.payload as { id?: string; name?: string } | undefined
     const target = tabs.find((t) => t.id === p?.id) ?? tabs.find((t) => t.path === null && t.name === p?.name)

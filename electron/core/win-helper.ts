@@ -105,6 +105,34 @@ static class SettoFgHelper {
   [DllImport("user32.dll")] static extern IntPtr GetShellWindow();
   [DllImport("user32.dll")] static extern IntPtr GetDesktopWindow();
   [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+  [DllImport("user32.dll")] static extern uint GetClipboardSequenceNumber();
+  [DllImport("user32.dll")] static extern bool IsClipboardFormatAvailable(uint f);
+  [DllImport("user32.dll")] static extern bool OpenClipboard(IntPtr h);
+  [DllImport("user32.dll")] static extern bool CloseClipboard();
+  [DllImport("user32.dll")] static extern IntPtr GetClipboardData(uint f);
+  [DllImport("shell32.dll", CharSet = CharSet.Unicode)] static extern uint DragQueryFile(IntPtr h, uint i, StringBuilder s, int n);
+  // Archivos copiados (CF_HDROP = 15), solo lectura. Si el portapapeles no cambió desde "last", ni se abre.
+  static string Files(string line) {
+    uint seq = GetClipboardSequenceNumber();
+    var lm = Regex.Match(line, "\"last\"\\s*:\\s*(\\d+)");
+    if (lm.Success && lm.Groups[1].Value == seq.ToString()) return "{\"seq\":" + seq + "}";
+    var sb = new StringBuilder("{\"seq\":" + seq + ",\"files\":[");
+    if (IsClipboardFormatAvailable(15) && OpenClipboard(IntPtr.Zero)) {
+      try {
+        IntPtr h = GetClipboardData(15);
+        if (h != IntPtr.Zero) {
+          uint n = DragQueryFile(h, 0xFFFFFFFF, null, 0);
+          for (uint i = 0; i < n && i < 20; i++) {
+            var b = new StringBuilder(1024);
+            DragQueryFile(h, i, b, 1024);
+            if (i > 0) sb.Append(',');
+            sb.Append('"').Append(Esc(b.ToString())).Append('"');
+          }
+        }
+      } finally { CloseClipboard(); }
+    }
+    return sb.Append("]}").ToString();
+  }
   // Ctrl+V a la ventana de adelante (KEYEVENTF_KEYUP = 2).
   static void Paste() {
     keybd_event(0x11, 0, 0, UIntPtr.Zero); keybd_event(0x56, 0, 0, UIntPtr.Zero);
@@ -146,6 +174,7 @@ static class SettoFgHelper {
         string result;
         if (line.Contains("\"paste\"")) { Paste(); result = "true"; }
         else if (line.Contains("\"fg\"")) result = Fg();
+        else if (line.Contains("\"files\"")) result = Files(line);
         else throw new Exception("cmd?");
         Console.Out.WriteLine("{\"id\":" + id + ",\"ok\":true,\"result\":" + result + "}");
       } catch (Exception e) {
@@ -316,6 +345,19 @@ export async function sendPasteKeys(): Promise<boolean> {
   try { return (await fgWorker.call<boolean>('paste', {}, 3000)) === true } catch (err) {
     logger.warn('fg-helper', `paste: ${err instanceof Error ? err.message : String(err)}`)
     return false
+  }
+}
+
+/**
+ * Archivos copiados (Recortes → Ctrl+C copia el .mp4): Electron ve "text/uri-list" pero no
+ * puede leer la lista en Windows, así que la lee el ayudante. `files` viene solo si el
+ * portapapeles cambió desde `last` (número de secuencia de Windows).
+ */
+export async function clipboardFiles(last: number): Promise<{ seq: number; files?: string[] } | null> {
+  if (process.platform !== 'win32' || fgFallback) return null
+  try { return await fgWorker.call<{ seq: number; files?: string[] }>('files', { last }, 3000) } catch (err) {
+    logger.warn('fg-helper', `files: ${err instanceof Error ? err.message : String(err)}`)
+    return null
   }
 }
 

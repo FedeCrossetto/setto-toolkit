@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
+import { EnvsTool } from './EnvsTool'
 import { motion } from 'framer-motion'
 import {
-  Asterisk, Binary, Braces, Clock, Copy, Fingerprint, Hash, KeyRound, Link, RefreshCw, type LucideIcon,
+  Asterisk, Binary, Braces, Clock, Copy, Fingerprint, Hash, KeyRound, Link, RefreshCw, Server, type LucideIcon,
 } from 'lucide-react'
 import { usePluginIntent } from '../../core/AppContext'
 import { addVisited, NO_SEED, panelSeed, type ToolSeed } from './seed'
@@ -13,12 +14,13 @@ import {
   testRegex, urlDecode, urlEncode, uuid, type HashAlgo, type Result,
 } from './tools'
 
-export type ToolId = 'json' | 'base64' | 'url' | 'jwt' | 'uuid' | 'time' | 'regex' | 'hash'
+export type ToolId = 'envs' | 'json' | 'base64' | 'url' | 'jwt' | 'uuid' | 'time' | 'regex' | 'hash'
 
 /** Intent desde Ctrl+K: abre una herramienta con el texto ya cargado. */
 export interface UtilitiesIntentPayload { tool: ToolId; input?: string }
 
 const TOOLS: { id: ToolId; name: string; hint: string; icon: LucideIcon }[] = [
+  { id: 'envs',   name: 'Ambientes',       hint: 'Cambiar IP y base en los .cfg y argumentos de inicio', icon: Server },
   { id: 'json',   name: 'JSON',            hint: 'Formatear, validar, minificar', icon: Braces },
   { id: 'base64', name: 'Base64',          hint: 'Codificar y decodificar',       icon: Binary },
   { id: 'url',    name: 'URL encode',      hint: 'Escapar parámetros',            icon: Link },
@@ -115,6 +117,7 @@ export function UtilitiesPlugin(): JSX.Element {
 
 function ToolPanel({ tool, initial }: { tool: ToolId; initial: string }): JSX.Element {
   switch (tool) {
+    case 'envs': return <EnvsTool initial={initial} />
     case 'json': return <JsonTool initial={initial} />
     case 'base64': return <Base64Tool initial={initial} />
     case 'url': return <UrlTool initial={initial} />

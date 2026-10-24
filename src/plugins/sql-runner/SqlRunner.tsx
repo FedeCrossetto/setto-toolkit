@@ -626,6 +626,8 @@ export function SqlRunner(): JSX.Element {
             {/* Resultados */}
             <div className="flex-1 min-h-0 flex flex-col bg-surface">
               <Results run={run} onGotoLine={(l) => editorRef.current?.focusLine?.(l)} onUseDatabase={runInDatabase}
+                conn={profile ? { name: profile.name, user: profile.auth === 'windows' ? 'tu usuario de Windows' : profile.user, readOnly: tab.readOnly,
+                  onEdit: () => setFix({ profileId: profile.id, reason: 'edit' }), onWrite: () => patchTab(tab.id, { readOnly: false }) } : undefined}
                 onView={(v) => setRuns((r) => (r[tab.id] ? { ...r, [tab.id]: { ...r[tab.id]!, view: v } } : r))}
                 name={tab.title} table={guessTable(run?.text ?? tab.sql)}
                 editing={run?.result?.ok && run.result.sets.length ? {
@@ -699,10 +701,24 @@ function StackedGrid({ set, name }: { set: QuerySet; name: string }): JSX.Elemen
   )
 }
 
-function Results({ run, onGotoLine, onUseDatabase, onView, name, table, editing }: {
+/**
+ * "The INSERT permission was denied on the object 'x'…" (Msg 229/230; también en español):
+ * qué acción y sobre qué objeto, para explicarlo en una línea.
+ */
+function permissionDenied(r: QueryResult): { action: string | null; object: string | null } | null {
+  const e = r.error ?? ''
+  if (![229, 230, 262, 297, 300].includes(r.number ?? 0) && !/permission was denied|se deneg[oó] el permiso|permiso .* denegado/i.test(e)) return null
+  const act = /The (\w+) permission was denied/i.exec(e)?.[1] ?? /permiso (\w+)/i.exec(e)?.[1] ?? null
+  const obj = /object '([^']+)'/i.exec(e)?.[1] ?? /objeto '([^']+)'/i.exec(e)?.[1] ?? null
+  return { action: act ? act.toUpperCase() : null, object: obj }
+}
+
+function Results({ run, onGotoLine, onUseDatabase, conn, onView, name, table, editing }: {
   run: RunState | undefined
   onGotoLine: (line: number) => void
   onUseDatabase: (db: string) => void
+  /** Conexión de la pestaña: para explicar "permiso denegado" y ofrecer corregirla */
+  conn?: { name: string; user: string; readOnly: boolean; onEdit: () => void; onWrite: () => void }
   onView: (v: ResultView) => void
   name: string
   table?: string
@@ -766,6 +782,23 @@ function Results({ run, onGotoLine, onUseDatabase, onView, name, table, editing 
           )}
         </div>
       )}
+      {!r.ok && conn && permissionDenied(r) && (
+        <div className="flex items-start gap-2.5 px-3 py-2.5 bg-warning/[0.07] hairline-b shrink-0 t-footnote text-on-surface">
+          <ShieldAlert size={15} className="text-warning shrink-0 mt-px" />
+          <div className="flex-1 min-w-0">
+            <p>
+              El usuario <b className="font-semibold">{conn.user || 'de la conexión'}</b> de <b className="font-semibold">{conn.name}</b> no tiene permiso para
+              {' '}{permissionDenied(r)!.action ?? 'hacer esto'}{permissionDenied(r)!.object ? <> en <span className="font-mono">{permissionDenied(r)!.object}</span></> : null}.
+              {' '}Es un permiso de SQL Server: en SSMS seguramente entrás con otro usuario (por ejemplo sa).
+            </p>
+            {conn.readOnly && <p className="mt-1 text-on-surface-variant">Además estás en Solo lectura: aunque tengas permiso, los cambios se deshacen al final.</p>}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {conn.readOnly && <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={conn.onWrite}>Pasar a Escritura</button>}
+            <button type="button" className="ui-btn ui-btn-outline ui-btn-sm" onClick={conn.onEdit}>Cambiar usuario</button>
+          </div>
+        </div>
+      )}
       {!r.ok && run.locate && (
         <div className="flex items-center flex-wrap gap-x-2 gap-y-1.5 px-3 py-2 bg-primary/[0.06] hairline-b shrink-0 t-footnote text-on-surface">
           <Info size={14} className="text-primary shrink-0" />
@@ -809,6 +842,31 @@ function Results({ run, onGotoLine, onUseDatabase, onView, name, table, editing 
           </div>
         ) : set ? <ResultGrid key={view} set={set} name={name} table={table} editing={view === 0 ? editing : undefined} flash={view === 0 ? run.flash : undefined} /> : (
           <div className="h-full overflow-auto px-3 py-2 font-mono text-[12px] leading-[19px] text-on-surface">
+            {/* Como el "Commands completed successfully." de SSMS: que se note que terminó bien. */}
+            {r.ok && !r.cancelled && (() => {
+              const rows = r.messages.reduce((n, m) => { const x = /^\((\d+) filas? afectadas?\)$/.exec(m.trim()); return x ? n + Number(x[1]) : n }, 0)
+              const end = new Date(run.startedAt + r.ms).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+              const writes = /(^|[^a-z_])(insert|update|delete|merge|alter|create|drop|truncate|exec|execute|grant|revoke)(?![a-z_])/i.test(run.text ?? '')
+              return (
+                <div className="font-sans mb-3 flex items-start gap-3 rounded-(--r-lg) ring-1 ring-success/25 bg-success/[0.06] px-3.5 py-3">
+                  <CheckCircle2 size={18} weight="fill" className="text-success shrink-0 mt-px" />
+                  <div className="flex-1 min-w-0">
+                    <p className="t-body font-semibold text-on-surface">Comandos ejecutados correctamente</p>
+                    <p className="t-footnote text-on-surface-variant mt-0.5 tabular-nums">
+                      Terminó a las {end} · {fmtMs(r.ms)}
+                      {rows > 0 && ` · ${rows.toLocaleString('es-AR')} ${rows === 1 ? 'fila afectada' : 'filas afectadas'}`}
+                      {r.sets.length > 0 && ` · ${r.sets.length} ${r.sets.length === 1 ? 'resultado' : 'resultados'}`}
+                    </p>
+                    {conn?.readOnly && writes && (
+                      <p className="t-footnote text-warning mt-1.5 flex items-center gap-2 flex-wrap">
+                        Estabas en Solo lectura: los cambios se deshicieron al terminar (rollback).
+                        <button type="button" className="ui-btn ui-btn-outline ui-btn-sm" onClick={conn.onWrite}>Pasar a Escritura</button>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
             {(() => {
               const st = parseStats(r.messages)
               if (!st) return null
@@ -832,7 +890,6 @@ function Results({ run, onGotoLine, onUseDatabase, onView, name, table, editing 
             })()}
             {r.messages.length === 0 && r.ok && <p className="text-on-surface-variant">Listo, sin mensajes.</p>}
             <MessageTimeline messages={r.messages} />
-            {r.ok && <p className="text-on-surface-variant mt-1">Terminó en {fmtMs(r.ms)}.</p>}
           </div>
         )}
       </div>

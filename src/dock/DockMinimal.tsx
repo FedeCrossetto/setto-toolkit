@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, ClipboardText, Copy, KeyRound, Lock, Search, User, X } from 'lucide-react'
+import { Check, ClipboardText, Copy, KeyRound, Lock, Search, User, Video, X } from 'lucide-react'
 import { normalize } from '../core/search'
 import { KIND_ICON, KIND_LABEL } from '../core/clip-actions'
 import type { ClipView } from '../core/clip-utils'
@@ -30,7 +30,8 @@ function ago(ts: number): string {
 }
 
 export function DockMinimal({
-  clips, topCreds, allCreds, locked, doneKey, doneLabel, flash, onCopyClip, onPasteClip, onCopyPassword, onCopyUser, onOpenCredential, onClose,
+  clips, topCreds, allCreds, locked, doneKey, doneLabel, flash, onCopyClip, onPasteClip, onCopyPassword, onCopyUser, onOpenCredential,
+  video, onPasteVideo, onOpenVideos, onDismissVideo, onClose,
 }: {
   clips: ClipView[]
   topCreds: MiniCred[]
@@ -45,6 +46,11 @@ export function DockMinimal({
   onCopyPassword: (c: MiniCred, key: string) => void
   onCopyUser: (c: MiniCred, key: string) => void
   onOpenCredential: (c: MiniCred) => void
+  /** Video recién copiado (Recortes → Ctrl+C), si hay */
+  video: { path: string; name: string; saved?: boolean; at: number } | null
+  onPasteVideo: () => void
+  onOpenVideos: () => void
+  onDismissVideo: () => void
   onClose: () => void
 }): JSX.Element {
   const [q, setQ] = useState('')
@@ -118,6 +124,20 @@ export function DockMinimal({
           </button>
         )}
       </div>
+
+      {/* Video recién copiado: avisar que está en el portapapeles y ofrecer pegarlo */}
+      {video && !words.length && (
+        <div className="mx-3 mb-2 flex items-center gap-2.5 rounded-(--r-md) bg-primary/[0.08] ring-1 ring-primary/20 px-2.5 py-2 shrink-0">
+          <span className="grid place-items-center w-8 h-8 rounded-(--r-sm) bg-primary/15 text-primary shrink-0"><Video size={16} /></span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-[12px] font-semibold text-on-surface">{video.saved ? 'Video guardado' : 'Video copiado'}</span>
+            <span className="block text-[11.5px] text-on-surface-variant truncate" title={video.path}>{video.saved ? 'En Videos\\Setto · ' : ''}{video.name}</span>
+          </span>
+          <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" title="Pegarlo en la app de adelante" onClick={onPasteVideo}>Pegar</button>
+          <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" title="Ver en Portapapeles → Videos" onClick={onOpenVideos}>Ver</button>
+          <button type="button" aria-label="Ocultar" title="Ocultar" className="grid place-items-center w-6 h-6 rounded-[6px] text-on-surface-variant hover:bg-on-surface/8" onClick={onDismissVideo}><X size={12} /></button>
+        </div>
+      )}
 
       <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
         {/* Claves: accesos fijos (sólo sin buscar) */}

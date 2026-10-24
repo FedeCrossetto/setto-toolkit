@@ -392,6 +392,8 @@ app.whenReady().then(() => {
     // Sin `https:` genérico: una imagen remota en un .md (Notas, Editor) no se carga sola
     // (core/remote-image.ts). Sólo los hosts de favicons de Claves y avatares de cuentas.
     `img-src ${IMG_SRC}`,
+    // Videos de Recortes (Portapapeles → Videos), servidos por setto-video:// (plugins/captures/videos.ts).
+    "media-src 'self' setto-video: blob:",
     `connect-src 'self' https://api.openai.com https://api.bitbucket.org https://api.github.com${cspConnectExtra}`,
     "frame-src 'none'",
     "object-src 'none'",

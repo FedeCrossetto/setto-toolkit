@@ -11,6 +11,7 @@ import { logger } from '../../core/logger'
 import { isPrivateClipboard, setCaptureSearchSource } from '../../core/clipboard-history'
 import { prepareDoc, type PreparedDoc } from '../../../src/plugins/captures/clip-search'
 import { OcrQueue } from './ocr-queue'
+import { registerVideoHandlers, registerVideoProtocol, VIDEO_SCHEME } from './videos'
 import { foregroundWindow, ocrImage, stopWinHelper, warmWinHelper } from '../../core/win-helper'
 import { showWindow } from '../../core/notifications'
 import type { CaptureQuery, CaptureQueryResult, CaptureSettings } from '../../../src/plugins/captures/types'
@@ -355,7 +356,11 @@ function preparedDoc(c: CaptureEntry): PreparedDoc {
 
 /** Antes de app.ready (main.ts). */
 export function registerCaptureScheme(): void {
-  protocol.registerSchemesAsPrivileged([{ scheme: CAPTURE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }])
+  protocol.registerSchemesAsPrivileged([
+    { scheme: CAPTURE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
+    // Videos de Recortes: `stream` para que el reproductor pida de a pedazos (adelantar sin cargar todo).
+    { scheme: VIDEO_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+  ])
 }
 
 function registerCaptureProtocol(): void {
@@ -403,6 +408,8 @@ export const handlers: PluginHandlers = {
     settingsRef = settings
     loadIndex()
     registerCaptureProtocol()
+    registerVideoProtocol()
+    registerVideoHandlers(ipcMain)
     enforceLimits()
     backfillThumbs()
     // Las que quedaron sin OCR (app cerrada a mitad, o de antes): relleno gradual, lo más nuevo primero.

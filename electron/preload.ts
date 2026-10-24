@@ -71,6 +71,8 @@ const INVOKE_CHANNELS = new Set([
   'sql:list', 'sql:save', 'sql:delete', 'sql:test', 'sql:copy', 'sql:query', 'sql:cancel', 'sql:tabs-get', 'sql:tabs-save', 'sql:history-get', 'sql:history-clear', 'sql:meta', 'sql:favs-get', 'sql:favs-save',
   'backup:info', 'backup:export', 'backup:pick', 'backup:inspect', 'backup:restore', 'backup:auto-pick-dir', 'backup:auto-set', 'backup:auto-run',
   'captures:query', 'captures:get', 'captures:settings', 'captures:update', 'captures:update-many', 'captures:delete',
+  'envs:get', 'envs:save', 'envs:pick-root', 'envs:scan', 'envs:preview', 'envs:apply',
+  'videos:list', 'videos:open', 'videos:mark-opened', 'videos:reveal', 'videos:trash', 'videos:trim', 'videos:rename', 'videos:annotate', 'videos:frames', 'videos:frames-reveal',
   'captures:copy', 'captures:reveal', 'captures:export', 'captures:save-annotated', 'captures:copy-ocr', 'captures:active-ticket', 'tickets:jira-url',
 ])
 
@@ -100,7 +102,7 @@ const ON_CHANNELS = new Set([
   'snippet-picker:opened',
   'sync:changed',
   'captures:changed',
-  'dock:state', 'dock:bump', 'dock:drag',
+  'dock:state', 'dock:bump', 'dock:drag', 'dock:video', 'videos:changed', 'videos:progress',
 ])
 
 /**
@@ -113,7 +115,7 @@ const ON_CHANNELS = new Set([
 /** Barra flotante (`#dock`, src/dock/**, incl. resumen y alta rápida de Gastos y el Bloc de notas). */
 const DOCK_CHANNELS = new Set([
   'app:open-in-main', 'app:renderer-error', 'app:version',
-  'dock:state', 'dock:paste', 'dock:copy-text', 'dock:bump', 'dock:drag',
+  'dock:state', 'dock:paste', 'dock:copy-text', 'dock:bump', 'dock:drag', 'dock:video',
   'dock:expand', 'dock:collapse', 'dock:pin', 'dock:want-focus', 'dock:quick-capture', 'dock:move', 'dock:move-end',
   'dock:move-reset', 'dock:set-side',
   'clipboard:history', 'clipboard:copy', 'clipboard:remove', 'clipboard:pin', 'clipboard:open-path', 'clipboard:ocr-image',
