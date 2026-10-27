@@ -763,18 +763,25 @@ select option {
 }
 .dock-idle { animation: dock-idle 3.6s ease-in-out infinite; }
 
-/* ─── Home & Search: skeleton neutro (sin tinte de acento) ───────────────── */
+/* ─── Skeleton neutro ─────────────────────────────────────────────────────
+   Un solo destello que cruza la pantalla, sincronizado en todas las barras (el degradé es
+   relativo a la ventana: background-attachment fixed), en vez de un brillo suelto por barra.
+   .skel-delay: el bloque aparece recién a los 180 ms (si carga rápido no parpadea). */
+:root { --skel-base: rgb(var(--c-on-surface) / 0.065); --skel-glint: rgb(255 255 255 / 0.65); }
+.dark { --skel-base: rgb(255 255 255 / 0.06); --skel-glint: rgb(255 255 255 / 0.07); }
 .ui-skeleton {
-  background: linear-gradient(
-    90deg,
-    rgb(var(--c-on-surface) / 0.06) 25%,
-    rgb(var(--c-on-surface) / 0.11) 40%,
-    rgb(var(--c-on-surface) / 0.06) 60%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
-  border-radius: var(--r-xs);
+  background-color: var(--skel-base);
+  background-image: linear-gradient(100deg, transparent 0%, var(--skel-glint) 50%, transparent 100%);
+  background-size: 45vw 100%;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  animation: skel-sweep 1.9s cubic-bezier(.45, 0, .25, 1) infinite;
+  border-radius: 6px;
 }
+@keyframes skel-sweep { from { background-position: -45vw 0; } to { background-position: 145vw 0; } }
+.skel-delay { animation: skel-in 320ms ease 180ms both; }
+@keyframes skel-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+html.motion-subtle .ui-skeleton { animation: none; background-image: none; }
 
 
 /* ─── Dev modules (Editor / API Lab): token-only overrides ───────────────── */
@@ -861,6 +868,11 @@ button, input, select, textarea { font-family: inherit; }
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
 }
 .dark .nav-active { background: rgb(255 255 255 / 0.07); border-color: rgb(255 255 255 / 0.08); box-shadow: none; }
+/* Barra lateral: el módulo activo es una pastilla oscura (clara en modo oscuro), como las apps de hoy. */
+:root { --nav-pill-fg: rgb(var(--c-surface)); --c-sidebar-ring: rgb(var(--c-sidebar, var(--c-surface))); }
+.nav-pill { background: rgb(var(--c-on-surface) / 0.9); box-shadow: 0 1px 2px rgb(0 0 0 / 0.18), 0 4px 12px -6px rgb(0 0 0 / 0.35); }
+.dark .nav-pill { background: rgb(255 255 255 / 0.92); box-shadow: none; }
+.dark { --nav-pill-fg: rgb(18 18 22); }
 /* Teclas (⌘K) en chips finos */
 .kbd-chip {
   display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px;
@@ -1074,6 +1086,59 @@ html.motion-off .toast-timer { animation: none; display: none; }
 @keyframes empty-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 .empty-float { animation: empty-float 4.5s ease-in-out infinite; }
 html.motion-off .empty-float, html.motion-subtle .empty-float { animation: none; }
+
+/* ─── Mascotas (core/components/Mascot.tsx) ───
+   Los videos originales se mueven poco: encima va un gesto de cuerpo por pose, desde abajo
+   (squash & stretch), una sombra en el piso para que no queden flotando y una entrada con rebote.
+   Sutiles: sólo la entrada. Ninguna: nada. */
+.mascot-body { transform-origin: 50% 92%; will-change: transform; }
+.mascot-in { animation: mascot-in 520ms cubic-bezier(.34,1.56,.64,1) both; }
+@keyframes mascot-in { from { opacity: 0; transform: translateY(10%) scale(.7); } to { opacity: 1; transform: none; } }
+.mascot-shadow { position: absolute; left: 22%; right: 22%; bottom: 1%; height: 9%; border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(0 0 0 / .22), transparent); filter: blur(1px); transform-origin: center; }
+.dark .mascot-shadow { background: radial-gradient(closest-side, rgb(0 0 0 / .55), transparent); }
+
+@keyframes m-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.018, 1.04); } }
+@keyframes m-breathe-shadow { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(1.05); } }
+@keyframes m-sway { 0%, 100% { transform: translateX(-3%) rotate(-5deg); } 50% { transform: translateX(3%) rotate(5deg); } }
+@keyframes m-hop {
+  0%, 52%, 100% { transform: none; }
+  6% { transform: scale(1.1, .88); }
+  16% { transform: translateY(-18%) scale(.93, 1.09); }
+  26% { transform: scale(1.08, .9); }
+  32% { transform: translateY(-9%) scale(.96, 1.05); }
+  40% { transform: scale(1.04, .96); }
+}
+@keyframes m-hop-shadow { 0%, 52%, 100% { transform: none; opacity: 1; } 16% { transform: scaleX(.7); opacity: .5; } 32% { transform: scaleX(.85); opacity: .75; } }
+@keyframes m-shake {
+  0%, 46%, 100% { transform: none; }
+  4% { transform: translateX(-5%) rotate(-6deg); } 10% { transform: translateX(5%) rotate(6deg); }
+  16% { transform: translateX(-4%) rotate(-5deg); } 22% { transform: translateX(4%) rotate(4deg); }
+  28% { transform: translateX(-2%) rotate(-2deg); } 34% { transform: translateX(1%) rotate(1deg); }
+}
+@keyframes m-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6%); } }
+@keyframes m-tilt { 0%, 30%, 100% { transform: rotate(0); } 40%, 75% { transform: rotate(-8deg); } }
+@keyframes m-wave { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-7deg); } 40% { transform: rotate(6deg); } 60% { transform: rotate(-4deg); } 80% { transform: rotate(2deg); } }
+@keyframes m-poke { 0%, 100% { transform: none; } 25% { transform: scale(1.12, .86); } 55% { transform: translateY(-14%) scale(.94, 1.08); } 80% { transform: scale(1.04, .96); } }
+@keyframes m-z { 0% { opacity: 0; transform: translate(0, 0) scale(.6); } 25% { opacity: .9; } 100% { opacity: 0; transform: translate(70%, -160%) scale(1.15); } }
+
+.mascot-pose-neutra, .mascot-pose-saludo, .mascot-pose-descanso { animation: m-breathe 3.6s ease-in-out infinite; }
+.mascot-pose-descanso { animation-duration: 5.2s; }
+.mascot-pose-saludo { animation: m-wave 1.4s ease-in-out 1, m-breathe 3.6s ease-in-out 1.4s infinite; }
+.mascot-pose-curiosa { animation: m-tilt 4.8s ease-in-out infinite; }
+.mascot-pose-buscando { animation: m-sway 2.6s ease-in-out infinite; }
+.mascot-pose-listo { animation: m-hop 1.7s ease-out infinite; }
+.mascot-pose-atencion { animation: m-shake 1.6s ease-in-out infinite; }
+.mascot-pose-actualizando { animation: m-bob 1.6s ease-in-out infinite; }
+.mascot-once { animation-iteration-count: 3; }
+.mascot-poke { animation: m-poke 650ms ease-out 1 !important; }
+.mascot-shadow-neutra, .mascot-shadow-saludo, .mascot-shadow-descanso { animation: m-breathe-shadow 3.6s ease-in-out infinite; }
+.mascot-shadow-listo { animation: m-hop-shadow 1.7s ease-out infinite; }
+.mascot-shadow-once { animation-iteration-count: 3; }
+.mascot-z { position: absolute; font: 700 13px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; color: rgb(var(--c-on-surface-variant)); opacity: 0;
+  animation: m-z 3.6s ease-out infinite; pointer-events: none; }
+html.motion-subtle .mascot-body, html.motion-subtle .mascot-shadow, html.motion-off .mascot-body, html.motion-off .mascot-shadow { animation: none !important; }
+html.motion-subtle .mascot-z { display: none; }
 
 /* Esqueleto común de pantallas: todas a ancho completo, mismo margen y ritmo.
    .page        → módulos tipo página (Gastos, Conexiones, Tickets, Ajustes…)

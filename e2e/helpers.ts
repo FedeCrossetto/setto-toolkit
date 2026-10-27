@@ -60,6 +60,17 @@ export async function waitForWindow(app: ElectronApplication, hash: string, time
  * lee lo que la app "copió".
  */
 export async function fakeClipboard(app: ElectronApplication): Promise<void> {
+  // Al relanzar con el mismo perfil, el main puede estar ocupado arrancando y Playwright pierde
+  // la respuesta ("Resulting promise was garbage collected"): reintentar.
+  for (let i = 0; ; i++) {
+    try { await installFakeClipboard(app); return } catch (err) {
+      if (i >= 4 || !/garbage collected/i.test(String(err))) throw err
+      await new Promise((r) => setTimeout(r, 300))
+    }
+  }
+}
+
+async function installFakeClipboard(app: ElectronApplication): Promise<void> {
   await app.evaluate(({ clipboard }) => {
     const c = clipboard as unknown as Record<string, unknown>
     let text = ''

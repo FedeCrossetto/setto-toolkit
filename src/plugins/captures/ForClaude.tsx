@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Copy, FolderOpen, Sparkles } from 'lucide-react'
 import { Modal } from '../../core/components/Modal'
+import { Mascot } from '../../core/components/Mascot'
 import { useToast } from '../../core/components/Toast'
 import { formatTime } from './videos-logic'
 
@@ -83,7 +84,14 @@ export function ForClaude({ path, name, onClose }: { path: string; name: string;
           <Copy size={13} /> Copiar resumen
         </button>
       </>}>
-      {failed ? <p className="t-body text-on-surface-variant py-8 text-center">No se pudieron sacar los cuadros.</p> : (
+      {failed ? <p className="t-body text-on-surface-variant py-8 text-center">No se pudieron sacar los cuadros.</p> : !data ? (
+        <div className="relative">
+          <div className="absolute inset-0 z-10 grid place-items-center pointer-events-none"><Mascot pose="buscando" size={128} /></div>
+          <div className="grid grid-cols-3 gap-3 opacity-60">
+            {Array.from({ length: 6 }, (_, i) => <div key={i} className="rounded-(--r-md) aspect-video bg-on-surface/[0.06] animate-pulse" />)}
+          </div>
+        </div>
+      ) : (
         <div className="grid grid-cols-3 gap-3">
           {(data?.frames ?? Array.from({ length: 6 }, () => null)).map((f, i) => f ? (
             <button key={f.name} type="button" title="Copiar este cuadro" onClick={() => void copyOne(f)}

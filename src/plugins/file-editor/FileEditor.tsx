@@ -170,6 +170,8 @@ export function FileEditor(): JSX.Element {
 
   const editorRef      = useRef<EditorHandle | null>(null)
   const restoredRef    = useRef(false)
+  /** Last session save threw (localStorage full): unsaved edits would be lost on close */
+  const [sessionSaveFailed, setSessionSaveFailed] = useState(false)
   const dragTabRef     = useRef<string | null>(null)
   // Stable refs used by the keydown listener so the effect registers once and
   // never needs to re-register (saveTab is a plain function that recreates each render).
@@ -246,10 +248,13 @@ export function FileEditor(): JSX.Element {
   })
 
   // ── Report dirty state to global AppContext (drives TabBar dot indicator) ─
+  // The close confirmation only cares about edits the session can't restore: files over
+  // MAX_DIRTY_PERSIST, or everything if the last session save failed (storage full).
   useEffect(() => {
     const hasDirty = tabs.some((t) => t.isDirty)
-    dispatch({ type: 'SET_PLUGIN_DIRTY', pluginId: 'file-editor', dirty: hasDirty })
-  }, [tabs, dispatch])
+    const atRisk = hasDirty && (sessionSaveFailed || tabs.some((t) => t.isDirty && t.path !== null && t.content.length > MAX_DIRTY_PERSIST))
+    dispatch({ type: 'SET_PLUGIN_DIRTY', pluginId: 'file-editor', dirty: hasDirty, atRisk })
+  }, [tabs, dispatch, sessionSaveFailed])
 
   // ── On mount ──────────────────────────────────────────────────────────────
   useEffect(() => { window.api.invoke<RecentFile[]>('editor:recent-get').then(setRecents) }, [])
@@ -332,7 +337,8 @@ export function FileEditor(): JSX.Element {
         activeName: activeTab?.name ?? null,
       }
       localStorage.setItem(SESSION_KEY, JSON.stringify(session))
-    } catch { /* storage full */ }
+      setSessionSaveFailed(false)
+    } catch { setSessionSaveFailed(true) /* storage full: unsaved edits won't survive a close */ }
   }, [tabs, activeId, activeTab])
 
   // (settings is now a fixed modal — no click-outside needed)

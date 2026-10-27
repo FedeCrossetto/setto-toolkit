@@ -11,6 +11,7 @@ import { SegmentedControl } from './SegmentedControl'
 import { Toggle } from './Form'
 import { useToast } from './Toast'
 import { Kbd } from './KeyboardShortcutsModal'
+import { Mascot } from './Mascot'
 
 /** Módulos que no se pueden ocultar (igual que en Ajustes → Módulos). */
 const LOCKED = new Set(['dashboard', 'settings', 'about'])
@@ -89,7 +90,7 @@ export function Onboarding(): JSX.Element {
             {step === 0 && (
               <>
                 <div className="flex items-center gap-3 mb-1">
-                  <img src="./setto-logo.png" alt="" className="w-10 h-10 rounded-[10px]" draggable={false} />
+                  <Mascot pose="saludo" size={64} className="-my-2" fallback={<img src="./setto-logo.png" alt="" className="w-10 h-10 rounded-[10px]" draggable={false} />} />
                   <div>
                     <h2 className="t-title2 text-on-surface">Te damos la bienvenida a Setto</h2>
                     <p className="t-footnote text-on-surface-variant">Tus herramientas de todos los días, en un solo lugar.</p>

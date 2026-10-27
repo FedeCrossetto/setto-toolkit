@@ -748,8 +748,8 @@ function SnippetDetail({
               </>
             )}
             {snippet.language === 'sql' && !!snippet.content.trim() && (
-              <button onClick={() => onSend('sql')} className="ui-btn ui-btn-outline mr-1.5" title="Abrir en una pestaña nueva de Consultas">
-                <Database size={14} /> Abrir en Consultas
+              <button onClick={() => onSend('sql')} className="ui-btn ui-btn-outline mr-1.5" title="Abrir en una pestaña nueva de SQL">
+                <Database size={14} /> Abrir en SQL
               </button>
             )}
             {!canRun && snippet.language !== 'sql' && !!snippet.content.trim() && (

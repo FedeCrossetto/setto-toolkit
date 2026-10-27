@@ -1,6 +1,7 @@
 import { Component, type ReactNode } from 'react'
 import { TriangleAlert } from 'lucide-react'
 import { isChunkLoadError, reportRendererError } from './error-report'
+import { Mascot } from './Mascot'
 
 interface Props {
   children: ReactNode
@@ -56,9 +57,11 @@ export class ErrorBoundary extends Component<Props, State> {
     return (
       <div className={`flex items-center justify-center w-full p-8 ${root ? 'h-screen bg-background text-on-surface' : 'h-full'}`}>
         <div className="ui-card max-w-sm w-full px-6 py-6 text-center flex flex-col items-center">
-          <span className="w-10 h-10 rounded-(--r-lg) flex items-center justify-center bg-warning/[0.14] text-warning mb-3">
-            <TriangleAlert size={20} />
-          </span>
+          <Mascot pose="atencion" size={88} once className="mb-2" fallback={
+            <span className="w-10 h-10 rounded-(--r-lg) flex items-center justify-center bg-warning/[0.14] text-warning mb-3">
+              <TriangleAlert size={20} />
+            </span>
+          } />
           <h2 className="t-headline text-on-surface">
             {this.props.label ? `${this.props.label} tuvo un problema` : 'Algo salió mal'}
           </h2>

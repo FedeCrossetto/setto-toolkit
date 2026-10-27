@@ -74,6 +74,11 @@ export interface AppState {
   terminalInterrupt?: number
   /** Plugins that have unsaved changes, keyed by pluginId */
   dirtyPlugins: Record<string, boolean>
+  /**
+   * Plugins cuyos cambios sin guardar se PERDERÍAN al cerrar la app (los que se restauran
+   * solos, como los del Editor, no cuentan): sólo éstos piden confirmación al cerrar.
+   */
+  unsavedAtRisk?: Record<string, boolean>
   /** Last intent sent to a plugin (see usePluginIntent) */
   pluginIntent?: PluginIntent
 }
@@ -99,7 +104,7 @@ export type AppAction =
   /** Clear diff targets after Smart Diff has consumed them */
   | { type: 'CLEAR_DIFF_TARGET' }
   /** Plugins report their unsaved-changes status */
-  | { type: 'SET_PLUGIN_DIRTY'; pluginId: string; dirty: boolean }
+  | { type: 'SET_PLUGIN_DIRTY'; pluginId: string; dirty: boolean; /** Se pierden al cerrar (por defecto = dirty) */ atRisk?: boolean }
   /** Convenience aliases for SET_PLUGIN_DIRTY */
   | { type: 'MARK_PLUGIN_DIRTY'; pluginId: string }
   | { type: 'MARK_PLUGIN_CLEAN'; pluginId: string }

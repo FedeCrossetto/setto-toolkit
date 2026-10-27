@@ -88,8 +88,8 @@ const SEND_CHANNELS = new Set([
   'snippet-picker:close',
   'captures:start-drag',
   'app:open-in-main',
-  'dock:expand', 'dock:collapse', 'dock:pin', 'dock:want-focus', 'dock:quick-capture', 'dock:move', 'dock:move-end',
-  'dock:move-reset', 'dock:set-side', 'dock:open',
+  'dock:expand', 'dock:collapse', 'dock:pin', 'dock:want-focus', 'dock:quick-capture',
+  'dock:open',
 ])
 
 /** Channels the renderer may subscribe to (main → renderer) */
@@ -102,7 +102,7 @@ const ON_CHANNELS = new Set([
   'snippet-picker:opened',
   'sync:changed',
   'captures:changed',
-  'dock:state', 'dock:bump', 'dock:drag', 'dock:video', 'videos:changed', 'videos:progress',
+  'dock:state', 'dock:bump', 'dock:video', 'videos:changed', 'videos:progress',
 ])
 
 /**
@@ -115,9 +115,8 @@ const ON_CHANNELS = new Set([
 /** Barra flotante (`#dock`, src/dock/**, incl. resumen y alta rápida de Gastos y el Bloc de notas). */
 const DOCK_CHANNELS = new Set([
   'app:open-in-main', 'app:renderer-error', 'app:version',
-  'dock:state', 'dock:paste', 'dock:copy-text', 'dock:bump', 'dock:drag', 'dock:video',
-  'dock:expand', 'dock:collapse', 'dock:pin', 'dock:want-focus', 'dock:quick-capture', 'dock:move', 'dock:move-end',
-  'dock:move-reset', 'dock:set-side',
+  'dock:state', 'dock:paste', 'dock:copy-text', 'dock:bump', 'dock:video',
+  'dock:expand', 'dock:collapse', 'dock:pin', 'dock:want-focus', 'dock:quick-capture',
   'clipboard:history', 'clipboard:copy', 'clipboard:remove', 'clipboard:pin', 'clipboard:open-path', 'clipboard:ocr-image',
   'captures:query', 'captures:copy', 'captures:start-drag', 'captures:changed',
   'clipboard:search', 'captures:copy-ocr',

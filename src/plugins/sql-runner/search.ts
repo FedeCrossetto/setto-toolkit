@@ -11,7 +11,7 @@ const oneLine = (sql: string): string => sql.replace(/\s+/g, ' ').trim().slice(0
 
 export const sqlRunnerSearchProvider: SearchProvider = {
   id: 'sql-runner',
-  group: 'Consultas',
+  group: 'SQL',
   pluginId: 'sql-runner',
   async search(query) {
     const [favs, hist] = await Promise.all([

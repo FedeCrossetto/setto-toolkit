@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { buildXlsxBook } from './export'
 import { GridSkeleton } from '../../core/components/Skeleton'
 import {
-  CheckCircle2, CircleAlert, Clock, Columns2, Copy, FileSpreadsheet, Gauge, History, Info, Layers, Pencil, Star, Trash2, PanelLeft, Plus, RotateCcw, Server, ShieldCheck, ShieldAlert, X,
+  CheckCircle2, ChevronRight, CircleAlert, Clock, Columns2, Copy, FileSpreadsheet, Gauge, History, Info, Layers, Pencil, Star, Trash2, PanelLeft, Plus, RotateCcw, Search, Server, ShieldCheck, ShieldAlert, X,
 } from 'lucide-react'
 import { useApp, useModuleSubtitle, usePluginIntent } from '../../core/AppContext'
 import { useModulePrimaryAction } from '../../core/module-actions'
@@ -22,17 +22,19 @@ import { RunButton, type RunMode } from './RunButton'
 import { formatSql } from './format-sql'
 import { applyParams, findParams, parseStats, withStatistics } from './sql-tools'
 import { ParamsDialog, type ParamsRequest } from './ParamsDialog'
-import { Pop } from '../../core/components/Pop'
 import { celebrate } from '../../core/fx'
 import { editBlocker, usedDatabase, type EditTarget } from './edit-script'
 import { friendlyError } from './sql-meta'
+import { Mascot } from '../../core/components/Mascot'
 import type { QueryFavorite, QueryHistoryEntry, QueryResult, QuerySet, QueryTab, QueryTabsState } from './types'
 import { ResultGrid, type GridEditing } from './ResultGrid'
 import { CompareView } from './CompareView'
 import { DatabaseSelect, ProfileSelect } from './ProfileSelect'
 import { ConnectionFixDialog, type FixRequest } from './ConnectionFixDialog'
 import { ObjectExplorer, type OpenScript } from './ObjectExplorer'
-import { buildSqlSchema, connectionProblem, missingObject, type SqlSchemaTree } from './sql-meta'
+import { buildSqlSchema, connectionProblem, createToAlter, fullName, missingObject, selectTopScript, type SqlSchemaTree } from './sql-meta'
+import { GoToObject, type FoundObject } from './GoToObject'
+import { connColor, recordRecent, useObjectPrefs } from './object-prefs'
 import { envTone, SqlServerIcon, TONE } from './env'
 
 /**
@@ -67,6 +69,8 @@ type ResultView = number | 'all' | 'messages'
 const LAYOUT_KEY = 'sql-runner:results-layout'
 /** Con varios resultados: apilados (por defecto) o en pestañas. Se recuerda. */
 const prefersStack = (): boolean => { try { return localStorage.getItem(LAYOUT_KEY) !== 'tabs' } catch { return true } }
+/** Grupos de pestañas (conexión|base) plegados en la barra. */
+const GROUPS_KEY = 'sql:collapsed-groups'
 const firstView = (sets: number): ResultView => (!sets ? 'messages' : sets > 1 && prefersStack() ? 'all' : 0)
 
 const newTab = (n: number, profileId: string | null): QueryTab => ({
@@ -80,12 +84,28 @@ function fmtMs(ms: number): string {
   return `${Math.floor(ms / 60_000)} min ${Math.round((ms % 60_000) / 1000)} s`
 }
 
+/**
+ * Tiempo de ejecución. Mientras corre se actualiza solo cada 100 ms: así el tic redibuja
+ * este texto y no toda la pantalla (editor, pestañas, explorador y grilla).
+ */
+function RunClock({ running, startedAt, ms }: { running: boolean; startedAt: number; ms: number }): JSX.Element {
+  const [now, setNow] = useState(Date.now)
+  useEffect(() => {
+    if (!running) return
+    setNow(Date.now())
+    const t = setInterval(() => setNow(Date.now()), 100)
+    return () => clearInterval(t)
+  }, [running, startedAt])
+  return <>{fmtMs(running ? Math.max(0, now - startedAt) : ms)}</>
+}
+
 export function SqlRunner(): JSX.Element {
   const { state, dispatch } = useApp()
   const toast = useToast()
   const confirm = useConfirm()
   const [profiles, setProfiles] = useState<SqlProfile[] | null>(null)
   const [tabsState, setTabsState] = useState<QueryTabsState | null>(null)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => { try { return new Set(JSON.parse(localStorage.getItem(GROUPS_KEY) ?? '[]') as string[]) } catch { return new Set() } })
   const [runs, setRuns] = useState<Record<string, RunState>>({})
   const [mode, setMode] = useState<'query' | 'compare'>('query')
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -101,7 +121,6 @@ export function SqlRunner(): JSX.Element {
   const renameCancel = useRef(false)
   /** Menú de clic derecho de una pestaña */
   const [tabMenu, setTabMenu] = useState<{ x: number; y: number; id: string } | null>(null)
-  const [now, setNow] = useState(Date.now())
   const [ratio, setRatio] = useState(() => { try { return Number(localStorage.getItem(RATIO_KEY)) || 0.45 } catch { return 0.45 } })
   const editorRef = useRef<EditorHandle | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -109,6 +128,26 @@ export function SqlRunner(): JSX.Element {
   /** Conexión que no anda: popup para poner la nueva contraseña o IP */
   const [fix, setFix] = useState<FixRequest | null>(null)
   const [explorerOpen, setExplorerOpen] = useState(() => { try { return localStorage.getItem(EXPLORER_KEY) !== '0' } catch { return true } })
+  /** Barra de pestañas: si quedan pestañas fuera de vista a cada lado (se marca con un degradado en el borde). */
+  const tabsScrollRef = useRef<HTMLDivElement>(null)
+  const [tabEdges, setTabEdges] = useState({ left: false, right: false })
+  const measureTabEdges = useCallback((): void => {
+    const el = tabsScrollRef.current
+    if (!el) return
+    const left = el.scrollLeft > 1
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
+    setTabEdges((p) => (p.left === left && p.right === right ? p : { left, right }))
+  }, [])
+  useEffect(() => {
+    const el = tabsScrollRef.current
+    if (!el) return
+    // La pestaña activa siempre a la vista: al cambiarla, abrir una nueva o reabrir una cerrada.
+    el.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    measureTabEdges()
+    const ro = new ResizeObserver(measureTabEdges)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [tabsState?.activeId, tabsState?.tabs.length, mode, explorerOpen, collapsedGroups, measureTabEdges])
   const [databases, setDatabases] = useState<string[]>([])
   /** Tablas, columnas y procedimientos de la base actual para autocompletar */
   const [schema, setSchema] = useState<SqlSchemaTree>({})
@@ -353,6 +392,30 @@ export function SqlRunner(): JSX.Element {
   }, [active, mode])
 
   // Explorador: abrir un script en una pestaña nueva (y ejecutarlo si corresponde).
+  /** Ir a objeto (Ctrl+P): tablas y vistas → 100 filas; el resto → su definición (como ALTER), en su base. */
+  const [goTo, setGoTo] = useState(false)
+  useObjectPrefs()
+  const openFound = async (o: FoundObject): Promise<void> => {
+    if (!profile) return
+    recordRecent({ profileId: profile.id, db: o.db, schema: o.schema, name: o.name, type: o.type })
+    if (o.type === 'U' || o.type === 'V') {
+      const id = crypto.randomUUID()
+      pendingRun.current = id
+      addTab({ id, title: o.name, sql: selectTopScript(o), named: true, profileId: profile.id, database: o.db })
+      return
+    }
+    let sql = `-- ${fullName(o)}: no se pudo leer la definición\n`
+    try {
+      const r = await window.api.invoke<QueryResult>('sql:meta', { profileId: profile.id, database: o.db, kind: 'definition', objectId: o.id })
+      const row = r.ok ? r.sets[0]?.rows[0] : undefined
+      const def = row?.[0] ?? null
+      if (o.type === 'SN') sql = `CREATE SYNONYM ${fullName(o)} FOR ${row?.[1] ?? '?'}\n`
+      else if (def == null) sql = `-- ${fullName(o)}: la definición está cifrada (WITH ENCRYPTION) o no tenés permiso para verla\n`
+      else sql = createToAlter(def)
+    } catch { /* queda el aviso */ }
+    addTab({ title: o.name, sql, named: true, profileId: profile.id, database: o.db })
+  }
+
   const openScript = (s: OpenScript): void => {
     const id = crypto.randomUUID()
     if (s.run) pendingRun.current = id
@@ -390,7 +453,6 @@ export function SqlRunner(): JSX.Element {
   useEffect(() => { void window.api.invoke<QueryFavorite[]>('sql:favs-get').then(setFavs).catch(() => undefined) }, [])
   const saveFavs = (list: QueryFavorite[]): void => { setFavs(list); void window.api.invoke('sql:favs-save', list).catch(() => toast.show('No se pudo guardar', 'error')) }
   const isFavTab = (t: QueryTab | null | undefined): boolean => !!t && !!t.sql.trim() && favs.some((f) => f.sql.trim() === t.sql.trim())
-  const isFav = isFavTab(tab)
   const toggleFav = (t: QueryTab | null | undefined = tab): void => {
     if (!t || !t.sql.trim()) return
     if (isFavTab(t)) { saveFavs(favs.filter((f) => f.sql.trim() !== t.sql.trim())); toast.show('Quitada de favoritas', 'info'); return }
@@ -432,13 +494,6 @@ export function SqlRunner(): JSX.Element {
     })
   }
 
-  // Reloj mientras corre.
-  useEffect(() => {
-    if (!run?.running) return
-    const t = setInterval(() => setNow(Date.now()), 100)
-    return () => clearInterval(t)
-  }, [run?.running])
-
   // ── Barra superior ──
   useModulePrimaryAction('sql-runner', { label: 'Nueva consulta', title: 'Nueva consulta (Ctrl+T)' }, () => { setMode('query'); addTab() })
   useModuleSubtitle('sql-runner', mode === 'compare' ? 'Comparar entre conexiones' : profile ? `${profile.name}${tab?.database || profile.database ? ` · ${tab?.database || profile.database}` : ''}` : null)
@@ -459,7 +514,10 @@ export function SqlRunner(): JSX.Element {
     if (e.key === 'F5' || (ctrl && e.key === 'Enter')) { e.preventDefault(); void execute(); return }
     if (e.key === 'Escape' && run?.running) { e.preventDefault(); cancel(); return }
     if (ctrl && e.shiftKey && e.key.toLowerCase() === 't') { e.preventDefault(); reopen(); return }
+    // Ctrl+D solo no: en el editor es "seleccionar la próxima coincidencia"
+    if (ctrl && e.shiftKey && e.key.toLowerCase() === 'd') { e.preventDefault(); if (tab?.sql.trim()) toggleFav(); return }
     if (ctrl && !e.shiftKey && e.key.toLowerCase() === 't') { e.preventDefault(); addTab(); return }
+    if (ctrl && !e.shiftKey && e.key.toLowerCase() === 'p') { e.preventDefault(); if (profile) setGoTo(true); return }
     if (ctrl && e.key.toLowerCase() === 'w' && tab) { e.preventDefault(); closeTab(tab.id) }
   }
 
@@ -488,98 +546,167 @@ export function SqlRunner(): JSX.Element {
     )
   }
 
+  /**
+   * Pestañas agrupadas por conexión y base (en el orden en que aparecen). Con una sola base
+   * la barra queda como siempre; con varias, cada grupo lleva su etiqueta y se puede plegar.
+   */
+  const tabGroups = ((): { key: string; profileId: string | null; db: string; tabs: QueryTab[] }[] => {
+    const groups: { key: string; profileId: string | null; db: string; tabs: QueryTab[] }[] = []
+    for (const t of tabsState.tabs) {
+      const pid = t.profileId ?? defaultProfile ?? null
+      const db = (t.database.trim() || profiles.find((p) => p.id === pid)?.database || '').trim()
+      const key = `${pid ?? ''}|${db.toLowerCase()}`
+      let g = groups.find((x) => x.key === key)
+      if (!g) { g = { key, profileId: pid, db, tabs: [] }; groups.push(g) }
+      g.tabs.push(t)
+    }
+    return groups
+  })()
+  const toggleGroup = (key: string): void => setCollapsedGroups((prev) => {
+    const next = new Set(prev)
+    if (next.has(key)) next.delete(key); else next.add(key)
+    try { localStorage.setItem(GROUPS_KEY, JSON.stringify([...next])) } catch { /* nada */ }
+    return next
+  })
+  /** Color del grupo: el propio de la conexión o, si no tiene, el de su ambiente. */
+  const groupColor = (profileId: string | null, tag: string | undefined): string => {
+    const tone = envTone(tag)
+    return connColor(profileId)
+      ?? (tone === 'qa' ? 'var(--color-warning)' : tone === 'dev' ? 'var(--color-success)' : tone === 'lps' ? 'var(--color-sky-500)'
+        : 'color-mix(in srgb, var(--color-on-surface) 40%, transparent)')
+  }
+  const renderTab = (t: QueryTab, grouped = false): JSX.Element => {
+    const on = t.id === tab?.id
+    const r = runs[t.id]
+    return (
+      <div key={t.id} role="tab" aria-selected={on} onClick={() => update((s) => ({ ...s, activeId: t.id }))}
+        onAuxClick={(e) => { if (e.button === 1) closeTab(t.id) }}
+        onDoubleClick={() => setRenaming(t.id)}
+        onContextMenu={(e) => { e.preventDefault(); update((s) => ({ ...s, activeId: t.id })); setTabMenu({ x: e.clientX, y: e.clientY, id: t.id }) }}
+        title={`${t.title}\nDoble clic o F2: renombrar · Clic derecho: más · Clic medio: cerrar`}
+        className={`group shrink-0 flex items-center gap-1.5 h-[30px] pl-3 pr-1.5 rounded-[9px] text-[12.5px] cursor-pointer transition-colors max-w-[220px] ${
+          on ? 'nav-active text-on-surface font-medium' : 'border border-transparent text-on-surface-variant hover:text-on-surface hover:bg-on-surface/5'}`}>
+        {r?.running && <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shrink-0" />}
+        {r?.result && !r.running && !r.result.ok && <span className="w-1.5 h-1.5 rounded-full bg-error shrink-0" />}
+        {/* Dentro de un grupo la conexión ya la dice el grupo */}
+        {!grouped && !r?.running && !(r?.result && !r.result.ok) && (() => {
+          const tp = profiles.find((p) => p.id === (t.profileId ?? defaultProfile))
+          const tone = envTone(tp?.tag)
+          const own = connColor(tp?.id)
+          if (own) return <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: own }} title={tp?.name} />
+          return !TONE[tone].dot ? null : <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${TONE[tone].dot}`} title={tp?.tag} />
+        })()}
+        {renaming === t.id ? (
+          <input autoFocus defaultValue={t.title} onClick={(e) => e.stopPropagation()} onFocus={(e) => { renameCancel.current = false; e.currentTarget.select() }}
+            onBlur={(e) => { const v = e.target.value.trim(); if (v && !renameCancel.current && v !== t.title) patchTab(t.id, { title: v, named: true }); setRenaming(null) }}
+            onKeyDown={(e) => {
+              e.stopPropagation()
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+              if (e.key === 'Escape') { renameCancel.current = true; setRenaming(null) }
+            }}
+            className="w-[130px] bg-transparent outline-hidden text-[12.5px] text-on-surface border-b border-primary/50" />
+        ) : <span className="truncate">{t.title}</span>}
+        {renaming !== t.id && isFavTab(t) && <Star size={10} weight="fill" className="text-warning shrink-0" aria-label="En favoritas" />}
+        <button type="button" aria-label="Cerrar" title="Cerrar (Ctrl+W) — se puede reabrir"
+          onClick={(e) => { e.stopPropagation(); closeTab(t.id) }}
+          className={`grid place-items-center w-5 h-5 rounded-[5px] hover:bg-on-surface/10 ${on ? '' : 'opacity-0 group-hover:opacity-100'}`}>
+          <X size={11} />
+        </button>
+      </div>
+    )
+  }
+
   const result = run?.result ?? null
-  const elapsed = run?.running ? now - run.startedAt : result?.ms ?? 0
+  const elapsed = <RunClock running={!!run?.running} startedAt={run?.startedAt ?? 0} ms={result?.ms ?? 0} />
+
+  // Pestañas + herramientas: en consultas van sobre el editor, no sobre el explorador.
+  const topBar = (
+    <div className="flex items-center gap-1 px-2 h-[42px] hairline-b bg-surface shrink-0">
+      {mode === 'query' ? (
+        <div ref={tabsScrollRef} onScroll={measureTabEdges}
+          // La rueda vertical también desplaza las pestañas
+          onWheel={(e) => { if (!e.deltaX && e.deltaY) e.currentTarget.scrollLeft += e.deltaY }}
+          className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scrollbar-hide"
+          style={tabEdges.left || tabEdges.right ? {
+            maskImage: `linear-gradient(to right, ${tabEdges.left ? 'transparent 0, #000 28px' : '#000 0'}, ${tabEdges.right ? '#000 calc(100% - 28px), transparent 100%' : '#000 100%'})`,
+          } : undefined}>
+          {tabGroups.length < 2 ? tabsState.tabs.map((t) => renderTab(t)) : tabGroups.map((g) => {
+            const tp = profiles.find((p) => p.id === g.profileId)
+            const c = groupColor(g.profileId, tp?.tag)
+            const hasActive = g.tabs.some((t) => t.id === tab?.id)
+            const folded = collapsedGroups.has(g.key) && !hasActive
+            const n = g.tabs.length
+            return (
+              // Estilo "grupo de pestañas": contenedor neutro; el color va sólo en el punto y la línea de abajo.
+              <div key={g.key} role="group" aria-label={g.db || tp?.name || 'Sin conexión'}
+                className="relative flex items-center gap-0.5 shrink-0 h-[34px] p-[2px] rounded-[11px] bg-on-surface/[0.025] ring-1 ring-inset ring-(--hairline)">
+                <span aria-hidden className="absolute left-2.5 right-2.5 bottom-0 h-[2px] rounded-full" style={{ background: c }} />
+                {/* Etiqueta: base (o conexión si no tiene base); clic pliega o despliega */}
+                <button type="button" onClick={() => toggleGroup(g.key)} aria-expanded={!folded} disabled={hasActive}
+                  title={`${tp?.name ?? 'Sin conexión'}${tp?.server ? ` · ${tp.server}` : ''}\nBase: ${g.db || '(predeterminada)'}\n${folded ? `Clic: mostrar ${n === 1 ? 'su pestaña' : `sus ${n} pestañas`}` : hasActive ? 'Tiene la pestaña activa: no se puede plegar' : 'Clic: plegar'}`}
+                  className="shrink-0 flex items-center gap-1 h-[26px] pl-1.5 pr-2 rounded-[8px] text-[11px] font-semibold text-on-surface bg-on-surface/6 transition-colors hover:bg-on-surface/10 disabled:hover:bg-on-surface/6 disabled:cursor-default">
+                  <ChevronRight size={12} className={`shrink-0 opacity-60 transition-transform ${folded ? '' : 'rotate-90'} ${hasActive ? 'invisible' : ''}`} />
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: c }} />
+                  <span className={`max-w-[150px] truncate ${g.db ? 'font-mono' : ''}`}>{g.db || tp?.name || 'Sin conexión'}</span>
+                  {folded && (
+                    <span className="ml-0.5 min-w-[16px] h-4 px-1 grid place-items-center rounded-full bg-on-surface/10 text-[10px] tabular-nums"
+                      aria-label={`${n} ${n === 1 ? 'pestaña' : 'pestañas'}`}>{n}</span>
+                  )}
+                </button>
+                {!folded && g.tabs.map((t) => renderTab(t, true))}
+              </div>
+            )
+          })}
+          <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0" title="Nueva consulta (Ctrl+T)" onClick={() => addTab()}><Plus size={14} /></button>
+        </div>
+      ) : <div className="flex-1" />}
+      {/* Reabrir y favoritas viven en el clic derecho de la pestaña (y Ctrl+Shift+T): la barra queda para las pestañas */}
+      <ViewControls zoom={zoom} onZoom={setZoom} fontSize={fontSize} defaultFont={prefs.fontSize} onFontSize={setFont}
+        scheme={ownScheme ?? prefs.colorScheme} editorTheme={prefs.editorTheme} appDark={appDark}
+        onPreviewScheme={setPreviewScheme} onPickScheme={pickScheme} onFormat={mode === 'query' ? formatEditor : undefined} />
+      {mode === 'query' && (
+        <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0" onClick={() => setGoTo(true)} disabled={!profile} aria-label="Ir a objeto"
+          title="Ir a objeto (Ctrl+P): buscar una tabla, vista o procedimiento en todas las bases de la conexión">
+          <Search size={14} />
+        </button>
+      )}
+      <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0" onClick={() => setHistoryOpen(true)} aria-label="Historial"
+        title={`Historial: favoritas, consultas ejecutadas y pestañas cerradas${tabsState.closed.length ? ` (${tabsState.closed.length})` : ''}`}>
+        <History size={14} />
+      </button>
+      <div className="flex items-center p-[3px] rounded-[9px] bg-on-surface/5 shrink-0">
+        {([['query', 'Consultas'], ['compare', 'Comparar']] as const).map(([id, label]) => (
+          <button key={id} type="button" onClick={() => setMode(id)} aria-pressed={mode === id}
+            className={`h-[24px] px-3 rounded-[7px] text-[12px] font-medium transition-colors ${mode === id ? 'bg-surface text-on-surface shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}>
+            {id === 'compare' && <Columns2 size={11} className="inline -mt-px mr-1" />}{label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-background" onKeyDownCapture={onKeyDownCapture} style={zoom !== 1 ? { zoom } : undefined}>
-      {/* Pestañas + modo */}
-      <div className="flex items-center gap-1 px-2 h-[42px] hairline-b bg-surface shrink-0">
-        {mode === 'query' ? (
-          <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scrollbar-hide">
-            {tabsState.tabs.map((t) => {
-              const on = t.id === tab?.id
-              const r = runs[t.id]
-              return (
-                <div key={t.id} role="tab" aria-selected={on} onClick={() => update((s) => ({ ...s, activeId: t.id }))}
-                  onAuxClick={(e) => { if (e.button === 1) closeTab(t.id) }}
-                  onDoubleClick={() => setRenaming(t.id)}
-                  onContextMenu={(e) => { e.preventDefault(); update((s) => ({ ...s, activeId: t.id })); setTabMenu({ x: e.clientX, y: e.clientY, id: t.id }) }}
-                  title={`${t.title}\nDoble clic o F2: renombrar · Clic derecho: más · Clic medio: cerrar`}
-                  className={`group shrink-0 flex items-center gap-1.5 h-[30px] pl-3 pr-1.5 rounded-[9px] text-[12.5px] cursor-pointer transition-colors max-w-[220px] ${
-                    on ? 'nav-active text-on-surface font-medium' : 'border border-transparent text-on-surface-variant hover:text-on-surface hover:bg-on-surface/5'}`}>
-                  {r?.running && <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shrink-0" />}
-                  {r?.result && !r.running && !r.result.ok && <span className="w-1.5 h-1.5 rounded-full bg-error shrink-0" />}
-                  {!r?.running && !(r?.result && !r.result.ok) && (() => {
-                    const tp = profiles.find((p) => p.id === (t.profileId ?? defaultProfile))
-                    const tone = envTone(tp?.tag)
-                    return !TONE[tone].dot ? null : <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${TONE[tone].dot}`} title={tp?.tag} />
-                  })()}
-                  {renaming === t.id ? (
-                    <input autoFocus defaultValue={t.title} onClick={(e) => e.stopPropagation()} onFocus={(e) => { renameCancel.current = false; e.currentTarget.select() }}
-                      onBlur={(e) => { const v = e.target.value.trim(); if (v && !renameCancel.current && v !== t.title) patchTab(t.id, { title: v, named: true }); setRenaming(null) }}
-                      onKeyDown={(e) => {
-                        e.stopPropagation()
-                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                        if (e.key === 'Escape') { renameCancel.current = true; setRenaming(null) }
-                      }}
-                      className="w-[130px] bg-transparent outline-hidden text-[12.5px] text-on-surface border-b border-primary/50" />
-                  ) : <span className="truncate">{t.title}</span>}
-                  {renaming !== t.id && isFavTab(t) && <Star size={10} weight="fill" className="text-warning shrink-0" aria-label="En favoritas" />}
-                  <button type="button" aria-label="Cerrar" title="Cerrar (Ctrl+W) — se puede reabrir"
-                    onClick={(e) => { e.stopPropagation(); closeTab(t.id) }}
-                    className={`grid place-items-center w-5 h-5 rounded-[5px] hover:bg-on-surface/10 ${on ? '' : 'opacity-0 group-hover:opacity-100'}`}>
-                    <X size={11} />
-                  </button>
-                </div>
-              )
-            })}
-            <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0" title="Nueva consulta (Ctrl+T)" onClick={() => addTab()}><Plus size={14} /></button>
-          </div>
-        ) : <div className="flex-1" />}
-        {mode === 'query' && tabsState.closed.length > 0 && (
-          <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm shrink-0" title={`Reabrir "${tabsState.closed[0]!.title}" (Ctrl+Shift+T)`} onClick={() => reopen()}>
-            <RotateCcw size={12} /> Reabrir
-          </button>
-        )}
-        {mode === 'query' && (
-          <button type="button" className={`ui-btn ui-btn-ghost ui-btn-icon shrink-0 ${isFav ? 'text-warning' : ''}`} onClick={() => toggleFav()} disabled={!tab?.sql.trim()}
-            title={isFav ? 'Quitar de favoritas' : 'Guardar esta consulta en favoritas (aparece en Historial y en Ctrl+K)'} aria-pressed={isFav}>
-            <Pop active={isFav}><Star size={14} weight={isFav ? 'fill' : 'regular'} /></Pop>
-          </button>
-        )}
-        <ViewControls zoom={zoom} onZoom={setZoom} fontSize={fontSize} defaultFont={prefs.fontSize} onFontSize={setFont}
-          scheme={ownScheme ?? prefs.colorScheme} editorTheme={prefs.editorTheme} appDark={appDark}
-          onPreviewScheme={setPreviewScheme} onPickScheme={pickScheme} onFormat={mode === 'query' ? formatEditor : undefined} />
-        <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm shrink-0" onClick={() => setHistoryOpen(true)} title="Favoritas, historial y pestañas cerradas">
-          <History size={13} /> Historial
-        </button>
-        <div className="flex items-center p-[3px] rounded-[9px] bg-on-surface/5 shrink-0">
-          {([['query', 'Consultas'], ['compare', 'Comparar']] as const).map(([id, label]) => (
-            <button key={id} type="button" onClick={() => setMode(id)} aria-pressed={mode === id}
-              className={`h-[24px] px-3 rounded-[7px] text-[12px] font-medium transition-colors ${mode === id ? 'bg-surface text-on-surface shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}>
-              {id === 'compare' && <Columns2 size={11} className="inline -mt-px mr-1" />}{label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {mode === 'compare' ? <CompareView profiles={profiles} onFix={setFix} /> : tab && (
+      {mode === 'compare' || !tab ? <>{topBar}{mode === 'compare' && <CompareView profiles={profiles} onFix={setFix} />}</> : (
         <div className="flex-1 min-h-0 flex">
           {explorerOpen && profile && (
             <aside className="w-[272px] shrink-0 hairline-r bg-surface min-h-0">
-              <ObjectExplorer profile={profile} database={tab.database.trim() || profile.database}
+              <ObjectExplorer profile={profile} profiles={profiles} database={tab.database.trim() || profile.database}
+                onSwitch={(id) => patchTab(tab.id, { profileId: id, database: '' })} onNew={() => setFix({ reason: 'new' })}
                 onOpen={openScript} onInsert={(t) => editorRef.current?.insertText?.(t)}
                 onFix={setFix} onTested={() => void loadProfiles()} />
             </aside>
           )}
           <div className="flex-1 min-w-0 flex flex-col">
+          {topBar}
           {/* Conexión, base, modo lectura y ejecutar */}
           <div className="relative flex items-center gap-2 px-3 h-[46px] hairline-b bg-surface shrink-0">
-            {TONE[envTone(profile?.tag)].bar && <span aria-hidden className={`pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-linear-to-r ${TONE[envTone(profile?.tag)].bar} via-transparent to-transparent`} />}
+            {connColor(profile?.id)
+              ? <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[2px]" style={{ background: `linear-gradient(to right, ${connColor(profile?.id)}, transparent 60%)` }} />
+              : TONE[envTone(profile?.tag)].bar && <span aria-hidden className={`pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-linear-to-r ${TONE[envTone(profile?.tag)].bar} via-transparent to-transparent`} />}
             <button type="button" onClick={toggleExplorer} aria-pressed={explorerOpen} title={explorerOpen ? 'Ocultar el explorador de objetos' : 'Mostrar el explorador de objetos'}
               className={`ui-btn ui-btn-ghost ui-btn-icon ${explorerOpen ? 'text-primary' : ''}`}><PanelLeft size={15} /></button>
-            <RunButton running={!!run?.running} elapsed={fmtMs(elapsed)} hasSelection={hasSel}
+            <RunButton running={!!run?.running} elapsed={elapsed} hasSelection={hasSel}
               disabled={!profile || !tab.sql.trim()} onRun={(m) => void execute(m)} onCancel={cancel} />
             <span className="w-px h-5 bg-(--hairline-strong) mx-0.5" aria-hidden />
             <ProfileSelect profiles={profiles} value={profile?.id ?? null} onChange={(id) => { if (id !== profile?.id) patchTab(tab.id, { profileId: id, database: '' }) }}
@@ -602,7 +729,7 @@ export function SqlRunner(): JSX.Element {
             <span className="flex-1" />
             {!run?.running && result && (
               <span className="flex items-center gap-1.5 t-footnote text-on-surface-variant tabular-nums" title="Duración de la última ejecución">
-                <Clock size={12} /> {fmtMs(elapsed)}
+                <Clock size={12} /> {fmtMs(result.ms)}
               </span>
             )}
           </div>
@@ -651,14 +778,19 @@ export function SqlRunner(): JSX.Element {
         const items: MenuItem[] = [
           { label: 'Renombrar', icon: Pencil, shortcut: 'F2', action: () => setRenaming(t.id) },
           { label: 'Duplicar', icon: Copy, action: () => addTab({ sql: t.sql, title: `${t.title} (copia)`, named: true, profileId: t.profileId, database: t.database, readOnly: t.readOnly }) },
-          { label: isFavTab(t) ? 'Quitar de favoritas' : 'Guardar en favoritas', icon: Star, action: () => toggleFav(t), disabled: !t.sql.trim() },
+          { label: isFavTab(t) ? 'Quitar de favoritas' : 'Guardar en favoritas', icon: Star, shortcut: 'Ctrl+Shift+D', action: () => toggleFav(t), disabled: !t.sql.trim() },
           { label: 'Cerrar', icon: X, shortcut: 'Ctrl+W', action: () => closeTab(t.id), divider: true },
           { label: 'Cerrar las demás', action: () => closeOthers(t.id), disabled: tabsState.tabs.length < 2 },
           { label: 'Cerrar las de la derecha', action: () => closeOthers(t.id, true), disabled: idx >= tabsState.tabs.length - 1 },
+          { label: tabsState.closed[0] ? `Reabrir "${tabsState.closed[0].title}"` : 'Reabrir cerrada', icon: RotateCcw, shortcut: 'Ctrl+Shift+T', action: () => reopen(), disabled: !tabsState.closed.length, divider: true },
         ]
         return <ContextMenu x={tabMenu.x} y={tabMenu.y} items={items} onClose={() => setTabMenu(null)} />
       })()}
 
+      {goTo && profile && tab && (
+        <GoToObject profile={profile} databases={databases} currentDb={tab.database.trim() || profile.database}
+          onPick={(o) => void openFound(o)} onClose={() => setGoTo(false)} />
+      )}
       <ConnectionFixDialog request={fix} profiles={profiles} onClose={() => setFix(null)} onSaved={onFixed} />
 
       <HistorySheet open={historyOpen} onClose={() => setHistoryOpen(false)} closed={tabsState.closed}
@@ -842,6 +974,24 @@ function Results({ run, onGotoLine, onUseDatabase, conn, onView, name, table, ed
           </div>
         ) : set ? <ResultGrid key={view} set={set} name={name} table={table} editing={view === 0 ? editing : undefined} flash={view === 0 ? run.flash : undefined} /> : (
           <div className="h-full overflow-auto px-3 py-2 font-mono text-[12px] leading-[19px] text-on-surface">
+            {/* Falló (la base, la conexión, el SQL): la mascota roja con el error en una línea que se entiende. */}
+            {!r.ok && !r.cancelled && (() => {
+              const problem = connectionProblem(r)
+              const f = friendlyError(r.error, problem)
+              const known = problem !== null || f.title !== 'Algo falló'
+              return (
+                <div className="font-sans mb-3 flex items-center gap-3.5 rounded-(--r-lg) ring-1 ring-error/20 bg-error/[0.05] px-3.5 py-3">
+                  <Mascot pose="atencion" size={72} once className="-my-1" fallback={<CircleAlert size={18} className="text-error shrink-0" />} />
+                  <div className="flex-1 min-w-0">
+                    <p className="t-body font-semibold text-on-surface">{known ? f.title : 'La consulta no se pudo ejecutar'}</p>
+                    <p className="t-footnote text-on-surface-variant mt-0.5">
+                      {known ? f.hint : typeof r.line === 'number' ? `SQL Server marcó la línea ${r.line}; el detalle está arriba.` : 'El detalle que devolvió SQL Server está arriba.'}
+                    </p>
+                  </div>
+                  {problem && conn && <button type="button" className="ui-btn ui-btn-outline ui-btn-sm shrink-0" onClick={conn.onEdit}>Revisar la conexión</button>}
+                </div>
+              )
+            })()}
             {/* Como el "Commands completed successfully." de SSMS: que se note que terminó bien. */}
             {r.ok && !r.cancelled && (() => {
               const rows = r.messages.reduce((n, m) => { const x = /^\((\d+) filas? afectadas?\)$/.exec(m.trim()); return x ? n + Number(x[1]) : n }, 0)
@@ -939,7 +1089,8 @@ function StatusBar({ profile, database, readOnly, run, elapsed }: {
   database: string
   readOnly: boolean
   run: RunState | undefined
-  elapsed: number
+  /** Reloj de la ejecución en curso */
+  elapsed: React.ReactNode
 }): JSX.Element {
   const r = run?.result
   const rows = r ? r.sets.reduce((n, s) => n + s.total, 0) : 0
@@ -955,7 +1106,7 @@ function StatusBar({ profile, database, readOnly, run, elapsed }: {
       <span className="font-mono">{database || 'predeterminada'}</span>
       <span className={readOnly ? 'text-success' : 'text-warning'}>{readOnly ? 'Solo lectura' : 'Escritura'}</span>
       <span className="flex-1" />
-      {run?.running && <span className="flex items-center gap-1.5 text-primary"><span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" /> Ejecutando · {fmtMs(elapsed)}</span>}
+      {run?.running && <span className="flex items-center gap-1.5 text-primary"><span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" /> Ejecutando · {elapsed}</span>}
       {!run?.running && r && (() => { const st = parseStats(r.messages); return st && (
         <span className="text-primary" title={st.tables.slice(0, 5).map((t) => `${t.table}: ${t.logical.toLocaleString('es-AR')} lecturas`).join('\n')}>
           {st.logicalReads.toLocaleString('es-AR')} lecturas lógicas · CPU {fmtMs(st.cpuMs)}

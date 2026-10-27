@@ -2,6 +2,8 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'rea
 import { ChevronRight, Settings2 } from 'lucide-react'
 import { useApp } from '../../core/AppContext'
 import { CountUp } from '../../core/components/CountUp'
+import { Mascot } from '../../core/components/Mascot'
+import { homePose } from '../../core/mascots'
 import { Toggle } from '../../core/components/Form'
 import { useToast } from '../../core/components/Toast'
 import { useMotionPreference } from '../../core/motion-prefs'
@@ -28,7 +30,7 @@ export function StatusDot({ tone }: { tone: Tone }): JSX.Element {
 }
 
 export function BentoCard({ children, className = '', onClick }: { children: ReactNode; className?: string; onClick?: () => void }): JSX.Element {
-  return <section onClick={onClick} className={`bento spotlight flex flex-col p-5 min-w-0 ${onClick ? 'cursor-pointer' : ''} ${className}`}>{children}</section>
+  return <section onClick={onClick} className={`bento flex flex-col p-5 min-w-0 ${onClick ? 'cursor-pointer' : ''} ${className}`}>{children}</section>
 }
 
 export function Pill({ children, onClick, title }: { children: ReactNode; onClick: () => void; title?: string }): JSX.Element {
@@ -242,13 +244,14 @@ export function HeroCard({ name, now, data, show, className = '' }: {
   if (show.sql) {
     const errs = data.history.filter((h) => !h.ok && h.at >= startOfToday()).length
     const today = data.history.filter((h) => h.at >= startOfToday()).length
-    rows.push({ key: 'runs', label: 'Consultas', to: 'sql-runner', detail: errs ? `${errs} con error hoy` : today ? `${today} hoy, sin errores` : 'Ninguna hoy', tone: errs ? 'warn' : today ? 'ok' : 'idle' })
+    rows.push({ key: 'runs', label: 'SQL', to: 'sql-runner', detail: errs ? `${errs} con error hoy` : today ? `${today} hoy, sin errores` : 'Ninguna hoy', tone: errs ? 'warn' : today ? 'ok' : 'idle' })
   }
   const attention = rows.filter((r) => r.tone === 'warn' || r.tone === 'bad').length
 
   return (
     <BentoCard className={`min-h-[340px] ${className}`}>
       <DotWave className="opacity-90" />
+      <Mascot pose={homePose(now, attention)} size={140} interactive className="absolute bottom-2 right-3 z-10" />
       <div className="relative">
         <p className="t-footnote text-on-surface-variant">{now.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/^./, (c) => c.toUpperCase())}</p>
         <h1 className="text-[34px] leading-[40px] font-bold tracking-[-0.02em] text-on-surface">Hola{name ? `, ${name}` : ''}</h1>
@@ -352,7 +355,7 @@ export function ConsultasCard({ history, className = '' }: { history: QueryHisto
     <BentoCard className={className}>
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
-          <CardTitle title="Consultas" sub="Ejecutadas por día · últimas 2 semanas" status={errs ? `${errs} con error hoy` : today ? 'Sin errores hoy' : 'Ninguna hoy'} tone={errs ? 'warn' : today ? 'ok' : 'idle'} />
+          <CardTitle title="SQL" sub="Ejecutadas por día · últimas 2 semanas" status={errs ? `${errs} con error hoy` : today ? 'Sin errores hoy' : 'Ninguna hoy'} tone={errs ? 'warn' : today ? 'ok' : 'idle'} />
         </div>
         <div className="flex items-center gap-4 t-caption text-on-surface-variant">
           <span><b className="text-[15px] text-on-surface tabular-nums"><CountUp value={today} format={String} /></b> hoy</span>
@@ -360,7 +363,7 @@ export function ConsultasCard({ history, className = '' }: { history: QueryHisto
         </div>
       </div>
       <AreaChart values={runs} labels={labels} />
-      <div className="pt-3"><Pill onClick={() => dispatch({ type: 'OPEN_TAB', pluginId: 'sql-runner' })}>Abrir Consultas</Pill></div>
+      <div className="pt-3"><Pill onClick={() => dispatch({ type: 'OPEN_TAB', pluginId: 'sql-runner' })}>Abrir SQL</Pill></div>
     </BentoCard>
   )
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -8,7 +8,7 @@ let base: string
 const FILE = path.resolve('/proj/Module1.vb')
 
 beforeEach(() => { base = fs.mkdtempSync(path.join(os.tmpdir(), 'fe-history-')) })
-afterEach(() => { fs.rmSync(base, { recursive: true, force: true }) })
+afterEach(() => { vi.restoreAllMocks(); fs.rmSync(base, { recursive: true, force: true }) })
 
 describe('history', () => {
   it('stores, lists (newest first) and reads raw bytes', () => {
@@ -46,6 +46,17 @@ describe('history', () => {
     pruneTotal(base, 250)
     expect(listSnapshots(base, FILE).map((e) => e.id)).toEqual(['3'])
     expect(listSnapshots(base, other)).toHaveLength(1)
+  })
+
+  it('survives index.json being locked for an instant (EPERM on rename, Windows)', () => {
+    const real = fs.renameSync
+    let calls = 0
+    vi.spyOn(fs, 'renameSync').mockImplementation((a, b) => {
+      if (++calls === 1) throw Object.assign(new Error('locked'), { code: 'EPERM' })
+      return real(a, b)
+    })
+    expect(addSnapshot(base, FILE, Buffer.from('v1'), { now: 1 })).not.toBeNull()
+    expect(listSnapshots(base, FILE).map((e) => e.id)).toEqual(['1'])
   })
 
   it('rejects ids that are not ours', () => {

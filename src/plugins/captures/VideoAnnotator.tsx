@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowUpRight, Check, Highlighter, PenLine, Plus, Square, Trash2, Type, Undo2, X, type LucideIcon } from 'lucide-react'
 import { useToast } from '../../core/components/Toast'
+import { Mascot } from '../../core/components/Mascot'
 import { formatBytes, formatTime, videoUrl } from './videos-logic'
 
 /**
@@ -186,7 +187,8 @@ export function VideoAnnotator({ path, name, onClose, onExported }: {
       <div className="flex items-center gap-3 px-4 h-14 shrink-0 border-b border-white/10">
         <span className="text-[13px] font-semibold truncate flex-1">Marcas · {name}</span>
         {exporting !== null ? (
-          <div className="flex items-center gap-3 w-[320px]">
+          <div className="flex items-center gap-3 w-[360px]">
+            <Mascot pose="actualizando" size={40} className="-my-2" />
             <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-primary transition-[width]" style={{ width: `${Math.round(exporting * 100)}%` }} /></div>
             <span className="text-[12px] tabular-nums text-white/70 w-24 text-right">Exportando {Math.round(exporting * 100)}%</span>
           </div>

@@ -60,7 +60,7 @@ export function actionsFor(kind: ClipKind, text: string): ClipAction[] {
     }); break
     case 'code': out.push({ id: 'snippet', label: 'Guardar como snippet', icon: Code2, run: (_x, open) => open({ pluginId: 'snippets', action: 'new', payload: { content: t } }) }); break
     case 'sql':
-      out.push({ id: 'sql-run', label: 'Abrir en Consultas', icon: Database, run: (_x, open) => open({ pluginId: 'sql-runner', action: 'open-sql', payload: { sql: t } }) })
+      out.push({ id: 'sql-run', label: 'Abrir en SQL', icon: Database, run: (_x, open) => open({ pluginId: 'sql-runner', action: 'open-sql', payload: { sql: t } }) })
       out.push({ id: 'snippet', label: 'Guardar como snippet', icon: Code2, run: (_x, open) => open({ pluginId: 'snippets', action: 'new', payload: { content: t, language: 'sql' } }) })
       break
   }

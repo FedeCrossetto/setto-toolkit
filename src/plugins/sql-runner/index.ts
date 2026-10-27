@@ -5,7 +5,7 @@ const SqlRunner = lazy(() => import('./SqlRunner').then((m) => ({ default: m.Sql
 
 export const sqlRunnerPlugin: PluginManifest = {
   id: 'sql-runner',
-  name: 'Consultas',
+  name: 'SQL',
   description: 'SQL contra tus bases (Main, LPS, QA) sin perder nunca lo escrito; comparar ambientes',
   icon: 'database',
   component: SqlRunner,

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Skeleton } from '../../core/components/Skeleton'
+import { Mascot } from '../../core/components/Mascot'
 import {
-  Activity, AtSign, ChevronRight, Unplug, CircleAlert, Copy, Eye, KeyRound, Pencil, Play, RefreshCw, ScrollText, Search,
+  Activity, AtSign, Check, Clock, Star, ChevronRight, ChevronsUpDown, Plus, Unplug, CircleAlert, Copy, Eye, KeyRound, Pencil, Play, RefreshCw, ScrollText, Search,
   Server, SquareFunction, Table, Link, TextCursorInput, X, Zap, FileCode2, Database,
 } from 'lucide-react'
 import { ContextMenu, type MenuItem } from '../../core/components/ContextMenu'
@@ -14,6 +15,7 @@ import {
 } from './sql-meta'
 import type { FixRequest } from './ConnectionFixDialog'
 import { EnvChip, SqlServerIcon } from './env'
+import { CONN_COLORS, connColor, favoritesFor, isFavorite, recentFor, recordRecent, setConnColor, toggleFavorite, useObjectPrefs, type ObjectRef } from './object-prefs'
 
 /**
  * Explorador de objetos (como el de SSMS): datos de la conexión y, de la base elegida,
@@ -35,20 +37,37 @@ type Children = { columns: SqlColumn[]; params: SqlParam[] } | 'loading' | { err
 
 export interface OpenScript { title: string; sql: string; run?: boolean }
 
+/** Más de esto sin probar la conexión: se vuelve a probar sola. */
+const RETEST_MS = 5 * 60_000
+
+/** "hace 2 min" para la última prueba. */
+function ago(ts: number): string {
+  const s = Math.max(0, (Date.now() - ts) / 1000)
+  if (s < 45) return 'recién'
+  if (s < 3600) return `hace ${Math.round(s / 60)} min`
+  if (s < 86_400) return `hace ${Math.round(s / 3600)} h`
+  return new Date(ts).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
+}
+
 function compact(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString('es-AR', { maximumFractionDigits: 1 })} M`
   if (n >= 10_000) return `${Math.round(n / 1000).toLocaleString('es-AR')} k`
   return n.toLocaleString('es-AR')
 }
 
-export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onTested }: {
+export function ObjectExplorer({ profile, profiles, database, onOpen, onInsert, onFix, onTested, onSwitch, onNew }: {
   profile: SqlProfile
+  /** Todas las conexiones, para cambiar desde la tarjeta */
+  profiles: SqlProfile[]
   /** Base efectiva (la de la pestaña o la de la conexión) */
   database: string
   onOpen: (s: OpenScript) => void
   onInsert: (text: string) => void
   onFix: (req: FixRequest) => void
   onTested: () => void
+  /** Usar otra conexión en la pestaña actual */
+  onSwitch: (profileId: string) => void
+  onNew: () => void
 }): JSX.Element {
   const cache = useRef(new Map<string, SqlObject[]>())
   const key = `${profile.id}|${database}`
@@ -61,6 +80,17 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null)
   const [testing, setTesting] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
+  const [switcher, setSwitcher] = useState(false)
+  const switcherRef = useRef<HTMLDivElement>(null)
+  // Cerrar el selector al hacer clic afuera o con Esc.
+  useEffect(() => {
+    if (!switcher) return
+    const onDown = (e: MouseEvent): void => { if (!switcherRef.current?.contains(e.target as Node)) setSwitcher(false) }
+    const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') { e.stopPropagation(); setSwitcher(false) } }
+    window.addEventListener('mousedown', onDown)
+    window.addEventListener('keydown', onKey, true)
+    return () => { window.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey, true) }
+  }, [switcher])
   const [showDetail, setShowDetail] = useState(false)
 
   const meta = useCallback((kind: MetaKind, objectId?: number): Promise<QueryResult> =>
@@ -88,11 +118,31 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
   const fix = (reason: 'auth' | 'server' | 'edit', text?: string): void =>
     onFix({ profileId: profile.id, reason, error: text, retry: () => void load(true) })
 
-  const testNow = async (): Promise<void> => {
-    setTesting(true)
+  const testNow = async (quiet = false): Promise<void> => {
+    if (!quiet) setTesting(true)
     try { await window.api.invoke<SqlTestResult>('sql:test', profile.id) } catch { /* se ve en lastTest */ }
-    setTesting(false); onTested()
+    if (!quiet) setTesting(false)
+    onTested()
   }
+  // Estado en vivo: si la última prueba tiene más de 5 min, se vuelve a probar en segundo plano
+  // (sólo con la ventana a la vista); el reloj relativo ("hace 2 min") se refresca solo.
+  const [, setTick] = useState(0)
+  const lastAt = profile.lastTest?.at ?? 0
+  useEffect(() => {
+    const check = (): void => {
+      setTick((x) => x + 1)
+      if (document.visibilityState === 'visible' && Date.now() - lastAt > RETEST_MS) void testNow(true)
+    }
+    check()
+    const t = setInterval(check, 60_000)
+    return () => clearInterval(t)
+  }, [profile.id, lastAt]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Recientes y favoritos (de esta conexión y base) ──
+  useObjectPrefs()
+  const refOf = (o: SqlObject): Omit<ObjectRef, 'at'> => ({ profileId: profile.id, db: database, schema: o.schema, name: o.name, type: o.type })
+  const resolve = (r: ObjectRef): SqlObject | undefined => objects?.find((o) => o.schema.toLowerCase() === r.schema.toLowerCase() && o.name.toLowerCase() === r.name.toLowerCase())
+  const color = connColor(profile.id)
 
   // ── Filtro y grupos ──
   const f = q.trim().toLowerCase()
@@ -133,6 +183,7 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
     void loadChildren(o)
   }
   const openDefinition = async (o: SqlObject, alter: boolean): Promise<void> => {
+    recordRecent(refOf(o))
     if (o.type === 'U') {
       const c = await loadChildren(o)
       if (c) onOpen({ title: o.name, sql: tableScript(o, c.columns) })
@@ -148,11 +199,12 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
     onOpen({ title: o.name, sql: alter ? createToAlter(def) : def })
   }
   const openExec = async (o: SqlObject): Promise<void> => {
+    recordRecent(refOf(o))
     const c = await loadChildren(o)
     if (c) onOpen({ title: o.name, sql: execScript(o, c.params) })
   }
   const primary = (o: SqlObject): void => {
-    if (o.type === 'U' || o.type === 'V') onOpen({ title: o.name, sql: selectTopScript(o), run: true })
+    if (o.type === 'U' || o.type === 'V') { recordRecent(refOf(o)); onOpen({ title: o.name, sql: selectTopScript(o), run: true }) }
     else void openDefinition(o, o.type !== 'SN')
   }
   const copy = (text: string): void => { void navigator.clipboard.writeText(text).catch(() => undefined) }
@@ -166,7 +218,8 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
     if (['V', 'P', 'FN', 'IF', 'TF', 'TR'].includes(o.type)) items.push({ label: 'Modificar (ALTER)', icon: Pencil, action: () => void openDefinition(o, true) })
     if (['P', 'FN', 'IF', 'TF'].includes(o.type)) items.push({ label: o.type === 'P' ? 'Plantilla EXEC' : 'Plantilla SELECT', icon: Play, action: () => void openExec(o) })
     items.push(
-      { label: 'Insertar nombre en el editor', icon: TextCursorInput, action: () => onInsert(name), divider: true },
+      { label: isFavorite(refOf(o)) ? 'Quitar de favoritos' : 'Agregar a favoritos', icon: Star, action: () => toggleFavorite(refOf(o)), divider: true },
+      { label: 'Insertar nombre en el editor', icon: TextCursorInput, action: () => onInsert(name) },
       { label: 'Copiar nombre', icon: Copy, action: () => copy(name) },
     )
     setMenu({ x: e.clientX, y: e.clientY, items })
@@ -175,11 +228,13 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
   const t = profile.lastTest
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Conexión */}
-      <div className="px-3 pt-3 pb-2.5 hairline-b">
-        <button type="button" onClick={() => setInfoOpen((v) => !v)} aria-expanded={infoOpen}
-          className="w-full flex items-center gap-2.5 p-2 -m-1 rounded-(--r-md) text-left hover:bg-on-surface/4 transition-colors">
-          <span className="relative grid place-items-center w-10 h-10 rounded-[11px] bg-linear-to-b from-on-surface/8 to-on-surface/3 ring-1 ring-on-surface/10 shrink-0">
+      {/* Conexión: la tarjeta abre el selector (como el de espacios de trabajo); "+" agrega una nueva */}
+      <div ref={switcherRef} className="relative px-3 pt-3 pb-2.5 hairline-b">
+        <div className="flex items-center gap-1">
+        <button type="button" onClick={() => setSwitcher((v) => !v)} aria-expanded={switcher} aria-haspopup="listbox" title="Cambiar de conexión"
+          className={`flex-1 min-w-0 flex items-center gap-2.5 p-2 -m-1 rounded-(--r-md) text-left transition-colors ${switcher ? 'bg-on-surface/6' : 'hover:bg-on-surface/4'}`}>
+          <span className="relative grid place-items-center w-10 h-10 rounded-[11px] bg-linear-to-b from-on-surface/8 to-on-surface/3 ring-1 ring-on-surface/10 shrink-0"
+            style={color ? { boxShadow: `0 0 0 2px ${color}` } : undefined}>
             <SqlServerIcon size={24} />
             <span className={`absolute -right-0.5 -bottom-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-surface ${!t ? 'bg-on-surface/30' : t.ok ? 'bg-success' : 'bg-error'}`}
               title={t ? `${t.ok ? 'Última prueba ok' : 'Última prueba falló'} · ${new Date(t.at).toLocaleString('es-AR')}` : 'Sin probar'} />
@@ -189,10 +244,47 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
               <span className="t-body font-semibold text-on-surface truncate">{profile.name}</span>
               {profile.tag && <EnvChip tag={profile.tag} />}
             </span>
-            <span className="block t-caption font-mono text-on-surface-variant truncate">{profile.server}</span>
+            <span className="block t-caption text-on-surface-variant truncate">
+              <span className="font-mono">{profile.server}</span>
+              {t && <span className={t.ok ? '' : 'text-error'}> · {t.ok ? (t.ms != null ? `${t.ms} ms` : 'conecta') : 'no conecta'} · {ago(t.at)}</span>}
+            </span>
           </span>
-          <ChevronRight size={13} className={`text-on-surface-variant transition-transform ${infoOpen ? 'rotate-90' : ''}`} />
+          <ChevronsUpDown size={14} className="text-on-surface-variant shrink-0" />
         </button>
+        <button type="button" onClick={onNew} title="Nueva conexión" aria-label="Nueva conexión"
+          className="ui-btn ui-btn-ghost ui-btn-icon shrink-0 ml-1"><Plus size={15} /></button>
+        </div>
+
+        {switcher && (
+          <div role="listbox" aria-label="Conexiones" className="absolute left-2 right-2 top-[calc(100%-6px)] z-30 mac-popover hairline p-1.5 flex flex-col gap-px max-h-[360px] overflow-y-auto"
+            style={{ animation: 'fadeIn 0.12s ease both' }}>
+            <div className="px-2 pt-1 pb-1.5 text-[10.5px] font-medium uppercase tracking-[0.08em] text-on-surface-variant/80">Conexiones</div>
+            {[...profiles].sort((a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name, 'es')).map((p) => {
+              const on = p.id === profile.id
+              const pt = p.lastTest
+              return (
+                <button key={p.id} type="button" role="option" aria-selected={on} onClick={() => { setSwitcher(false); if (!on) onSwitch(p.id) }}
+                  className={`flex items-center gap-2.5 px-2 py-1.5 rounded-[8px] text-left transition-colors ${on ? 'bg-on-surface/7' : 'hover:bg-on-surface/5'}`}>
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${!pt ? 'bg-on-surface/25' : pt.ok ? 'bg-success' : 'bg-error'}`}
+                    title={!pt ? 'Sin probar' : pt.ok ? 'Respondió en la última prueba' : 'Falló en la última prueba'} />
+                  <span className="flex-1 min-w-0">
+                    <span className="block t-footnote font-medium text-on-surface truncate">{p.name}</span>
+                    <span className="block text-[11px] font-mono text-on-surface-variant truncate">{p.server}</span>
+                  </span>
+                  {p.tag && <EnvChip tag={p.tag} />}
+                  {on && <Check size={13} className="text-primary shrink-0" />}
+                </button>
+              )
+            })}
+            <div className="h-px bg-(--hairline) my-1" />
+            <button type="button" onClick={() => { setSwitcher(false); onNew() }} className="flex items-center gap-2.5 px-2 h-8 rounded-[8px] t-footnote text-on-surface hover:bg-on-surface/5">
+              <Plus size={14} className="text-on-surface-variant" /> Nueva conexión
+            </button>
+            <button type="button" onClick={() => { setSwitcher(false); setInfoOpen((v) => !v) }} className="flex items-center gap-2.5 px-2 h-8 rounded-[8px] t-footnote text-on-surface hover:bg-on-surface/5">
+              <ChevronRight size={14} className={`text-on-surface-variant transition-transform ${infoOpen ? 'rotate-90' : ''}`} /> {infoOpen ? 'Ocultar detalles' : 'Detalles, probar y editar'}
+            </button>
+          </div>
+        )}
         {infoOpen && (
           <div className="mt-2.5 flex flex-col gap-1.5">
             <dl className="grid grid-cols-[64px_1fr] gap-x-2 gap-y-1.5 t-caption rounded-[10px] bg-on-surface/3 px-2.5 py-2 mt-1">
@@ -211,6 +303,15 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
                   </dd></>
               )}
             </dl>
+            <div className="flex items-center gap-1.5 mt-1 px-0.5" role="radiogroup" aria-label="Color de la conexión">
+              <span className="t-caption text-on-surface-variant mr-1">Color</span>
+              <button type="button" role="radio" aria-checked={!color} title="Sin color (el del ambiente)" onClick={() => setConnColor(profile.id, null)}
+                className={`w-4 h-4 rounded-full ring-1 ring-on-surface/25 bg-[linear-gradient(135deg,transparent_45%,rgb(var(--c-on-surface)/0.4)_47%,rgb(var(--c-on-surface)/0.4)_53%,transparent_55%)] ${!color ? 'outline-2 outline-offset-1 outline-primary' : ''}`} />
+              {CONN_COLORS.map((c) => (
+                <button key={c} type="button" role="radio" aria-checked={color === c} title="Usar este color para la conexión" onClick={() => setConnColor(profile.id, c)}
+                  className={`w-4 h-4 rounded-full transition-transform hover:scale-110 ${color === c ? 'outline-2 outline-offset-1 outline-primary' : ''}`} style={{ background: c }} />
+              ))}
+            </div>
             <div className="flex gap-1.5 mt-1">
               <button type="button" className="ui-btn ui-btn-outline ui-btn-sm flex-1" onClick={() => void testNow()} disabled={testing}>
                 <Activity size={12} className={testing ? 'animate-pulse' : ''} /> {testing ? 'Probando…' : 'Probar conexión'}
@@ -245,7 +346,9 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
           const Icon = error.problem === 'auth' ? KeyRound : error.problem ? Unplug : CircleAlert
           return (
             <div className="mx-3 my-3 rounded-(--r-lg) ring-1 ring-error/20 bg-error/[0.05] px-4 pt-4 pb-3 flex flex-col items-center text-center">
-              <span className="grid place-items-center w-10 h-10 rounded-[12px] bg-error/12 text-error mb-2.5"><Icon size={18} /></span>
+              <Mascot pose="atencion" size={72} once className="mb-1.5" fallback={
+                <span className="grid place-items-center w-10 h-10 rounded-[12px] bg-error/12 text-error mb-2.5"><Icon size={18} /></span>
+              } />
               <p className="t-body font-semibold text-on-surface">{fe.title}</p>
               <p className="t-caption text-on-surface-variant mt-0.5">{fe.hint}</p>
               <div className="flex flex-col gap-1.5 w-full mt-3">
@@ -282,6 +385,37 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
             <p className="t-caption text-on-surface-variant mt-0.5">Elegí una base arriba, junto a la conexión.</p>
           </div>
         )}
+        {objects && !f && (() => {
+          const favs = favoritesFor(profile.id, database)
+          const recents = recentFor(profile.id, database).filter((r) => !favs.some((x) => x.schema === r.schema && x.name === r.name))
+          if (!favs.length && !recents.length) return null
+          const row = (r: ObjectRef, kind: 'fav' | 'recent'): JSX.Element | null => {
+            const o = resolve(r)
+            if (!o) return null
+            const Icon = TYPE_ICON[o.type]
+            return (
+              <div key={`${kind}-${o.id}`} role="treeitem" tabIndex={0} onClick={() => primary(o)} onContextMenu={(e) => objectMenu(e, o)}
+                onKeyDown={(e) => { if (e.key === 'Enter') primary(o) }}
+                title={`${o.schema}.${o.name}\nClic: ${o.type === 'U' || o.type === 'V' ? 'ver 100 filas' : 'abrir definición'}`}
+                className="group flex items-center gap-1.5 h-[26px] pl-5 pr-2 cursor-pointer hover:bg-on-surface/5 focus-visible:bg-primary/10 outline-hidden">
+                <Icon size={13} className={`shrink-0 ${TYPE_COLOR[o.type]}`} />
+                <span className="flex-1 min-w-0 truncate text-on-surface">{o.schema !== 'dbo' && <span className="text-on-surface-variant">{o.schema}.</span>}{o.name}</span>
+                {kind === 'fav' && (
+                  <button type="button" aria-label="Quitar de favoritos" title="Quitar de favoritos" onClick={(e) => { e.stopPropagation(); toggleFavorite(refOf(o)) }}
+                    className="grid place-items-center w-5 h-5 rounded-[5px] text-warning hover:bg-on-surface/8"><Star size={11} weight="fill" /></button>
+                )}
+              </div>
+            )
+          }
+          return (
+            <div className="pb-1 mb-1 hairline-b">
+              {favs.length > 0 && <div className="flex items-center gap-1.5 h-[26px] px-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant"><Star size={11} weight="fill" className="text-warning" /> Favoritos</div>}
+              {favs.map((r) => row(r, 'fav'))}
+              {recents.length > 0 && <div className="flex items-center gap-1.5 h-[26px] px-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant"><Clock size={11} /> Recientes</div>}
+              {recents.map((r) => row(r, 'recent'))}
+            </div>
+          )
+        })()}
         {groups.map((g) => {
           const open = isOpen(g.id, g.shown.length)
           return (
@@ -309,6 +443,16 @@ export function ObjectExplorer({ profile, database, onOpen, onInsert, onFix, onT
                         {o.schema !== 'dbo' && <span className="text-on-surface-variant">{o.schema}.</span>}{o.name}
                       </span>
                       {o.rows != null && <span className="t-caption tabular-nums text-on-surface-variant/70 shrink-0">{compact(o.rows)}</span>}
+                      {(() => {
+                        const fav = isFavorite(refOf(o))
+                        return (
+                          <button type="button" aria-label={fav ? 'Quitar de favoritos' : 'Agregar a favoritos'} title={fav ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+                            onClick={(e) => { e.stopPropagation(); toggleFavorite(refOf(o)) }}
+                            className={`grid place-items-center w-5 h-5 rounded-[5px] shrink-0 hover:bg-on-surface/8 ${fav ? 'text-warning' : 'text-on-surface-variant opacity-0 group-hover:opacity-100'}`}>
+                            <Star size={11} weight={fav ? 'fill' : 'regular'} />
+                          </button>
+                        )
+                      })()}
                     </div>
                     {c === 'loading' && <div className="pl-12 pr-4 py-1.5 flex flex-col gap-1.5" aria-busy="true">{[70, 55, 62].map((w) => <Skeleton key={w} className="h-2.5" style={{ width: `${w}%` }} />)}</div>}
                     {c && c !== 'loading' && 'error' in c && <p className="pl-12 pr-2 py-1 t-caption text-error">{c.error}</p>}

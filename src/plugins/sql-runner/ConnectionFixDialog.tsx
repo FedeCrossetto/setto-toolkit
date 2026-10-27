@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Eye, EyeOff, KeyRound, Plug, SlidersHorizontal, Unplug } from 'lucide-react'
 import { Modal } from '../../core/components/Modal'
+import { Mascot } from '../../core/components/Mascot'
 import { Field, Toggle } from '../../core/components/Form'
 import { SegmentedControl } from '../../core/components/SegmentedControl'
 import { friendlyError, joinServer, serverFromHostInput, splitServer } from './sql-meta'
@@ -119,7 +120,9 @@ export function ConnectionFixDialog({ request, profiles, onClose, onSaved }: {
       <form className="flex flex-col gap-3.5" onSubmit={(e) => { e.preventDefault(); void save(false) }}>
         {fe && (
           <div className="flex items-start gap-3 rounded-(--r-lg) ring-1 ring-error/20 bg-error/[0.05] p-3">
-            <span className="grid place-items-center w-9 h-9 rounded-[10px] bg-error/12 text-error shrink-0">{reason === 'auth' ? <KeyRound size={16} /> : <Unplug size={16} />}</span>
+            <Mascot pose="atencion" size={60} once className="-my-1" fallback={
+              <span className="grid place-items-center w-9 h-9 rounded-[10px] bg-error/12 text-error shrink-0">{reason === 'auth' ? <KeyRound size={16} /> : <Unplug size={16} />}</span>
+            } />
             <div className="flex-1 min-w-0">
               <p className="t-body font-semibold text-on-surface">{fe.title}</p>
               <p className="t-caption text-on-surface-variant">{fe.hint}</p>

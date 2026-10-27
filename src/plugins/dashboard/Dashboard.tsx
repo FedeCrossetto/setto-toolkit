@@ -74,7 +74,7 @@ function Widget({ title, icon: Icon, action, children, className = '' }: {
   className?: string
 }): JSX.Element {
   return (
-    <section className={`bento spotlight flex flex-col min-h-[220px] ${className}`}>
+    <section className={`bento flex flex-col min-h-[220px] ${className}`}>
       <header className="flex items-center gap-2 pl-5 pr-3 h-12 mt-2 mb-0.5">
         <Icon size={15} className="text-on-surface-variant shrink-0" />
         <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-on-surface flex-1 min-w-0 truncate">{title}</h2>

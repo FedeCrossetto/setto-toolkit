@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SegmentedControl } from '../../core/components/SegmentedControl'
+import { Mascot } from '../../core/components/Mascot'
 import {
   ArrowRight, BarChart2, Building2, Check, ChevronDown, CircleAlert,
   Copy, ExternalLink, Eye, EyeOff, FileText, Folder, FolderOpen,
@@ -255,11 +256,11 @@ function RepoGroup({ repo, results, defaultOpen, query }: { repo: string; result
 
 // ── Searching loader ───────────────────────────────────────────────────────
 
-/** Calm loader (the old mascot prop is accepted but no longer rendered — no mascots in the macOS look). */
-function SearchingLoader({ label }: { label?: string; mascot?: 'panda' | 'setto-avatar' }): JSX.Element {
+/** Buscando: la mascota naranja con la lupa (o el spinner si las mascotas están apagadas). */
+function SearchingLoader({ label }: { label?: string }): JSX.Element {
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-3 select-none">
-      <Loader2 size={22} className="animate-spin text-on-surface-variant" />
+      <Mascot pose="buscando" size={120} fallback={<Loader2 size={22} className="animate-spin text-on-surface-variant" />} />
       <p className="t-body text-on-surface-variant">{label ?? 'Buscando…'}</p>
     </div>
   )
@@ -607,7 +608,6 @@ export function RepoSearch(): JSX.Element {
   const [aliases, setAliases] = useState<RepoAlias[]>([])
   const [newAliasFrom, setNewAliasFrom] = useState('')
   const [newAliasTo, setNewAliasTo] = useState('')
-  const [mascot, setMascot] = useState<'panda' | 'setto-avatar'>('setto-avatar')
   const inputRef = useRef<HTMLInputElement>(null)
   const historyContainerRef = useRef<HTMLDivElement>(null)
 
@@ -643,7 +643,7 @@ export function RepoSearch(): JSX.Element {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider])
 
-  // Load aliases, search history, and mascot preference once on mount
+  // Load aliases and search history once on mount
   useEffect(() => {
     window.api.invoke<string | null>('settings:get', ALIAS_KEY).then((val) => {
       if (val) {
@@ -653,16 +653,6 @@ export function RepoSearch(): JSX.Element {
     window.api.invoke<string[]>('repo-search:history-get').then((h) => {
       if (Array.isArray(h)) setHistory(h)
     }).catch(() => { /* ignore */ })
-    window.api.invoke<string | null>('settings:get', 'dashboard.mascot').then((v) => {
-      if (v !== null) setMascot(v === 'panda' ? 'panda' : 'setto-avatar')
-    }).catch(() => { /* ignore */ })
-
-    const handler = (e: Event): void => {
-      const val = (e as CustomEvent<string>).detail
-      setMascot(val === 'panda' ? 'panda' : 'setto-avatar')
-    }
-    window.addEventListener('mascot-change', handler)
-    return () => window.removeEventListener('mascot-change', handler)
   }, [])
 
   // Global shortcut: / focuses search input
@@ -910,7 +900,7 @@ export function RepoSearch(): JSX.Element {
                 </h2>
               )}
 
-              {loading && <SearchingLoader label={loadingLabel} mascot={mascot} />}
+              {loading && <SearchingLoader label={loadingLabel} />}
 
               {/* No results after search */}
               {!loading && !error && count === 0 && query && (

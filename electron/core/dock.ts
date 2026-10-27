@@ -6,15 +6,15 @@ import { foregroundWindow } from './win-helper'
 import { pasteKeepingClipboard, simulatePaste } from './snippet-picker'
 import { clipText, onClipAdded, onVideoCopied } from './clipboard-history'
 import { saveCopiedVideo } from '../plugins/captures/videos'
+import { onCaptureAdded } from '../plugins/captures/handlers'
 import { showWindow } from './notifications'
 import { logger } from './logger'
 
 /**
- * Barra flotante al borde de la pantalla ("dock", derecha o izquierda según
- * `app.dock_side`): una pestaña angosta con el logo pegada al borde que al pasar
- * el mouse (o con Ctrl+Alt+D) se despliega con lo último copiado, capturas,
- * snippets, tickets, claves y acciones rápidas. La pestaña se arrastra
- * arriba/abajo por el borde (la altura se recuerda; doble clic la vuelve al medio).
+ * Isla flotante arriba al centro de la pantalla ("dock", como la isla dinámica):
+ * plegada es una pastilla negra pegada al borde de arriba; al pasar el mouse (o con
+ * Ctrl+Alt+D) crece hacia abajo y a los costados con lo último copiado, capturas,
+ * snippets, tickets, claves y acciones rápidas.
  *
  * La ventana es transparente y más grande que lo visible: el aire alrededor deja
  * que la sombra se dibuje entera (una sombra cortada por el borde de la ventana
@@ -28,19 +28,21 @@ import { logger } from './logger'
 
 const SETTING = 'app.dock'
 const SHORTCUTS = ['CommandOrControl+Alt+D', 'CommandOrControl+Alt+J']
-/** Ventana plegada: la pestaña visible mide 46x56; el resto es aire para la sombra, el rebote y el globito. */
-const HANDLE = { width: 72, height: 120 }
-/** Panel visible y el aire transparente que lo rodea (la sombra cae hacia abajo). El renderer lo recibe en `dock:state`. */
-const PANEL_WIDTH = 372
-const PANEL_MAX_HEIGHT = 640
-const PAD = { top: 14, bottom: 30, edge: 10, outer: 22 }
-/** Al arrastrar, a menos de esto del centro la pestaña se imanta al medio. */
-const SNAP_PX = 14
-const SIDE_SETTING = 'app.dock_side'
-type Side = 'right' | 'left'
-/** Al plegar, el renderer anima la salida del panel antes de achicar la ventana. */
-const COLLAPSE_ANIM_MS = 240
-const Y_SETTING = 'app.dock_y'
+/**
+ * Ventana plegada: la pastilla visible (ISLAND_PILL en el renderer) más aire para que
+ * se ensanche al pasar el mouse y para la sombra. Chica a propósito: lo transparente
+ * de la ventana igual tapa los clics de la app de abajo.
+ */
+const PILL_WINDOW = { width: 220, height: 46 }
+/** Panel visible y el aire transparente alrededor (arriba nada: va pegado al borde). El renderer lo recibe en `dock:state`. */
+const PANEL_WIDTH = 760
+const PANEL_MAX_HEIGHT = 420
+const PAD = { top: 0, bottom: 34, edge: 26, outer: 26 }
+/**
+ * Al plegar, el renderer anima la salida del panel (300 ms) antes de achicar la ventana.
+ * Con margen: si achicamos antes de que termine (cuadros perdidos), el panel se corta de golpe.
+ */
+const COLLAPSE_ANIM_MS = 380
 /** Con el mouse afuera este tiempo, el panel se pliega solo. */
 const LEAVE_COLLAPSE_MS = 450
 const CURSOR_POLL_MS = 120
@@ -58,17 +60,12 @@ let overrideApp: string | null = null
 let shortcut: string | null = null
 let poller: ReturnType<typeof setInterval> | null = null
 let getMain: () => BrowserWindow | null = () => null
-let settingsRef: SettingsService | null = null
-/** Altura de la pestaña en el borde: 0 = arriba, 1 = abajo. */
-let yRatio = 0.5
 let shrinkTimer: ReturnType<typeof setTimeout> | null = null
 let cursorTimer: ReturnType<typeof setInterval> | null = null
 /** Abierta con el atajo: se pliega al salir el mouse sólo si antes entró (si no, se usa con teclado). */
 let openedByKey = false
-let side: Side = 'right'
 /** Pestaña que pidió `dock:open` (p. ej. Ctrl+K → Bloc): viaja una sola vez en `dock:state`. */
 let requestedTab: string | null = null
-let moveAnim: ReturnType<typeof setInterval> | null = null
 
 /** Pantalla donde vive la barra: la del cursor al abrirla/mostrarla (si desaparece, la principal). */
 let displayId: number | null = null
@@ -95,26 +92,14 @@ function followCursorDisplay(): boolean {
   }
 }
 
-const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
-
-function handleTop(): number {
+/** Arriba al centro del área de trabajo (debajo de la barra de tareas si está arriba). */
+function boundsFor(isExpanded: boolean): Electron.Rectangle {
   const a = area()
-  return Math.round(a.y + clamp(yRatio, 0, 1) * (a.height - HANDLE.height))
-}
-
-/** x de una ventana de este ancho pegada al borde elegido. */
-const edgeX = (width: number): number => { const a = area(); return side === 'left' ? a.x : a.x + a.width - width }
-
-function boundsFor(isExpanded: boolean, top = handleTop()): Electron.Rectangle {
-  const a = area()
-  if (!isExpanded) return { x: edgeX(HANDLE.width), y: top, ...HANDLE }
-  // El panel se abre a la altura de la pestaña (centrado en ella, sin salirse de la pantalla).
-  const panelH = Math.min(a.height - PAD.top - PAD.bottom, PANEL_MAX_HEIGHT)
-  const height = panelH + PAD.top + PAD.bottom
-  const center = top + HANDLE.height / 2
-  const y = clamp(Math.round(center - PAD.top - panelH / 2), a.y, a.y + a.height - height)
-  const width = PANEL_WIDTH + PAD.edge + PAD.outer
-  return { x: edgeX(width), y, width, height }
+  const center = (width: number): number => Math.round(a.x + (a.width - width) / 2)
+  if (!isExpanded) return { x: center(PILL_WINDOW.width), y: a.y, ...PILL_WINDOW }
+  const panelH = Math.min(a.height - PAD.bottom - 40, PANEL_MAX_HEIGHT)
+  const width = Math.min(PANEL_WIDTH, a.width - 40) + PAD.edge + PAD.outer
+  return { x: center(width), y: a.y, width, height: panelH + PAD.top + PAD.bottom }
 }
 
 /**
@@ -124,7 +109,7 @@ function boundsFor(isExpanded: boolean, top = handleTop()): Electron.Rectangle {
 let lastExternal: { app: string; title: string } | null = null
 const isOwnApp = (app: string): boolean => /^(setto|electron)$/i.test(app)
 
-const state = (): Record<string, unknown> => ({ expanded, pinned, shortcut, side, pad: PAD, context: lastExternal, tab: requestedTab })
+const state = (): Record<string, unknown> => ({ expanded, pinned, shortcut, side: 'top', pad: PAD, context: lastExternal, tab: requestedTab })
 
 function send(): void {
   if (!dock || dock.isDestroyed()) return
@@ -133,34 +118,10 @@ function send(): void {
   if (!dock.webContents.isLoading()) requestedTab = null
 }
 
-function stopMoveAnim(): void {
-  if (moveAnim) clearInterval(moveAnim)
-  moveAnim = null
-}
-
-/** Llevar la pestaña plegada a `ratio` (0 arriba, 1 abajo) con un deslizamiento corto. */
-function glideTo(ratio: number): void {
-  if (!dock || dock.isDestroyed() || expanded) return
-  stopMoveAnim()
-  const from = dock.getBounds().y
-  yRatio = clamp(ratio, 0, 1)
-  const to = handleTop()
-  const t0 = Date.now()
-  const DURATION = 220
-  moveAnim = setInterval(() => {
-    if (!dock || dock.isDestroyed() || expanded) { stopMoveAnim(); return }
-    const t = Math.min(1, (Date.now() - t0) / DURATION)
-    const k = 1 - Math.pow(1 - t, 3)
-    dock.setBounds(boundsFor(false, Math.round(from + (to - from) * k)))
-    if (t >= 1) stopMoveAnim()
-  }, 16)
-  settingsRef?.set(Y_SETTING, yRatio.toFixed(4))
-}
-
 /**
  * Plegar sola al sacar el mouse. Se mira la posición del cursor desde main (los
  * eventos del DOM se pierden si el mouse sale rápido o pasa por otra ventana).
- * La franja entre el panel y el borde de la pantalla cuenta como "adentro".
+ * La franja entre el panel y el borde de arriba de la pantalla cuenta como "adentro".
  */
 function watchCursor(): void {
   stopCursorWatch()
@@ -172,8 +133,8 @@ function watchCursor(): void {
     const p = screen.getCursorScreenPoint()
     const b = dock.getBounds()
     const a = area()
-    const inX = side === 'left' ? p.x >= a.x && p.x <= b.x + b.width + 2 : p.x >= b.x - 2 && p.x <= a.x + a.width
-    const isIn = inX && p.y >= b.y - 2 && p.y <= b.y + b.height + 2
+    // Sin el aire de la sombra de abajo: ahí el mouse ya está "afuera".
+    const isIn = p.x >= b.x + PAD.edge - 4 && p.x <= b.x + b.width - PAD.outer + 4 && p.y >= Math.min(a.y, b.y) - 4 && p.y <= b.y + b.height - PAD.bottom + 6
     if (isIn) { inside = true; outSince = 0; return }
     if (openedByKey && !inside) return
     if (!outSince) outSince = Date.now()
@@ -190,7 +151,6 @@ function setExpanded(next: boolean, focus = false): void {
   if (!dock || dock.isDestroyed() || hiddenForFullscreen) return
   if (!next && pinned) return
   if (shrinkTimer) { clearTimeout(shrinkTimer); shrinkTimer = null }
-  stopMoveAnim()
   const was = expanded
   expanded = next
   if (next) {
@@ -302,7 +262,6 @@ function destroy(): void {
   poller = null
   if (shrinkTimer) clearTimeout(shrinkTimer)
   shrinkTimer = null
-  stopMoveAnim()
   stopCursorWatch()
   if (dock && !dock.isDestroyed()) dock.destroy()
   dock = null
@@ -355,10 +314,6 @@ function registerShortcut(icon: NativeImage | string, settings: SettingsService)
 
 export function registerDock(ipcMain: IpcMain, settings: SettingsService, icon: NativeImage | string, getMainWindow: () => BrowserWindow | null): void {
   getMain = getMainWindow
-  settingsRef = settings
-  const savedY = Number(settings.get(Y_SETTING))
-  if (Number.isFinite(savedY) && settings.get(Y_SETTING) !== null) yRatio = clamp(savedY, 0, 1)
-  side = settings.get(SIDE_SETTING) === 'left' ? 'left' : 'right'
   registerShortcut(icon, settings)
   // Activada por defecto; Ajustes → Escritorio la apaga. Arranca un poco después
   // para no competir con la ventana principal al abrir.
@@ -371,35 +326,6 @@ export function registerDock(ipcMain: IpcMain, settings: SettingsService, icon: 
   ipcMain.on('dock:expand', () => setExpanded(true))
   ipcMain.on('dock:collapse', () => setExpanded(false))
   ipcMain.on('dock:pin', (_e, on: unknown) => { pinned = on === true; if (!pinned) setExpanded(false); send() })
-  /**
-   * Arrastrar la pestaña por el borde: `top` es el borde superior deseado (DIP).
-   * Queda dentro del área de trabajo (no tapa la barra de tareas) y cerca del
-   * centro se imanta al medio; el renderer recibe `dock:drag` para dibujar la guía.
-   */
-  ipcMain.on('dock:move', (_e, top: unknown) => {
-    if (!dock || dock.isDestroyed() || expanded || typeof top !== 'number' || !Number.isFinite(top)) return
-    stopMoveAnim()
-    const a = area()
-    const range = Math.max(1, a.height - HANDLE.height)
-    const mid = a.y + range / 2
-    let y = clamp(Math.round(top), a.y, a.y + range)
-    const snapped = Math.abs(y - mid) <= SNAP_PX
-    if (snapped) y = Math.round(mid)
-    yRatio = (y - a.y) / range
-    dock.setBounds(boundsFor(false, y))
-    dock.webContents.send('dock:drag', { ratio: yRatio, snapped })
-  })
-  ipcMain.on('dock:move-end', () => { settingsRef?.set(Y_SETTING, yRatio.toFixed(4)) })
-  /** Doble clic en la pestaña: volver al medio. */
-  ipcMain.on('dock:move-reset', () => glideTo(0.5))
-  /** Pasar la barra al otro borde (se recuerda en `app.dock_side`). */
-  ipcMain.on('dock:set-side', (_e, next: unknown) => {
-    if (next !== 'left' && next !== 'right') return
-    side = next
-    settings.set(SIDE_SETTING, next)
-    if (dock && !dock.isDestroyed()) dock.setBounds(boundsFor(expanded))
-    send()
-  })
   /** El buscador necesita teclado: sólo entonces la barra toma el foco. */
   ipcMain.on('dock:want-focus', () => { if (dock && !dock.isDestroyed()) { dock.setFocusable(true); dock.focus() } })
   ipcMain.handle('dock:state', () => { const s = state(); requestedTab = null; return s })
@@ -468,6 +394,9 @@ export function registerDock(ipcMain: IpcMain, settings: SettingsService, icon: 
   })
   onClipAdded((kind) => {
     if (dock && !dock.isDestroyed() && !expanded && !hiddenForFullscreen) dock.webContents.send('dock:bump', { kind })
+  })
+  onCaptureAdded(() => {
+    if (dock && !dock.isDestroyed() && !expanded && !hiddenForFullscreen) dock.webContents.send('dock:bump', { kind: 'image' })
   })
 
   app.on('will-quit', () => {

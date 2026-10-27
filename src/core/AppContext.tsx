@@ -216,19 +216,21 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, activeTabId: existing.tabId, terminalInterrupt: (state.terminalInterrupt ?? 0) + 1 }
     }
     case 'SET_PLUGIN_DIRTY': {
-      if (state.dirtyPlugins[action.pluginId] === action.dirty) return state
+      const atRisk = action.dirty && (action.atRisk ?? true)
+      if (state.dirtyPlugins[action.pluginId] === action.dirty && !!state.unsavedAtRisk?.[action.pluginId] === atRisk) return state
       return {
         ...state,
         dirtyPlugins: { ...state.dirtyPlugins, [action.pluginId]: action.dirty },
+        unsavedAtRisk: { ...state.unsavedAtRisk, [action.pluginId]: atRisk },
       }
     }
     case 'MARK_PLUGIN_DIRTY': {
-      if (state.dirtyPlugins[action.pluginId]) return state
-      return { ...state, dirtyPlugins: { ...state.dirtyPlugins, [action.pluginId]: true } }
+      if (state.dirtyPlugins[action.pluginId] && state.unsavedAtRisk?.[action.pluginId]) return state
+      return { ...state, dirtyPlugins: { ...state.dirtyPlugins, [action.pluginId]: true }, unsavedAtRisk: { ...state.unsavedAtRisk, [action.pluginId]: true } }
     }
     case 'MARK_PLUGIN_CLEAN': {
-      if (!state.dirtyPlugins[action.pluginId]) return state
-      return { ...state, dirtyPlugins: { ...state.dirtyPlugins, [action.pluginId]: false } }
+      if (!state.dirtyPlugins[action.pluginId] && !state.unsavedAtRisk?.[action.pluginId]) return state
+      return { ...state, dirtyPlugins: { ...state.dirtyPlugins, [action.pluginId]: false }, unsavedAtRisk: { ...state.unsavedAtRisk, [action.pluginId]: false } }
     }
     case 'OPEN_WITH_INTENT': {
       const existing = state.openTabs.find((t) => t.pluginId === action.pluginId)
@@ -310,11 +312,11 @@ export function AppProvider({ children }: { children: ReactNode }): JSX.Element 
     localStorage.setItem(DISABLED_KEY, JSON.stringify(state.disabledPlugins))
   }, [state.disabledPlugins])
 
-  // Main pregunta antes de cerrar la ventana si algún módulo tiene cambios sin guardar.
+  // Main pregunta antes de cerrar la ventana si algún módulo tiene cambios que se perderían.
   useEffect(() => {
-    const names = Object.entries(state.dirtyPlugins).filter(([, d]) => d).map(([id]) => getPlugin(id)?.name ?? id)
+    const names = Object.entries(state.unsavedAtRisk ?? {}).filter(([, d]) => d).map(([id]) => getPlugin(id)?.name ?? id)
     try { window.api.send('app:dirty', names) } catch { /* ventana sin preload (tests) */ }
-  }, [state.dirtyPlugins])
+  }, [state.unsavedAtRisk])
 
   useEffect(() => {
     // Sólo importa el último módulo (se restaura al abrir la app).

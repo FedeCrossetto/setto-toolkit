@@ -27,10 +27,10 @@ function html(icon: string, dark: boolean): string {
     .card{position:absolute;inset:12px;border-radius:22px;background:${bg};border:1px solid ${border};
       box-shadow:0 18px 50px -12px rgba(0,0,0,.35);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
       animation:in .28s cubic-bezier(.34,1.2,.64,1) both;-webkit-app-region:drag}
-    img{width:72px;height:72px;border-radius:18px;box-shadow:0 10px 28px -8px rgba(124,58,237,.5);animation:pulse 1.6s ease-in-out infinite}
+    img{width:72px;height:72px;border-radius:18px;box-shadow:0 10px 28px -10px rgba(0,0,0,.3);animation:pulse 1.6s ease-in-out infinite}
     .t{color:${fg};font-size:13px;font-weight:600;letter-spacing:.01em;opacity:.85}
     .bar{width:96px;height:3px;border-radius:3px;background:rgba(127,127,127,.2);overflow:hidden}
-    .bar::after{content:"";display:block;width:40%;height:100%;border-radius:3px;background:linear-gradient(90deg,#C9A7FF,#A855F7,#7C3AED);animation:load 1.05s ease-in-out infinite}
+    .bar::after{content:"";display:block;width:40%;height:100%;border-radius:3px;background:rgba(127,127,127,.75);animation:load 1.05s ease-in-out infinite}
     @keyframes in{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
     @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
     @keyframes load{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}

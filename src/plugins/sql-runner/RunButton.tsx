@@ -10,8 +10,8 @@ export type RunMode = 'auto' | 'all' | 'selection' | 'batch'
 
 export function RunButton({ running, elapsed, hasSelection, disabled, onRun, onCancel }: {
   running: boolean
-  /** Texto del tiempo transcurrido (p. ej. "2.3 s") */
-  elapsed: string
+  /** Tiempo transcurrido (p. ej. "2.3 s"; puede ser un reloj que se actualiza solo) */
+  elapsed: React.ReactNode
   hasSelection: boolean
   disabled: boolean
   onRun: (mode: RunMode) => void

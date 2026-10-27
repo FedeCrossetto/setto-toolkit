@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react'
+import { Mascot } from './Mascot'
+
 interface SkeletonProps {
   className?: string
   style?: React.CSSProperties
@@ -9,12 +12,30 @@ export function Skeleton({ className = '', style }: SkeletonProps): JSX.Element 
 }
 
 /**
+ * Si la carga tarda (más de `after` ms), la mascota buscando y los segundos que van: que se
+ * note que sigue trabajando. Antes no aparece nada.
+ */
+export function SlowHint({ label = 'Cargando…', after = 1500, className = '' }: { label?: string; after?: number; className?: string }): JSX.Element | null {
+  const [since] = useState(() => Date.now())
+  const [now, setNow] = useState(since)
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(t) }, [])
+  const ms = now - since
+  if (ms < after) return null
+  return (
+    <div className={`flex flex-col items-center gap-1.5 pointer-events-none rounded-(--r-lg) bg-background/85 backdrop-blur-sm px-5 pt-3 pb-2.5 ${className}`} style={{ animation: 'fadeIn 0.25s ease both' }} role="status">
+      <Mascot pose="buscando" size={84} />
+      <p className="t-footnote text-on-surface-variant tabular-nums">{label} {Math.floor(ms / 1000)} s</p>
+    </div>
+  )
+}
+
+/**
  * Filas de lista mientras carga: misma forma que las reales (avatar o ícono + dos líneas),
  * así no "salta" el contenido cuando aparece. Reemplaza los "Cargando…" en texto.
  */
 export function ListSkeleton({ rows = 5, avatar = true, className = '' }: { rows?: number; avatar?: boolean; className?: string }): JSX.Element {
   return (
-    <div className={`flex flex-col gap-1 px-2 py-2 ${className}`} aria-busy="true" aria-label="Cargando…">
+    <div className={`skel-delay flex flex-col gap-1 px-2 py-2 ${className}`} aria-busy="true" aria-label="Cargando…">
       {Array.from({ length: rows }, (_, i) => (
         <div key={i} className="flex items-center gap-3 px-2 py-[7px]" style={{ opacity: 1 - i * (0.6 / rows) }}>
           {avatar && <Skeleton className="w-8 h-8 rounded-[10px] shrink-0" />}
@@ -32,7 +53,8 @@ export function ListSkeleton({ rows = 5, avatar = true, className = '' }: { rows
 export function GridSkeleton({ rows = 8, cols = 5, label = 'Ejecutando…' }: { rows?: number; cols?: number; label?: string }): JSX.Element {
   const widths = [110, 160, 90, 140, 120, 100, 150]
   return (
-    <div className="flex-1 min-h-0 overflow-hidden px-3 py-3" aria-busy="true" aria-label={label}>
+    <div className="skel-delay relative flex-1 min-h-0 overflow-hidden px-3 py-3" aria-busy="true" aria-label={label}>
+      <SlowHint label={label.replace(/…$/, '')} className="absolute left-1/2 top-[38%] -translate-x-1/2 -translate-y-1/2 z-10" />
       <div className="flex items-center gap-2 mb-3 t-footnote text-on-surface-variant">
         <span className="w-2 h-2 rounded-full bg-primary animate-pulse" /> {label}
       </div>
@@ -51,7 +73,7 @@ export function GridSkeleton({ rows = 8, cols = 5, label = 'Ejecutando…' }: { 
 /** Detalle mientras carga: título, subtítulo y un bloque grande. */
 export function DetailSkeleton(): JSX.Element {
   return (
-    <div className="flex flex-col gap-4 px-6 py-6 max-w-[720px] w-full mx-auto" aria-busy="true" aria-label="Cargando…">
+    <div className="skel-delay flex flex-col gap-4 px-6 py-6 max-w-[720px] w-full mx-auto" aria-busy="true" aria-label="Cargando…">
       <div className="flex flex-col gap-2">
         <Skeleton className="h-5 w-56" />
         <Skeleton className="h-3 w-36" />
@@ -67,7 +89,8 @@ export function DetailSkeleton(): JSX.Element {
 /** Generic loading layout shown while a plugin's lazy bundle resolves. */
 export function PluginLoadingFallback(): JSX.Element {
   return (
-    <div className="flex flex-col h-full w-full px-6 py-5 gap-5" aria-busy="true" aria-label="Cargando…">
+    <div className="skel-delay relative flex flex-col h-full w-full px-6 py-5 gap-5" aria-busy="true" aria-label="Cargando…">
+      <SlowHint className="absolute left-1/2 top-[40%] -translate-x-1/2 -translate-y-1/2 z-10" />
       <div className="flex items-center gap-3">
         <div className="flex flex-col gap-2">
           <Skeleton className="h-5 w-44" />

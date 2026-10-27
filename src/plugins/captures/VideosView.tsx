@@ -96,7 +96,7 @@ export function VideosView({ header }: { header: React.ReactNode }): JSX.Element
         <div className="px-6 pt-4 pb-3 flex flex-col gap-3 hairline-b">
           <div className="flex items-center gap-3 flex-wrap">
             {header}
-            {data && <span className="t-footnote text-on-surface-variant tabular-nums">{summary.count} · {formatBytes(summary.total)}</span>}
+            {data && summary.count > 0 && <span className="t-footnote text-on-surface-variant tabular-nums">{summary.count} · {formatBytes(summary.total)}</span>}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {chips.map((c) => (
@@ -131,7 +131,7 @@ export function VideosView({ header }: { header: React.ReactNode }): JSX.Element
         <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
           {!data ? <ListSkeleton rows={8} /> : items.length === 0 ? (
             <div className="h-full grid place-items-center">
-              <EmptyState icon={Video} title="Todavía no hay grabaciones"
+              <EmptyState icon={Video} mascot="descanso" title="Todavía no hay grabaciones"
                 description={'Las que grabes con Recortes (Win+Shift+R) aparecen acá.\nSi copiás una con Ctrl+C sin guardarla, Setto la guarda en Videos\\Setto.'} />
             </div>
           ) : shown.length === 0 ? (

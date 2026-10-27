@@ -52,7 +52,7 @@ window.addEventListener('vite:preloadError', (e) => {
 
 // Ventana flotante del atajo global de snippets (electron/core/snippet-picker.ts):
 // mismo bundle, sin el shell ni la pantalla de apertura, con fondo transparente.
-// Lo mismo para la barra flotante de la derecha (electron/core/dock.ts).
+// Lo mismo para la isla flotante de arriba (electron/core/dock.ts).
 const isSnippetPicker = window.location.hash === '#snippet-picker'
 const isDock = window.location.hash === '#dock'
 if (isSnippetPicker || isDock) {

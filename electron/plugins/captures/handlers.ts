@@ -133,6 +133,13 @@ function saveIndex(now = false): void {
   saveTimer = setTimeout(() => write(), 400)
 }
 
+/** Captura nueva desde el portapapeles (Recortes, Impr Pant): la isla suma al contador. */
+const addedListeners = new Set<() => void>()
+export function onCaptureAdded(cb: () => void): () => void {
+  addedListeners.add(cb)
+  return () => { addedListeners.delete(cb) }
+}
+
 // Varias capturas/OCR seguidos → un solo aviso al renderer.
 let changedTimer: ReturnType<typeof setTimeout> | null = null
 function broadcastChanged(): void {
@@ -228,6 +235,7 @@ async function poll(): Promise<void> {
     if (isExcludedApp(source?.app, readSettings().excludeApps) || isExcludedApp(raw?.app, readSettings().excludeApps)) return
     const e = addImage(img, h, { title: buildTitle(source, new Date()), app: source?.app, window: source?.window })
     notifySaved(e)
+    for (const cb of addedListeners) { try { cb() } catch { /* nada */ } }
   } catch (err) {
     logger.warn('captures', 'poll failed', err instanceof Error ? err.message : String(err))
   } finally {

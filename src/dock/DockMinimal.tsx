@@ -139,42 +139,8 @@ export function DockMinimal({
         </div>
       )}
 
-      <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
-        {/* Claves: accesos fijos (sólo sin buscar) */}
-        {!words.length && keys.length > 0 && (
-          <section className="px-1 pt-1 pb-3">
-            <div className={`${section} flex items-center gap-1.5`}>
-              Claves {locked && <Lock size={11} className="text-warning" />}
-            </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              {keys.map((c) => {
-                const key = `k:${c.id}`
-                const done = doneKey === key
-                return (
-                  <div key={c.id} role="button" tabIndex={-1}
-                    onClick={() => onCopyPassword(c, key)}
-                    title={locked ? `${c.nombre}: abrir Setto para desbloquear` : c.hasPassword ? `Copiar la contraseña de ${c.nombre}` : `Copiar el usuario de ${c.nombre}`}
-                    className={`group relative flex flex-col items-center gap-1.5 px-1.5 pt-2.5 pb-2 rounded-(--r-md) cursor-pointer transition-colors ${
-                      done ? 'bg-primary/10 ring-1 ring-primary/25' : 'bg-on-surface/[0.03] ring-1 ring-on-surface/[0.06] hover:bg-on-surface/[0.06]'}`}>
-                    <span className="relative">
-                      <Avatar name={c.nombre} url={c.url} user={c.usuario} size={30} />
-                      {done && <span className="absolute -right-1 -bottom-1 grid place-items-center w-4 h-4 rounded-full bg-primary text-on-primary"><Check size={10} /></span>}
-                    </span>
-                    <span className="w-full text-center text-[12px] leading-[15px] font-medium text-on-surface truncate">{done ? 'Copiada' : c.nombre}</span>
-                    {c.usuario && !locked && (
-                      <button type="button" title={`Copiar usuario: ${c.usuario}`} aria-label={`Copiar usuario de ${c.nombre}`}
-                        onClick={(e) => { e.stopPropagation(); onCopyUser(c, key) }}
-                        className="absolute top-1 right-1 grid place-items-center w-5 h-5 rounded-[5px] text-on-surface-variant bg-surface/80 opacity-0 group-hover:opacity-100 hover:text-on-surface transition-opacity">
-                        <User size={11} />
-                      </button>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-        )}
-
+      <div className="flex-1 min-h-0 flex">
+      <div ref={listRef} className="flex-1 min-w-0 overflow-y-auto px-2 pb-2">
         {/* Copiado (y, buscando, las claves que coinciden) */}
         {!words.length && <div className={`${section} px-2`}>Copiado</div>}
         {rows.length === 0 ? (
@@ -229,6 +195,41 @@ export function DockMinimal({
             })}
           </div>
         )}
+      </div>
+      {/* Claves: accesos fijos, en su columna (sólo sin buscar) */}
+      {!words.length && keys.length > 0 && (
+        <section className="w-[300px] shrink-0 overflow-y-auto hairline-l px-2.5 pt-1 pb-3">
+          <div className={`${section} flex items-center gap-1.5`}>
+            Claves {locked && <Lock size={11} className="text-warning" />}
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {keys.map((c) => {
+              const key = `k:${c.id}`
+              const done = doneKey === key
+              return (
+                <div key={c.id} role="button" tabIndex={-1}
+                  onClick={() => onCopyPassword(c, key)}
+                  title={locked ? `${c.nombre}: abrir Setto para desbloquear` : c.hasPassword ? `Copiar la contraseña de ${c.nombre}` : `Copiar el usuario de ${c.nombre}`}
+                  className={`group relative flex flex-col items-center gap-1.5 px-1.5 pt-2.5 pb-2 rounded-(--r-md) cursor-pointer transition-colors ${
+                    done ? 'bg-primary/10 ring-1 ring-primary/25' : 'bg-on-surface/[0.03] ring-1 ring-on-surface/[0.06] hover:bg-on-surface/[0.06]'}`}>
+                  <span className="relative">
+                    <Avatar name={c.nombre} url={c.url} user={c.usuario} size={30} />
+                    {done && <span className="absolute -right-1 -bottom-1 grid place-items-center w-4 h-4 rounded-full bg-primary text-on-primary"><Check size={10} /></span>}
+                  </span>
+                  <span className="w-full text-center text-[12px] leading-[15px] font-medium text-on-surface truncate">{done ? 'Copiada' : c.nombre}</span>
+                  {c.usuario && !locked && (
+                    <button type="button" title={`Copiar usuario: ${c.usuario}`} aria-label={`Copiar usuario de ${c.nombre}`}
+                      onClick={(e) => { e.stopPropagation(); onCopyUser(c, key) }}
+                      className="absolute top-1 right-1 grid place-items-center w-5 h-5 rounded-[5px] text-on-surface-variant bg-surface/80 opacity-0 group-hover:opacity-100 hover:text-on-surface transition-opacity">
+                      <User size={11} />
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
       </div>
 
       {/* Pie: aviso o ayuda corta */}

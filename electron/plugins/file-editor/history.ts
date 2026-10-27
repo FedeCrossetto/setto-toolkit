@@ -13,6 +13,7 @@
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
+import { writeFileAtomic } from '../../core/atomic-write'
 import type { HistoryEntry } from '../../../src/plugins/file-editor/types'
 
 export const MAX_PER_FILE = 50
@@ -36,10 +37,8 @@ function readIndex(dir: string): HistoryIndex | null {
 }
 
 function writeIndex(dir: string, index: HistoryIndex): void {
-  const p = path.join(dir, 'index.json')
-  const tmp = `${p}.${process.pid}.tmp`
-  fs.writeFileSync(tmp, JSON.stringify(index))
-  fs.renameSync(tmp, p)
+  // rename con reintentos: en Windows falla con EPERM/EBUSY si el antivirus tiene abierto index.json
+  writeFileAtomic(path.join(dir, 'index.json'), JSON.stringify(index))
 }
 
 function snapPath(dir: string, id: string): string {

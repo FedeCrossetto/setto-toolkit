@@ -9,6 +9,7 @@ import {
 import { PRESET_LIST } from '../../core/themes/presets'
 import { useMotionPreference, type MotionLevel } from '../../core/motion-prefs'
 import { celebrate } from '../../core/fx'
+import { setMascotsEnabled, useMascotsEnabled } from '../../core/mascots'
 
 /**
  * Ajustes → Apariencia (debajo de Claro/Oscuro/Sistema): tema completo, color de
@@ -138,6 +139,7 @@ export function AppearanceSettings({ isDark }: { isDark: boolean }): JSX.Element
       )}
 
       <MotionRow />
+      <MascotsRow />
       <MicaRow />
 
       {/* Vista previa en vivo: usa los tokens aplicados, no datos aparte. */}
@@ -165,6 +167,23 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle: string }):
         <div className="t-body font-medium text-on-surface">{title}</div>
         <div className="t-footnote text-on-surface-variant mt-0.5">{subtitle}</div>
       </div>
+    </div>
+  )
+}
+
+/** Mascotas tejidas: en Inicio, la bienvenida, búsquedas largas, actualizaciones y errores. */
+function MascotsRow(): JSX.Element {
+  const on = useMascotsEnabled()
+  return (
+    <div className="pl-10 flex items-center gap-3">
+      <img src="./mascots/saludo.webp" alt="" aria-hidden className="w-10 h-10 object-contain shrink-0" draggable={false} />
+      <div className="flex-1 min-w-0">
+        <div className="t-footnote font-medium text-on-surface-variant">Mascotas</div>
+        <div className="t-caption text-on-surface-variant/80">
+          Aparecen en Inicio, la bienvenida, búsquedas que tardan, actualizaciones y errores. Apagadas, vuelven los íconos.
+        </div>
+      </div>
+      <Toggle checked={on} onChange={setMascotsEnabled} label="Mascotas" />
     </div>
   )
 }

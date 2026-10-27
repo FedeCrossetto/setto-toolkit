@@ -18,7 +18,7 @@ import {
   Toolbox,
   Wallet,
   FilePen,
-  Server,
+  Database,
 } from 'lucide-react'
 
 /** Maps each plugin manifest icon string to its Lucide component. */
@@ -39,7 +39,7 @@ const PLUGIN_ICON_MAP: Record<string, IconComponent> = {
   info:          Info,
   extension:     Puzzle,
   utilities:     Toolbox,
-  database:      Server,
+  database:      Database,
   captures:      ClipboardText,
   // Legacy keys (manifests antiguos)
   space_dashboard:          House,

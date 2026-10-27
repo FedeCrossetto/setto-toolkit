@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, MotionConfig, motion, useAnimationControls, type Variants } from 'framer-motion'
+import { Mascot } from '../core/components/Mascot'
 import {
-  ArrowLeftRight, ArrowUpRight, AtSign, Braces, Check, ChevronDown, ChevronUp, Clock, ClipboardText, Code2, Copy, Columns2, Database, ExternalLink,
+  ArrowUpRight, AtSign, Braces, Check, Clock, ClipboardText, Code2, Copy, Columns2, Database, ExternalLink,
   Fingerprint, FolderOpen, Grid3x3, Images, KeyRound, LayoutGrid, Link, ListOrdered, Lock, LockOpen, NotebookPen, Pin, PinOff, Plus, ScanText, Search,
   Ticket, Toolbox, Trash2, TriangleAlert, Type, User, Wallet, Wand2, X,
 } from 'lucide-react'
@@ -24,7 +25,7 @@ import { ActiveTicketBar, FrequentRow, LastCopiedCard, TabsConfig, type Frequent
 import type { QueryFavorite } from '../plugins/sql-runner/types'
 
 /**
- * Barra flotante al borde (ventana `#dock`, ver electron/core/dock.ts).
+ * Isla flotante arriba al centro (ventana `#dock`, ver electron/core/dock.ts).
  * Plegada es una pestaña con el logo: se arrastra arriba/abajo (con guía e imán
  * al medio; doble clic la vuelve al medio), salta cuando copiás algo y al dejar
  * el mouse quieto encima (o con un clic) se despliega. Un clic en el panel pega
@@ -42,9 +43,9 @@ import type { QueryFavorite } from '../plugins/sql-runner/types'
  * (nota `Bloc.md`, ver ./Bloc.tsx): con esa pestaña activa, escribir va al texto.
  *
  * Animaciones: sólo transform/opacity. Main agranda la ventana antes de avisar
- * que abre, y al plegar espera ~240 ms para que el panel alcance a salir.
+ * que abre, y al plegar espera ~380 ms (COLLAPSE_ANIM_MS) para que el panel alcance a salir.
  */
-type Side = 'right' | 'left'
+type Side = 'top' | 'right' | 'left'
 interface Pad { top: number; bottom: number; edge: number; outer: number }
 interface DockState {
   expanded: boolean; pinned: boolean; shortcut: string | null; side: Side; pad: Pad
@@ -71,10 +72,6 @@ const TAB_ICON: Record<TabId, LucideIcon> = {
 
 const HOVER_OPEN_MS = 280
 const PREVIEW_HOVER_MS = 450
-const DRAG_THRESHOLD = 4
-const DOUBLE_CLICK_MS = 300
-/** La ventana plegada mide 72 px: por encima de esto todavía es la del panel. */
-const SMALL_WINDOW = 120
 const TOP_CREDENTIALS = 8
 
 const POP = { type: 'spring', stiffness: 520, damping: 22 } as const
@@ -86,21 +83,37 @@ const CONTENT_IN = (delay: number) => ({
 /** Desaceleración larga y suave (tipo iOS): entra rápido y se asienta sin rebotar. */
 const EASE_OUT = [0.22, 1, 0.36, 1] as const
 const EASE_IN = [0.4, 0, 0.7, 0.2] as const
+/** Plegar: arranca y termina suave (el movimiento se ve de punta a punta). */
+const EASE_CLOSE = [0.4, 0, 0.2, 1] as const
+/** Abrir: rápido al principio y un pequeño rebote al final (como la isla dinámica). */
+const EASE_MORPH = [0.3, 1.12, 0.45, 1] as const
+/** Duración del despliegue desde la pastilla (los datos se refrescan al terminar). */
+const OPEN_MORPH_MS = 500
+/**
+ * Recorte con la forma de la pastilla (arriba al centro de la ventana abierta): el panel
+ * arranca así y crece hacia abajo y a los costados; al cerrar se encoge de vuelta hasta ella.
+ */
+function pillClip(): string {
+  const W = Math.max(1, window.innerWidth), H = Math.max(1, window.innerHeight)
+  const x = Math.max(0, (W - ISLAND_PILL.w) / 2), r = ISLAND_PILL.h / 2
+  return `inset(0px ${x}px ${Math.max(0, H - ISLAND_PILL.h)}px ${x}px round 0px 0px ${r}px ${r}px)`
+}
+const FULL_CLIP = 'inset(0px 0px 0px 0px round 0px 0px 0px 0px)'
 const listVariants: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.022, delayChildren: 0.08 } } }
 const itemVariants: Variants = {
   hidden: { opacity: 0, y: 6 },
   show: { opacity: 1, y: 0, transition: { duration: 0.32, ease: EASE_OUT } },
 }
 
-/** Sombras que caben en el aire transparente de la ventana (ver PAD / HANDLE en main). */
-// Estilo "líneas finas": panel blanco con un filo fino (un poco más marcado que el hairline
-// de la app para que se despegue sobre fondos blancos) y una sombra larga y suave.
-const PANEL_SURFACE = 'bg-sidebar border border-black/[0.11] dark:border-white/[0.09]'
+/** Isla: negra tipo vidrio siempre (aunque la app esté en claro), sin borde arriba: va pegada a la pantalla. */
+const ISLAND_SURFACE = 'bg-[rgb(12_12_15/0.97)] border border-t-0 border-white/[0.09]'
+/** Sombra que cae hacia abajo, dentro del aire transparente de la ventana (PAD en main). */
+const ISLAND_SHADOW = 'shadow-[0_10px_30px_-10px_rgb(0_0_0/0.65),0_2px_6px_rgb(0_0_0/0.35)]'
+const PANEL_SURFACE = ISLAND_SURFACE
 /** Tarjeta de contenido dentro del marco: la misma que el panel de la ventana principal. */
 const CARD_SURFACE = 'app-panel bg-background'
-const PANEL_SHADOW = 'shadow-[0_1px_2px_rgb(0_0_0/0.05),0_12px_32px_-12px_rgb(0_0_0/0.22)] dark:shadow-[0_1px_2px_rgb(0_0_0/0.4),0_12px_28px_-14px_rgb(0_0_0/0.6)]'
-const TAB_SURFACE = 'bg-sidebar border border-black/[0.12] dark:border-white/[0.10]'
-const TAB_SHADOW = 'shadow-[0_1px_2px_rgb(0_0_0/0.10),0_6px_16px_-6px_rgb(0_0_0/0.32)] dark:shadow-[0_1px_2px_rgb(0_0_0/0.45),0_6px_16px_-6px_rgb(0_0_0/0.7)]'
+/** Pastilla plegada (dentro de la ventana chica de main, PILL_WINDOW). */
+const ISLAND_PILL = { w: 168, h: 32 }
 
 /** Ícono y color de cada tipo de copiado (colores de datos del tema: chart-N). */
 /** Tile de tipo: gris, igual para todos (el ícono distingue el tipo). */
@@ -141,8 +154,9 @@ function relTime(ts: number): string {
   return new Date(ts).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
 }
 
+/** La isla es oscura siempre (como la de la referencia); el color de acento sigue al de la app. */
 function syncTheme(): void {
-  try { document.documentElement.classList.toggle('dark', localStorage.getItem('app-theme') === 'dark') } catch { /* nada */ }
+  document.documentElement.classList.add('dark')
   reloadAppearanceFromStorage()
 }
 
@@ -250,10 +264,8 @@ export function Dock(): JSX.Element {
   const [doneHow, setDoneHow] = useState<How>('copy')
   const [unseen, setUnseen] = useState(0)
   const [bumpKey, setBumpKey] = useState(0)
-  const [lastKind, setLastKind] = useState<ClipKind | null>(null)
   /** Pagos del mes sin marcar (Gastos), para el aviso de arriba. */
   const [pending, setPending] = useState(0)
-  const [small, setSmall] = useState(() => window.innerWidth < SMALL_WINDOW)
   /** Consultas favoritas (para "Lo que más usás") */
   const [favs, setFavs] = useState<QueryFavorite[]>([])
   /** Ticket en curso: las capturas nuevas se le asignan solas (main) */
@@ -289,19 +301,17 @@ export function Dock(): JSX.Element {
   const blocRef = useRef<BlocHandle>(null)
 
   /** Aviso en el pie; con `undo` muestra "Deshacer". */
+  const [cheering, setCheering] = useState(false)
+  const cheerTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const say = useCallback((m: string, ms = 2200, undo?: () => void): void => {
     setFlash({ text: m, undo })
+    setCheering(true)
+    if (cheerTimer.current) clearTimeout(cheerTimer.current)
+    cheerTimer.current = setTimeout(() => setCheering(false), 4500)
     if (flashTimer.current) clearTimeout(flashTimer.current)
     flashTimer.current = setTimeout(() => setFlash(null), ms)
   }, [])
   const markPasted = (key: string, how: How = 'copy'): void => { setDoneHow(how); setPastedKey(key); setTimeout(() => setPastedKey((v) => (v === key ? null : v)), 1100) }
-
-  // La pestaña se dibuja recién cuando main achicó la ventana (si no, aparecería en medio del panel).
-  useEffect(() => {
-    const onResize = (): void => setSmall(window.innerWidth < SMALL_WINDOW)
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
 
   // Cambio de tema en la ventana principal (comparten localStorage): seguirlo también plegada.
   useEffect(() => {
@@ -311,11 +321,9 @@ export function Dock(): JSX.Element {
   }, [])
 
   // Copia nueva con la barra plegada: la pestaña salta, suma al globito y toma el color del tipo.
-  useEffect(() => window.api.on('dock:bump', (p) => {
+  useEffect(() => window.api.on('dock:bump', () => {
     setUnseen((n) => Math.min(n + 1, 99))
     setBumpKey((k) => k + 1)
-    const kind = (p as { kind?: ClipKind } | undefined)?.kind
-    if (kind && kind in KIND_STYLE) setLastKind(kind)
   }), [])
 
   const loadCreds = useCallback(async () => {
@@ -357,8 +365,22 @@ export function Dock(): JSX.Element {
     ])
   }, [loadCreds, loadPending])
 
+  /**
+   * Al abrir, el despliegue (OPEN_MORPH_MS) no tiene que competir con ~8 respuestas que llegan
+   * sueltas y redibujan el panel cada una: lo copiado se pide ya (con 1–9 se pega lo último),
+   * el resto y el tema se refrescan cuando termina, mostrando mientras tanto lo que ya había.
+   */
+  const loadedOnce = useRef(false)
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const refreshOnOpen = useCallback(() => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current)
+    if (!loadedOnce.current) { loadedOnce.current = true; syncTheme(); void load(); return }
+    window.api.invoke<ClipView[]>('clipboard:history').then(setClips, () => undefined)
+    refreshTimer.current = setTimeout(() => { refreshTimer.current = null; syncTheme(); void load() }, OPEN_MORPH_MS + 40)
+  }, [load])
+
   useEffect(() => {
-    const apply = (s: Partial<DockState>): void => setSt((prev) => ({ ...prev, ...s, pad: s.pad ?? prev.pad, side: s.side ?? prev.side }))
+    const apply =(s: Partial<DockState>): void => setSt((prev) => ({ ...prev, ...s, pad: s.pad ?? prev.pad, side: s.side ?? prev.side }))
     void window.api.invoke<DockState>('dock:state').then((s) => {
       apply(s)
       if (s.tab && TABS.some((t) => t.id === s.tab)) showTab(s.tab as TabId)
@@ -367,11 +389,12 @@ export function Dock(): JSX.Element {
       const next = s as DockState
       apply(next)
       if (next.tab && TABS.some((t) => t.id === next.tab)) showTab(next.tab as TabId)
-      if (next.expanded) { syncTheme(); setUnseen(0); setActive(0); void load() } else {
+      if (next.expanded) { setUnseen(0); setActive(0); refreshOnOpen() } else {
+        if (refreshTimer.current) { clearTimeout(refreshTimer.current); refreshTimer.current = null }
         setQ(''); setPreviewKey(null)
       }
     })
-  }, [load])
+  }, [refreshOnOpen])
 
   // Buscar en todo lo copiado y en las capturas (incluye el texto de adentro, por OCR): en main.
   useEffect(() => {
@@ -514,7 +537,7 @@ export function Dock(): JSX.Element {
       const content = stripDataUrls(sn.content)
       out.push({ key: `s:${sn.id}`, icon: Code2, label: sn.title, sub: hasVariables(content) ? 'Completar' : 'Copiar', run: () => activate({ type: 'snippet', key: `s:${sn.id}`, snippet: sn, content, vars: hasVariables(content) }, false, false, 'copy') })
     }
-    for (const f of favs.slice(0, 6 - out.length)) out.push({ key: `q:${f.id}`, icon: Database, label: f.title, sub: 'Abrir en Consultas', run: () => openMain({ pluginId: 'sql-runner', action: 'open-sql', payload: { title: f.title, sql: f.sql, profileId: f.profileId, database: f.database } }) })
+    for (const f of favs.slice(0, 6 - out.length)) out.push({ key: `q:${f.id}`, icon: Database, label: f.title, sub: 'Abrir en SQL', run: () => openMain({ pluginId: 'sql-runner', action: 'open-sql', payload: { title: f.title, sql: f.sql, profileId: f.profileId, database: f.database } }) })
     return out.slice(0, 6)
   }, [topCreds, snippets, favs]) // eslint-disable-line react-hooks/exhaustive-deps
   const openJira = (t: string): void => {
@@ -690,8 +713,7 @@ export function Dock(): JSX.Element {
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  const { side, pad } = st
-  const left = side === 'left'
+  const { pad } = st
   const hint = tab === 'bloc'
     ? <>Se guarda solo · <Kbd>Esc</Kbd> cierra · <Kbd>Tab</Kbd> pestaña</>
     : tab === 'keys'
@@ -705,33 +727,62 @@ export function Dock(): JSX.Element {
   return (
     <MotionConfig reducedMotion="user">
       <AnimatePresence>
-        {!st.expanded && small && (
-          <Handle key="handle" side={side} shortcut={st.shortcut} unseen={unseen} bumpKey={bumpKey} kind={lastKind} />
+        {!st.expanded && (
+          <Pill key="pill" shortcut={st.shortcut} unseen={unseen} bumpKey={bumpKey} />
         )}
       </AnimatePresence>
       <AnimatePresence>
         {st.expanded && (
-          <motion.div key="panel" className="h-screen w-screen"
-            style={{
-              paddingTop: pad.top, paddingBottom: pad.bottom,
-              paddingLeft: left ? pad.edge : pad.outer, paddingRight: left ? pad.outer : pad.edge,
-              transformOrigin: left ? '0% 50%' : '100% 50%',
-            }}
-            // Se despliega desde el borde de la pantalla: el recorte se abre hacia afuera y el
-            // contenido entra un instante después (ver CONTENT_IN). Al cerrar, al revés.
-            initial={{ opacity: 0, x: left ? -10 : 10, clipPath: left ? 'inset(0% 78% 0% 0%)' : 'inset(0% 0% 0% 78%)' }}
-            animate={{ opacity: 1, x: 0, clipPath: 'inset(0% 0% 0% 0%)', transition: { duration: 0.42, ease: EASE_OUT, opacity: { duration: 0.18 } } }}
-            exit={{ opacity: 0, x: left ? -8 : 8, clipPath: left ? 'inset(0% 70% 0% 0%)' : 'inset(0% 0% 0% 70%)', transition: { duration: 0.22, ease: EASE_IN } }}>
-            <div className={`relative h-full flex flex-col rounded-[18px] overflow-hidden text-on-surface ${PANEL_SURFACE} ${PANEL_SHADOW}`}>
+          // fixed: al cerrar, la pastilla vuelve a montarse mientras el panel sale; en el flujo normal
+          // la pastilla (h-screen) lo empujaba fuera de la ventana y la salida no se veía.
+          <motion.div key="panel" className="fixed inset-0"
+            style={{ paddingTop: pad.top, paddingBottom: pad.bottom, paddingLeft: pad.edge, paddingRight: pad.outer }}
+            // La pastilla crece hacia abajo y a los costados hasta ser el panel (con un rebote chico)
+            // y el contenido entra un instante después, con fundido (ver CONTENT_IN). Al cerrar, al revés.
+            initial={{ clipPath: pillClip() }}
+            animate={{ clipPath: FULL_CLIP, transition: { duration: OPEN_MORPH_MS / 1000, ease: EASE_MORPH } }}
+            // Cerrar: se encoge con una curva pareja (no "ease-in", que dejaba todo para el final y se
+            // veía como un corte) y se funde al llegar a la pastilla. Main espera COLLAPSE_ANIM_MS.
+            exit={{ clipPath: pillClip(), opacity: 0, transition: { duration: 0.3, ease: EASE_CLOSE, opacity: { delay: 0.16, duration: 0.14, ease: 'linear' } } }}>
+            <div className={`relative h-full flex flex-col rounded-b-[26px] overflow-hidden text-on-surface ${PANEL_SURFACE} ${ISLAND_SHADOW}`}>
               {/* Un toque del color de la app: brillo suave del acento arriba. */}
-              <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-linear-to-b from-primary/[0.11] via-primary/[0.04] to-transparent" />
+              <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-linear-to-b from-primary/[0.10] via-primary/[0.03] to-transparent" />
 
               {/* Encabezado */}
               <motion.div {...CONTENT_IN(0.06)} className="relative flex items-center gap-2 pl-3.5 pr-2.5 pt-3 pb-2.5 shrink-0">
-                <motion.img src="setto-logo.png" alt="" className="w-7 h-7 rounded-[8px]"
-                  initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.4, delay: 0.06, ease: EASE_OUT }}
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                <span className="flex-1 min-w-0 text-[14px] font-semibold tracking-[-0.01em]" title={st.shortcut ? `${st.shortcut} abre y cierra` : undefined}>Setto</span>
+                <motion.span className="-my-2.5 -ml-1.5" initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.4, delay: 0.06, ease: EASE_OUT }}>
+                  {/* La mascota del widget, sin fondo: mira con la lupa; festeja cuando copiás o pegás. */}
+                  <Mascot bare size={44} interactive pose={cheering ? 'listo' : 'buscando'} fallback={
+                    <img src="setto-logo.png" alt="" className="w-7 h-7 rounded-[8px] m-2.5 ml-1.5" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                  } />
+                </motion.span>
+                {minimal ? (
+                  <span className="flex-1 min-w-0 text-[14px] font-semibold tracking-[-0.01em]" title={st.shortcut ? `${st.shortcut} abre y cierra` : undefined}>Setto</span>
+                ) : (
+                  <div className="flex-1 min-w-0 flex items-center gap-1" role="tablist">
+                    {visible.map((t) => {
+                      const n = lists[t.id].length
+                      const on = tab === t.id
+                      const Icon = TAB_ICON[t.id]
+                      return (
+                        <motion.button key={t.id} type="button" layout role="tab" aria-selected={on} onClick={() => setTab(t.id)}
+                          title={on ? undefined : t.id === 'bloc' ? 'Bloc: anotador rápido' : `${t.label}${n ? ` (${n})` : ''}`}
+                          transition={{ duration: 0.28, ease: EASE_OUT }}
+                          className={`relative h-8 flex items-center justify-center gap-1.5 rounded-[9px] transition-colors duration-150 ${
+                            on ? 'px-2.5 text-on-surface' : 'w-8 text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.05]'}`}>
+                          {on && <motion.span layoutId="dock-tab" className="nav-active absolute inset-0 rounded-[9px]" transition={{ duration: 0.28, ease: EASE_OUT }} />}
+                          <Icon size={15} weight={on ? 'fill' : 'regular'} className={`relative z-10 shrink-0 ${on ? 'text-primary' : ''}`} />
+                          {on && <motion.span layout="position" className="relative z-10 text-[12px] font-medium whitespace-nowrap">{t.label}</motion.span>}
+                          {!on && n > 0 && words.length > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-primary text-on-primary text-[9px] font-semibold grid place-items-center">{n}</span>
+                          )}
+                        </motion.button>
+                      )
+                    })}
+                    <TabsConfig tabs={TABS.map((t) => ({ ...t, icon: TAB_ICON[t.id] }))} order={tabPrefs.order} hidden={tabPrefs.hidden} onChange={saveTabPrefs} />
+                  </div>
+                )}
+                <IslandClock />
                 <QuickMenu items={[
                   { icon: NotebookPen, label: 'Nota rápida', run: () => window.api.send('dock:quick-capture') },
                   { icon: Wallet, label: 'Nuevo gasto', run: () => openMain({ pluginId: 'gastos', action: 'quick-add', payload: {} }) },
@@ -743,9 +794,6 @@ export function Dock(): JSX.Element {
                   { icon: Code2, label: 'Abrir Snippets', run: () => openMain({ pluginId: 'snippets' }) },
                   { icon: Toolbox, label: 'Abrir Utilidades', run: () => openMain({ pluginId: 'utilities' }) },
                 ]} />
-                <IconBtn title={left ? 'Pasar al borde derecho' : 'Pasar al borde izquierdo'} onClick={() => window.api.send('dock:set-side', left ? 'right' : 'left')}>
-                  <ArrowLeftRight size={14} />
-                </IconBtn>
                 <IconBtn title={st.pinned ? 'Soltar (se esconde sola)' : 'Fijar abierta'} active={st.pinned} onClick={() => window.api.send('dock:pin', !st.pinned)}>
                   {st.pinned ? <PinOff size={14} weight="fill" /> : <Pin size={14} />}
                 </IconBtn>
@@ -787,29 +835,6 @@ export function Dock(): JSX.Element {
                 )}
               </motion.div>
 
-              {/* Pestañas: íconos; la activa como tarjeta con su nombre (igual que la barra lateral de la app) */}
-              <motion.div {...CONTENT_IN(0.12)} className="relative flex items-center gap-1 px-2.5 pt-2.5 pb-2 shrink-0" role="tablist">
-                {visible.map((t) => {
-                  const n = lists[t.id].length
-                  const on = tab === t.id
-                  const Icon = TAB_ICON[t.id]
-                  return (
-                    <motion.button key={t.id} type="button" layout role="tab" aria-selected={on} onClick={() => setTab(t.id)}
-                      title={on ? undefined : t.id === 'bloc' ? 'Bloc: anotador rápido' : `${t.label}${n ? ` (${n})` : ''}`}
-                      transition={{ duration: 0.28, ease: EASE_OUT }}
-                      className={`relative h-8 flex items-center justify-center gap-1.5 rounded-[9px] transition-colors duration-150 ${
-                        on ? 'px-2.5 text-on-surface' : 'w-8 text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.05]'}`}>
-                      {on && <motion.span layoutId="dock-tab" className="nav-active absolute inset-0 rounded-[9px]" transition={{ duration: 0.28, ease: EASE_OUT }} />}
-                      <Icon size={15} weight={on ? 'fill' : 'regular'} className={`relative z-10 shrink-0 ${on ? 'text-primary' : ''}`} />
-                      {on && <motion.span layout="position" className="relative z-10 text-[12px] font-medium whitespace-nowrap">{t.label}</motion.span>}
-                      {!on && n > 0 && words.length > 0 && (
-                        <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-primary text-on-primary text-[9px] font-semibold grid place-items-center">{n}</span>
-                      )}
-                    </motion.button>
-                  )
-                })}
-                <TabsConfig tabs={TABS.map((t) => ({ ...t, icon: TAB_ICON[t.id] }))} order={tabPrefs.order} hidden={tabPrefs.hidden} onChange={saveTabPrefs} />
-              </motion.div>
 
               {/* Tarjeta de contenido (como el panel de la ventana principal) */}
               <motion.div {...CONTENT_IN(0.16)} className={`relative flex-1 min-h-0 flex flex-col mx-2 mb-2 rounded-[14px] overflow-hidden ${CARD_SURFACE}`}>
@@ -897,7 +922,7 @@ export function Dock(): JSX.Element {
                       )}
                       {tab === 'bloc' ? null : items.length === 0 ? <Empty tab={tab} searching={words.length > 0} /> : (
                         <motion.div variants={listVariants} initial="hidden" animate="show"
-                          className={tab === 'caps' && !(words.length && hits) ? 'grid grid-cols-2 gap-2 px-1' : 'flex flex-col gap-px'}>
+                          className={tab === 'caps' && !(words.length && hits) ? 'grid grid-cols-5 gap-1.5 px-1' : 'flex flex-col gap-px'}>
                           {items.map((item, i) => (
                             <motion.div key={item.key} variants={itemVariants} data-idx={i} onMouseEnter={() => hoverItem(i, item)}>
                               {tab === 'clips' && item.type === 'clip' && groupOf(item.clip) !== (i > 0 && items[i - 1]!.type === 'clip' ? groupOf((items[i - 1] as { clip: ClipView }).clip) : null) && (
@@ -1405,141 +1430,82 @@ function QuickMenu({ items }: { items: QuickItem[] }): JSX.Element {
   )
 }
 
-/**
- * La pestaña plegada: logo en una pastilla pegada al borde. Arrastrar la mueve
- * por el borde (guía arriba/abajo, imán al medio); doble clic la vuelve al medio;
- * clic o mouse quieto encima la abre; con copias nuevas salta y muestra cuántas
- * hay sin ver (el globito toma el color del tipo de lo último copiado).
- */
-function Handle({ side, shortcut, unseen, bumpKey, kind }: { side: Side; shortcut: string | null; unseen: number; bumpKey: number; kind: ClipKind | null }): JSX.Element {
-  const logo = useAnimationControls()
-  const [hover, setHover] = useState(false)
-  const [dragging, setDragging] = useState(false)
-  const [guide, setGuide] = useState<{ ratio: number; snapped: boolean }>({ ratio: 0.5, snapped: false })
-  const drag = useRef<{ sy: number; top: number; moved: boolean; raf: number } | null>(null)
-  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastClick = useRef(0)
-  /** Después de un clic no se abre por quedarse quieto encima (puede venir el doble clic). */
-  const hoverArmed = useRef(true)
-  const stopOpen = (): void => { if (openTimer.current) { clearTimeout(openTimer.current); openTimer.current = null } }
-  const armOpen = (): void => {
-    stopOpen()
-    if (!drag.current && hoverArmed.current) openTimer.current = setTimeout(() => window.api.send('dock:expand'), HOVER_OPEN_MS)
-  }
-  const left = side === 'left'
+/** Hora y fecha a la derecha del encabezado, como en la isla de referencia. */
+function IslandClock(): JSX.Element {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 15_000); return () => clearInterval(t) }, [])
+  return (
+    <span className="shrink-0 flex items-baseline gap-1.5 px-2 select-none" title={now.toLocaleDateString('es-AR', { dateStyle: 'full' })}>
+      <span className="text-[13px] font-semibold tabular-nums text-on-surface">{now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
+      <span className="text-[11px] text-on-surface-variant">{now.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+    </span>
+  )
+}
 
-  useEffect(() => () => { stopOpen(); if (clickTimer.current) clearTimeout(clickTimer.current) }, [])
-  useEffect(() => window.api.on('dock:drag', (p) => setGuide(p as { ratio: number; snapped: boolean })), [])
+/**
+ * La isla plegada: una pastilla negra pegada al borde de arriba, al centro (como la isla
+ * dinámica), con la mascota y lo nuevo sin ver. Se ensancha al pasar el mouse; clic o el
+ * mouse quieto encima la abre; con copias nuevas rebota y la mascota festeja.
+ */
+function Pill({ shortcut, unseen, bumpKey }: { shortcut: string | null; unseen: number; bumpKey: number }): JSX.Element {
+  const pill = useAnimationControls()
+  const [hover, setHover] = useState(false)
+  /** Entró algo copiado: la mascota festeja unos segundos. */
+  const [cheer, setCheer] = useState(false)
+  /** Cada tanto mira un rato con la lupa, para que no parezca colgada. */
+  const [peek, setPeek] = useState(false)
+  useEffect(() => {
+    let off: ReturnType<typeof setTimeout> | null = null
+    const t = setInterval(() => { setPeek(true); off = setTimeout(() => setPeek(false), 5000) }, 40_000)
+    return () => { clearInterval(t); if (off) clearTimeout(off) }
+  }, [])
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const stopOpen = (): void => { if (openTimer.current) { clearTimeout(openTimer.current); openTimer.current = null } }
+  const armOpen = (): void => { stopOpen(); openTimer.current = setTimeout(() => window.api.send('dock:expand'), HOVER_OPEN_MS) }
+  useEffect(() => () => stopOpen(), [])
   useEffect(() => {
     if (!bumpKey) return
-    void logo.start({ scale: [1, 1.28, 0.9, 1.06, 1], rotate: [0, -12, 9, -4, 0], transition: { duration: 0.55 } })
-  }, [bumpKey, logo])
-
-  const onPointerDown = (e: React.PointerEvent): void => {
-    if (e.button !== 0) return
-    stopOpen()
-    hoverArmed.current = false
-    e.currentTarget.setPointerCapture(e.pointerId)
-    drag.current = { sy: e.screenY, top: window.screenY, moved: false, raf: 0 }
-  }
-  const onPointerMove = (e: React.PointerEvent): void => {
-    const d = drag.current
-    if (!d) { armOpen(); return }   // abrir cuando el mouse queda quieto encima
-    const dy = e.screenY - d.sy
-    if (!d.moved && Math.abs(dy) < DRAG_THRESHOLD) return
-    if (!d.moved) { d.moved = true; setDragging(true); if (clickTimer.current) clearTimeout(clickTimer.current) }
-    cancelAnimationFrame(d.raf)
-    d.raf = requestAnimationFrame(() => window.api.send('dock:move', d.top + dy))
-  }
-  const onPointerUp = (): void => {
-    const d = drag.current
-    drag.current = null
-    if (!d) return
-    if (d.moved) { setDragging(false); window.api.send('dock:move-end'); return }
-    const now = Date.now()
-    if (now - lastClick.current < DOUBLE_CLICK_MS) {
-      if (clickTimer.current) clearTimeout(clickTimer.current)
-      lastClick.current = 0
-      window.api.send('dock:move-reset')
-      return
-    }
-    lastClick.current = now
-    clickTimer.current = setTimeout(() => window.api.send('dock:expand'), DOUBLE_CLICK_MS - 60)
-  }
-
-  const badge = 'bg-primary'
-  void kind
-  const out = left ? 1 : -1
-  const showGrip = hover || dragging
+    void pill.start({ scaleX: [1, 1.12, 0.97, 1.02, 1], scaleY: [1, 0.9, 1.06, 1], transition: { duration: 0.55 } })
+    setCheer(true)
+    const t = setTimeout(() => setCheer(false), 5000)
+    return () => clearTimeout(t)
+  }, [bumpKey, pill])
 
   return (
     <div className="h-screen w-screen relative select-none">
-      {/* Guía al arrastrar: flechas arriba/abajo (se apagan en los topes) y marca del medio. */}
-      <AnimatePresence>
-        {dragging && (
-          <motion.div key="guide" className="absolute inset-0 pointer-events-none" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <span className={`absolute top-[8px] w-[46px] grid place-items-center ${left ? 'left-0' : 'right-0'} ${guide.ratio <= 0.001 ? 'opacity-25' : ''}`}>
-              <ChevronUp size={14} className="text-on-surface-variant" />
-            </span>
-            <span className={`absolute bottom-[8px] w-[46px] grid place-items-center ${left ? 'left-0' : 'right-0'} ${guide.ratio >= 0.999 ? 'opacity-25' : ''}`}>
-              <ChevronDown size={14} className="text-on-surface-variant" />
-            </span>
-            <span className={`absolute top-1/2 -mt-px h-[2px] w-[12px] rounded-full transition-colors ${left ? 'left-[58px]' : 'right-[58px]'} ${guide.snapped ? 'bg-primary' : 'bg-on-surface-variant/30'}`} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <motion.div
         data-dock-handle
         role="button"
         aria-label="Abrir Setto"
-        title={`Setto${shortcut ? ` · ${shortcut}` : ''}\nArrastrá para moverla · doble clic: al medio`}
-        className={`absolute top-1/2 mt-[-28px] h-[56px] w-[62px] flex items-center ${TAB_SURFACE} ${TAB_SHADOW} ${
-          left ? '-left-4 rounded-r-[18px] flex-row-reverse pr-[6px]' : '-right-4 rounded-l-[18px] pl-[6px]'} ${dragging ? 'cursor-grabbing' : 'cursor-pointer'}`}
-        initial={{ x: 56 * -out, opacity: 0 }}
-        animate={{ x: (dragging ? 6 : hover ? 4 : 0) * out, opacity: 1, scale: dragging ? 1.03 : 1 }}
-        exit={{ x: 56 * -out, opacity: 0, transition: { duration: 0.14 } }}
-        transition={{ type: 'spring', stiffness: 360, damping: 30 }}
-        onPointerEnter={() => {
-          setHover(true)
-          hoverArmed.current = true
-          void logo.start({ rotate: [0, -12, 9, -5, 0], transition: { duration: 0.5 } })
-          armOpen()
-        }}
+        title={`Setto${shortcut ? ` · ${shortcut}` : ''}`}
+        className={`absolute left-1/2 top-0 -translate-x-1/2 flex items-center gap-2 pl-1.5 pr-3 rounded-b-[16px] cursor-pointer ${ISLAND_SURFACE} ${ISLAND_SHADOW}`}
+        style={{ height: ISLAND_PILL.h, originY: 0 }}
+        initial={{ opacity: 0, scale: 0.9, width: ISLAND_PILL.w }}
+        animate={{ opacity: 1, scale: 1, width: hover ? ISLAND_PILL.w + 22 : ISLAND_PILL.w }}
+        exit={{ opacity: 1, transition: { duration: 0.05 } }}
+        transition={{ type: 'spring', stiffness: 420, damping: 30 }}
+        onPointerEnter={() => { setHover(true); armOpen() }}
+        onPointerMove={() => { if (!openTimer.current) armOpen() }}
         onPointerLeave={() => { setHover(false); stopOpen() }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
+        onClick={() => { stopOpen(); window.api.send('dock:expand') }}
       >
-        {/* Filo fino del acento: el toque de color de la app sobre cualquier fondo. */}
-        <span className={`absolute top-[14px] bottom-[14px] w-[2.5px] rounded-full bg-primary/75 ${left ? '-right-px' : '-left-px'}`} aria-hidden />
-        {/* Agarradera: aparece al pasar el mouse. */}
-        <span className={`grid grid-cols-2 gap-[2px] w-[8px] shrink-0 transition-opacity duration-200 ${showGrip ? 'opacity-100' : 'opacity-0'}`} aria-hidden>
-          {Array.from({ length: 6 }, (_, i) => <span key={i} className="w-[3px] h-[3px] rounded-full bg-on-surface-variant/50" />)}
-        </span>
-        <span className={`relative ${left ? 'mr-[4px]' : 'ml-[4px]'} ${unseen || hover || dragging ? '' : 'dock-idle'}`}>
-          <motion.img src="setto-logo.png" alt="" draggable={false} animate={logo}
-            className="block w-[30px] h-[30px] rounded-[9px] pointer-events-none shadow-sm" />
-          {/* Onda al copiar algo. */}
-          <AnimatePresence>
-            {bumpKey > 0 && (
-              <motion.span key={bumpKey} className="absolute inset-0 rounded-[9px] border-2 border-primary pointer-events-none"
-                initial={{ scale: 0.95, opacity: 0.8 }} animate={{ scale: 1.6, opacity: 0 }} transition={{ duration: 0.7, ease: 'easeOut' }} />
-            )}
-          </AnimatePresence>
-          <AnimatePresence>
+        <motion.span animate={pill} className="flex items-center gap-2 w-full min-w-0">
+          <Mascot bare size={30} className="-my-1 shrink-0" pose={cheer ? 'listo' : 'buscando'} paused={!cheer && !peek && !hover} fallback={
+            <img src="setto-logo.png" alt="" draggable={false} className="w-[18px] h-[18px] rounded-[5px] mx-1.5" />
+          } />
+          <span className="flex-1 min-w-0 text-[12px] font-semibold text-white/90 tracking-[-0.01em] truncate">Setto</span>
+          {/* Copias y capturas nuevas sin ver: contador neutro (blanco sobre la isla negra) */}
+          <AnimatePresence initial={false}>
             {unseen > 0 && (
-              <motion.span key="badge"
-                // Del lado de adentro: del lado del borde de la pantalla quedaba cortado.
-                className={`absolute -top-2 ${left ? '-right-2' : '-left-2'} min-w-[16px] h-[16px] px-1 rounded-full ${badge} text-on-primary text-[10px] font-bold leading-none grid place-items-center ring-2 ring-surface`}
+              <motion.span key="new" title={`${unseen} ${unseen === 1 ? 'cosa nueva' : 'cosas nuevas'} sin ver`}
+                className="shrink-0 min-w-[18px] h-[18px] px-1.5 rounded-full bg-white/85 text-[rgb(12_12_15)] text-[10.5px] font-bold leading-[18px] text-center tabular-nums"
                 initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={POP}>
-                <motion.span key={unseen} initial={{ y: 5, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>{unseen}</motion.span>
+                <motion.span key={unseen} className="inline-block" initial={{ y: 5, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>{unseen}</motion.span>
               </motion.span>
             )}
           </AnimatePresence>
-        </span>
+          <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-success/80" title="Setto está andando" />
+        </motion.span>
       </motion.div>
     </div>
   )

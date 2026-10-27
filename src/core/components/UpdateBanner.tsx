@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowDownToLine, X } from 'lucide-react'
+import { Mascot } from './Mascot'
 
 /**
  * Aviso de actualización (abajo a la derecha). Escucha `updater:status` del main:
@@ -56,7 +57,11 @@ export function UpdateBanner(): JSX.Element | null {
 
   return (
     <div role="status" className="fixed bottom-4 right-4 z-500 flex items-center gap-3 mac-popover hairline px-4 py-2.5 t-body max-w-[420px]">
-      <ArrowDownToLine size={18} className={status.type === 'error' ? 'text-error' : 'text-accent'} />
+      {status.type === 'available' ? <ArrowDownToLine size={18} className="text-accent" /> : (
+        <Mascot key={status.type} size={44} once={status.type !== 'downloading'} className="-my-1.5 -ml-1"
+          pose={status.type === 'downloading' ? 'actualizando' : status.type === 'ready' ? 'listo' : 'atencion'}
+          fallback={<ArrowDownToLine size={18} className={status.type === 'error' ? 'text-error' : 'text-accent'} />} />
+      )}
       {status.type === 'available' && (
         <>
           <span className="text-on-surface">Actualización <span className="font-semibold">{status.version}</span> disponible</span>

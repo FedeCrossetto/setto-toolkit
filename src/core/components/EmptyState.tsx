@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 import type { IconComponent } from '../types'
+import type { StillPose } from '../mascots'
+import { Mascot } from './Mascot'
 
 /**
  * Ilustración en el color de acento: un halo suave, dos tarjetas de fondo (trazo fino,
@@ -37,14 +39,15 @@ export function EmptyState({
   title,
   description,
   action,
+  mascot,
   compact = false,
 }: {
   icon: IconComponent
   title: string
   description?: string
   action?: ReactNode
-  /** @deprecated Ignored — the app no longer shows mascots. Kept for API compatibility. */
-  mascot?: boolean
+  /** Mascota quieta en lugar de la ilustración (sólo donde suma; si están apagadas, la ilustración). */
+  mascot?: StillPose
   /** Less vertical padding (for cards/widgets). */
   compact?: boolean
 }): JSX.Element {
@@ -57,6 +60,8 @@ export function EmptyState({
         <div className="icon-tile w-8 h-8 mb-2.5">
           <Icon size={16} aria-hidden />
         </div>
+      ) : mascot ? (
+        <Mascot pose={mascot} size={112} className="mb-3" fallback={<EmptyScene icon={Icon} />} />
       ) : (
         <EmptyScene icon={Icon} />
       )}

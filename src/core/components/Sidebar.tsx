@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { CaretDown, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
 import { useApp } from '../AppContext'
@@ -7,6 +7,9 @@ import { PluginIcon, shortName } from '../pluginIcons'
 import type { PluginManifest } from '../types'
 import { SPRING } from '../motion'
 import { sidebarOrder } from '../navigation'
+import { useSidebarData, type SidebarCount } from '../sidebar-data'
+import { useMascotsEnabled } from '../mascots'
+import type { SqlProfile } from '../../plugins/connections/sql'
 
 /** Ancho de la barra lateral — App.tsx lo lee de acá. */
 export const SIDEBAR_WIDTH = { expanded: 232, collapsed: 74 }
@@ -17,6 +20,13 @@ const SECTION_LABEL: Record<string, string> = {
 }
 
 const COLLAPSED_SECTIONS_KEY = 'sidebar:collapsed-sections'
+const CONNECTIONS_KEY = 'connections'
+
+const TONE: Record<SidebarCount['tone'], { chip: string; dot: string }> = {
+  error: { chip: 'bg-error/12 text-error', dot: 'bg-error' },
+  warn: { chip: 'bg-warning/14 text-warning', dot: 'bg-warning' },
+  info: { chip: 'bg-on-surface/[0.07] text-on-surface-variant', dot: 'bg-primary' },
+}
 
 function readCollapsedSections(): string[] {
   try { return JSON.parse(localStorage.getItem(COLLAPSED_SECTIONS_KEY) ?? '[]') as string[] } catch { return [] }
@@ -29,12 +39,15 @@ function SidebarItem({
   collapsed,
   dirty,
   shortcut,
+  count,
   onClick,
 }: {
   plugin: PluginManifest
   active: boolean
   collapsed: boolean
   dirty: boolean
+  /** Lo que conviene mirar en el módulo (claves débiles, consultas con error…). */
+  count?: SidebarCount
   /** N de Ctrl+N (1…9), en el orden de la barra. */
   shortcut?: number
   onClick: () => void
@@ -42,38 +55,75 @@ function SidebarItem({
   return (
     <button
       onClick={onClick}
-      title={plugin.name}
-      aria-label={plugin.name}
+      title={count ? `${plugin.name} · ${count.title}` : plugin.name}
+      aria-label={count ? `${plugin.name}, ${count.title}` : plugin.name}
       aria-current={active ? 'page' : undefined}
       aria-keyshortcuts={shortcut ? `Control+${shortcut}` : undefined}
       className={`group relative flex w-full rounded-[9px] transition-colors duration-100 no-drag ${
         collapsed ? 'flex-col items-center justify-center gap-[3px] py-[7px]' : 'items-center gap-2.5 h-(--nav-row-h) px-2.5'
       } ${active ? '' : 'hover:bg-on-surface/4 dark:hover:bg-white/4'}`}
     >
-      {/* Activo = tarjeta blanca con borde fino; se desliza de un ítem al otro. */}
+      {/* Activo = pastilla oscura (clara en modo oscuro); se desliza de un ítem al otro. */}
       {active && (
-        <motion.span layoutId="sidebar-active" className="nav-active absolute inset-0 z-0 rounded-[9px]" transition={SPRING.snappy} />
+        <motion.span layoutId="sidebar-active" className="nav-pill absolute inset-0 z-0 rounded-[9px]" transition={SPRING.snappy} />
       )}
       <span className="relative z-10 grid place-items-center shrink-0">
         <PluginIcon
           icon={plugin.icon}
           size={collapsed ? 18 : 16}
           weight={active ? 'fill' : 'regular'}
-          className={active ? 'text-primary' : 'text-on-surface-variant group-hover:text-on-surface'}
+          className={active ? 'text-(--nav-pill-fg)' : 'text-on-surface-variant group-hover:text-on-surface'}
         />
         {dirty && (
           <span title="Cambios sin guardar" className="absolute -top-0.5 -right-1 w-1.5 h-1.5 rounded-full bg-warning" />
         )}
+        {collapsed && count && !dirty && (
+          <span className={`absolute -top-0.5 -right-1.5 w-[7px] h-[7px] rounded-full ring-2 ring-(--c-sidebar-ring) ${TONE[count.tone].dot}`} />
+        )}
       </span>
       {collapsed ? (
-        <span className={`relative z-10 max-w-full truncate text-[10px] leading-[12px] ${active ? 'font-semibold text-on-surface' : 'text-on-surface-variant group-hover:text-on-surface'}`}>
+        <span className={`relative z-10 max-w-full truncate text-[10px] leading-[12px] ${active ? 'font-semibold text-(--nav-pill-fg)' : 'text-on-surface-variant group-hover:text-on-surface'}`}>
           {shortName(plugin.id, plugin.name)}
         </span>
       ) : (
-        <span className={`relative z-10 flex-1 text-left truncate t-body ${active ? 'font-medium text-on-surface' : 'text-on-surface/75 group-hover:text-on-surface'}`}>
-          {plugin.name}
-        </span>
+        <>
+          <span className={`relative z-10 flex-1 text-left truncate t-body ${active ? 'font-medium text-(--nav-pill-fg)' : 'text-on-surface/75 group-hover:text-on-surface'}`}>
+            {plugin.name}
+          </span>
+          {count && (
+            <span className={`relative z-10 shrink-0 min-w-[20px] h-[18px] px-1.5 rounded-full text-[11px] leading-[18px] font-semibold tabular-nums text-center ${
+              active ? 'bg-(--nav-pill-fg)/18 text-(--nav-pill-fg)' : TONE[count.tone].chip}`}>
+              {count.n > 99 ? '99+' : count.n}
+            </span>
+          )}
+        </>
       )}
+    </button>
+  )
+}
+
+// ── Conexión ───────────────────────────────────────────────────────────────────
+/**
+ * Una conexión con la mascota según la última prueba: verde respondió, roja falló, neutra sin
+ * probar (con las mascotas apagadas, un puntito del mismo color). A la derecha, su etiqueta.
+ */
+function ConnectionItem({ profile, onClick }: { profile: SqlProfile; onClick: () => void }): JSX.Element {
+  const mascots = useMascotsEnabled()
+  const t = profile.lastTest
+  const state = !t ? 'idle' : t.ok ? 'ok' : 'bad'
+  const label = state === 'ok' ? 'respondió en la última prueba' : state === 'bad' ? 'falló en la última prueba' : 'sin probar'
+  return (
+    <button onClick={onClick} title={`${profile.name} · ${profile.server}\n${label}${t?.detail ? ` · ${t.detail}` : ''}`}
+      aria-label={`Abrir SQL con ${profile.name}, ${label}`}
+      className="group no-drag flex items-center gap-2.5 w-full h-(--nav-row-h) px-2.5 rounded-[9px] hover:bg-on-surface/4 dark:hover:bg-white/4 transition-colors">
+      {mascots ? (
+        <img src={`./mascots/${state === 'ok' ? 'listo' : state === 'bad' ? 'atencion' : 'neutra'}.webp`} alt="" draggable={false}
+          className="w-[22px] h-[22px] -my-1 -mx-[3px] object-contain shrink-0" />
+      ) : (
+        <span className={`w-2 h-2 mx-1 rounded-full shrink-0 ${state === 'ok' ? 'bg-success' : state === 'bad' ? 'bg-error' : 'bg-on-surface-variant/40'}`} />
+      )}
+      <span className="flex-1 min-w-0 text-left truncate t-body text-on-surface/75 group-hover:text-on-surface">{profile.name}</span>
+      {profile.tag && <span className="shrink-0 max-w-[64px] truncate px-1.5 h-[18px] rounded-[5px] bg-on-surface/[0.06] text-[10.5px] leading-[18px] text-on-surface-variant">{profile.tag}</span>}
     </button>
   )
 }
@@ -119,6 +169,12 @@ export function Sidebar(): JSX.Element {
   }
 
   const activePluginId = state.openTabs.find(t => t.tabId === state.activeTabId)?.pluginId
+  const isEnabled = useCallback((id: string) => enabled.some(p => p.id === id), [enabled])
+  const { counts, connections } = useSidebarData(isEnabled, activePluginId)
+  const openConnection = (p: SqlProfile): void => {
+    dispatch({ type: 'OPEN_WITH_INTENT', pluginId: 'sql-runner', action: 'open-sql', payload: { sql: '', profileId: p.id, database: p.database } })
+    dispatch({ type: 'CLOSE_COMMAND_PALETTE' })
+  }
   const activeHidden = (key: string, items: PluginManifest[]): boolean =>
     closedSections.includes(key) && !items.some(p => p.id === activePluginId)
 
@@ -194,6 +250,7 @@ export function Sidebar(): JSX.Element {
                       collapsed={collapsed}
                       dirty={!!state.dirtyPlugins[p.id]}
                       shortcut={shortcutOf(p.id)}
+                      count={counts[p.id]}
                       onClick={() => openTab(p.id)}
                     />
                   ))}
@@ -202,6 +259,26 @@ export function Sidebar(): JSX.Element {
             </div>
           )
         })}
+
+        {/* Tus conexiones: un clic abre SQL con esa conexión. */}
+        {!collapsed && connections.length > 0 && (
+          <div>
+            <div className="h-px bg-(--hairline) mx-1 my-3" />
+            <button
+              onClick={() => toggleSection(CONNECTIONS_KEY)}
+              aria-expanded={!closedSections.includes(CONNECTIONS_KEY)}
+              className="no-drag group flex items-center gap-1.5 w-full px-1.5 mb-1 h-6 text-[11px] font-medium uppercase tracking-[0.08em] text-on-surface-variant/80 hover:text-on-surface"
+            >
+              <CaretDown size={10} weight="fill" className={`transition-transform duration-150 ${closedSections.includes(CONNECTIONS_KEY) ? '-rotate-90' : ''}`} />
+              Tus conexiones
+            </button>
+            {!closedSections.includes(CONNECTIONS_KEY) && (
+              <div className="flex flex-col gap-px">
+                {connections.map(c => <ConnectionItem key={c.id} profile={c} onClick={() => openConnection(c)} />)}
+              </div>
+            )}
+          </div>
+        )}
       </motion.nav>
 
       <div className="flex flex-col gap-px px-3 pb-3 pt-2 shrink-0">
@@ -214,6 +291,7 @@ export function Sidebar(): JSX.Element {
             collapsed={collapsed}
             dirty={false}
             shortcut={shortcutOf(p.id)}
+            count={counts[p.id]}
             onClick={() => openTab(p.id)}
           />
         ))}

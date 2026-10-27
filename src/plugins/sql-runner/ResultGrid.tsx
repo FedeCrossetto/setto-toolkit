@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Ban, Binary, CalendarDays, Check, ChevronDown, ChevronsUpDown, Code2, Copy, Eye, Hash, Type, Download, FileCode2, FileSpreadsheet, KeyRound, Loader2, Lock, Pencil, Plus, RotateCcw, Trash2, Undo2, X } from 'lucide-react'
 import { useToast } from '../../core/components/Toast'
 import { CopyGlyph, useFlash } from '../../core/components/Pop'
@@ -46,6 +46,11 @@ function TypeGlyph({ type }: { type: string | undefined }): JSX.Element | null {
 }
 const DENSITY_KEY = 'sql-runner:grid-density'
 type Pos = { r: number; c: number }
+/** Desde cuántas filas se dibujan sólo las visibles (debajo, la grilla entera como siempre) */
+const VIRTUAL_MIN_ROWS = 300
+/** Filas extra arriba y abajo de lo visible, para que al desplazar no se vea el borde */
+const OVERSCAN = 20
+const HEAD_H = 28
 
 export function ResultGrid({ set, name, table, editing, flash }: {
   set: QuerySet
@@ -80,7 +85,18 @@ export function ResultGrid({ set, name, table, editing, flash }: {
     const up = (): void => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up) }
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up)
   }
-  const colStyle = (c: number): React.CSSProperties | undefined => (widths[c] ? { width: widths[c], minWidth: widths[c], maxWidth: widths[c] } : undefined)
+  /**
+   * Con muchas filas sólo se dibujan las visibles; el ancho automático de las columnas se mide
+   * una vez por resultado y se congela, si no las columnas "bailan" al desplazar.
+   */
+  const [autoWidths, setAutoWidths] = useState<{ set: QuerySet; w: Record<number, number> } | null>(null)
+  const colStyle = (c: number): React.CSSProperties | undefined => {
+    const w = widths[c] ?? (autoWidths?.set === set ? autoWidths.w[c] : undefined)
+    return w ? { width: w, minWidth: w, maxWidth: w } : undefined
+  }
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [view, setView] = useState({ first: 0, height: 600 })
+  const [rowH, setRowH] = useState(19)
   const [edits, setEdits] = useState<GridEdits>(emptyEdits)
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null)
   const [scriptOpen, setScriptOpen] = useState(false)
@@ -120,6 +136,49 @@ export function ResultGrid({ set, name, table, editing, flash }: {
     () => [...rows.map(({ i }) => ({ kind: 'row' as const, i })), ...edits.inserted.map((_, i) => ({ kind: 'new' as const, i }))],
     [rows, edits.inserted],
   )
+  const virtual = display.length > VIRTUAL_MIN_ROWS
+  const winStart = virtual ? Math.max(0, view.first - OVERSCAN) : 0
+  const winEnd = virtual ? Math.min(display.length, view.first + Math.ceil(view.height / rowH) + OVERSCAN) : display.length
+  const measureView = useCallback((): void => {
+    const el = scrollRef.current
+    if (!el) return
+    const first = Math.max(0, Math.floor((el.scrollTop - HEAD_H) / rowH))
+    const height = el.clientHeight
+    setView((v) => (v.first === first && v.height === height ? v : { first, height }))
+  }, [rowH])
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || !virtual) return
+    measureView()
+    const ro = new ResizeObserver(measureView)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [virtual, measureView])
+  useLayoutEffect(() => {
+    if (!virtual) return
+    const root = scrollRef.current
+    if (!root) return
+    // Alto real de una fila (depende de la densidad y la fuente) para calcular la ventana.
+    const tr = root.querySelector<HTMLElement>('tbody tr[data-row]')
+    const h = tr?.getBoundingClientRect().height
+    if (h && Math.abs(h - rowH) > 0.5) setRowH(h)
+    // Congelar el ancho automático de las columnas con lo que se midió en el primer render.
+    if (autoWidths?.set !== set) {
+      const ths = root.querySelectorAll<HTMLElement>('thead th')
+      const w: Record<number, number> = {}
+      ths.forEach((th, i) => { if (i > 0) w[i - 1] = Math.ceil(th.getBoundingClientRect().width) })
+      setAutoWidths({ set, w })
+    }
+  }, [virtual, set, comfy, rowH, autoWidths])
+  // Moverse con el teclado (o agregar una fila) lleva la fila enfocada a la vista: sin esto,
+  // con la grilla virtual la fila podría ni estar dibujada.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || !focus || !virtual) return
+    const top = HEAD_H + focus.r * rowH
+    if (top < el.scrollTop + HEAD_H) el.scrollTop = top - HEAD_H
+    else if (top + rowH > el.scrollTop + el.clientHeight) el.scrollTop = top + rowH - el.clientHeight
+  }, [focus, rowH, virtual])
   const refAt = (p: Pos): CellRef | null => { const d = display[p.r]; return d ? { ...d, c: p.c } : null }
   const rect = anchor && focus
     ? { r0: Math.min(anchor.r, focus.r), r1: Math.max(anchor.r, focus.r), c0: Math.min(anchor.c, focus.c), c1: Math.max(anchor.c, focus.c) }
@@ -408,7 +467,7 @@ export function ResultGrid({ set, name, table, editing, flash }: {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div ref={scrollRef} onScroll={virtual ? measureView : undefined} className="flex-1 min-h-0 overflow-auto">
         <table className="border-separate border-spacing-0 font-mono text-[12px] leading-[18px]">
           <thead>
             <tr>
@@ -437,11 +496,13 @@ export function ResultGrid({ set, name, table, editing, flash }: {
             </tr>
           </thead>
           <tbody>
-            {display.map((d, r) => {
+            {winStart > 0 && <tr aria-hidden><td colSpan={set.columns.length + 1} className="p-0 border-0" style={{ height: winStart * rowH }} /></tr>}
+            {display.slice(winStart, winEnd).map((d, k) => {
+              const r = winStart + k
               const del = d.kind === 'row' && edits.deleted.has(d.i)
               const isNew = d.kind === 'new'
               return (
-                <tr key={`${d.kind}-${d.i}`} className={`group ${del ? 'bg-error/8' : isNew ? 'bg-success/[0.07]' : r % 2 ? 'bg-on-surface/[0.022]' : ''} ${flashSet && d.kind === 'row' && keyCols.length && flashSet.has(rowKey(set.rows[d.i] ?? [])) ? 'row-flash' : ''}`}>
+                <tr key={`${d.kind}-${d.i}`} data-row className={`group ${del ? 'bg-error/8' : isNew ? 'bg-success/[0.07]' : r % 2 ? 'bg-on-surface/[0.022]' : ''} ${flashSet && d.kind === 'row' && keyCols.length && flashSet.has(rowKey(set.rows[d.i] ?? [])) ? 'row-flash' : ''}`}>
                   <td onMouseDown={() => { setAnchor({ r, c: 0 }); setFocus({ r, c: set.columns.length - 1 }) }} title="Seleccionar la fila"
                     className={`sticky left-0 z-10 px-2 text-right border-b border-r border-(--hairline) tabular-nums select-none cursor-pointer ${
                       del ? 'bg-error/10 text-error' : isNew ? 'bg-success/15 text-success text-center font-semibold' : 'bg-surface text-on-surface-variant/50 group-hover:bg-on-surface/4'}`}>
@@ -451,6 +512,7 @@ export function ResultGrid({ set, name, table, editing, flash }: {
                 </tr>
               )
             })}
+            {winEnd < display.length && <tr aria-hidden><td colSpan={set.columns.length + 1} className="p-0 border-0" style={{ height: (display.length - winEnd) * rowH }} /></tr>}
           </tbody>
         </table>
         {canEdit && display.length === 0 && (

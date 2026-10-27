@@ -66,7 +66,7 @@ export function VariablesModal({
           <button className="ui-btn ui-btn-outline" onClick={onClose}>Cancelar</button>
           <button className="ui-btn ui-btn-primary" onClick={submit}>
             {mode === 'run' || mode === 'paste' ? <SquareTerminal size={14} /> : <Copy size={14} />}
-            {{ copy: 'Copiar', run: 'Ejecutar', paste: 'Pegar en la terminal', sql: 'Abrir en Consultas', editor: 'Abrir en el Editor' }[mode]}
+            {{ copy: 'Copiar', run: 'Ejecutar', paste: 'Pegar en la terminal', sql: 'Abrir en SQL', editor: 'Abrir en el Editor' }[mode]}
           </button>
         </>
       }
