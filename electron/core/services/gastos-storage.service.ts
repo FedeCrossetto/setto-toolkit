@@ -94,7 +94,38 @@ function pagoFromRow(r: Row): PagoMensual {
     metodoPago: (r.metodo_pago as string) ?? undefined,
     pagado: (r.pagado as boolean) ?? false,
     notas: (r.notas as string) ?? undefined,
+    ...(r.plan_id && r.cuota_n != null && r.cuota_de != null
+      ? { cuota: { plan: String(r.plan_id), n: Number(r.cuota_n), de: Number(r.cuota_de), ...(r.cuota_vence ? { vence: String(r.cuota_vence) } : {}) } }
+      : {}),
   }
+}
+
+/**
+ * Fila de `pagos`. Las columnas de cuotas (migración 005) van sólo en las cuotas: así cargar un
+ * pago común sigue andando aunque esa migración no se haya corrido.
+ */
+function pagoRow(p: PagoMensual, updatedAt: string): Row {
+  return {
+    id: p.id,
+    servicio_id: p.servicioId,
+    mes: p.mes,
+    monto: p.monto,
+    fecha: p.fecha ?? null,
+    metodo_pago: p.metodoPago ?? null,
+    pagado: p.pagado,
+    notas: p.notas ?? null,
+    ...(p.cuota ? { plan_id: p.cuota.plan, cuota_n: p.cuota.n, cuota_de: p.cuota.de, cuota_vence: p.cuota.vence ?? null }
+      : p.cuota === null ? { plan_id: null, cuota_n: null, cuota_de: null, cuota_vence: null } : {}),
+    updated_at: updatedAt,
+  }
+}
+
+/** Falta la migración de cuotas: es un rechazo (PGRST204), no algo que se arregle reintentando. */
+function pagosError(error: PgError): Error {
+  if (/plan_id|cuota_n|cuota_de|cuota_vence/.test(error.message ?? '')) {
+    return new Error('PGRST204: Supabase todavía no tiene las columnas de planes de pago. Corré supabase/migrations/005_pagos_cuotas.sql en el SQL Editor.')
+  }
+  return supabaseError(error, 'pagos')
 }
 
 function credencialMetaFromRow(r: Row): Credencial {
@@ -505,18 +536,8 @@ export class GastosStorageService {
 
   async savePago(pago: PagoMensual): Promise<void> {
     const sb = this.createClient()
-    const { error } = await sb.from('pagos').upsert({
-      id: pago.id,
-      servicio_id: pago.servicioId,
-      mes: pago.mes,
-      monto: pago.monto,
-      fecha: pago.fecha ?? null,
-      metodo_pago: pago.metodoPago ?? null,
-      pagado: pago.pagado,
-      notas: pago.notas ?? null,
-      updated_at: new Date().toISOString(),
-    })
-    if (error) throw supabaseError(error, 'pagos')
+    const { error } = await sb.from('pagos').upsert(pagoRow(pago, new Date().toISOString()))
+    if (error) throw pagosError(error)
   }
 
   async deletePago(id: string): Promise<void> {
@@ -527,19 +548,15 @@ export class GastosStorageService {
   async savePagosBulk(pagos: PagoMensual[]): Promise<void> {
     if (!pagos.length) return
     const sb = this.createClient()
-    const rows = pagos.map((p) => ({
-      id: p.id,
-      servicio_id: p.servicioId,
-      mes: p.mes,
-      monto: p.monto,
-      fecha: p.fecha ?? null,
-      metodo_pago: p.metodoPago ?? null,
-      pagado: p.pagado,
-      notas: p.notas ?? null,
-      updated_at: new Date().toISOString(),
-    }))
+    const now = new Date().toISOString()
+    // Con cuotas en el lote, todas las filas llevan esas columnas (PostgREST pide las mismas en un upsert múltiple).
+    const withCuotas = pagos.some((p) => p.cuota !== undefined)
+    const rows = pagos.map((p) => {
+      const row = pagoRow(p, now)
+      return withCuotas && p.cuota === undefined ? { ...row, plan_id: null, cuota_n: null, cuota_de: null, cuota_vence: null } : row
+    })
     const { error } = await sb.from('pagos').upsert(rows)
-    if (error) throw supabaseError(error, 'pagos')
+    if (error) throw pagosError(error)
   }
 
   async saveCredencial(cred: Credencial): Promise<void> {

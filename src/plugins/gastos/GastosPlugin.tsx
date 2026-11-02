@@ -218,6 +218,17 @@ export function GastosPlugin(): JSX.Element {
     await store.savePago(p)
   }
 
+  /** Plan de pago: guarda todas las cuotas; si convierte un pago existente, la cuota 1 lo reemplaza (mismo id). */
+  async function savePlan(cuotas: PagoMensual[], reemplaza?: PagoMensual): Promise<void> {
+    setSheet(null)
+    await store.savePagosBulk(cuotas)
+    showUndo(`Plan de pago en ${cuotas.length} cuotas`, async () => {
+      for (const c of cuotas) if (c.id !== reemplaza?.id) await store.deletePago(c.id)
+      // cuota: null → Supabase limpia plan_id/cuota_n/cuota_de de la que fue cuota 1.
+      if (reemplaza) await store.savePago({ ...reemplaza, cuota: null })
+    })
+  }
+
   async function deletePago(p: PagoMensual): Promise<void> {
     const svc = data.servicios.find((s) => s.id === p.servicioId)
     setSheet(null)
@@ -422,7 +433,11 @@ export function GastosPlugin(): JSX.Element {
             {view === 'tabla' && (
               <Tabla servicios={data.servicios} pagos={data.pagos} year={year}
                 onEditPago={(p) => setSheet({ type: 'pago', initial: p })}
-                onAddPago={(servicioId, m) => setSheet({ type: 'pago', initial: { servicioId, mes: m } })} />
+                onAddPago={(servicioId, m) => setSheet({ type: 'pago', initial: { servicioId, mes: m } })}
+                onToggleServicio={(s) => {
+                  void store.saveServicio({ ...s, activo: !s.activo })
+                  showUndo(s.activo ? `${s.nombre} dado de baja` : `${s.nombre} reactivado`, async () => { await store.saveServicio(s) })
+                }} />
             )}
             {view === 'servicios' && (
               <Servicios servicios={data.servicios} pagos={data.pagos}
@@ -451,7 +466,8 @@ export function GastosPlugin(): JSX.Element {
         onSave={(r) => { void saveRegla(r) }} onDelete={(r) => { void deleteRegla(r) }} onClose={closeSheet} />
       <PagoSheet open={sheet?.type === 'pago'} initial={sheet?.type === 'pago' ? sheet.initial : undefined}
         servicios={data.servicios} pagos={data.pagos}
-        onSave={(p) => { void savePago(p) }} onDelete={(p) => { void deletePago(p) }} onClose={closeSheet} />
+        onSave={(p) => { void savePago(p) }} onSavePlan={(cs, prev) => { void savePlan(cs, prev) }}
+        onDelete={(p) => { void deletePago(p) }} onClose={closeSheet} />
       <ServicioSheet open={sheet?.type === 'servicio'} initial={sheet?.type === 'servicio' ? sheet.initial : undefined}
         categorias={categoriasServicios}
         diaVencimiento={sheet?.type === 'servicio' && sheet.initial ? store.prefs.diasVencimiento?.[sheet.initial.id] : undefined}

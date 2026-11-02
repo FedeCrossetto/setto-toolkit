@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dueReminders } from './reminders'
+import { dueReminders, venceDate } from './reminders'
 import type { GastosData } from './analytics'
 
 const svc = (id: string, nombre: string, activo = true) => ({ id, nombre, emoji: '', categoria: 'Casa', activo, orden: 1 })
@@ -12,6 +12,32 @@ const data: GastosData = {
   ],
   gastos: [],
 }
+
+describe('dueReminders: cuotas de planes de pago', () => {
+  const plan: GastosData = {
+    servicios: [svc('gas', 'Metrogas')],
+    pagos: [
+      { id: 'c2', servicioId: 'gas', mes: '2026-12', monto: 21390.07, pagado: false, cuota: { plan: 'p', n: 2, de: 2, vence: '04/12' } },
+      { id: 'c1', servicioId: 'gas', mes: '2026-11', monto: 22181.48, pagado: true, cuota: { plan: 'p', n: 1, de: 2, vence: '04/11' } },
+    ],
+    gastos: [],
+  }
+  const cuotas = (d: Date): string[] => dueReminders(plan, {}, d).filter((r) => r.key.startsWith('due:cuota:')).map((r) => r.key)
+
+  it('avisa el día anterior, el mismo día y una vez vencida; nunca las pagadas', () => {
+    expect(cuotas(new Date(2026, 11, 2))).toEqual([])
+    expect(cuotas(new Date(2026, 11, 3))).toEqual(['due:cuota:c2:tomorrow'])
+    expect(cuotas(new Date(2026, 11, 4))).toEqual(['due:cuota:c2:today'])
+    expect(cuotas(new Date(2026, 11, 9))).toEqual(['due:cuota:c2:overdue'])
+    expect(dueReminders(plan, {}, new Date(2026, 11, 4))[0]!.title).toBe('Hoy vence la cuota 2 de 2 de Metrogas')
+  })
+
+  it('el vencimiento de enero de una cuota de diciembre cae en el año siguiente', () => {
+    expect(venceDate('2026-12', '04/01')).toEqual(new Date(2027, 0, 4))
+    expect(venceDate('2026-01', '28/12')).toEqual(new Date(2025, 11, 28))
+    expect(venceDate('2026-11', '4/11')).toBeNull()
+  })
+})
 
 describe('dueReminders', () => {
   it('warns the day before, the same day and once overdue', () => {

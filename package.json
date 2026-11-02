@@ -1,6 +1,6 @@
 {
   "name": "mytools-app",
-  "version": "2.17.0",
+  "version": "2.18.0",
   "description": "Setto — modular developer utilities",
   "main": "out/main/main.js",
   "scripts": {

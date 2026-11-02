@@ -207,11 +207,11 @@ export function pagoId(servicioId: string, mes: string): string {
   return `${servicioId}-${mes}`
 }
 
-/** Último monto conocido de un servicio antes (o en) `mes`. */
+/** Último monto conocido de un servicio antes (o en) `mes`. Las cuotas no cuentan: no son la factura. */
 export function lastKnownMonto(pagos: PagoMensual[], servicioId: string, mes: string): number {
   let best: PagoMensual | null = null
   for (const p of pagos) {
-    if (p.servicioId !== servicioId || p.mes > mes || p.monto <= 0) continue
+    if (p.servicioId !== servicioId || p.mes > mes || p.monto <= 0 || p.cuota) continue
     if (!best || p.mes > best.mes) best = p
   }
   return best?.monto ?? 0
@@ -219,7 +219,8 @@ export function lastKnownMonto(pagos: PagoMensual[], servicioId: string, mes: st
 
 /** Pagos pendientes a crear para cada servicio activo sin pago en `mes`. Nunca duplica. */
 export function buildPendientes(data: Pick<GastosData, 'servicios' | 'pagos'>, mes: string): PagoMensual[] {
-  const conPago = new Set(data.pagos.filter((p) => p.mes === mes).map((p) => p.servicioId))
+  // Una cuota de un plan anterior no es la factura del mes: ese mes igual lleva su pendiente.
+  const conPago = new Set(data.pagos.filter((p) => p.mes === mes && !p.cuota).map((p) => p.servicioId))
   const existingIds = new Set(data.pagos.map((p) => p.id))
   return data.servicios
     .filter((s) => s.activo && !conPago.has(s.id) && !existingIds.has(pagoId(s.id, mes)))
@@ -230,6 +231,31 @@ export function buildPendientes(data: Pick<GastosData, 'servicios' | 'pagos'>, m
       monto: lastKnownMonto(data.pagos, s.id, mes),
       pagado: false,
     }))
+}
+
+// ── Planes de pago ───────────────────────────────────────────────────────────
+
+/**
+ * Parte `total` en `cuotas` pagos de meses seguidos desde `desde`, cada uno en el mes en que se
+ * paga. Montos iguales redondeados al centavo; la última absorbe la diferencia. La primera
+ * conserva `primera` (id, fecha, método, pagado); las demás quedan pendientes.
+ */
+export function planDeCuotas(opts: {
+  plan: string
+  servicioId: string
+  desde: string
+  total: number
+  cuotas: number
+  primera: Pick<PagoMensual, 'pagado'> & Partial<Pick<PagoMensual, 'id' | 'fecha' | 'metodoPago' | 'notas'>>
+}): PagoMensual[] {
+  const { plan, servicioId, desde, total, cuotas, primera } = opts
+  const base = Math.round((total / cuotas) * 100) / 100
+  return Array.from({ length: cuotas }, (_, i) => {
+    const n = i + 1
+    const monto = n < cuotas ? base : Math.round((total - base * (cuotas - 1)) * 100) / 100
+    const p: PagoMensual = { id: `${plan}-${n}`, servicioId, mes: prevMes(desde, -i), monto, pagado: false, cuota: { plan, n, de: cuotas } }
+    return n === 1 ? { ...p, ...primera, id: primera.id ?? p.id } : p
+  })
 }
 
 // ── Presupuesto por categoría (lo usa también el main en `gastos:summary`; ver `budgets.ts`) ──

@@ -107,8 +107,8 @@ export function dropSuperseded(queue: PendingWrite[], done: PendingWrite): Pendi
 
 export type WriteErrorKind = 'missing-table' | 'offline' | 'rejected'
 
-/** Rechazos que no se arreglan reintentando: validación del main o restricciones de Postgres. */
-const REJECTED_RE = /Payload inválido|inválid[oa]|es requerid[oa]|demasiado larg|Demasiadas|violates|invalid input|duplicate key|out of range|value too long|null value in column|\b2[23][0-9A-Z]{3}\b|PGRST1\d\d/i
+/** Rechazos que no se arreglan reintentando: validación del main o restricciones de Postgres (PGRST204: columna que no existe). */
+const REJECTED_RE = /Payload inválido|inválid[oa]|es requerid[oa]|demasiado larg|Demasiadas|violates|invalid input|duplicate key|out of range|value too long|null value in column|\b2[23][0-9A-Z]{3}\b|PGRST1\d\d|PGRST204/i
 
 /** Tabla faltante → queda en cola sin bloquear; rechazo → se descarta; lo demás (red, config) → reintentar. */
 export function classifyWriteError(e: unknown): WriteErrorKind {

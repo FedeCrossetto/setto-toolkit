@@ -249,6 +249,46 @@ describe('GastosStorageService', () => {
     await expect(svc.savePago({ id: 'p', servicioId: 's', mes: '2026-10', monto: 1, pagado: false })).rejects.toThrow('GASTOS_TABLE_MISSING(pagos)')
   })
 
+  it('savePago: un pago común no manda columnas de cuotas (anda sin la migración 005)', async () => {
+    const svc = configured()
+    await svc.savePago({ id: 'p', servicioId: 's', mes: '2026-10', monto: 1, pagado: false })
+    expect(Object.keys(upserted[0]!.row as object)).not.toContain('plan_id')
+  })
+
+  it('savePago: una cuota manda plan, número, total y vencimiento; cuota null las limpia (deshacer un plan)', async () => {
+    const svc = configured()
+    await svc.savePago({ id: 'c', servicioId: 's', mes: '2026-11', monto: 5, pagado: false, cuota: { plan: 'p1', n: 2, de: 3, vence: '04/12' } })
+    await svc.savePago({ id: 'c', servicioId: 's', mes: '2026-11', monto: 5, pagado: false, cuota: null })
+    expect(upserted[0]!.row).toMatchObject({ plan_id: 'p1', cuota_n: 2, cuota_de: 3, cuota_vence: '04/12' })
+    expect(upserted[1]!.row).toMatchObject({ plan_id: null, cuota_n: null, cuota_de: null, cuota_vence: null })
+  })
+
+  it('savePagosBulk: con cuotas en el lote, todas las filas llevan las mismas columnas', async () => {
+    const svc = configured()
+    await svc.savePagosBulk([
+      { id: 'a', servicioId: 's', mes: '2026-11', monto: 1, pagado: true },
+      { id: 'b', servicioId: 's', mes: '2026-11', monto: 2, pagado: false, cuota: { plan: 'p', n: 1, de: 2 } },
+    ])
+    const rows = upserted[0]!.row as Array<Record<string, unknown>>
+    expect(Object.keys(rows[0]!).sort()).toEqual(Object.keys(rows[1]!).sort())
+    expect(rows[0]).toMatchObject({ plan_id: null, cuota_vence: null })
+    expect(rows[1]).toMatchObject({ plan_id: 'p', cuota_n: 1, cuota_de: 2, cuota_vence: null })
+  })
+
+  it('savePago: si falta la migración de cuotas avisa qué correr (PGRST204)', async () => {
+    const svc = configured()
+    tableErrors.pagos = { code: 'PGRST204', message: "Could not find the 'cuota_vence' column of 'pagos' in the schema cache" }
+    await expect(svc.savePago({ id: 'c', servicioId: 's', mes: '2026-11', monto: 5, pagado: false, cuota: { plan: 'p', n: 1, de: 2 } }))
+      .rejects.toThrow(/PGRST204.*005_pagos_cuotas\.sql/)
+  })
+
+  it('load: lee las cuotas con su vencimiento', async () => {
+    const svc = configured()
+    tableRows.pagos = [{ id: 'c', servicio_id: 's', mes: '2026-11', monto: 5, pagado: false, plan_id: 'p', cuota_n: 1, cuota_de: 2, cuota_vence: '04/11' }]
+    const res = await svc.load()
+    expect(res.pagos[0]!.cuota).toEqual({ plan: 'p', n: 1, de: 2, vence: '04/11' })
+  })
+
   // ── Caché local compartido ───────────────────────────────────────────────────
 
   it('local cache: empty by default, patches merge, prefs merge', () => {

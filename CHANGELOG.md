@@ -2,6 +2,22 @@
 
 Novedades de Setto por versión. Lo lee Ajustes → Acerca de → "Ver novedades".
 
+## 2.18.0 (sin publicar)
+
+### Nuevo
+- Gastos → planes de pago: una factura se puede pagar en 2 o 3 cuotas. Al cargar o editar un pago, "Plan de pago" arma una tablita como la del plan real (cuota, mes, vencimiento, día en que se pagó e importe); el total se recalcula con las cuotas y con la fecha de pago la cuota queda pagada. Cada cuota se guarda en el mes en que se paga y no reemplaza la factura de ese mes. Se puede deshacer.
+- Gastos → Tabla: el plan va entero en el mes de la factura que financia, en una sola línea (cuotas pagas y total) que despliega sus cuotas: verde pagada, roja por pagar.
+- Gastos → avisos de vencimiento también para las cuotas con vencimiento cargado (el día anterior, el mismo día y una vez vencida).
+- Gastos → Tabla: los servicios dados de baja siguen a la vista, tachados y al final de su categoría, con lo que se pagó; no muestran pendientes ni los generan. Se dan de baja o se reactivan desde su fila.
+- Gastos → Tabla más clara: sólo muestra y suma lo pagado (los pendientes dicen "a pagar", con el último importe en el tooltip), el mes actual está marcado, los meses que no llegaron van atenuados y la columna Total queda fija a la derecha.
+
+### Correcciones
+- Gastos: cargar la fecha de pago en un pendiente lo marca como pagado, y un pendiente que ya tenía fecha abre como pagado.
+- Gastos: al abrir un pendiente se propone el último importe pagado, no el que tenía cuando se creó.
+
+### Para actualizar
+- Correr `supabase/migrations/005_pagos_cuotas.sql` en el SQL Editor de Supabase (agrega las columnas de los planes de pago; se puede correr más de una vez).
+
 ## 2.17.0 (sin publicar)
 
 ### Nuevo

@@ -21,7 +21,7 @@ export function Servicios({ servicios, pagos, onAdd, onEdit, onDelete, onToggle 
     <div className="flex flex-col gap-5 max-w-3xl">
       <div className="flex items-center justify-between">
         <p className="t-footnote text-on-surface-variant">
-          {servicios.filter((s) => s.activo).length} activos · los inactivos no aparecen en la tabla ni generan pendientes.
+          {servicios.filter((s) => s.activo).length} activos · los inactivos aparecen tachados en la tabla y no generan pendientes.
         </p>
         <button type="button" className="ui-btn ui-btn-outline" onClick={onAdd}><Plus size={14} /> Nuevo servicio</button>
       </div>

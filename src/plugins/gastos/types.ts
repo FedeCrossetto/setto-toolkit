@@ -17,6 +17,20 @@ export interface PagoMensual {
   metodoPago?: string
   pagado: boolean
   notas?: string
+  /**
+   * Cuota de un plan de pago: va en el mes en que se paga, no es "la factura" de ese mes.
+   * `null` = dejó de ser cuota (deshacer un plan): limpia las columnas en Supabase.
+   */
+  cuota?: Cuota | null
+}
+
+/** "Cuota n de `de`" de un plan (todas las cuotas del plan comparten `plan`). */
+export interface Cuota {
+  plan: string
+  n: number
+  de: number
+  /** Vencimiento de la cuota ("DD/MM"), como figura en el plan. */
+  vence?: string
 }
 
 export interface QueryItem {

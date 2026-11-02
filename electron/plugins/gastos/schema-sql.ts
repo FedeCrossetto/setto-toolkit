@@ -44,6 +44,12 @@ ${policy('servicios')}`,
 );
 create index if not exists pagos_servicio_id_idx on public.pagos (servicio_id);
 create index if not exists pagos_mes_idx on public.pagos (mes);
+-- Planes de pago (005_pagos_cuotas.sql)
+alter table public.pagos add column if not exists plan_id  text;
+alter table public.pagos add column if not exists cuota_n  smallint;
+alter table public.pagos add column if not exists cuota_de smallint;
+alter table public.pagos add column if not exists cuota_vence text;
+create index if not exists pagos_plan_id_idx on public.pagos (plan_id);
 ${policy('pagos')}`,
 
   gastos: `create table if not exists public.gastos (
